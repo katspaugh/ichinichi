@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { MonthGrid } from './MonthGrid';
 import { Button } from '../Button';
 
@@ -10,6 +11,28 @@ interface CalendarProps {
 
 export function Calendar({ year, hasNote, onDayClick, onYearChange }: CalendarProps) {
   const months = Array.from({ length: 12 }, (_, i) => i);
+  const hasAutoScrolledRef = useRef(false);
+
+  useEffect(() => {
+    if (hasAutoScrolledRef.current) {
+      return;
+    }
+
+    const now = new Date();
+    if (year !== now.getFullYear()) {
+      return;
+    }
+
+    if (!window.matchMedia('(max-width: 768px)').matches) {
+      return;
+    }
+
+    const currentMonthEl = document.querySelector('[data-current-month="true"]');
+    if (currentMonthEl instanceof HTMLElement) {
+      currentMonthEl.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      hasAutoScrolledRef.current = true;
+    }
+  }, [year]);
 
   return (
     <div className="calendar">

@@ -19,6 +19,8 @@ interface MonthGridProps {
 export function MonthGrid({ year, month, hasNote, onDayClick }: MonthGridProps) {
   const weekdays = getWeekdays();
   const monthName = getMonthName(month);
+  const now = new Date();
+  const isCurrentMonth = year === now.getFullYear() && month === now.getMonth();
 
   const days = useMemo(() => {
     const daysInMonth = getDaysInMonth(year, month);
@@ -40,7 +42,7 @@ export function MonthGrid({ year, month, hasNote, onDayClick }: MonthGridProps) 
   }, [year, month]);
 
   return (
-    <div className="month-grid">
+    <div className="month-grid" data-current-month={isCurrentMonth ? 'true' : undefined}>
       <div className="month-grid__header">{monthName}</div>
       <div className="month-grid__weekdays">
         {weekdays.map(day => (
