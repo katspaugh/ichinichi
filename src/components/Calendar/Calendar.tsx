@@ -36,6 +36,10 @@ export function Calendar({
       return;
     }
 
+    if (now.getMonth() === 0) {
+      return;
+    }
+
     if (!window.matchMedia('(max-width: 768px)').matches) {
       return;
     }
