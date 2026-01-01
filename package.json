@@ -3,7 +3,8 @@
   "private": true,
   "version": "1.0.0",
   "description": "A minimalist daily note application - one note per day, forever",
-  "author": "Ivan",
+  "author": "katspaugh",
+  "repository": "https://github.com/katspaugh/dailynote",
   "type": "module",
   "scripts": {
     "dev": "vite",

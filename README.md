@@ -1,4 +1,4 @@
-# DailyNotes
+# DailyNote
 
 A minimalist daily notes application built with React and TypeScript. Write one note per day and view your entire year at a glance.
 
@@ -239,4 +239,4 @@ Built with modern web technologies and a focus on simplicity and user experience
 
 ---
 
-Made with care by Ivan
+Made with care by katspaugh

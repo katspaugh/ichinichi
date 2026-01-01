@@ -122,7 +122,7 @@ export function AppModals() {
       <Modal isOpen={showIntro} onClose={dismissIntro} variant="overlay">
         <div className="vault-unlock">
           <div className="vault-unlock__card">
-            <h2 className="vault-unlock__title">Welcome to DailyNotes</h2>
+            <h2 className="vault-unlock__title">Welcome to DailyNote</h2>
             <p className="vault-unlock__helper">
               A calm place for one note per day. No account required to start.
             </p>

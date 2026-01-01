@@ -14,7 +14,7 @@ export function AuthForm({ isBusy, error, onSignIn, onSignUp, defaultPassword }:
   const [password, setPassword] = useState(defaultPassword || '');
 
   const isSignIn = mode === 'signin';
-  const title = isSignIn ? 'Sign in to DailyNotes' : 'Create an account';
+  const title = isSignIn ? 'Sign in to DailyNote' : 'Create an account';
   const buttonText = isSignIn ? 'Sign in' : 'Create account';
   const toggleText = isSignIn
     ? "Don't have an account?"
