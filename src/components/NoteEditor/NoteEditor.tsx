@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { formatDateDisplay, isToday } from '../../utils/date';
+import { sanitizeHtml } from '../../utils/sanitize';
 
 interface NoteEditorProps {
   date: string;
@@ -8,20 +9,58 @@ interface NoteEditorProps {
 }
 
 export function NoteEditor({ date, content, onChange }: NoteEditorProps) {
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const editorRef = useRef<HTMLDivElement>(null);
   const isEditable = isToday(date);
   const formattedDate = formatDateDisplay(date);
 
-  const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    onChange(e.target.value);
+  // Handle content changes from contentEditable
+  const handleInput = useCallback((e: React.FormEvent<HTMLDivElement>) => {
+    const html = e.currentTarget.innerHTML;
+    // Sanitize immediately on input
+    const sanitized = sanitizeHtml(html);
+    onChange(sanitized);
   }, [onChange]);
 
-  // Focus textarea on mount if editable
+  // Update contentEditable when content prop changes
   useEffect(() => {
-    if (isEditable && textareaRef.current) {
-      textareaRef.current.focus();
+    if (editorRef.current && editorRef.current.innerHTML !== content) {
+      editorRef.current.innerHTML = content;
+    }
+  }, [content]);
+
+  // Focus editor on mount if editable
+  useEffect(() => {
+    if (isEditable && editorRef.current) {
+      editorRef.current.focus();
+
+      // Move cursor to end of content
+      const range = document.createRange();
+      const selection = window.getSelection();
+
+      // Only move cursor if there's content
+      if (editorRef.current.childNodes.length > 0) {
+        range.selectNodeContents(editorRef.current);
+        range.collapse(false); // false = collapse to end
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+      }
     }
   }, [isEditable]);
+
+  // Handle paste - sanitize pasted content
+  const handlePaste = useCallback((e: React.ClipboardEvent<HTMLDivElement>) => {
+    e.preventDefault();
+
+    // Get HTML from clipboard if available, otherwise plain text
+    const html = e.clipboardData.getData('text/html');
+    const text = e.clipboardData.getData('text/plain');
+
+    // Prefer HTML (preserves formatting) but sanitize it
+    const contentToPaste = html ? sanitizeHtml(html) : text;
+
+    // Insert at cursor position
+    document.execCommand('insertHTML', false, contentToPaste);
+  }, []);
 
   return (
     <div className="note-editor">
@@ -34,13 +73,14 @@ export function NoteEditor({ date, content, onChange }: NoteEditorProps) {
         </div>
       </div>
       <div className="note-editor__body">
-        <textarea
-          ref={textareaRef}
-          className="note-editor__textarea"
-          value={content}
-          onChange={handleChange}
-          readOnly={!isEditable}
-          placeholder={isEditable ? "Write your note for today..." : "No note for this day"}
+        <div
+          ref={editorRef}
+          className="note-editor__content"
+          contentEditable={isEditable}
+          onInput={handleInput}
+          onPaste={handlePaste}
+          data-placeholder={isEditable ? "Write your note for today..." : "No note for this day"}
+          suppressContentEditableWarning
         />
       </div>
     </div>

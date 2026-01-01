@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { noteStorage } from '../storage/noteStorage';
+import { isContentEmpty } from '../utils/sanitize';
 
 interface UseNotesReturn {
   content: string;
@@ -36,7 +37,8 @@ export function useNotes(date: string | null): UseNotesReturn {
   const setContent = useCallback((newContent: string) => {
     setContentState(newContent);
     if (date) {
-      if (newContent.trim()) {
+      // Use isContentEmpty to properly check HTML content
+      if (!isContentEmpty(newContent)) {
         noteStorage.save(date, newContent);
         setNoteDates(prev => new Set([...prev, date]));
       } else {
