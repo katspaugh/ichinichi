@@ -13,9 +13,18 @@ interface UseNotesReturn {
   isDecrypting: boolean;
 }
 
+interface YearDateRepository {
+  getAllDatesForYear: (year: number) => Promise<string[]>;
+}
+
+function supportsYearDates(repository: NoteRepository | null): repository is NoteRepository & YearDateRepository {
+  return !!repository && 'getAllDatesForYear' in repository;
+}
+
 export function useNotes(
   date: string | null,
   repository: NoteRepository | null,
+  year: number,
   onContentChange?: () => void
 ): UseNotesReturn {
   const [content, setContentState] = useState('');
@@ -24,16 +33,27 @@ export function useNotes(
   const saveQueueRef = useRef(Promise.resolve());
   const latestContentRef = useRef('');
   const shouldDelayDecryptRef = useRef(true);
+  const refreshInFlightRef = useRef<Promise<void> | null>(null);
 
   const refreshNoteDates = useCallback(() => {
     if (!repository) {
       setNoteDates(new Set());
       return;
     }
-    repository.getAllDates()
+    if (refreshInFlightRef.current) {
+      return;
+    }
+    const refreshPromise = (supportsYearDates(repository)
+      ? repository.getAllDatesForYear(year)
+      : repository.getAllDates()
+    )
       .then(dates => setNoteDates(new Set(dates)))
-      .catch(() => setNoteDates(new Set()));
-  }, [repository]);
+      .catch(() => setNoteDates(new Set()))
+      .finally(() => {
+        refreshInFlightRef.current = null;
+      });
+    refreshInFlightRef.current = refreshPromise;
+  }, [repository, year]);
 
   useEffect(() => {
     refreshNoteDates();

@@ -4,10 +4,10 @@ import type { NoteRepository } from './noteRepository';
 import { sanitizeHtml } from '../utils/sanitize';
 import { bytesToBase64, base64ToBytes, encodeUtf8, decodeUtf8, randomBytes } from './cryptoUtils';
 import {
-  fetchRemoteNotes,
+  fetchNoteIndex,
+  fetchRemoteNoteByDate,
   pushNote,
-  decryptNote,
-  resolveConflict
+  decryptNote
 } from './syncService';
 
 const NOTE_IV_BYTES = 12;
@@ -123,35 +123,6 @@ async function getAllLocalNotes(): Promise<Map<string, LocalNotePayload>> {
   });
 }
 
-async function getLastSyncTime(): Promise<string | null> {
-  const db = await openLocalDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(META_STORE, 'readonly');
-    const store = tx.objectStore(META_STORE);
-    const request = store.get('lastSync');
-    request.onsuccess = () => resolve(request.result ?? null);
-    request.onerror = () => reject(request.error);
-    tx.oncomplete = () => db.close();
-  });
-}
-
-async function setLastSyncTime(time: string): Promise<void> {
-  const db = await openLocalDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(META_STORE, 'readwrite');
-    const store = tx.objectStore(META_STORE);
-    store.put(time, 'lastSync');
-    tx.oncomplete = () => {
-      db.close();
-      resolve();
-    };
-    tx.onerror = () => {
-      db.close();
-      reject(tx.error);
-    };
-  });
-}
-
 async function encryptForLocal(
   vaultKey: CryptoKey,
   note: SyncedNote
@@ -206,6 +177,7 @@ export interface SyncedNoteRepository extends NoteRepository {
   getSyncStatus(): SyncStatus;
   onSyncStatusChange(callback: (status: SyncStatus) => void): () => void;
   saveWithMetadata(note: SyncedNote): Promise<void>;
+  getAllDatesForYear(year: number): Promise<string[]>;
 }
 
 export function createSyncedNoteRepository(
@@ -230,52 +202,6 @@ export function createSyncedNoteRepository(
     setSyncStatus('syncing');
 
     try {
-      const lastSync = await getLastSyncTime();
-      const localNotes = await getAllLocalNotes();
-
-      // Pull remote changes
-      const remoteNotes = await fetchRemoteNotes(supabase, userId, lastSync ?? undefined);
-
-      let latestServerTime = lastSync;
-
-      for (const remote of remoteNotes) {
-        const local = localNotes.get(remote.date);
-
-        if (!local || !local.dirty) {
-          // No local changes or local is clean - accept remote
-          const decrypted = await decryptNote(vaultKey, remote);
-          if (remote.deleted) {
-            await deleteLocalNote(remote.date);
-          } else {
-            const localPayload = await encryptForLocal(vaultKey, decrypted);
-            await setLocalNote(remote.date, localPayload);
-          }
-        } else {
-          // Local has dirty changes - resolve conflict
-          const localNote = await decryptFromLocal(vaultKey, local);
-          const remoteNote = await decryptNote(vaultKey, remote);
-
-          const winner = resolveConflict(localNote, remoteNote);
-
-          if (winner === 'remote') {
-            if (remote.deleted) {
-              await deleteLocalNote(remote.date);
-            } else {
-              const localPayload = await encryptForLocal(vaultKey, remoteNote);
-              await setLocalNote(remote.date, localPayload);
-            }
-          }
-          // If local wins, it stays dirty and will be pushed
-        }
-
-        if (
-          remote.serverUpdatedAt &&
-          (!latestServerTime || remote.serverUpdatedAt > latestServerTime)
-        ) {
-          latestServerTime = remote.serverUpdatedAt;
-        }
-      }
-
       // Push dirty local notes
       const updatedLocalNotes = await getAllLocalNotes();
       for (const [date, local] of updatedLocalNotes) {
@@ -285,18 +211,7 @@ export function createSyncedNoteRepository(
           const decrypted = await decryptNote(vaultKey, pushed);
           const updated = await encryptForLocal(vaultKey, decrypted);
           await setLocalNote(date, updated);
-
-          if (
-            pushed.serverUpdatedAt &&
-            (!latestServerTime || pushed.serverUpdatedAt > latestServerTime)
-          ) {
-            latestServerTime = pushed.serverUpdatedAt;
-          }
         }
-      }
-
-      if (latestServerTime) {
-        await setLastSyncTime(latestServerTime);
       }
 
       setSyncStatus('synced');
@@ -309,12 +224,41 @@ export function createSyncedNoteRepository(
   return {
     async get(date: string): Promise<Note | null> {
       const local = await getLocalNote(date);
-      if (!local || local.deleted) return null;
-      const note = await decryptFromLocal(vaultKey, local);
+      if (local?.deleted) return null;
+      if (local && (local.dirty || !navigator.onLine)) {
+        const note = await decryptFromLocal(vaultKey, local);
+        return {
+          date: note.date,
+          content: note.content,
+          updatedAt: note.updatedAt
+        };
+      }
+
+      if (!navigator.onLine) {
+        return null;
+      }
+
+      const remote = await fetchRemoteNoteByDate(supabase, userId, date);
+      if (!remote || remote.deleted) {
+        if (local) {
+          const note = await decryptFromLocal(vaultKey, local);
+          return {
+            date: note.date,
+            content: note.content,
+            updatedAt: note.updatedAt
+          };
+        }
+        return null;
+      }
+
+      const decrypted = await decryptNote(vaultKey, remote);
+      const payload = await encryptForLocal(vaultKey, decrypted);
+      await setLocalNote(date, payload);
+
       return {
-        date: note.date,
-        content: note.content,
-        updatedAt: note.updatedAt
+        date: decrypted.date,
+        content: decrypted.content,
+        updatedAt: decrypted.updatedAt
       };
     },
 
@@ -365,10 +309,42 @@ export function createSyncedNoteRepository(
     },
 
     async getAllDates(): Promise<string[]> {
-      const notes = await getAllLocalNotes();
-      return Array.from(notes.entries())
+      const localNotes = await getAllLocalNotes();
+      const localDates = Array.from(localNotes.entries())
         .filter(([, note]) => !note.deleted)
         .map(([date]) => date);
+
+      if (!navigator.onLine) {
+        return localDates;
+      }
+
+      try {
+        const remoteDates = await fetchNoteIndex(supabase, userId);
+        const merged = new Set<string>([...remoteDates, ...localDates]);
+        return Array.from(merged);
+      } catch {
+        return localDates;
+      }
+    },
+
+    async getAllDatesForYear(year: number): Promise<string[]> {
+      const localNotes = await getAllLocalNotes();
+      const localDates = Array.from(localNotes.entries())
+        .filter(([, note]) => !note.deleted)
+        .map(([date]) => date)
+        .filter((date) => date.slice(-4) === String(year));
+
+      if (!navigator.onLine) {
+        return localDates;
+      }
+
+      try {
+        const remoteDates = await fetchNoteIndex(supabase, userId, year);
+        const merged = new Set<string>([...remoteDates, ...localDates]);
+        return Array.from(merged);
+      } catch {
+        return localDates;
+      }
     },
 
     sync,

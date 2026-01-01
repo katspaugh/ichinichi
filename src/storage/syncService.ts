@@ -78,28 +78,25 @@ export async function decryptNote(
   };
 }
 
-export async function fetchRemoteNotes(
+export async function fetchRemoteNoteByDate(
   supabase: SupabaseClient,
   userId: string,
-  since?: string
-): Promise<EncryptedRemoteNote[]> {
-  let query = supabase
+  date: string
+): Promise<EncryptedRemoteNote | null> {
+  const { data, error } = await supabase
     .from('notes')
     .select('*')
     .eq('user_id', userId)
-    .order('server_updated_at', { ascending: true });
-
-  if (since) {
-    query = query.gt('server_updated_at', since);
-  }
-
-  const { data, error } = await query;
+    .eq('date', date)
+    .maybeSingle();
 
   if (error) {
     throw error;
   }
 
-  return (data as RemoteNoteRow[]).map((row) => ({
+  if (!data) return null;
+  const row = data as RemoteNoteRow;
+  return {
     id: row.id,
     date: row.date,
     ciphertext: row.ciphertext,
@@ -108,7 +105,30 @@ export async function fetchRemoteNotes(
     updatedAt: row.updated_at,
     serverUpdatedAt: row.server_updated_at,
     deleted: row.deleted
-  }));
+  };
+}
+
+export async function fetchNoteIndex(
+  supabase: SupabaseClient,
+  userId: string,
+  year?: number
+): Promise<string[]> {
+  let query = supabase
+    .from('note_index')
+    .select('date')
+    .eq('user_id', userId);
+
+  if (typeof year === 'number') {
+    query = query.eq('year', year);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []).map((row) => String((row as { date: string }).date));
 }
 
 export async function pushNote(

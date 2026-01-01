@@ -66,14 +66,15 @@ function App() {
 
   // Auto-detect mode on load
   useEffect(() => {
-    if (mode === 'local' || mode === 'cloud') return;
+    if (mode === 'cloud') return;
 
-    // If user is already signed in to cloud, use cloud mode
+    // If user is signed in, prefer cloud mode even after initial load.
     if (auth.authState === 'signed_in') {
       setMode('cloud');
       return;
     }
 
+    if (mode === 'local') return;
     setMode('local');
   }, [mode, auth.authState]);
 
@@ -101,6 +102,7 @@ function App() {
   const { content, setContent, hasNote, isDecrypting, refreshNoteDates, noteDates } = useNotes(
     date,
     repository,
+    year,
     mode === 'cloud' ? triggerSync : undefined
   );
 
