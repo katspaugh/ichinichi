@@ -597,3 +597,17 @@
   color: var(--color-text);
   background-color: var(--color-surface);
 }
+
+@media (max-width: 768px) {
+  .calendar__header {
+    flex-wrap: wrap;
+    gap: var(--spacing-md);
+  }
+
+  .calendar__header-actions {
+    position: static;
+    width: 100%;
+    justify-content: flex-end;
+    order: -1;
+  }
+}
