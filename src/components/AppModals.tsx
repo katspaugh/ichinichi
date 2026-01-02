@@ -102,7 +102,7 @@ export function AppModals() {
     enabled: isNoteModalOpen && !isDecrypting,
     onPrevious: navigateToPrevious,
     onNext: navigateToNext,
-    contentEditableSelector: '.note-editor__content'
+    contentEditableSelector: '.note-editor__content .ProseMirror'
   });
 
   // Swipe gesture navigation (mobile)

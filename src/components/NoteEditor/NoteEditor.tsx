@@ -1,7 +1,7 @@
 import { formatDateDisplay } from '../../utils/date';
 import { canEditNote } from '../../utils/noteRules';
 import { NoteEditorView } from './NoteEditorView';
-import { useContentEditable } from './useContentEditable';
+import { useProseMirrorEditor } from './useProseMirrorEditor';
 import { useSavingIndicator } from './useSavingIndicator';
 import { useInlineImageUpload, useInlineImageUrls } from './useInlineImages';
 import { useImageDragState } from './useImageDragState';
@@ -49,21 +49,13 @@ export function NoteEditor({
     isEditable
   });
 
-  const {
-    editorRef,
-    handleInput,
-    handlePaste,
-    handleDrop,
-    handleDragOver,
-    handleDragEnter,
-    handleDragLeave
-  } = useContentEditable({
+  const { editorRef } = useProseMirrorEditor({
     content: displayContent,
     isEditable,
+    placeholderText,
     onChange,
     onUserInput: scheduleSavingIndicator,
     onImageDrop,
-    isDraggingImage,
     onDropComplete: endImageDrag
   });
 
@@ -80,12 +72,6 @@ export function NoteEditor({
       statusText={statusText}
       placeholderText={placeholderText}
       editorRef={editorRef}
-      onInput={handleInput}
-      onPaste={handlePaste}
-      onDrop={handleDrop}
-      onDragOver={handleDragOver}
-      onDragEnter={handleDragEnter}
-      onDragLeave={handleDragLeave}
       isDraggingImage={isDraggingImage}
     />
   );

@@ -388,22 +388,52 @@
 .note-editor__content {
   flex: 1;
   width: 100%;
-  padding: 0 var(--spacing-2xl);
+  padding: 0;
   border: none;
   background-color: transparent;
   color: var(--color-text);
   line-height: var(--line-height-relaxed);
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;
   word-wrap: break-word;
   outline: none;
   min-height: 0;
   -webkit-overflow-scrolling: touch;
 }
 
+/* ProseMirror editable surface */
+.note-editor__content .ProseMirror {
+  min-height: 100%;
+  height: 100%;
+  padding: 0 var(--spacing-2xl);
+  outline: none;
+  white-space: pre-wrap;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-color: var(--color-border) transparent;
+  scrollbar-width: thin;
+}
 
-/* Placeholder for contentEditable */
-.note-editor__content:empty:before {
+.note-editor__content .ProseMirror-separator {
+  display: none;
+}
+
+.note-editor__content .ProseMirror::-webkit-scrollbar {
+  width: 6px;
+}
+
+.note-editor__content .ProseMirror::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.note-editor__content .ProseMirror::-webkit-scrollbar-thumb {
+  background-color: var(--color-border);
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background-clip: content-box;
+}
+
+/* Placeholder for ProseMirror */
+.note-editor__content .ProseMirror.is-empty:before {
   content: attr(data-placeholder);
   color: var(--color-text-muted);
   pointer-events: none;
@@ -434,6 +464,52 @@
 .note-editor__content strike,
 .note-editor__content del {
   text-decoration: line-through;
+}
+
+.note-editor__content h1,
+.note-editor__content h2,
+.note-editor__content h3,
+.note-editor__content h4,
+.note-editor__content h5,
+.note-editor__content h6 {
+  margin: 0 0 var(--spacing-sm);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+}
+
+.note-editor__content h1 { font-size: 1.75rem; }
+.note-editor__content h2 { font-size: 1.5rem; }
+.note-editor__content h3 { font-size: 1.25rem; }
+.note-editor__content h4 { font-size: 1.1rem; }
+.note-editor__content h5 { font-size: 1rem; }
+.note-editor__content h6 { font-size: 0.95rem; }
+
+.note-editor__content code {
+  font-family: var(--font-family-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);
+  font-size: 0.9em;
+  background-color: rgba(37, 99, 235, 0.08);
+  padding: 0 0.25em;
+  border-radius: 4px;
+}
+
+.note-editor__content a {
+  color: var(--color-note-indicator);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.note-editor__content a[contenteditable="false"] {
+  user-select: none;
+}
+
+.note-editor__content label[data-task="true"] {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.note-editor__content input[type="checkbox"] {
+  accent-color: var(--color-note-indicator);
 }
 
 .note-editor__content p {
