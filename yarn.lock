@@ -4479,7 +4479,7 @@ v8-to-istanbul@^9.0.1:
     "@types/istanbul-lib-coverage" "^2.0.1"
     convert-source-map "^2.0.0"
 
-vite-plugin-sri@^1.2.1:
+vite-plugin-sri@^0.0.2:
   version "0.0.2"
   resolved "https://registry.yarnpkg.com/vite-plugin-sri/-/vite-plugin-sri-0.0.2.tgz#3c63cb0904ca5ae126406813f03299af769489f2"
   integrity sha512-oTpYWvS9xmwee3kK39cr8p2KbQ+/HzOG0bxo0dzMogJ4lR11favOzrapwb2eASVt5rX3LEzG25bEqoSY4CUniA==
