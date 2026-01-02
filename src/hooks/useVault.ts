@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import { fetchUserKeys } from '../storage/userKeys';
 import { fetchUserKeyring, saveUserKeyringEntry } from '../storage/userKeyring';
 import type { UserKeyringEntry } from '../storage/userKeyring';
 import { computeKeyId } from '../storage/keyId';
@@ -97,31 +96,7 @@ export function useVault({
         let nextPrimaryId: string | null = null;
 
         // Fetch existing keys from Supabase
-        let existingKeyrings = await fetchUserKeyring(supabase, user.id);
-        if (!existingKeyrings.length) {
-          const legacy = await fetchUserKeys(supabase, user.id);
-          if (legacy) {
-            const kek = await deriveKEK(
-              password,
-              legacy.kdfSalt,
-              legacy.kdfIterations
-            );
-            const dek = await unwrapDEK(legacy.wrappedDek, legacy.dekIv, kek);
-            const migrated: UserKeyringEntry = {
-              keyId: 'legacy',
-              wrappedDek: legacy.wrappedDek,
-              dekIv: legacy.dekIv,
-              kdfSalt: legacy.kdfSalt,
-              kdfIterations: legacy.kdfIterations,
-              version: legacy.version,
-              isPrimary: true
-            };
-            await saveUserKeyringEntry(supabase, user.id, migrated);
-            existingKeyrings = [migrated];
-            nextKeyring.set('legacy', dek);
-            nextPrimaryId = 'legacy';
-          }
-        }
+        const existingKeyrings = await fetchUserKeyring(supabase, user.id);
 
         let dek: CryptoKey | null = null;
 

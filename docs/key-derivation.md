@@ -15,7 +15,7 @@ Because notes are encrypted with the DEK, changing your password only changes ho
 
 - KEK derivation, DEK wrapping/unwrapping: `src/storage/vault.ts`
 - Cloud unlock flow: `src/hooks/useVault.ts`
-- Supabase storage for wrapped DEK: `src/storage/userKeys.ts`
+- Supabase storage for wrapped DEKs: `src/storage/userKeyring.ts`
 - Note encryption/decryption: `src/storage/syncService.ts`, `src/storage/noteStorage.ts`
 
 ## Cloud mode flow (step-by-step)
