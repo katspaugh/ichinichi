@@ -179,6 +179,7 @@ src/
 ## Encryption and Data Storage
 
 For a deeper explanation of the key hierarchy and unlock flow, see `docs/key-derivation.md`.
+For the data flow across local storage and cloud sync, see `docs/data-flow.md`.
 
 ### Local mode (default)
 - A device-bound vault key is created on first load without prompting.
