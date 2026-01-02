@@ -1,13 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
-  hasVaultMeta,
-  createVault,
-  createRandomVault,
-  unlockWithPassword,
-  tryUnlockWithDeviceKey,
-  ensureDeviceWrappedKey,
-  canUseDeviceKey
-} from '../storage/vault';
+  bootstrapLocalVault,
+  getHasLocalVault,
+  unlockLocalVault
+} from '../services/vaultService';
 
 export interface UseLocalVaultReturn {
   vaultKey: CryptoKey | null;
@@ -23,7 +19,7 @@ export interface UseLocalVaultReturn {
 export function useLocalVault(): UseLocalVaultReturn {
   const [vaultKey, setVaultKey] = useState<CryptoKey | null>(null);
   const [isReady, setIsReady] = useState(false);
-  const [hasVault, setHasVault] = useState(hasVaultMeta());
+  const [hasVault, setHasVault] = useState(getHasLocalVault());
   const [requiresPassword, setRequiresPassword] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,45 +28,21 @@ export function useLocalVault(): UseLocalVaultReturn {
     let cancelled = false;
 
     const load = async () => {
-      const existing = hasVaultMeta();
-      if (!cancelled) {
-        setHasVault(existing);
-      }
-
-      if (!existing) {
-        try {
-          const deviceKeyAvailable = await canUseDeviceKey();
-          if (deviceKeyAvailable) {
-            const key = await createRandomVault();
-            if (!cancelled) {
-              setVaultKey(key);
-              setHasVault(true);
-              setRequiresPassword(false);
-            }
-          } else if (!cancelled) {
-            setRequiresPassword(true);
-          }
-        } catch {
-          if (!cancelled) {
-            setError('Unable to initialize local vault.');
-          }
-        }
+      try {
+        const result = await bootstrapLocalVault();
         if (!cancelled) {
+          setHasVault(result.hasVault);
+          setRequiresPassword(result.requiresPassword);
+          if (result.vaultKey) {
+            setVaultKey(result.vaultKey);
+          }
           setIsReady(true);
         }
-        return;
-      }
-
-      // Try device key unlock
-      const unlocked = await tryUnlockWithDeviceKey();
-      if (!cancelled) {
-        if (unlocked) {
-          setVaultKey(unlocked);
-          setRequiresPassword(false);
-        } else {
-          setRequiresPassword(true);
+      } catch {
+        if (!cancelled) {
+          setError('Unable to initialize local vault.');
+          setIsReady(true);
         }
-        setIsReady(true);
       }
     };
 
@@ -90,15 +62,9 @@ export function useLocalVault(): UseLocalVaultReturn {
     setError(null);
 
     try {
-      let key: CryptoKey;
-      if (hasVault) {
-        key = await unlockWithPassword(password);
-      } else {
-        key = await createVault(password);
-        setHasVault(true);
-      }
-      await ensureDeviceWrappedKey(key);
-      setVaultKey(key);
+      const result = await unlockLocalVault({ password, hasVault });
+      setVaultKey(result.vaultKey);
+      setHasVault(result.hasVault);
       setRequiresPassword(false);
       return true;
     } catch {

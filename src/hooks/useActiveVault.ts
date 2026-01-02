@@ -3,7 +3,7 @@ import type { UseAuthReturn } from './useAuth';
 import { useLocalVault } from './useLocalVault';
 import { useVault } from './useVault';
 import { AppMode } from './useAppMode';
-import { tryUnlockWithDeviceDEK } from '../storage/vault';
+import { tryDeviceUnlockCloudKey } from '../services/vaultService';
 import { computeKeyId } from '../storage/keyId';
 import { listLocalKeyIds, restoreLocalWrappedKey, storeLocalWrappedKey } from '../storage/localKeyring';
 
@@ -61,9 +61,9 @@ export function useActiveVault({ auth, mode, setMode }: UseActiveVaultProps): Us
     let cancelled = false;
 
     const restoreCloudKey = async () => {
-      const dek = await tryUnlockWithDeviceDEK();
-      if (!cancelled && dek) {
-        setRestoredCloudVaultKey(dek);
+      const result = await tryDeviceUnlockCloudKey();
+      if (!cancelled && result) {
+        setRestoredCloudVaultKey(result.vaultKey);
         return;
       }
     };
