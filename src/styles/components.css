@@ -293,6 +293,15 @@
   background-color: var(--color-note-indicator);
 }
 
+/* Note Editor wrapper - for swipe gestures */
+.note-editor-wrapper {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
 /* Note Editor */
 .note-editor {
   display: flex;

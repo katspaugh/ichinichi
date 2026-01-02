@@ -295,7 +295,7 @@ export function AppModals() {
               disabled={!canNavigateNext}
               ariaLabel="Next note"
             />
-            <div ref={modalContentRef}>
+            <div ref={modalContentRef} className="note-editor-wrapper">
               <NoteEditor
                 date={date}
                 content={isContentReady ? content : ''}
