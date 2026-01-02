@@ -34,6 +34,8 @@ function App() {
     year
   });
 
+  const canSync = notes.capabilities.canSync;
+
   return (
     <UrlStateProvider value={urlState}>
       <AppModeProvider value={appMode}>
@@ -46,8 +48,8 @@ function App() {
                 hasNote={notes.hasNote}
                 onDayClick={activeVault.isVaultUnlocked ? navigateToDate : undefined}
                 onYearChange={navigateToYear}
-                syncStatus={appMode.mode === AppMode.Cloud && activeVault.isVaultUnlocked ? notes.syncStatus : undefined}
-                pendingOps={appMode.mode === AppMode.Cloud && activeVault.isVaultUnlocked ? notes.pendingOps : undefined}
+                syncStatus={canSync ? notes.syncStatus : undefined}
+                pendingOps={canSync ? notes.pendingOps : undefined}
                 onSignIn={appMode.mode !== AppMode.Cloud && auth.authState !== AuthState.SignedIn ? appMode.switchToCloud : undefined}
                 onSignOut={appMode.mode === AppMode.Cloud && auth.authState === AuthState.SignedIn ? activeVault.handleSignOut : undefined}
               />

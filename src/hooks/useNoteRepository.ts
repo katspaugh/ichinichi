@@ -31,6 +31,10 @@ export interface UseNoteRepositoryReturn {
   triggerSync: ReturnType<typeof useSync>['triggerSync'];
   queueIdleSync: ReturnType<typeof useSync>['queueIdleSync'];
   pendingOps: ReturnType<typeof useSync>['pendingOps'];
+  capabilities: {
+    canSync: boolean;
+    canUploadImages: boolean;
+  };
   content: string;
   setContent: (content: string) => void;
   hasEdits: boolean;
@@ -81,6 +85,10 @@ export function useNoteRepository({
     mode === AppMode.Cloud && userId ? (repository as UnifiedSyncedNoteRepository) : null;
   const { syncStatus, triggerSync, queueIdleSync, pendingOps } = useSync(syncedRepo);
   const { hasNote, noteDates, refreshNoteDates } = useNoteDates(repository, year);
+  const capabilities = useMemo(() => ({
+    canSync: !!syncedRepo,
+    canUploadImages: !!imageRepository
+  }), [syncedRepo, imageRepository]);
   const refreshTimerRef = useRef<number | null>(null);
   const handleAfterSave = useCallback(() => {
     if (refreshTimerRef.current !== null) {
@@ -117,6 +125,7 @@ export function useNoteRepository({
     triggerSync,
     queueIdleSync,
     pendingOps,
+    capabilities,
     content,
     setContent,
     hasEdits,
