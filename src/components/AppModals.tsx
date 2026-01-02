@@ -16,6 +16,7 @@ import { useActiveVaultContext } from '../contexts/activeVaultContext';
 import { useAppModeContext } from '../contexts/appModeContext';
 import { useNoteRepositoryContext } from '../contexts/noteRepositoryContext';
 import { useUrlStateContext } from '../contexts/urlStateContext';
+import { useVaultUiState } from '../hooks/useVaultUiState';
 
 export function AppModals() {
   const {
@@ -140,41 +141,40 @@ export function AppModals() {
     };
   }, [mode, isVaultUnlocked, triggerSync]);
 
-  const showLocalVaultModal = !showIntro &&
-    mode === AppMode.Local &&
-    isVaultLocked &&
-    localVault.isReady &&
-    localVault.requiresPassword;
   const isSigningIn = auth.authState === AuthState.Loading ||
     (mode === AppMode.Cloud && auth.authState === AuthState.SignedIn && (!cloudVault.isReady || cloudVault.isBusy));
-  const showCloudAuthModal = !showIntro &&
-    mode === AppMode.Cloud && (
-      auth.authState === AuthState.SignedOut ||
-      auth.authState === AuthState.AwaitingConfirmation ||
-      isSigningIn
-    );
-
-  const showModeChoice = isModeChoiceOpen && !showIntro;
+  const vaultUiState = useVaultUiState({
+    showIntro,
+    isModeChoiceOpen,
+    mode,
+    authState: auth.authState,
+    isSigningIn,
+    isVaultReady,
+    isVaultLocked,
+    vaultError,
+    localVaultReady: localVault.isReady,
+    localRequiresPassword: localVault.requiresPassword
+  });
 
   const shouldRenderNoteEditor = isNoteModalOpen && (showModalContent || isClosing);
 
   return (
     <>
       <IntroModal
-        isOpen={showIntro}
+        isOpen={vaultUiState === 'intro'}
         onDismiss={dismissIntro}
         onStartWriting={startWriting}
         onSetupSync={switchToCloud}
       />
 
       <ModeChoiceModal
-        isOpen={showModeChoice}
+        isOpen={vaultUiState === 'modeChoice'}
         onConfirm={switchToCloud}
         onDismiss={closeModeChoice}
       />
 
       <LocalVaultModal
-        isOpen={showLocalVaultModal}
+        isOpen={vaultUiState === 'localVault'}
         hasVault={localVault.hasVault}
         isBusy={localVault.isBusy}
         error={localVault.error}
@@ -183,7 +183,7 @@ export function AppModals() {
       />
 
       <CloudAuthModal
-        isOpen={showCloudAuthModal}
+        isOpen={vaultUiState === 'cloudAuth'}
         isSigningIn={isSigningIn}
         authState={auth.authState}
         confirmationEmail={auth.confirmationEmail}
@@ -196,7 +196,7 @@ export function AppModals() {
       />
 
       <VaultErrorModal
-        isOpen={!!vaultError && isVaultReady && !showIntro}
+        isOpen={vaultUiState === 'vaultError'}
         error={vaultError}
         mode={mode}
         onSignOut={handleSignOut}
