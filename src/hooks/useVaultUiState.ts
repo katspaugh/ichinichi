@@ -64,18 +64,7 @@ export function useVaultUiState(inputs: VaultUiInputs): VaultUiState {
 
   useEffect(() => {
     dispatch({ type: 'sync', payload: inputs });
-  }, [
-    inputs.authState,
-    inputs.isModeChoiceOpen,
-    inputs.isSigningIn,
-    inputs.isVaultLocked,
-    inputs.isVaultReady,
-    inputs.localRequiresPassword,
-    inputs.localVaultReady,
-    inputs.mode,
-    inputs.showIntro,
-    inputs.vaultError
-  ]);
+  }, [inputs]);
 
   return state;
 }
