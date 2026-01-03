@@ -229,7 +229,6 @@ export function useProseMirrorEditor({
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const lastContentRef = useRef('');
-  const initialContentRef = useRef(content);
   const isEditableRef = useRef(isEditable);
   const placeholderRef = useRef(placeholderText);
   const onChangeRef = useRef(onChange);
@@ -306,7 +305,7 @@ export function useProseMirrorEditor({
 
     if (!editorRef.current || viewRef.current) return;
 
-    const doc = parseHtmlToDoc(initialContentRef.current);
+    const doc = parseHtmlToDoc(content);
     const state = EditorState.create({ doc, plugins });
     const view = new EditorView(editorRef.current, {
       state,
@@ -434,14 +433,14 @@ export function useProseMirrorEditor({
     });
 
     view.dom.setAttribute('data-placeholder', placeholderRef.current);
-    lastContentRef.current = initialContentRef.current;
+    lastContentRef.current = content;
     viewRef.current = view;
 
     return () => {
       view.destroy();
       viewRef.current = null;
     };
-  }, [plugins, isEnabled]);
+  }, [plugins, isEnabled, content]);
 
   useEffect(() => {
     const view = viewRef.current;
