@@ -381,6 +381,11 @@ export function createUnifiedSyncedNoteRepository(
       return await decryptLocalNote(toLocalRecord(remote), keyring);
     }
 
+    // Skip conflict resolution if local is already synced with this remote version
+    if (meta.serverUpdatedAt === remote.serverUpdatedAt && !meta.pendingOp) {
+      return await decryptLocalNote(localRecord, keyring);
+    }
+
     // Resolve conflict between local and remote
     const resolved = await resolveConflict(
       { supabase, userId, keyring, localRecord, localMeta: meta, remote },
