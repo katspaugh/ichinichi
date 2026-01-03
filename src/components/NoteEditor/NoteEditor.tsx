@@ -101,8 +101,6 @@ export function NoteEditor({
           // Restore scroll position - selection changes can cause scroll jumps on mobile
           el.scrollTop = scrollTop;
         }
-      }
-      if (document.activeElement === el) {
         lastFocusedDateRef.current = date;
       }
     };
@@ -110,7 +108,10 @@ export function NoteEditor({
       focusEditor();
     });
     const retryTimer = window.setTimeout(() => {
-      focusEditor();
+      // Only retry if we still haven't focused the editor
+      if (lastFocusedDateRef.current !== date) {
+        focusEditor();
+      }
     }, 120);
     return () => {
       cancelAnimationFrame(frame);
