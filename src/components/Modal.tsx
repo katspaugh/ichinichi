@@ -23,38 +23,19 @@ export function Modal({ isOpen, onClose, children, variant = 'default' }: ModalP
 
   useEffect(() => {
     if (isOpen) {
-      const scrollY = window.scrollY;
       const bodyStyle = document.body.style;
       const htmlStyle = document.documentElement.style;
-      const prevBody = {
-        overflow: bodyStyle.overflow,
-        position: bodyStyle.position,
-        top: bodyStyle.top,
-        left: bodyStyle.left,
-        right: bodyStyle.right,
-        width: bodyStyle.width
-      };
+      const prevBodyOverflow = bodyStyle.overflow;
       const prevHtmlOverflow = htmlStyle.overflow;
 
       document.addEventListener('keydown', handleKeyDown);
       bodyStyle.overflow = 'hidden';
       htmlStyle.overflow = 'hidden';
-      bodyStyle.position = 'fixed';
-      bodyStyle.top = `-${scrollY}px`;
-      bodyStyle.left = '0';
-      bodyStyle.right = '0';
-      bodyStyle.width = '100%';
 
       return () => {
         document.removeEventListener('keydown', handleKeyDown);
-        bodyStyle.overflow = prevBody.overflow;
-        bodyStyle.position = prevBody.position;
-        bodyStyle.top = prevBody.top;
-        bodyStyle.left = prevBody.left;
-        bodyStyle.right = prevBody.right;
-        bodyStyle.width = prevBody.width;
+        bodyStyle.overflow = prevBodyOverflow;
         htmlStyle.overflow = prevHtmlOverflow;
-        window.scrollTo(0, scrollY);
       };
     }
 
