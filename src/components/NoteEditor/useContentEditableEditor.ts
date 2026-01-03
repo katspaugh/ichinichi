@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
-import type { ClipboardEvent, DragEvent, MouseEvent } from 'react';
+import type { ClipboardEvent, DragEvent, KeyboardEvent, MouseEvent } from 'react';
 import { linkifyElement } from '../../utils/linkify';
 
 interface ContentEditableOptions {
@@ -297,12 +297,27 @@ export function useContentEditableEditor({
     }
   }, []);
 
+  const handleKeyDown = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
+    if (!isEditableRef.current) return;
+
+    // Cmd+Shift+X (Mac) or Ctrl+Shift+X (Windows/Linux) for strikethrough
+    const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+    const modifierKey = isMac ? event.metaKey : event.ctrlKey;
+
+    if (modifierKey && event.shiftKey && event.key.toLowerCase() === 'x') {
+      event.preventDefault();
+      document.execCommand('strikeThrough', false);
+      handleInput();
+    }
+  }, [handleInput]);
+
   return {
     editorRef,
     handleInput,
     handlePaste,
     handleDrop,
     handleDragOver,
-    handleClick
+    handleClick,
+    handleKeyDown
   };
 }
