@@ -75,7 +75,7 @@ export async function fetchRemoteNoteDates(
     .eq('deleted', false);
 
   if (typeof year === 'number') {
-    query = query.like('date', `%${year}`);
+    query = query.eq('note_year', year);
   }
 
   const { data, error } = await query;
