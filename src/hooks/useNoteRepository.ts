@@ -3,11 +3,7 @@ import type { User } from '@supabase/supabase-js';
 import { useNoteContent } from './useNoteContent';
 import { useNoteDates } from './useNoteDates';
 import { useSync } from './useSync';
-import { supabase } from '../lib/supabase';
-import { createUnifiedNoteRepository } from '../storage/unifiedNoteRepository';
-import { createUnifiedSyncedNoteRepository } from '../storage/unifiedSyncedNoteRepository';
-import { createUnifiedImageRepository } from '../storage/unifiedImageRepository';
-import { createUnifiedSyncedImageRepository } from '../storage/unifiedSyncedImageRepository';
+import { createNoteRepository, createImageRepository } from '../domain/notes/repositoryFactory';
 import type { UnifiedSyncedNoteRepository } from '../storage/unifiedSyncedNoteRepository';
 import type { NoteRepository } from '../storage/noteRepository';
 import type { ImageRepository } from '../storage/imageRepository';
@@ -120,10 +116,11 @@ export function useNoteRepository({
       getKey: (keyId: string) => keyring.get(keyId) ?? null
     };
 
-    const created =
-      mode === AppMode.Cloud && userId
-        ? createUnifiedSyncedNoteRepository(supabase, userId, keyProvider)
-        : createUnifiedNoteRepository(keyProvider);
+    const created = createNoteRepository({
+      mode,
+      userId,
+      keyProvider
+    });
     noteRepositoryCache.set(cacheKey, created);
     return created;
   }, [mode, userId, vaultKey, keyring, activeKeyId, keyringSignature]);
@@ -146,10 +143,11 @@ export function useNoteRepository({
       activeKeyId,
       getKey: (keyId: string) => keyring.get(keyId) ?? null
     };
-    const created =
-      mode === AppMode.Cloud && userId
-        ? createUnifiedSyncedImageRepository(supabase, userId, keyProvider)
-        : createUnifiedImageRepository(keyProvider);
+    const created = createImageRepository({
+      mode,
+      userId,
+      keyProvider
+    });
     imageRepositoryCache.set(cacheKey, created);
     return created;
   }, [vaultKey, keyring, activeKeyId, mode, userId, keyringSignature]);

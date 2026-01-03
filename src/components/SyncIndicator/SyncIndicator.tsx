@@ -1,5 +1,5 @@
 import { SyncStatus } from '../../types';
-import type { PendingOpsSummary } from '../../services/syncService';
+import type { PendingOpsSummary } from '../../domain/sync';
 
 interface SyncIndicatorProps {
   status: SyncStatus;

@@ -1,0 +1,139 @@
+import type { RefObject } from 'react';
+import { IntroModal } from './IntroModal';
+import { ModeChoiceModal } from './ModeChoiceModal';
+import { LocalVaultModal } from './LocalVaultModal';
+import { CloudAuthModal } from './CloudAuthModal';
+import { VaultErrorModal } from './VaultErrorModal';
+import { NoteModal } from './NoteModal';
+import type { AuthState } from '../../types';
+import type { AppMode } from '../../hooks/useAppMode';
+
+interface AppModalsViewProps {
+  introModal: {
+    isOpen: boolean;
+    onDismiss: () => void;
+    onStartWriting: () => void;
+    onSetupSync: () => void;
+  };
+  modeChoiceModal: {
+    isOpen: boolean;
+    onConfirm: () => void;
+    onDismiss: () => void;
+  };
+  localVaultModal: {
+    isOpen: boolean;
+    hasVault: boolean;
+    isBusy: boolean;
+    error: string | null;
+    onUnlock: (password: string) => Promise<boolean>;
+    onSwitchToCloud: () => void;
+  };
+  cloudAuthModal: {
+    isOpen: boolean;
+    isSigningIn: boolean;
+    authState: AuthState;
+    confirmationEmail: string | null;
+    isBusy: boolean;
+    error: string | null;
+    localPassword: string | null;
+    onBackToSignIn: () => void;
+    onSignIn: (email: string, password: string) => Promise<void>;
+    onSignUp: (email: string, password: string) => Promise<void>;
+  };
+  vaultErrorModal: {
+    isOpen: boolean;
+    error: string | null;
+    mode: AppMode;
+    onSignOut: () => Promise<void>;
+  };
+  noteModal: {
+    isOpen: boolean;
+    onClose: () => void;
+    date: string | null;
+    shouldRenderNoteEditor: boolean;
+    isClosing: boolean;
+    hasEdits: boolean;
+    isDecrypting: boolean;
+    isContentReady: boolean;
+    content: string;
+    onChange: (content: string) => void;
+    canNavigatePrev: boolean;
+    canNavigateNext: boolean;
+    navigateToPrevious: () => void;
+    navigateToNext: () => void;
+    modalContentRef: RefObject<HTMLDivElement | null>;
+  };
+}
+
+export function AppModalsView({
+  introModal,
+  modeChoiceModal,
+  localVaultModal,
+  cloudAuthModal,
+  vaultErrorModal,
+  noteModal
+}: AppModalsViewProps) {
+  return (
+    <>
+      <IntroModal
+        isOpen={introModal.isOpen}
+        onDismiss={introModal.onDismiss}
+        onStartWriting={introModal.onStartWriting}
+        onSetupSync={introModal.onSetupSync}
+      />
+
+      <ModeChoiceModal
+        isOpen={modeChoiceModal.isOpen}
+        onConfirm={modeChoiceModal.onConfirm}
+        onDismiss={modeChoiceModal.onDismiss}
+      />
+
+      <LocalVaultModal
+        isOpen={localVaultModal.isOpen}
+        hasVault={localVaultModal.hasVault}
+        isBusy={localVaultModal.isBusy}
+        error={localVaultModal.error}
+        onUnlock={localVaultModal.onUnlock}
+        onSwitchToCloud={localVaultModal.onSwitchToCloud}
+      />
+
+      <CloudAuthModal
+        isOpen={cloudAuthModal.isOpen}
+        isSigningIn={cloudAuthModal.isSigningIn}
+        authState={cloudAuthModal.authState}
+        confirmationEmail={cloudAuthModal.confirmationEmail}
+        isBusy={cloudAuthModal.isBusy}
+        error={cloudAuthModal.error}
+        localPassword={cloudAuthModal.localPassword}
+        onBackToSignIn={cloudAuthModal.onBackToSignIn}
+        onSignIn={cloudAuthModal.onSignIn}
+        onSignUp={cloudAuthModal.onSignUp}
+      />
+
+      <VaultErrorModal
+        isOpen={vaultErrorModal.isOpen}
+        error={vaultErrorModal.error}
+        mode={vaultErrorModal.mode}
+        onSignOut={vaultErrorModal.onSignOut}
+      />
+
+      <NoteModal
+        isOpen={noteModal.isOpen}
+        onClose={noteModal.onClose}
+        date={noteModal.date}
+        shouldRenderNoteEditor={noteModal.shouldRenderNoteEditor}
+        isClosing={noteModal.isClosing}
+        hasEdits={noteModal.hasEdits}
+        isDecrypting={noteModal.isDecrypting}
+        isContentReady={noteModal.isContentReady}
+        content={noteModal.content}
+        onChange={noteModal.onChange}
+        canNavigatePrev={noteModal.canNavigatePrev}
+        canNavigateNext={noteModal.canNavigateNext}
+        navigateToPrevious={noteModal.navigateToPrevious}
+        navigateToNext={noteModal.navigateToNext}
+        modalContentRef={noteModal.modalContentRef}
+      />
+    </>
+  );
+}

@@ -1,10 +1,8 @@
 import { Calendar } from './components/Calendar';
 import { AppModals } from './components/AppModals';
-import { useUrlState } from './hooks/useUrlState';
-import { AuthState, useAuth } from './hooks/useAuth';
-import { AppMode, useAppMode } from './hooks/useAppMode';
-import { useActiveVault } from './hooks/useActiveVault';
-import { useNoteRepository } from './hooks/useNoteRepository';
+import { AuthState } from './hooks/useAuth';
+import { AppMode } from './hooks/useAppMode';
+import { useAppController } from './controllers/useAppController';
 import { AppModeProvider } from './contexts/AppModeProvider';
 import { ActiveVaultProvider } from './contexts/ActiveVaultProvider';
 import { NoteRepositoryProvider } from './contexts/NoteRepositoryProvider';
@@ -15,24 +13,8 @@ import './styles/reset.css';
 import './styles/components.css';
 
 function App() {
-  const urlState = useUrlState();
-  const { date, year, navigateToDate, navigateToYear } = urlState;
-  const auth = useAuth();
-  const appMode = useAppMode({ authState: auth.authState });
-  const activeVault = useActiveVault({
-    auth,
-    mode: appMode.mode,
-    setMode: appMode.setMode
-  });
-  const notes = useNoteRepository({
-    mode: appMode.mode,
-    authUser: auth.user,
-    vaultKey: activeVault.vaultKey,
-    keyring: activeVault.keyring,
-    activeKeyId: activeVault.activeKeyId,
-    date,
-    year
-  });
+  const { urlState, auth, appMode, activeVault, notes } = useAppController();
+  const { year, navigateToDate, navigateToYear } = urlState;
 
   const canSync = notes.capabilities.canSync;
 

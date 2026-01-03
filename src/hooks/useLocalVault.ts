@@ -3,7 +3,7 @@ import {
   bootstrapLocalVault,
   getHasLocalVault,
   unlockLocalVault
-} from '../services/vaultService';
+} from '../domain/vault';
 
 export interface UseLocalVaultReturn {
   vaultKey: CryptoKey | null;

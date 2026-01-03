@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import { tryDeviceUnlockCloudKey, unlockCloudVault } from '../services/vaultService';
+import { tryDeviceUnlockCloudKey, unlockCloudVault } from '../domain/vault';
 
 export interface UseVaultReturn {
   vaultKey: CryptoKey | null;

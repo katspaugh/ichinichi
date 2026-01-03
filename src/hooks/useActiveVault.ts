@@ -3,7 +3,7 @@ import type { UseAuthReturn } from './useAuth';
 import { useLocalVault } from './useLocalVault';
 import { useVault } from './useVault';
 import { AppMode } from './useAppMode';
-import { tryDeviceUnlockCloudKey } from '../services/vaultService';
+import { tryDeviceUnlockCloudKey } from '../domain/vault';
 import { computeKeyId } from '../storage/keyId';
 import { listLocalKeyIds, restoreLocalWrappedKey, storeLocalWrappedKey } from '../storage/localKeyring';
 

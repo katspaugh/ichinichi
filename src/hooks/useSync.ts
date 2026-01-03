@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { SyncStatus } from '../types';
 import type { UnifiedSyncedNoteRepository } from '../storage/unifiedSyncedNoteRepository';
-import type { PendingOpsSummary, SyncService } from '../services/syncService';
-import { createSyncService, getPendingOpsSummary } from '../services/syncService';
+import type { PendingOpsSummary, SyncService } from '../domain/sync';
+import { createSyncService, getPendingOpsSummary } from '../domain/sync';
 
 interface UseSyncReturn {
   syncStatus: SyncStatus;

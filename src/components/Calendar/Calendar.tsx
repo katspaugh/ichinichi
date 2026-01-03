@@ -3,7 +3,7 @@ import { MonthGrid } from './MonthGrid';
 import { Button } from '../Button';
 import { SyncIndicator } from '../SyncIndicator';
 import type { SyncStatus } from '../../types';
-import type { PendingOpsSummary } from '../../services/syncService';
+import type { PendingOpsSummary } from '../../domain/sync';
 
 interface CalendarProps {
   year: number;
