@@ -587,6 +587,7 @@
   border-radius: var(--radius);
   margin: var(--spacing-sm) 0;
   display: block;
+  overflow-anchor: none;
 }
 
 .note-editor__content img[data-image-id="uploading"] {
