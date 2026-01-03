@@ -1,4 +1,3 @@
-import { useEffect, useRef } from 'react';
 import { formatDateDisplay } from '../../utils/date';
 import { canEditNote } from '../../utils/noteRules';
 import { NoteEditorView } from './NoteEditorView';
@@ -66,58 +65,6 @@ export function NoteEditor({
     onImageDrop,
     onDropComplete: endImageDrag
   });
-
-  const lastFocusedDateRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    if (!isEditable) {
-      lastFocusedDateRef.current = null;
-    }
-  }, [isEditable]);
-
-  useEffect(() => {
-    if (!isEditable) return;
-    if (lastFocusedDateRef.current === date) return;
-    const focusEditor = () => {
-      const el = editorRef.current;
-      if (!el) return;
-      if (document.activeElement === el) {
-        lastFocusedDateRef.current = date;
-        return;
-      }
-      if (typeof el.focus === 'function') {
-        el.focus({ preventScroll: true });
-      }
-      if (document.activeElement === el) {
-        const selection = window.getSelection();
-        if (selection) {
-          // Save scroll position before manipulating selection
-          const scrollTop = el.scrollTop;
-          const range = document.createRange();
-          range.selectNodeContents(el);
-          range.collapse(false);
-          selection.removeAllRanges();
-          selection.addRange(range);
-          // Restore scroll position - selection changes can cause scroll jumps on mobile
-          el.scrollTop = scrollTop;
-        }
-        lastFocusedDateRef.current = date;
-      }
-    };
-    const frame = requestAnimationFrame(() => {
-      focusEditor();
-    });
-    const retryTimer = window.setTimeout(() => {
-      // Only retry if we still haven't focused the editor
-      if (lastFocusedDateRef.current !== date) {
-        focusEditor();
-      }
-    }, 120);
-    return () => {
-      cancelAnimationFrame(frame);
-      window.clearTimeout(retryTimer);
-    };
-  }, [date, isEditable, editorRef]);
 
   useInlineImageUrls({
     date,

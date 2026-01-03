@@ -71,7 +71,7 @@
 @media (max-width: 768px) {
   .modal-content {
     width: 100%;
-    height: 100vh;
+    height: 100dvh;
     min-width: unset;
     margin: 0;
     border: none;
@@ -854,5 +854,11 @@
     width: 100%;
     justify-content: flex-end;
     order: -1;
+  }
+
+  .note-editor__content,
+  .note-editor__header {
+    padding-left: var(--spacing-xl);
+    padding-right: var(--spacing-xl);
   }
 }
