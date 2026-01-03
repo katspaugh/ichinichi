@@ -152,16 +152,28 @@ export function useInlineImageUrls({
             return;
           }
           urlCacheRef.current.set(imageId, url);
-          img.setAttribute('src', url);
           resolvedIdsRef.current.add(imageId);
+
+          // Query for the image again to ensure we're updating the current DOM node
+          // (ProseMirror may have re-rendered since we captured the element)
+          const currentImg = editorRef.current?.querySelector(`img[data-image-id="${imageId}"]`);
+          if (currentImg) {
+            currentImg.setAttribute('src', url);
+          }
         })
         .catch((error) => {
           console.error(`Failed to resolve image ${imageId}:`, error);
-          img.setAttribute('alt', 'Failed to load image');
+          const currentImg = editorRef.current?.querySelector(`img[data-image-id="${imageId}"]`);
+          if (currentImg) {
+            currentImg.setAttribute('alt', 'Failed to load image');
+          }
         })
         .finally(() => {
           inFlightIdsRef.current.delete(imageId);
-          img.removeAttribute('data-image-loading');
+          const currentImg = editorRef.current?.querySelector(`img[data-image-id="${imageId}"]`);
+          if (currentImg) {
+            currentImg.removeAttribute('data-image-loading');
+          }
         });
     });
   }, [content, imageRepository, editorRef, metaVersion]);
