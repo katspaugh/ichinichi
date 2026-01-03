@@ -5,9 +5,9 @@ import { useActiveVault } from '../hooks/useActiveVault';
 import { useNoteRepository } from '../hooks/useNoteRepository';
 
 export function useAppController() {
-  const urlState = useUrlState();
-  const { date, year } = urlState;
   const auth = useAuth();
+  const urlState = useUrlState({ authState: auth.authState });
+  const { date, year } = urlState;
   const appMode = useAppMode({ authState: auth.authState });
   const activeVault = useActiveVault({
     auth,

@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { AuthState } from './useAuth';
-import { STORAGE_PREFIX } from '../utils/constants';
+import { AUTH_HAS_LOGGED_IN_KEY, STORAGE_PREFIX } from '../utils/constants';
 import { useCloudPrompt } from './useCloudPrompt';
 import { AppMode } from '../utils/appMode';
 
@@ -26,7 +26,13 @@ export interface UseAppModeReturn {
 export function useAppMode({ authState }: UseAppModeProps): UseAppModeReturn {
   const [modePreference, setModePreference] = useState<AppMode | null>(null);
   const cloudPrompt = useCloudPrompt(CLOUD_PROMPT_KEY);
-  const mode: AppMode = authState === AuthState.SignedIn ? AppMode.Cloud : (modePreference ?? AppMode.Local);
+  const hasLoggedIn = typeof window !== 'undefined' &&
+    localStorage.getItem(AUTH_HAS_LOGGED_IN_KEY) === '1';
+  // If user has logged in before but isn't signed in now, prompt cloud auth
+  const shouldPromptCloudAuth = hasLoggedIn && authState !== AuthState.SignedIn;
+  const mode: AppMode = authState === AuthState.SignedIn
+    ? AppMode.Cloud
+    : (shouldPromptCloudAuth ? AppMode.Cloud : (modePreference ?? AppMode.Local));
 
   const setMode = useCallback((nextMode: AppMode) => {
     setModePreference(nextMode);

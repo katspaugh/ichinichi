@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Session, User, AuthError } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+import { AUTH_HAS_LOGGED_IN_KEY } from '../utils/constants';
 import { AuthState } from '../types';
 
 export interface UseAuthReturn {
@@ -40,10 +41,16 @@ export function useAuth(): UseAuthReturn {
   const [isBusy, setIsBusy] = useState(false);
   const [confirmationEmail, setConfirmationEmail] = useState<string | null>(null);
 
+  const markHasLoggedIn = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem(AUTH_HAS_LOGGED_IN_KEY, '1');
+  }, []);
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setAuthState(session ? AuthState.SignedIn : AuthState.SignedOut);
+      if (session) markHasLoggedIn();
     });
 
     const {
@@ -51,10 +58,11 @@ export function useAuth(): UseAuthReturn {
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setAuthState(session ? AuthState.SignedIn : AuthState.SignedOut);
+      if (session) markHasLoggedIn();
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [markHasLoggedIn]);
 
   const signUp = useCallback(
     async (
