@@ -28,6 +28,8 @@ export function Calendar({
 }: CalendarProps) {
   const months = Array.from({ length: 12 }, (_, i) => i);
   const hasAutoScrolledRef = useRef(false);
+  const commitHash = __COMMIT_HASH__;
+  const commitUrl = `https://github.com/katspaugh/dailynote/commit/${commitHash}`;
 
   useEffect(() => {
     if (hasAutoScrolledRef.current) {
@@ -96,6 +98,24 @@ export function Calendar({
             onDayClick={onDayClick}
           />
         ))}
+      </div>
+      <div className="calendar__footer">
+        <a
+          className="calendar__footer-link"
+          href="https://github.com/katspaugh"
+          target="_blank"
+          rel="noreferrer"
+        >
+          © katspaugh
+        </a>
+        <a
+          className="calendar__footer-link"
+          href={commitUrl}
+          target="_blank"
+          rel="noreferrer"
+        >
+          {commitHash}
+        </a>
       </div>
     </div>
   );

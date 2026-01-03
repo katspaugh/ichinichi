@@ -111,6 +111,26 @@
   align-content: start;
 }
 
+.calendar__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: var(--spacing-sm);
+}
+
+.calendar__footer-link {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  text-decoration: none;
+  padding: var(--spacing-xxs) var(--spacing-xs);
+  border-radius: var(--radius-sm);
+}
+
+.calendar__footer-link:hover {
+  color: var(--color-text);
+  background-color: var(--color-surface);
+}
+
 @media (max-width: 1200px) {
   .calendar__grid {
     grid-template-columns: repeat(3, 1fr);
@@ -788,7 +808,7 @@
   align-items: center;
   gap: var(--spacing-sm);
   position: absolute;
-  right: var(--spacing-md);
+  right: 0;
 }
 
 .calendar__header {
