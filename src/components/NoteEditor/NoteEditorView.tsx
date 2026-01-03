@@ -43,10 +43,13 @@ export function NoteEditorView({
           {showReadonlyBadge && (
             <span className="note-editor__readonly-badge">Read only</span>
           )}
+          <span
+            className={`note-editor__saving${statusText ? ' note-editor__saving--visible' : ''}`}
+            aria-live="polite"
+          >
+            {statusText ?? ''}
+          </span>
         </div>
-        {statusText && (
-          <span className="note-editor__saving">{statusText}</span>
-        )}
       </div>
       <div className="note-editor__body">
         <div

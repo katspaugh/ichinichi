@@ -119,12 +119,10 @@ export function useContentEditableEditor({
     const images = Array.from(container.querySelectorAll('img[data-image-id]'))
       .map((img) => img.getAttribute('data-image-id') ?? '')
       .filter(Boolean);
-    const checkboxes = Array.from(container.querySelectorAll('input[type="checkbox"]'))
-      .map((input) => (input as HTMLInputElement).checked ? '1' : '0');
     const links = Array.from(container.querySelectorAll('a[href]'))
       .map((anchor) => anchor.getAttribute('href') ?? '')
       .filter(Boolean);
-    return JSON.stringify({ text, images, checkboxes, links });
+    return JSON.stringify({ text, images, links });
   }, []);
 
   const updateEmptyState = useCallback(() => {
