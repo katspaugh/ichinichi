@@ -1,11 +1,12 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { formatDateDisplay } from '../../utils/date';
 import { canEditNote } from '../../utils/noteRules';
-import { NoteEditorView } from './NoteEditorView';
-import { useContentEditableEditor } from './useContentEditableEditor';
 import { useSavingIndicator } from './useSavingIndicator';
-import { useInlineImageUpload, useInlineImageUrls } from './useInlineImages';
+import { useInlineImageUpload } from './useInlineImages';
 import { useImageDragState } from './useImageDragState';
+import { useProseMirror } from '../../editor/useProseMirror';
+import { useNoteRepositoryContext } from '../../contexts/noteRepositoryContext';
+import { ImageUrlManager } from '../../utils/imageUrlManager';
 
 interface NoteEditorProps {
   date: string;
@@ -30,6 +31,7 @@ export function NoteEditor({
   const isEditable = canEdit && !isDecrypting && isContentReady;
   const formattedDate = formatDateDisplay(date);
   const { showSaving, scheduleSavingIndicator } = useSavingIndicator(isEditable);
+  const { imageRepository } = useNoteRepositoryContext();
 
   const shouldShowSaving = isEditable && hasEdits && (showSaving || isClosing);
   const statusText = isDecrypting
@@ -50,22 +52,23 @@ export function NoteEditor({
     isEditable
   });
 
-  const {
-    editorRef,
-    handleInput,
-    handlePaste,
-    handleDrop,
-    handleDragOver,
-    handleClick,
-    handleKeyDown
-  } = useContentEditableEditor({
+  // Create ImageUrlManager instance
+  const imageUrlManager = useMemo(() => {
+    if (imageRepository) {
+      return new ImageUrlManager(imageRepository);
+    }
+    return undefined;
+  }, [imageRepository]);
+
+  const { editorRef, focus } = useProseMirror({
     content,
     isEditable,
     placeholderText,
     onChange,
     onUserInput: scheduleSavingIndicator,
     onImageDrop,
-    onDropComplete: endImageDrag
+    onDropComplete: endImageDrag,
+    imageUrlManager
   });
 
   const lastFocusedDateRef = useRef<string | null>(null);
@@ -79,67 +82,48 @@ export function NoteEditor({
   useEffect(() => {
     if (!isEditable) return;
     if (lastFocusedDateRef.current === date) return;
+    
     const focusEditor = () => {
-      const el = editorRef.current;
-      if (!el) return;
-      if (document.activeElement === el) {
-        lastFocusedDateRef.current = date;
-        return;
-      }
-      if (typeof el.focus === 'function') {
-        el.focus({ preventScroll: true });
-      }
-      if (document.activeElement === el) {
-        const selection = window.getSelection();
-        if (selection) {
-          // Save scroll position before manipulating selection
-          const scrollTop = el.scrollTop;
-          const range = document.createRange();
-          range.selectNodeContents(el);
-          range.collapse(false);
-          selection.removeAllRanges();
-          selection.addRange(range);
-          // Restore scroll position - selection changes can cause scroll jumps on mobile
-          el.scrollTop = scrollTop;
-        }
-      }
-      if (document.activeElement === el) {
-        lastFocusedDateRef.current = date;
-      }
+      if (lastFocusedDateRef.current === date) return;
+      focus();
+      lastFocusedDateRef.current = date;
     };
-    const frame = requestAnimationFrame(() => {
-      focusEditor();
-    });
-    const retryTimer = window.setTimeout(() => {
-      focusEditor();
-    }, 120);
+    
+    const frame = requestAnimationFrame(focusEditor);
+    const retryTimer = window.setTimeout(focusEditor, 120);
+    
     return () => {
       cancelAnimationFrame(frame);
       window.clearTimeout(retryTimer);
     };
-  }, [date, isEditable, editorRef]);
-
-  useInlineImageUrls({
-    date,
-    content,
-    editorRef
-  });
+  }, [date, isEditable, focus]);
 
   return (
-    <NoteEditorView
-      formattedDate={formattedDate}
-      isEditable={isEditable}
-      showReadonlyBadge={!canEdit}
-      statusText={statusText}
-      placeholderText={placeholderText}
-      editorRef={editorRef}
-      onInput={handleInput}
-      onPaste={handlePaste}
-      onDrop={handleDrop}
-      onDragOver={handleDragOver}
-      onClick={handleClick}
-      onKeyDown={handleKeyDown}
-      isDraggingImage={isDraggingImage}
-    />
+    <div className="note-editor">
+      {isDraggingImage && (
+        <div className="note-editor__drag-overlay" aria-hidden="true">
+        </div>
+      )}
+      <div className="note-editor__header">
+        <div className="note-editor__header-title">
+          <span className="note-editor__date">{formattedDate}</span>
+          {!canEdit && (
+            <span className="note-editor__readonly-badge">Read only</span>
+          )}
+        </div>
+        {statusText && (
+          <span className="note-editor__saving">{statusText}</span>
+        )}
+      </div>
+      <div className="note-editor__body">
+        <div
+          ref={editorRef}
+          className={`note-editor__content ProseMirror-container${!isEditable ? ' note-editor__content--readonly' : ''}`}
+          role="textbox"
+          aria-multiline="true"
+          aria-readonly={!isEditable}
+        />
+      </div>
+    </div>
   );
 }

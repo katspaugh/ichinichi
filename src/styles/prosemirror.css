@@ -1,0 +1,87 @@
+/* ProseMirror Editor Styles */
+
+.ProseMirror-container {
+  flex: 1;
+  width: 100%;
+  min-height: 100%;
+}
+
+.ProseMirror {
+  position: relative;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  white-space: break-spaces;
+  -webkit-font-variant-ligatures: none;
+  font-variant-ligatures: none;
+  font-feature-settings: "liga" 0;
+  padding: 0 var(--spacing-2xl);
+  line-height: var(--line-height-relaxed);
+  min-height: 100%;
+  outline: none;
+}
+
+.ProseMirror pre {
+  white-space: pre-wrap;
+}
+
+.ProseMirror li {
+  position: relative;
+}
+
+/* Placeholder styling */
+.ProseMirror-placeholder {
+  color: var(--color-text-secondary);
+  pointer-events: none;
+  position: absolute;
+  user-select: none;
+}
+
+/* Selection styling */
+.ProseMirror-selectednode {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* Image styling */
+.ProseMirror img {
+  max-width: 100%;
+  height: auto;
+  cursor: default;
+}
+
+.ProseMirror img[data-image-loading="true"] {
+  opacity: 0.5;
+}
+
+/* Horizontal rule */
+.ProseMirror hr {
+  border: none;
+  border-top: 2px solid var(--color-border);
+  margin: var(--spacing-md) 0;
+}
+
+/* Links */
+.ProseMirror a {
+  color: var(--color-primary);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.ProseMirror a:hover {
+  text-decoration: none;
+}
+
+/* Checkboxes */
+.ProseMirror input[type="checkbox"] {
+  cursor: pointer;
+  margin-right: 0.5em;
+}
+
+/* Read-only mode */
+.note-editor__content--readonly .ProseMirror {
+  cursor: default;
+}
+
+.note-editor__content--readonly .ProseMirror input[type="checkbox"] {
+  pointer-events: auto;
+}

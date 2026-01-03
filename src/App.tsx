@@ -11,6 +11,7 @@ import { UrlStateProvider } from './contexts/UrlStateProvider';
 import './styles/theme.css';
 import './styles/reset.css';
 import './styles/components.css';
+import './styles/prosemirror.css';
 
 function App() {
   const { urlState, auth, appMode, activeVault, notes } = useAppController();
