@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
-import type { ClipboardEvent, DragEvent } from 'react';
+import type { ClipboardEvent, DragEvent, MouseEvent } from 'react';
 import { linkifyElement } from '../../utils/linkify';
 
 interface ContentEditableOptions {
@@ -288,11 +288,21 @@ export function useContentEditableEditor({
     }
   }, []);
 
+  const handleClick = useCallback((event: MouseEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement;
+    const anchor = target.closest('a');
+    if (anchor && anchor.href) {
+      event.preventDefault();
+      window.open(anchor.href, '_blank', 'noopener,noreferrer');
+    }
+  }, []);
+
   return {
     editorRef,
     handleInput,
     handlePaste,
     handleDrop,
-    handleDragOver
+    handleDragOver,
+    handleClick
   };
 }
