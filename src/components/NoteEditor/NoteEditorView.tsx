@@ -1,4 +1,4 @@
-import type { RefObject } from 'react';
+import type { ClipboardEvent, DragEvent, FormEvent, RefObject } from 'react';
 
 interface NoteEditorViewProps {
   formattedDate: string;
@@ -7,6 +7,10 @@ interface NoteEditorViewProps {
   statusText: string | null;
   placeholderText: string;
   editorRef: RefObject<HTMLDivElement | null>;
+  onInput?: (event: FormEvent<HTMLDivElement>) => void;
+  onPaste?: (event: ClipboardEvent<HTMLDivElement>) => void;
+  onDrop?: (event: DragEvent<HTMLDivElement>) => void;
+  onDragOver?: (event: DragEvent<HTMLDivElement>) => void;
   isDraggingImage?: boolean;
 }
 
@@ -17,6 +21,10 @@ export function NoteEditorView({
   statusText,
   placeholderText,
   editorRef,
+  onInput,
+  onPaste,
+  onDrop,
+  onDragOver,
   isDraggingImage = false
 }: NoteEditorViewProps) {
   return (
@@ -41,7 +49,15 @@ export function NoteEditorView({
           ref={editorRef}
           className={`note-editor__content${!isEditable ? ' note-editor__content--readonly' : ''}`}
           data-placeholder={placeholderText}
+          contentEditable={isEditable}
+          suppressContentEditableWarning={true}
+          role="textbox"
+          aria-multiline="true"
           aria-readonly={!isEditable}
+          onInput={onInput}
+          onPaste={onPaste}
+          onDrop={onDrop}
+          onDragOver={onDragOver}
         />
       </div>
     </div>

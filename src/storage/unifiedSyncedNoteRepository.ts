@@ -73,6 +73,56 @@ async function decryptLocalNote(
   };
 }
 
+interface ConflictResolutionContext {
+  supabase: SupabaseClient;
+  userId: string;
+  keyring: KeyringProvider;
+  localRecord: NoteRecord;
+  localMeta: NoteMetaRecord;
+  remote: RemoteNote;
+}
+
+async function resolveConflict(
+  ctx: ConflictResolutionContext,
+  isDeleted: boolean
+): Promise<RemoteNote> {
+  const { supabase, userId, keyring, localRecord, localMeta, remote } = ctx;
+  const localRevision = localMeta.revision;
+  const remoteRevision = remote.revision;
+  
+  // Determine winner: higher revision wins, tie-break by timestamp
+  const localWins = localRevision > remoteRevision ||
+    (localRevision === remoteRevision &&
+      new Date(localRecord.updatedAt).getTime() >= new Date(remote.updatedAt).getTime());
+
+  if (!localWins) {
+    return remote;
+  }
+
+  // Local wins - try to push with rebased revision
+  try {
+    const rebasedRevision = localRevision > remoteRevision
+      ? localRevision
+      : remoteRevision + 1;
+    
+    return await pushRemoteNote(supabase, userId, {
+      id: localMeta.remoteId ?? remote.id,
+      date: localRecord.date,
+      ciphertext: localRecord.ciphertext,
+      nonce: localRecord.nonce,
+      keyId: localRecord.keyId ?? keyring.activeKeyId,
+      revision: rebasedRevision,
+      updatedAt: localRecord.updatedAt,
+      serverUpdatedAt: remote.serverUpdatedAt,
+      deleted: isDeleted
+    });
+  } catch (rebaseError) {
+    // Rebased push failed, accept remote version as fallback
+    console.warn('Rebased push failed, accepting remote version:', rebaseError);
+    return remote;
+  }
+}
+
 export function createUnifiedSyncedNoteRepository(
   supabase: SupabaseClient,
   userId: string,
@@ -181,45 +231,14 @@ export function createUnifiedSyncedNoteRepository(
             throw error;
           }
 
-          const localRevision = meta.revision;
-          const remoteRevision = remote.revision;
-          const localWins = localRevision > remoteRevision ||
-            (localRevision === remoteRevision &&
-              new Date(record.updatedAt).getTime() >= new Date(remote.updatedAt).getTime());
-
-          if (localWins) {
-            try {
-              const rebasedRevision = localRevision > remoteRevision
-                ? localRevision
-                : remoteRevision + 1;
-              const rebased = await pushRemoteNote(supabase, userId, {
-                id: meta.remoteId ?? remote.id,
-                date: record.date,
-                ciphertext: record.ciphertext,
-                nonce: record.nonce,
-                keyId: record.keyId ?? keyring.activeKeyId,
-                revision: rebasedRevision,
-                updatedAt: record.updatedAt,
-                serverUpdatedAt: remote.serverUpdatedAt,
-                deleted: false
-              });
-              await setNoteAndMeta(toLocalRecord(rebased), {
-                ...toLocalMeta(rebased),
-                lastSyncedAt: now
-              });
-            } catch (rebaseError) {
-              console.warn('Rebased push failed, accepting remote version:', rebaseError);
-              await setNoteAndMeta(toLocalRecord(remote), {
-                ...toLocalMeta(remote),
-                lastSyncedAt: now
-              });
-            }
-          } else {
-            await setNoteAndMeta(toLocalRecord(remote), {
-              ...toLocalMeta(remote),
-              lastSyncedAt: now
-            });
-          }
+          const resolved = await resolveConflict(
+            { supabase, userId, keyring, localRecord: record, localMeta: meta, remote },
+            false
+          );
+          await setNoteAndMeta(toLocalRecord(resolved), {
+            ...toLocalMeta(resolved),
+            lastSyncedAt: now
+          });
         }
       }
 
@@ -302,34 +321,10 @@ export function createUnifiedSyncedNoteRepository(
       return null;
     }
 
-    const localRevision = meta.revision;
-    const remoteRevision = remote.revision;
-    const localWins = localRevision > remoteRevision ||
-      (localRevision === remoteRevision &&
-        new Date(record.updatedAt).getTime() >= new Date(remote.updatedAt).getTime());
-
-    if (!localWins) {
-      return remote;
-    }
-
-    try {
-      const rebasedRevision = localRevision > remoteRevision
-        ? localRevision
-        : remoteRevision + 1;
-      return await pushRemoteNote(supabase, userId, {
-        id: meta.remoteId ?? remote.id,
-        date: record.date,
-        ciphertext: record.ciphertext,
-        nonce: record.nonce,
-        keyId: record.keyId ?? keyring.activeKeyId,
-        revision: rebasedRevision,
-        updatedAt: record.updatedAt,
-        serverUpdatedAt: remote.serverUpdatedAt,
-        deleted: isDeleted
-      });
-    } catch {
-      return remote;
-    }
+    return await resolveConflict(
+      { supabase, userId, keyring, localRecord: record, localMeta: meta, remote },
+      isDeleted
+    );
   };
 
   const reconcileRemote = async (
@@ -386,24 +381,15 @@ export function createUnifiedSyncedNoteRepository(
       return await decryptLocalNote(toLocalRecord(remote), keyring);
     }
 
-    const localRevision = meta.revision;
-    const remoteRevision = remote.revision;
-    const localWins = localRevision > remoteRevision ||
-      (localRevision === remoteRevision &&
-        new Date(localRecord.updatedAt).getTime() >= new Date(remote.updatedAt).getTime());
+    // Resolve conflict between local and remote
+    const resolved = await resolveConflict(
+      { supabase, userId, keyring, localRecord, localMeta: meta, remote },
+      localRecord.deleted
+    );
 
-    if (localWins) {
-      if (meta.pendingOp || localRevision > remoteRevision) {
-        const pushed = await pushLocal(localRecord, meta, localRecord.deleted);
-        if (pushed) {
-          await setNoteAndMeta(toLocalRecord(pushed), toLocalMeta(pushed));
-        }
-      }
-      return localRecord.deleted ? null : await decryptLocalNote(localRecord, keyring);
-    }
-
-    await setNoteAndMeta(toLocalRecord(remote), toLocalMeta(remote));
-    return await decryptLocalNote(toLocalRecord(remote), keyring);
+    // Update local state with resolved version
+    await setNoteAndMeta(toLocalRecord(resolved), toLocalMeta(resolved));
+    return await decryptLocalNote(toLocalRecord(resolved), keyring);
   };
 
   return {

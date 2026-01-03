@@ -11,6 +11,10 @@
   --color-today: #dbeafe;
   --color-today-border: #2563eb;
   --color-note-indicator: #2563eb;
+  --color-sync-success: #2f6b45;
+  --color-sync-error: #a13f3f;
+  --color-sync-offline: #a36a2b;
+  --color-sync-pending: #2b5b9a;
   --color-nav-arrow-bg: rgba(0, 0, 0, 0.28);
   --color-nav-arrow-bg-hover: rgba(0, 0, 0, 0.42);
   --color-nav-arrow-text: #ffffff;
@@ -63,6 +67,10 @@
     --color-today: #1e3a5f;
     --color-today-border: #3b82f6;
     --color-note-indicator: #60a5fa;
+    --color-sync-success: #6dbb8b;
+    --color-sync-error: #e07b7b;
+    --color-sync-offline: #d9a461;
+    --color-sync-pending: #8db0e6;
     --overlay-bg: rgba(0, 0, 0, 0.7);
     --color-nav-arrow-bg: rgba(255, 255, 255, 0.12);
     --color-nav-arrow-bg-hover: rgba(255, 255, 255, 0.2);
