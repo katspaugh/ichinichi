@@ -1,4 +1,3 @@
-import type { RefObject } from 'react';
 import { Modal } from '../Modal';
 import { NavigationArrow } from '../NavigationArrow';
 import { NoteEditor } from '../NoteEditor';
@@ -18,7 +17,6 @@ interface NoteModalProps {
   canNavigateNext: boolean;
   navigateToPrevious: () => void;
   navigateToNext: () => void;
-  modalContentRef: RefObject<HTMLDivElement | null>;
 }
 
 export function NoteModal({
@@ -35,8 +33,7 @@ export function NoteModal({
   canNavigatePrev,
   canNavigateNext,
   navigateToPrevious,
-  navigateToNext,
-  modalContentRef
+  navigateToNext
 }: NoteModalProps) {
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
@@ -54,7 +51,7 @@ export function NoteModal({
             disabled={!canNavigateNext}
             ariaLabel="Next note"
           />
-          <div ref={modalContentRef} className="note-editor-wrapper">
+          <div className="note-editor-wrapper">
             <NoteEditor
               date={date}
               content={isContentReady ? content : ''}

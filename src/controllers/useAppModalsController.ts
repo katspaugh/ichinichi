@@ -1,10 +1,9 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect } from 'react';
 import { isContentEmpty } from '../utils/sanitize';
 import { AppMode } from '../hooks/useAppMode';
 import { useModalTransition } from '../hooks/useModalTransition';
 import { useNoteNavigation } from '../hooks/useNoteNavigation';
 import { useNoteKeyboardNav } from '../hooks/useNoteKeyboardNav';
-import { useSwipeGesture } from '../hooks/useSwipeGesture';
 import { AuthState, ViewType } from '../types';
 import { useActiveVaultContext } from '../contexts/activeVaultContext';
 import { useAppModeContext } from '../contexts/appModeContext';
@@ -108,16 +107,6 @@ export function useAppModalsController() {
     contentEditableSelector: '.note-editor__content'
   });
 
-  const modalContentRef = useRef<HTMLDivElement>(null);
-
-  useSwipeGesture({
-    enabled: isNoteModalOpen && !isDecrypting,
-    onSwipeLeft: navigateToNext,
-    onSwipeRight: navigateToPrevious,
-    elementRef: modalContentRef,
-    threshold: 50
-  });
-
   useEffect(() => {
     if (!pendingModeChoice || isNoteModalOpen) return;
     openModeChoice();
@@ -210,8 +199,7 @@ export function useAppModalsController() {
       canNavigatePrev,
       canNavigateNext,
       navigateToPrevious,
-      navigateToNext,
-      modalContentRef
+      navigateToNext
     }
   };
 }

@@ -1,4 +1,3 @@
-import type { RefObject } from 'react';
 import { IntroModal } from './IntroModal';
 import { ModeChoiceModal } from './ModeChoiceModal';
 import { LocalVaultModal } from './LocalVaultModal';
@@ -61,7 +60,6 @@ interface AppModalsViewProps {
     canNavigateNext: boolean;
     navigateToPrevious: () => void;
     navigateToNext: () => void;
-    modalContentRef: RefObject<HTMLDivElement | null>;
   };
 }
 
@@ -132,7 +130,6 @@ export function AppModalsView({
         canNavigateNext={noteModal.canNavigateNext}
         navigateToPrevious={noteModal.navigateToPrevious}
         navigateToNext={noteModal.navigateToNext}
-        modalContentRef={noteModal.modalContentRef}
       />
     </>
   );
