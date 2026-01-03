@@ -64,11 +64,31 @@ export function useContentEditableEditor({
 }: ContentEditableOptions) {
   const editorRef = useRef<HTMLDivElement>(null);
   const lastContentRef = useRef('');
+  const lastSignatureRef = useRef('');
   const isEditableRef = useRef(isEditable);
   const onChangeRef = useRef(onChange);
   const onUserInputRef = useRef(onUserInput);
   const onImageDropRef = useRef(onImageDrop);
   const onDropCompleteRef = useRef(onDropComplete);
+
+  const getContentSignature = useCallback((html: string) => {
+    const container = document.createElement('div');
+    container.innerHTML = html;
+    const text = (container.textContent ?? '')
+      .replace(/[\u200B-\u200D\uFEFF]/g, '')
+      .replace(/\u00a0/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    const images = Array.from(container.querySelectorAll('img[data-image-id]'))
+      .map((img) => img.getAttribute('data-image-id') ?? '')
+      .filter(Boolean);
+    const checkboxes = Array.from(container.querySelectorAll('input[type="checkbox"]'))
+      .map((input) => (input as HTMLInputElement).checked ? '1' : '0');
+    const links = Array.from(container.querySelectorAll('a[href]'))
+      .map((anchor) => anchor.getAttribute('href') ?? '')
+      .filter(Boolean);
+    return JSON.stringify({ text, images, checkboxes, links });
+  }, []);
 
   const updateEmptyState = useCallback(() => {
     const el = editorRef.current;
@@ -104,19 +124,28 @@ export function useContentEditableEditor({
     }
     el.innerHTML = content || '';
     lastContentRef.current = content || '';
+    lastSignatureRef.current = getContentSignature(content || '');
     updateEmptyState();
-  }, [content, updateEmptyState]);
+  }, [content, getContentSignature, updateEmptyState]);
 
   const handleInput = useCallback(() => {
     if (!isEditableRef.current) return;
     const el = editorRef.current;
     if (!el) return;
-    const html = el.innerHTML;
+    updateEmptyState();
+    const hasText = (el.textContent ?? '').trim().length > 0;
+    const hasImages = el.querySelector('img') !== null;
+    const html = hasText || hasImages ? el.innerHTML : '';
+    const signature = getContentSignature(html);
+    if (signature === lastSignatureRef.current) {
+      lastContentRef.current = html;
+      return;
+    }
+    lastSignatureRef.current = signature;
     lastContentRef.current = html;
     onChangeRef.current(html);
     onUserInputRef.current?.();
-    updateEmptyState();
-  }, [updateEmptyState]);
+  }, [getContentSignature, updateEmptyState]);
 
   const handlePaste = useCallback((event: ClipboardEvent<HTMLDivElement>) => {
     if (!isEditableRef.current) return;
