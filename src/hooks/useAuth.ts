@@ -34,6 +34,10 @@ function formatAuthError(error: AuthError): string {
   return error.message;
 }
 
+function isSessionMissingError(error: AuthError | null): boolean {
+  return Boolean(error && error.name === 'AuthSessionMissingError');
+}
+
 export function useAuth(): UseAuthReturn {
   const [session, setSession] = useState<Session | null>(null);
   const [authState, setAuthState] = useState<AuthState>(AuthState.Loading);
@@ -51,6 +55,14 @@ export function useAuth(): UseAuthReturn {
       setSession(session);
       setAuthState(session ? AuthState.SignedIn : AuthState.SignedOut);
       if (session) markHasLoggedIn();
+      if (session) {
+        supabase.auth.getUser().then(({ error }) => {
+          if (isSessionMissingError(error)) {
+            setSession(null);
+            setAuthState(AuthState.SignedOut);
+          }
+        });
+      }
     });
 
     const {
@@ -125,7 +137,12 @@ export function useAuth(): UseAuthReturn {
     setError(null);
     try {
       // Use 'local' scope to clear session even if server session is already invalid
-      await supabase.auth.signOut({ scope: 'local' });
+      const { error } = await supabase.auth.signOut({ scope: 'local' });
+      if (isSessionMissingError(error)) {
+        await supabase.auth.getUser();
+        setSession(null);
+        setAuthState(AuthState.SignedOut);
+      }
     } finally {
       setIsBusy(false);
     }
