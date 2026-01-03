@@ -13,7 +13,9 @@ export function DayCell({ day, date, state, hasNote, onClick }: DayCellProps) {
     return <div className="day-cell day-cell--empty" />;
   }
 
-  const isClickable = state === DayCellState.Past || state === DayCellState.Today;
+  const isClickable =
+    state === DayCellState.Today ||
+    (state === DayCellState.Past && hasNote);
 
   // Create accessible label with full date
   const ariaLabel = date ?
@@ -22,7 +24,7 @@ export function DayCell({ day, date, state, hasNote, onClick }: DayCellProps) {
 
   return (
     <div
-      className={`day-cell day-cell--${state}`}
+      className={`day-cell day-cell--${state}${isClickable ? ' day-cell--clickable' : ''}`}
       onClick={isClickable ? onClick : undefined}
       role={isClickable ? 'button' : undefined}
       tabIndex={isClickable ? 0 : undefined}

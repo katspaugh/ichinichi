@@ -205,18 +205,21 @@
   font-size: var(--font-size-sm);
   border-radius: var(--radius-sm);
   transition: background-color var(--transition-fast);
+  color: var(--color-text-muted);
+  opacity: 0.5;
 }
 
 .day-cell--empty {
   cursor: default;
 }
 
-.day-cell--past,
-.day-cell--today {
+.day-cell--clickable {
+  color: var(--color-text);
+  opacity: 1;
   cursor: pointer;
 }
 
-.day-cell--past:hover {
+.day-cell--clickable.day-cell--past:hover {
   background-color: var(--color-surface-hover);
 }
 
@@ -226,13 +229,11 @@
   font-weight: var(--font-weight-semibold);
 }
 
-.day-cell--today:hover {
+.day-cell--clickable.day-cell--today:hover {
   background-color: var(--color-today-hover);
 }
 
 .day-cell--future {
-  color: var(--color-text-muted);
-  opacity: 0.5;
   cursor: default;
 }
 
