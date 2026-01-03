@@ -5,7 +5,6 @@ import { useProseMirrorEditor } from './useProseMirrorEditor';
 import { useSavingIndicator } from './useSavingIndicator';
 import { useInlineImageUpload, useInlineImageUrls } from './useInlineImages';
 import { useImageDragState } from './useImageDragState';
-import { isContentEmpty } from '../../utils/sanitize';
 
 interface NoteEditorProps {
   date: string;
@@ -30,8 +29,6 @@ export function NoteEditor({
   const isEditable = canEdit && !isDecrypting && isContentReady;
   const formattedDate = formatDateDisplay(date);
   const { showSaving, scheduleSavingIndicator } = useSavingIndicator(isEditable);
-  const displayContent = content;
-  const hasReadonlyContent = !isContentEmpty(displayContent);
 
   const statusText = isDecrypting
     ? 'Decrypting...'
@@ -52,9 +49,9 @@ export function NoteEditor({
   });
 
   const { editorRef } = useProseMirrorEditor({
-    content: displayContent,
+    content,
     isEditable,
-    isEnabled: isEditable,
+    isEnabled: true, // Always enable ProseMirror, even for readonly notes
     placeholderText,
     onChange,
     onUserInput: scheduleSavingIndicator,
@@ -64,7 +61,7 @@ export function NoteEditor({
 
   useInlineImageUrls({
     date,
-    content: displayContent,
+    content,
     editorRef
   });
 
@@ -77,8 +74,6 @@ export function NoteEditor({
       placeholderText={placeholderText}
       editorRef={editorRef}
       isDraggingImage={isDraggingImage}
-      contentHtml={displayContent}
-      showReadonlyPlaceholder={!hasReadonlyContent}
     />
   );
 }
