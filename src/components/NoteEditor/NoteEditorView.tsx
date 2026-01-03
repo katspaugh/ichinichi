@@ -56,6 +56,7 @@ export function NoteEditorView({
           data-placeholder={placeholderText}
           contentEditable={isEditable}
           tabIndex={isEditable ? 0 : -1}
+          autoFocus={isEditable}
           suppressContentEditableWarning={true}
           role="textbox"
           aria-multiline="true"
