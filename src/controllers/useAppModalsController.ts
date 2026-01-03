@@ -130,8 +130,9 @@ export function useAppModalsController() {
     };
   }, [mode, isVaultUnlocked, triggerSync]);
 
-  const isSigningIn = auth.authState === AuthState.Loading ||
-    (mode === AppMode.Cloud && auth.authState === AuthState.SignedIn && (!cloudVault.isReady || cloudVault.isBusy));
+  const isSigningIn = mode === AppMode.Cloud &&
+    auth.authState === AuthState.SignedIn &&
+    (!cloudVault.isReady || cloudVault.isBusy);
   const vaultUiState = useVaultUiState({
     showIntro,
     isModeChoiceOpen,
