@@ -8,7 +8,8 @@ function shouldShowIntro(search: string): boolean {
   if (typeof window === 'undefined') return false;
   const hasParams = new URLSearchParams(search).toString().length > 0;
   if (hasParams) return false;
-  return localStorage.getItem(INTRO_SEEN_KEY) !== '1';
+  if (localStorage.getItem(INTRO_SEEN_KEY) === '1') return false;
+  return localStorage.getItem(AUTH_HAS_LOGGED_IN_KEY) !== '1';
 }
 
 function shouldGateAuth(): boolean {
