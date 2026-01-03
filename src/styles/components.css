@@ -77,6 +77,12 @@
     border: none;
     border-radius: 0;
   }
+
+  .modal-close-button {
+    font-size: 24px;
+    width: 48px;
+    height: 48px;
+  }
 }
 
 /* Calendar */
