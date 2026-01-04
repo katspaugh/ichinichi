@@ -23,7 +23,10 @@ export function CalendarGrid({
     : [month];
 
   return (
-    <div className={styles.grid}>
+    <div
+      className={styles.grid}
+      data-month-view={month !== null ? "true" : undefined}
+    >
       {months.map((monthIndex) => (
         <MonthGrid
           key={monthIndex}

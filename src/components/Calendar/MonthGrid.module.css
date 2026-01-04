@@ -2,6 +2,11 @@
   background-color: var(--color-surface);
   border-radius: var(--radius-lg);
   padding: var(--spacing-md);
+  width: 100%;
+}
+
+.monthGrid[data-current-month="true"] {
+  /* Month view styling is handled by parent grid */
 }
 
 .header {

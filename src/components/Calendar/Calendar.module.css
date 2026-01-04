@@ -61,6 +61,14 @@
   align-content: start;
 }
 
+.grid[data-month-view="true"] {
+  grid-template-columns: 1fr;
+  place-items: center;
+  max-width: 800px;
+  margin: 0 auto;
+  width: 100%;
+}
+
 .footerIcon {
   width: 14px;
   height: 14px;
@@ -152,6 +160,12 @@
     grid-template-rows: repeat(3, 1fr);
     gap: var(--spacing-md);
     overflow: hidden;
+  }
+
+  .grid[data-month-view="true"] {
+    grid-template-rows: 1fr;
+    max-width: 1000px;
+    align-content: center;
   }
 }
 
