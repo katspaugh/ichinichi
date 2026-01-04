@@ -165,6 +165,9 @@ export async function pushRemoteNote(
     .single();
 
   if (error) {
+    if ('code' in error && error.code === '23505') {
+      throw new RevisionConflictError();
+    }
     if ('status' in error && error.status === 404) {
       throw new RevisionConflictError();
     }

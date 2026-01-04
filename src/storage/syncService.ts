@@ -195,7 +195,12 @@ export async function pushNote(
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      if ('code' in error && error.code === '23505') {
+        throw new RevisionConflictError();
+      }
+      throw error;
+    }
     const row = data as RemoteNoteRow;
     return {
       id: row.id,
