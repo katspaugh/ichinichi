@@ -43,8 +43,8 @@ export function resolveUrlState(search: string): ResolvedUrlState {
 
   return {
     state: { view: ViewType.Note, date: today, year: currentYear },
-    canonicalSearch: `?${URL_PARAMS.DATE}=${today}`,
-    needsRedirect: true
+    canonicalSearch: '/',
+    needsRedirect: false
   };
 }
 
