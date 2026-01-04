@@ -7,9 +7,12 @@ import styles from "./Calendar.module.css";
 
 interface CalendarProps {
   year: number;
+  month: number | null;
   hasNote: (date: string) => boolean;
   onDayClick?: (date: string) => void;
   onYearChange: (year: number) => void;
+  onMonthChange?: (year: number, month: number) => void;
+  onReturnToYear?: () => void;
   syncStatus?: SyncStatus;
   pendingOps?: PendingOpsSummary;
   onSignIn?: () => void;
@@ -19,9 +22,12 @@ interface CalendarProps {
 
 export function Calendar({
   year,
+  month,
   hasNote,
   onDayClick,
   onYearChange,
+  onMonthChange,
+  onReturnToYear,
   syncStatus,
   pendingOps,
   onSignIn,
@@ -63,9 +69,12 @@ export function Calendar({
     <div className={styles.calendar}>
       <CalendarHeader
         year={year}
+        month={month}
         commitHash={commitHash}
         commitUrl={commitUrl}
         onYearChange={onYearChange}
+        onMonthChange={onMonthChange}
+        onReturnToYear={onReturnToYear}
         syncStatus={syncStatus}
         pendingOps={pendingOps}
         onSignIn={onSignIn}
@@ -73,8 +82,10 @@ export function Calendar({
       />
       <CalendarGrid
         year={year}
+        month={month}
         hasNote={hasNote}
         onDayClick={onDayClick}
+        onMonthClick={onMonthChange}
         now={now}
       />
     </div>

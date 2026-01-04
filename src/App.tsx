@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { Calendar } from "./components/Calendar";
 import { AppModals } from "./components/AppModals";
 import { AuthState } from "./hooks/useAuth";
@@ -13,9 +14,17 @@ import "./styles/reset.css";
 
 function App() {
   const { urlState, auth, appMode, activeVault, notes } = useAppController();
-  const { year, navigateToDate, navigateToYear } = urlState;
+  const { year, month, navigateToDate, navigateToYear, navigateToMonth, navigateToCalendar } = urlState;
 
   const canSync = notes.capabilities.canSync;
+
+  const handleMonthChange = useCallback((year: number, month: number) => {
+    navigateToMonth(year, month);
+  }, [navigateToMonth]);
+
+  const handleReturnToYear = useCallback(() => {
+    navigateToCalendar(year);
+  }, [navigateToCalendar, year]);
 
   return (
     <UrlStateProvider value={urlState}>
@@ -26,11 +35,14 @@ function App() {
               {/* Calendar is always rendered as background */}
               <Calendar
                 year={year}
+                month={month}
                 hasNote={notes.hasNote}
                 onDayClick={
                   activeVault.isVaultUnlocked ? navigateToDate : undefined
                 }
                 onYearChange={navigateToYear}
+                onMonthChange={handleMonthChange}
+                onReturnToYear={handleReturnToYear}
                 syncStatus={canSync ? notes.syncStatus : undefined}
                 pendingOps={canSync ? notes.pendingOps : undefined}
                 onSignIn={

@@ -33,11 +33,12 @@ export function useUrlState({ authState }: UseUrlStateProps) {
         view: ViewType.Calendar,
         date: null,
         year: new Date().getFullYear(),
+        month: null,
       };
     }
     const resolved = resolveUrlState(window.location.search);
     if (initialShowIntro) {
-      return { view: ViewType.Calendar, date: null, year: resolved.state.year };
+      return { view: ViewType.Calendar, date: null, year: resolved.state.year, month: null };
     }
     return resolved.state;
   });
@@ -52,7 +53,7 @@ export function useUrlState({ authState }: UseUrlStateProps) {
   // Effective state: if auth-gated, force calendar view
   const effectiveState = useMemo(() => {
     if (isAuthGated && state.view === ViewType.Note) {
-      return { view: ViewType.Calendar, date: null, year: state.year };
+      return { view: ViewType.Calendar, date: null, year: state.year, month: state.month };
     }
     return state;
   }, [isAuthGated, state]);
@@ -100,7 +101,7 @@ export function useUrlState({ authState }: UseUrlStateProps) {
     if (!isFuture(date)) {
       const parsed = parseDate(date);
       const year = parsed?.getFullYear() ?? new Date().getFullYear();
-      const nextState = { view: ViewType.Note, date, year };
+      const nextState = { view: ViewType.Note, date, year, month: null };
       window.history.pushState({}, "", serializeUrlState(nextState));
       setState(nextState);
     }
@@ -119,6 +120,7 @@ export function useUrlState({ authState }: UseUrlStateProps) {
         view: ViewType.Calendar,
         date: null,
         year: targetYear,
+        month: null,
       };
       window.history.pushState({}, "", serializeUrlState(nextState));
       setState(nextState);
@@ -128,7 +130,14 @@ export function useUrlState({ authState }: UseUrlStateProps) {
 
   const navigateToYear = useCallback((year: number) => {
     if (typeof window === "undefined") return;
-    const nextState = { view: ViewType.Calendar, date: null, year };
+    const nextState = { view: ViewType.Calendar, date: null, year, month: null };
+    window.history.pushState({}, "", serializeUrlState(nextState));
+    setState(nextState);
+  }, []);
+
+  const navigateToMonth = useCallback((year: number, month: number) => {
+    if (typeof window === "undefined") return;
+    const nextState = { view: ViewType.Calendar, date: null, year, month };
     window.history.pushState({}, "", serializeUrlState(nextState));
     setState(nextState);
   }, []);
@@ -141,6 +150,7 @@ export function useUrlState({ authState }: UseUrlStateProps) {
     navigateToDate,
     navigateToCalendar,
     navigateToYear,
+    navigateToMonth,
   };
 }
 

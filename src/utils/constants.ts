@@ -5,4 +5,5 @@ export const AUTH_HAS_LOGGED_IN_KEY = `${STORAGE_PREFIX}has_logged_in_v1`;
 export const URL_PARAMS = {
   DATE: "date",
   YEAR: "year",
+  MONTH: "month",
 } as const;

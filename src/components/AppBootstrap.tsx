@@ -49,6 +49,7 @@ export function AppBootstrap({ shouldHydrate, year, now }: AppBootstrapProps) {
     return (
       <Calendar
         year={year}
+        month={null}
         hasNote={() => false}
         onYearChange={() => {}}
         now={now}

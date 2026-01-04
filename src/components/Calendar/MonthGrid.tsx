@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useCallback } from "react";
 import { DayCell } from "./DayCell";
 import {
   getDaysInMonth,
@@ -16,6 +16,8 @@ interface MonthGridProps {
   month: number;
   hasNote: (date: string) => boolean;
   onDayClick?: (date: string) => void;
+  onMonthClick?: (year: number, month: number) => void;
+  showMonthView?: boolean;
   now?: Date;
 }
 
@@ -24,6 +26,8 @@ export function MonthGrid({
   month,
   hasNote,
   onDayClick,
+  onMonthClick,
+  showMonthView = false,
   now,
 }: MonthGridProps) {
   const weekdays = getWeekdays();
@@ -31,6 +35,12 @@ export function MonthGrid({
   const resolvedNow = now ?? new Date();
   const isCurrentMonth =
     year === resolvedNow.getFullYear() && month === resolvedNow.getMonth();
+
+  const handleMonthClick = useCallback(() => {
+    if (!showMonthView && onMonthClick) {
+      onMonthClick(year, month);
+    }
+  }, [showMonthView, onMonthClick, year, month]);
 
   const days = useMemo(() => {
     const daysInMonth = getDaysInMonth(year, month);
@@ -56,7 +66,17 @@ export function MonthGrid({
       className={styles.monthGrid}
       data-current-month={isCurrentMonth ? "true" : undefined}
     >
-      <div className={styles.header}>{monthName}</div>
+      {showMonthView ? (
+        <div className={styles.header}>{monthName}</div>
+      ) : (
+        <button
+          className={styles.headerButton}
+          onClick={handleMonthClick}
+          aria-label={`View ${monthName}`}
+        >
+          {monthName}
+        </button>
+      )}
       <div className={styles.weekdays}>
         {weekdays.map((day) => (
           <div key={day} className={styles.weekday}>

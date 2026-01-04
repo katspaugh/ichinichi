@@ -35,6 +35,24 @@
   text-align: center;
 }
 
+.yearMonth {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-semibold);
+  min-width: 200px;
+  text-align: center;
+  background: transparent;
+  border: none;
+  color: var(--color-text);
+  cursor: pointer;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  transition: background-color 0.2s;
+}
+
+.yearMonth:hover {
+  background-color: var(--color-surface);
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -123,6 +141,11 @@
   .year {
     font-size: var(--font-size-xl);
     min-width: 100px;
+  }
+
+  .yearMonth {
+    font-size: var(--font-size-xl);
+    min-width: 180px;
   }
 
   .grid {

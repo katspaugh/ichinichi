@@ -43,6 +43,7 @@ export interface UrlState {
   view: ViewType;
   date: string | null;
   year: number;
+  month: number | null; // null = year view, 0-11 = month view
 }
 
 export const DayCellState = {
