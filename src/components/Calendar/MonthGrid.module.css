@@ -62,7 +62,7 @@
 
 .monthGrid[data-month-view="true"] .days {
   gap: 4px;
-  font-size: var(--font-size-lg);
+  font-size: clamp(1rem, 3vw, 2.5rem);
 }
 
 @media (min-width: 1200px) {
@@ -123,6 +123,6 @@
 
   .monthGrid[data-month-view="true"] .days {
     gap: 6px;
-    font-size: var(--font-size-xl);
+    font-size: clamp(1.25rem, 2.5vw, 3rem);
   }
 }
