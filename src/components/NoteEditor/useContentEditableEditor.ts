@@ -93,6 +93,16 @@ function restoreCursorPosition(
   }
 }
 
+function placeCaretAtEnd(element: HTMLElement) {
+  const selection = window.getSelection();
+  if (!selection) return;
+  const range = document.createRange();
+  range.selectNodeContents(element);
+  range.collapse(false);
+  selection.removeAllRanges();
+  selection.addRange(range);
+}
+
 function formatTimestampLabel(timestamp: string): string {
   const parsed = new Date(timestamp);
   if (Number.isNaN(parsed.getTime())) return '';
@@ -147,6 +157,7 @@ export function useContentEditableEditor({
   const lastUserInputRef = useRef<number | null>(null);
   const lastEditedBlockRef = useRef<Element | null>(null);
   const hasInsertedTimestampRef = useRef(false);
+  const hasAutoFocusedRef = useRef(false);
 
   const insertTimestampHrIfNeeded = useCallback(() => {
     const el = editorRef.current;
@@ -278,6 +289,24 @@ export function useContentEditableEditor({
     updateEmptyState();
     updateTimestampLabels(el);
   }, [content, updateEmptyState, updateTimestampLabels]);
+
+  useEffect(() => {
+    const el = editorRef.current;
+    if (!el) return;
+    if (!isEditable) {
+      hasAutoFocusedRef.current = false;
+      return;
+    }
+    if (hasAutoFocusedRef.current) return;
+
+    el.focus();
+    const hasText = (el.textContent ?? '').trim().length > 0;
+    const hasImages = el.querySelector('img') !== null;
+    if (hasText || hasImages) {
+      placeCaretAtEnd(el);
+    }
+    hasAutoFocusedRef.current = true;
+  }, [content, isEditable]);
 
   const handleInput = useCallback(() => {
     if (!isEditableRef.current) return;
