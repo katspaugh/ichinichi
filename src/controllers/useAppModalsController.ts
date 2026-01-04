@@ -49,8 +49,7 @@ export function useAppModalsController() {
   const {
     view,
     date,
-    year,
-    navigateToCalendar,
+    navigateBackToCalendar,
     navigateToDate,
     showIntro,
     dismissIntro,
@@ -65,7 +64,7 @@ export function useAppModalsController() {
     if (mode === AppMode.Cloud && hasEdits) {
       triggerSync({ immediate: true });
     }
-    navigateToCalendar(year);
+    navigateBackToCalendar();
     if (shouldPromptModeChoice) {
       requestModeChoice();
     }
@@ -73,11 +72,10 @@ export function useAppModalsController() {
     content,
     hasEdits,
     mode,
-    navigateToCalendar,
+    navigateBackToCalendar,
     noteDates.size,
     requestModeChoice,
     triggerSync,
-    year,
   ]);
 
   const {

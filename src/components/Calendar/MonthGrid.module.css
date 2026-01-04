@@ -29,15 +29,19 @@
   color: var(--color-text);
   background: transparent;
   border: none;
-  width: 100%;
+  width: auto;
   cursor: pointer;
   padding: var(--spacing-xs);
   border-radius: var(--radius-sm);
-  transition: background-color 0.2s;
+  transition: background-color 0.2s, box-shadow 0.2s;
+  display: inline-flex;
+  justify-content: center;
+  align-self: center;
 }
 
 .headerButton:hover {
-  background-color: var(--color-background);
+  background-color: var(--color-surface-hover);
+  box-shadow: inset 0 0 0 1px var(--color-border);
 }
 
 .weekdays {
@@ -62,7 +66,10 @@
 
 .monthGrid[data-month-view="true"] .days {
   gap: 4px;
-  font-size: clamp(1rem, 3vw, 2.5rem);
+}
+
+.monthGrid[data-month-view="true"] .weekday {
+  font-size: clamp(0.9rem, 1.8vh, 1.2rem);
 }
 
 @media (min-width: 1200px) {
@@ -123,6 +130,9 @@
 
   .monthGrid[data-month-view="true"] .days {
     gap: 6px;
-    font-size: clamp(1.25rem, 2.5vw, 3rem);
+  }
+
+  .monthGrid[data-month-view="true"] .weekday {
+    font-size: clamp(0.95rem, 1.5vh, 1.25rem);
   }
 }

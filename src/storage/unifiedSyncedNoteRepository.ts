@@ -29,6 +29,8 @@ export interface UnifiedSyncedNoteRepository extends NoteRepository {
   getSyncStatus(): SyncStatus;
   onSyncStatusChange(callback: (status: SyncStatus) => void): () => void;
   getAllDatesForYear(year: number): Promise<string[]>;
+  getAllLocalDates(): Promise<string[]>;
+  getAllLocalDatesForYear(year: number): Promise<string[]>;
   getWithRefresh(
     date: string,
     onRemoteUpdate: (note: Note | null) => void,
@@ -263,15 +265,19 @@ export function createUnifiedSyncedNoteRepository(
     }
   };
 
-  const getMergedDates = async (year?: number): Promise<string[]> => {
+  const getLocalDates = async (year?: number): Promise<string[]> => {
     const records = await getAllNoteRecords();
-    const localDates = records
+    return records
       .filter((record) => !record.deleted)
       .map((record) => record.date)
       .filter((date) =>
         typeof year === "number" ? date.endsWith(String(year)) : true,
       );
-    const localDeletedDates = new Set(
+  };
+
+  const getLocalDeletedDates = async (year?: number): Promise<Set<string>> => {
+    const records = await getAllNoteRecords();
+    return new Set(
       records
         .filter((record) => record.deleted)
         .map((record) => record.date)
@@ -279,6 +285,11 @@ export function createUnifiedSyncedNoteRepository(
           typeof year === "number" ? date.endsWith(String(year)) : true,
         ),
     );
+  };
+
+  const getMergedDates = async (year?: number): Promise<string[]> => {
+    const localDates = await getLocalDates(year);
+    const localDeletedDates = await getLocalDeletedDates(year);
 
     if (!navigator.onLine) {
       return localDates;
@@ -469,6 +480,12 @@ export function createUnifiedSyncedNoteRepository(
     },
     async getAllDatesForYear(year: number): Promise<string[]> {
       return await getMergedDates(year);
+    },
+    async getAllLocalDates(): Promise<string[]> {
+      return await getLocalDates();
+    },
+    async getAllLocalDatesForYear(year: number): Promise<string[]> {
+      return await getLocalDates(year);
     },
     sync,
     getSyncStatus(): SyncStatus {

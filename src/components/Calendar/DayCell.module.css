@@ -60,3 +60,13 @@
     aspect-ratio: auto;
   }
 }
+
+:global([data-month-view="true"]) .dayCell {
+  font-size: clamp(0.9rem, 1.9vh, 1.8rem);
+}
+
+:global([data-month-view="true"]) .indicator {
+  width: clamp(6px, 0.4em, 14px);
+  height: clamp(6px, 0.4em, 14px);
+  bottom: clamp(3px, 0.25em, 8px);
+}

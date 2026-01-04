@@ -11,10 +11,21 @@ interface YearDateRepository {
   getAllDatesForYear: (year: number) => Promise<string[]>;
 }
 
+interface LocalDateRepository {
+  getAllLocalDates: () => Promise<string[]>;
+  getAllLocalDatesForYear: (year: number) => Promise<string[]>;
+}
+
 function supportsYearDates(
   repository: NoteRepository | null,
 ): repository is NoteRepository & YearDateRepository {
   return !!repository && "getAllDatesForYear" in repository;
+}
+
+function supportsLocalDates(
+  repository: NoteRepository | null,
+): repository is NoteRepository & LocalDateRepository {
+  return !!repository && "getAllLocalDates" in repository;
 }
 
 export function useNoteDates(
@@ -32,24 +43,42 @@ export function useNoteDates(
       refreshPendingRef.current = true;
       return;
     }
-    const refreshPromise = Promise.resolve()
-      .then(() => {
-        if (!repository) {
-          return [];
+    const refreshPromise = (async () => {
+      if (!repository) {
+        setNoteDates(new Set());
+        return;
+      }
+
+      let hasLocalSnapshot = false;
+      if (supportsLocalDates(repository)) {
+        try {
+          const localDates = supportsYearDates(repository)
+            ? await repository.getAllLocalDatesForYear(year)
+            : await repository.getAllLocalDates();
+          hasLocalSnapshot = true;
+          setNoteDates(new Set(localDates));
+        } catch {
+          setNoteDates(new Set());
         }
-        return supportsYearDates(repository)
-          ? repository.getAllDatesForYear(year)
-          : repository.getAllDates();
-      })
-      .then((dates) => setNoteDates(new Set(dates)))
-      .catch(() => setNoteDates(new Set()))
-      .finally(() => {
-        refreshInFlightRef.current = null;
-        if (refreshPendingRef.current) {
-          refreshPendingRef.current = false;
-          runRefreshRef.current();
+      }
+
+      try {
+        const dates = supportsYearDates(repository)
+          ? await repository.getAllDatesForYear(year)
+          : await repository.getAllDates();
+        setNoteDates(new Set(dates));
+      } catch {
+        if (!hasLocalSnapshot) {
+          setNoteDates(new Set());
         }
-      });
+      }
+    })().finally(() => {
+      refreshInFlightRef.current = null;
+      if (refreshPendingRef.current) {
+        refreshPendingRef.current = false;
+        runRefreshRef.current();
+      }
+    });
     refreshInFlightRef.current = refreshPromise;
   }, [repository, year]);
 

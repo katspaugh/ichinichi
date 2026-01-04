@@ -1,5 +1,5 @@
 export const UNIFIED_DB_NAME = "dailynotes-unified";
-export const UNIFIED_DB_VERSION = 1;
+export const UNIFIED_DB_VERSION = 2;
 
 export const NOTES_STORE = "notes";
 export const NOTE_META_STORE = "note_meta";
