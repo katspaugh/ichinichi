@@ -20,9 +20,8 @@ export function CalendarGrid({
   onWeekStartChange,
   now,
 }: CalendarGridProps) {
-  const months = month === null
-    ? Array.from({ length: 12 }, (_, i) => i)
-    : [month];
+  const months =
+    month === null ? Array.from({ length: 12 }, (_, i) => i) : [month];
 
   return (
     <div

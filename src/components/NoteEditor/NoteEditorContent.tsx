@@ -2,6 +2,7 @@ import type {
   ClipboardEvent,
   DragEvent,
   FormEvent,
+  KeyboardEvent,
   MouseEvent,
   RefObject,
 } from "react";
@@ -16,6 +17,7 @@ interface NoteEditorContentProps {
   onDrop?: (event: DragEvent<HTMLDivElement>) => void;
   onDragOver?: (event: DragEvent<HTMLDivElement>) => void;
   onClick?: (event: MouseEvent<HTMLDivElement>) => void;
+  onKeyDown?: (event: KeyboardEvent<HTMLDivElement>) => void;
 }
 
 export function NoteEditorContent({
@@ -27,6 +29,7 @@ export function NoteEditorContent({
   onDrop,
   onDragOver,
   onClick,
+  onKeyDown,
 }: NoteEditorContentProps) {
   return (
     <div
@@ -48,6 +51,7 @@ export function NoteEditorContent({
       onDrop={onDrop}
       onDragOver={onDragOver}
       onClick={onClick}
+      onKeyDown={onKeyDown}
     />
   );
 }

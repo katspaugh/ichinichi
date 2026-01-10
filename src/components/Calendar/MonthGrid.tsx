@@ -87,14 +87,14 @@ export function MonthGrid({
           const isSunday = day.dayIndex === 0;
           if (!isSunday) {
             return (
-              <div key={day.label} className={styles.weekdayLabel}>
+              <div key={day.dayIndex} className={styles.weekdayLabel}>
                 {day.label}
               </div>
             );
           }
           return (
             <button
-              key={`${day.label}-${day.dayIndex}`}
+              key={day.dayIndex}
               className={styles.weekdayButton}
               type="button"
               onClick={() => {

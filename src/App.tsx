@@ -14,13 +14,23 @@ import "./styles/reset.css";
 
 function App() {
   const { urlState, auth, appMode, activeVault, notes } = useAppController();
-  const { year, month, navigateToDate, navigateToYear, navigateToMonth, navigateToCalendar } = urlState;
+  const {
+    year,
+    month,
+    navigateToDate,
+    navigateToYear,
+    navigateToMonth,
+    navigateToCalendar,
+  } = urlState;
 
   const canSync = notes.capabilities.canSync;
 
-  const handleMonthChange = useCallback((year: number, month: number) => {
-    navigateToMonth(year, month);
-  }, [navigateToMonth]);
+  const handleMonthChange = useCallback(
+    (year: number, month: number) => {
+      navigateToMonth(year, month);
+    },
+    [navigateToMonth],
+  );
 
   const handleReturnToYear = useCallback(() => {
     navigateToCalendar(year);

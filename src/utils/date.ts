@@ -185,7 +185,10 @@ export function getMonthName(month: number): string {
 /**
  * Get weekday abbreviations
  */
-export function getWeekdayOptions(): Array<{ label: string; dayIndex: number }> {
+export function getWeekdayOptions(): Array<{
+  label: string;
+  dayIndex: number;
+}> {
   const locale = getResolvedLocale();
   const weekStart = getWeekStart();
   if (typeof Intl === "undefined" || !Intl.DateTimeFormat) {

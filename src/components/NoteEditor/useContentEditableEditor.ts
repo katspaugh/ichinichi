@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useRef } from "react";
-import type { ClipboardEvent, DragEvent, MouseEvent } from "react";
-import { linkifyElement } from "../../utils/linkify";
+import type {
+  ClipboardEvent,
+  DragEvent,
+  KeyboardEvent,
+  MouseEvent,
+} from "react";
+import { handleKeyDown as hotkeyHandleKeyDown } from "../../services/editorHotkeys";
+import { applyTextTransforms } from "../../services/editorTextTransforms";
 
 const TIMESTAMP_ATTR = "data-timestamp";
 const TIMESTAMP_LABEL_ATTR = "data-label";
@@ -58,46 +64,6 @@ function insertNodeAtCursor(node: Node) {
   range.collapse(true);
   selection.removeAllRanges();
   selection.addRange(range);
-}
-
-function saveCursorPosition(
-  element: HTMLElement,
-): { node: Node; offset: number } | null {
-  const selection = window.getSelection();
-  if (!selection || selection.rangeCount === 0) return null;
-  const range = selection.getRangeAt(0);
-  if (!element.contains(range.startContainer)) return null;
-  return { node: range.startContainer, offset: range.startOffset };
-}
-
-function restoreCursorPosition(
-  element: HTMLElement,
-  saved: { node: Node; offset: number } | null,
-) {
-  if (!saved) return;
-  const selection = window.getSelection();
-  if (!selection) return;
-
-  // If the saved node is still in the document, use it
-  if (element.contains(saved.node)) {
-    try {
-      const range = document.createRange();
-      range.setStart(
-        saved.node,
-        Math.min(saved.offset, saved.node.textContent?.length ?? 0),
-      );
-      range.collapse(true);
-      selection.removeAllRanges();
-      selection.addRange(range);
-    } catch {
-      // If restoration fails, place cursor at end
-      const range = document.createRange();
-      range.selectNodeContents(element);
-      range.collapse(false);
-      selection.removeAllRanges();
-      selection.addRange(range);
-    }
-  }
 }
 
 function placeCaretAtEnd(element: HTMLElement) {
@@ -263,6 +229,67 @@ export function useContentEditableEditor({
     }
   }, []);
 
+  const processManualHrs = useCallback(() => {
+    const el = editorRef.current;
+    if (!el) return;
+
+    // Find all HRs without timestamps (manually inserted)
+    const untimestampedHrs = Array.from(
+      el.querySelectorAll<HTMLHRElement>(`hr:not([${TIMESTAMP_ATTR}])`),
+    );
+
+    for (const hr of untimestampedHrs) {
+      // Add timestamp
+      const timestamp = new Date().toISOString();
+      hr.setAttribute(TIMESTAMP_ATTR, timestamp);
+      const label = formatTimestampLabel(timestamp);
+      if (label) {
+        hr.setAttribute(TIMESTAMP_LABEL_ATTR, label);
+      }
+      hr.setAttribute("contenteditable", "false");
+
+      // Ensure there's a newline after the HR
+      const nextSibling = hr.nextSibling;
+
+      // Check if we need to add a BR
+      // Add BR if: no next sibling, empty text node, or another HR
+      const needsBr =
+        !nextSibling ||
+        (nextSibling.nodeType === Node.TEXT_NODE &&
+          nextSibling.textContent?.trim() === "") ||
+        (nextSibling.nodeType === Node.ELEMENT_NODE &&
+          nextSibling.nodeName === "HR") ||
+        (nextSibling.nodeType === Node.ELEMENT_NODE &&
+          nextSibling.nodeName !== "BR");
+
+      if (needsBr) {
+        const br = document.createElement("br");
+        if (
+          nextSibling?.nodeType === Node.TEXT_NODE &&
+          nextSibling.textContent?.trim() === ""
+        ) {
+          // Replace empty text node with BR
+          hr.parentNode?.replaceChild(br, nextSibling);
+        } else {
+          // Insert BR after HR
+          hr.parentNode?.insertBefore(br, nextSibling || null);
+        }
+
+        // Place cursor after the BR
+        setTimeout(() => {
+          const selection = window.getSelection();
+          if (selection) {
+            const range = document.createRange();
+            range.setStartAfter(br);
+            range.collapse(true);
+            selection.removeAllRanges();
+            selection.addRange(range);
+          }
+        }, 0);
+      }
+    }
+  }, []);
+
   useEffect(() => {
     isEditableRef.current = isEditable;
   }, [isEditable]);
@@ -348,63 +375,11 @@ export function useContentEditableEditor({
 
     updateEmptyState();
 
-    // Convert --- to timestamped <hr>
-    const hrPattern = /^---$/;
-    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-    const textNodesToReplace: Text[] = [];
-    let node;
-    while ((node = walker.nextNode())) {
-      const text = (node.textContent ?? "").trim();
-      if (hrPattern.test(text)) {
-        textNodesToReplace.push(node as Text);
-      }
-    }
-    for (const textNode of textNodesToReplace) {
-      const timestamp = new Date().toISOString();
-      const hr = createTimestampHr(timestamp);
-      const br = document.createElement("br");
-      const parent = textNode.parentNode;
-      if (parent) {
-        parent.replaceChild(hr, textNode);
-        hr.after(br);
-      }
-    }
+    // Process any manually inserted HRs (add timestamps and newlines)
+    processManualHrs();
 
-    // Linkify any URLs in text nodes
-    const cursorPos = saveCursorPosition(el);
-    const didLinkify = linkifyElement(el);
-    const didInsertHr = textNodesToReplace.length > 0;
-    if (didLinkify || didInsertHr) {
-      // After transformation, cursor may be lost - place it after the new element
-      const selection = window.getSelection();
-      if (selection) {
-        if (didInsertHr) {
-          // Place cursor after the last timestamp HR
-          const hrs = el.querySelectorAll(`hr[${TIMESTAMP_ATTR}]`);
-          if (hrs.length > 0) {
-            const lastHr = hrs[hrs.length - 1];
-            const range = document.createRange();
-            range.setStartAfter(lastHr);
-            range.collapse(true);
-            selection.removeAllRanges();
-            selection.addRange(range);
-          }
-        } else if (didLinkify) {
-          // Find the last anchor and place cursor after it
-          const anchors = el.querySelectorAll("a");
-          if (anchors.length > 0) {
-            const lastAnchor = anchors[anchors.length - 1];
-            const range = document.createRange();
-            range.setStartAfter(lastAnchor);
-            range.collapse(true);
-            selection.removeAllRanges();
-            selection.addRange(range);
-          } else {
-            restoreCursorPosition(el, cursorPos);
-          }
-        }
-      }
-    }
+    // Apply text transforms (HR insertion, linkify) with cursor preservation
+    applyTextTransforms(el);
 
     const hasText = (el.textContent ?? "").trim().length > 0;
     const hasImages = el.querySelector("img") !== null;
@@ -417,7 +392,12 @@ export function useContentEditableEditor({
     updateTimestampLabels(el);
     onChangeRef.current(html);
     onUserInputRef.current?.();
-  }, [insertTimestampHrIfNeeded, updateEmptyState, updateTimestampLabels]);
+  }, [
+    insertTimestampHrIfNeeded,
+    updateEmptyState,
+    processManualHrs,
+    updateTimestampLabels,
+  ]);
 
   const handlePaste = useCallback(
     (event: ClipboardEvent<HTMLDivElement>) => {
@@ -516,6 +496,15 @@ export function useContentEditableEditor({
     }
   }, []);
 
+  const handleKeyDown = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
+    if (!isEditableRef.current) return;
+
+    // Delegate to hotkey service
+    // Note: We don't call handleInput() here because execCommand
+    // triggers an 'input' event which will call handleInput() automatically
+    hotkeyHandleKeyDown(event.nativeEvent);
+  }, []);
+
   return {
     editorRef,
     handleInput,
@@ -523,5 +512,6 @@ export function useContentEditableEditor({
     handleDrop,
     handleDragOver,
     handleClick,
+    handleKeyDown,
   };
 }

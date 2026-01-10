@@ -30,7 +30,12 @@ export function resolveUrlState(search: string): ResolvedUrlState {
     }
 
     return {
-      state: { view: ViewType.Note, date: today, year: currentYear, month: null },
+      state: {
+        view: ViewType.Note,
+        date: today,
+        year: currentYear,
+        month: null,
+      },
       canonicalSearch: `?${URL_PARAMS.DATE}=${today}`,
       needsRedirect: true,
     };
@@ -45,7 +50,7 @@ export function resolveUrlState(search: string): ResolvedUrlState {
       if (month >= 0 && month <= 11) {
         return {
           state: { view: ViewType.Calendar, date: null, year, month },
-          canonicalSearch: `?${URL_PARAMS.MONTH}=${year}-${String(month + 1).padStart(2, '0')}`,
+          canonicalSearch: `?${URL_PARAMS.MONTH}=${year}-${String(month + 1).padStart(2, "0")}`,
           needsRedirect: false,
         };
       }
@@ -64,7 +69,12 @@ export function resolveUrlState(search: string): ResolvedUrlState {
   }
 
   return {
-    state: { view: ViewType.Calendar, date: null, year: currentYear, month: null },
+    state: {
+      view: ViewType.Calendar,
+      date: null,
+      year: currentYear,
+      month: null,
+    },
     canonicalSearch: "/",
     needsRedirect: false,
   };
@@ -73,7 +83,7 @@ export function resolveUrlState(search: string): ResolvedUrlState {
 export function serializeUrlState(state: UrlState): string {
   if (state.view === ViewType.Calendar) {
     if (state.month !== null) {
-      const monthStr = String(state.month + 1).padStart(2, '0');
+      const monthStr = String(state.month + 1).padStart(2, "0");
       return `?${URL_PARAMS.MONTH}=${state.year}-${monthStr}`;
     }
     return `?${URL_PARAMS.YEAR}=${state.year}`;

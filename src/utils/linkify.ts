@@ -1,9 +1,10 @@
 /**
- * URL pattern that matches common URLs followed by whitespace or end of string.
+ * URL pattern that matches common URLs followed by whitespace.
  * Only linkifies "complete" URLs (when user has finished typing by pressing space/enter).
+ * Does NOT match URLs at end of string - user may still be typing.
  * Matches http://, https://, and www. prefixed URLs.
  */
-const URL_PATTERN = /(?:https?:\/\/|www\.)[^\s<>"']+(?=\s|$)/gi;
+const URL_PATTERN = /(?:https?:\/\/|www\.)[^\s<>"']+(?=\s)/gi;
 
 /**
  * Checks if a string looks like a URL
@@ -46,52 +47,6 @@ export function normalizeUrl(url: string): string {
 }
 
 /**
- * Creates an anchor element for a URL
- */
-export function createLinkElement(url: string): HTMLAnchorElement {
-  const anchor = document.createElement("a");
-  anchor.href = normalizeUrl(url);
-  anchor.textContent = url;
-  anchor.target = "_blank";
-  anchor.rel = "noopener noreferrer";
-  return anchor;
-}
-
-/**
- * Linkifies URLs in a text node, returning an array of nodes to replace it with.
- * If no URLs found, returns null (no replacement needed).
- */
-export function linkifyTextNode(textNode: Text): Node[] | null {
-  const text = textNode.textContent ?? "";
-  const urls = findUrls(text);
-
-  if (urls.length === 0) {
-    return null;
-  }
-
-  const nodes: Node[] = [];
-  let lastIndex = 0;
-
-  for (const { url, start, end } of urls) {
-    // Add text before the URL
-    if (start > lastIndex) {
-      nodes.push(document.createTextNode(text.slice(lastIndex, start)));
-    }
-
-    // Add the link
-    nodes.push(createLinkElement(url));
-    lastIndex = end;
-  }
-
-  // Add remaining text after last URL
-  if (lastIndex < text.length) {
-    nodes.push(document.createTextNode(text.slice(lastIndex)));
-  }
-
-  return nodes;
-}
-
-/**
  * Checks if a node is inside an anchor element
  */
 function isInsideAnchor(node: Node): boolean {
@@ -106,9 +61,9 @@ function isInsideAnchor(node: Node): boolean {
 }
 
 /**
- * Linkifies all URLs in text nodes within an element.
- * Skips text already inside anchor tags.
- * Returns true if any changes were made.
+ * Linkifies URLs in the editor using execCommand('createLink').
+ * Finds URLs followed by whitespace and converts them to links.
+ * Returns true if any URLs were linkified.
  */
 export function linkifyElement(element: HTMLElement): boolean {
   const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, {
@@ -127,22 +82,57 @@ export function linkifyElement(element: HTMLElement): boolean {
     },
   });
 
-  const textNodes: Text[] = [];
+  const nodesToProcess: {
+    node: Text;
+    urls: Array<{ url: string; start: number; end: number }>;
+  }[] = [];
   let node;
   while ((node = walker.nextNode())) {
-    textNodes.push(node as Text);
+    const text = (node as Text).textContent ?? "";
+    const urls = findUrls(text);
+    if (urls.length > 0) {
+      nodesToProcess.push({ node: node as Text, urls });
+    }
   }
 
-  if (textNodes.length === 0) {
+  if (nodesToProcess.length === 0) {
     return false;
   }
 
-  for (const textNode of textNodes) {
-    const replacements = linkifyTextNode(textNode);
-    if (replacements && textNode.parentNode) {
-      const fragment = document.createDocumentFragment();
-      replacements.forEach((n) => fragment.appendChild(n));
-      textNode.parentNode.replaceChild(fragment, textNode);
+  const selection = window.getSelection();
+  if (!selection) {
+    return false;
+  }
+
+  // Process URLs in reverse order to maintain correct positions
+  for (const { node: textNode, urls } of nodesToProcess) {
+    for (let i = urls.length - 1; i >= 0; i--) {
+      const { url, start, end } = urls[i];
+
+      // Create a range selecting the URL text
+      const range = document.createRange();
+      try {
+        range.setStart(textNode, start);
+        range.setEnd(textNode, end);
+      } catch {
+        // Text node may have changed, skip
+        continue;
+      }
+
+      // Select the URL text
+      selection.removeAllRanges();
+      selection.addRange(range);
+
+      // Create the link using execCommand
+      const normalizedUrl = normalizeUrl(url);
+      document.execCommand("createLink", false, normalizedUrl);
+
+      // Set target and rel attributes on the newly created link
+      const anchor = selection.anchorNode?.parentElement;
+      if (anchor?.tagName === "A") {
+        anchor.setAttribute("target", "_blank");
+        anchor.setAttribute("rel", "noopener noreferrer");
+      }
     }
   }
 
