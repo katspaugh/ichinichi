@@ -56,6 +56,7 @@ interface AppModalsViewProps {
     hasEdits: boolean;
     isDecrypting: boolean;
     isContentReady: boolean;
+    isOfflineStub: boolean;
     content: string;
     onChange: (content: string) => void;
     canNavigatePrev: boolean;
@@ -128,6 +129,7 @@ export function AppModalsView({
         hasEdits={noteModal.hasEdits}
         isDecrypting={noteModal.isDecrypting}
         isContentReady={noteModal.isContentReady}
+        isOfflineStub={noteModal.isOfflineStub}
         content={noteModal.content}
         onChange={noteModal.onChange}
         canNavigatePrev={noteModal.canNavigatePrev}

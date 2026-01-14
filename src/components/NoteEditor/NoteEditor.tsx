@@ -14,6 +14,7 @@ interface NoteEditorProps {
   hasEdits: boolean;
   isDecrypting?: boolean;
   isContentReady: boolean;
+  isOfflineStub?: boolean;
 }
 
 export function NoteEditor({
@@ -24,6 +25,7 @@ export function NoteEditor({
   hasEdits,
   isDecrypting = false,
   isContentReady,
+  isOfflineStub = false,
 }: NoteEditorProps) {
   const canEdit = canEditNote(date);
   const isEditable = canEdit && !isDecrypting && isContentReady;
@@ -40,9 +42,11 @@ export function NoteEditor({
   const placeholderText =
     !isContentReady || isDecrypting
       ? "Loading..."
-      : isEditable
-        ? "Write your note for today..."
-        : "No note for this day";
+      : isOfflineStub
+        ? "This note can't be loaded while offline. Go online to view it."
+        : isEditable
+          ? "Write your note for today..."
+          : "No note for this day";
 
   const { isDraggingImage, endImageDrag } = useImageDragState();
 

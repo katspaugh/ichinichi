@@ -2,6 +2,7 @@ import { useCallback, useEffect, useReducer, useRef } from "react";
 import type { Note } from "../types";
 import type { NoteRepository } from "../storage/noteRepository";
 import { isContentEmpty } from "../utils/sanitize";
+import { OfflineStubError } from "../storage/unifiedSyncedNoteRepository";
 
 interface UseNoteContentReturn {
   content: string;
@@ -9,6 +10,7 @@ interface UseNoteContentReturn {
   isDecrypting: boolean;
   hasEdits: boolean;
   isContentReady: boolean;
+  isOfflineStub: boolean;
 }
 
 export type NoteContentState =
@@ -19,6 +21,7 @@ export type NoteContentState =
       hasEdits: false;
       isDecrypting: false;
       isContentReady: false;
+      isOfflineStub: false;
       error: null;
     }
   | {
@@ -28,6 +31,7 @@ export type NoteContentState =
       hasEdits: false;
       isDecrypting: true;
       isContentReady: false;
+      isOfflineStub: false;
       error: null;
     }
   | {
@@ -37,6 +41,17 @@ export type NoteContentState =
       hasEdits: boolean;
       isDecrypting: false;
       isContentReady: true;
+      isOfflineStub: false;
+      error: null;
+    }
+  | {
+      status: "offline_stub";
+      date: string;
+      content: "";
+      hasEdits: false;
+      isDecrypting: false;
+      isContentReady: true;
+      isOfflineStub: true;
       error: null;
     }
   | {
@@ -46,6 +61,7 @@ export type NoteContentState =
       hasEdits: boolean;
       isDecrypting: false;
       isContentReady: true;
+      isOfflineStub: false;
       error: Error;
     };
 
@@ -54,6 +70,7 @@ export type NoteContentAction =
   | { type: "LOAD_START"; date: string }
   | { type: "LOAD_SUCCESS"; date: string; content: string }
   | { type: "LOAD_ERROR"; date: string; error: Error }
+  | { type: "LOAD_OFFLINE_STUB"; date: string }
   | { type: "REMOTE_UPDATE"; date: string; content: string }
   | { type: "EDIT"; content: string }
   | { type: "SAVE_SUCCESS"; date: string; content: string };
@@ -65,6 +82,7 @@ export const initialNoteContentState: NoteContentState = {
   hasEdits: false,
   isDecrypting: false,
   isContentReady: false,
+  isOfflineStub: false,
   error: null,
 };
 
@@ -74,6 +92,7 @@ State transitions:
 - LOAD_START(date) -> loading
 - LOAD_SUCCESS(date, content) -> ready
 - LOAD_ERROR(date, error) -> error (content ready, editable)
+- LOAD_OFFLINE_STUB(date) -> offline_stub (note exists but not cached)
 - REMOTE_UPDATE(date, content) -> ready (if same date and no edits)
 - EDIT(content) -> ready with hasEdits
 - SAVE_SUCCESS(date, content) -> ready with hasEdits false (if content unchanged)
@@ -93,6 +112,7 @@ export function noteContentReducer(
         hasEdits: false,
         isDecrypting: true,
         isContentReady: false,
+        isOfflineStub: false,
         error: null,
       };
     case "LOAD_SUCCESS":
@@ -106,6 +126,7 @@ export function noteContentReducer(
         hasEdits: false,
         isDecrypting: false,
         isContentReady: true,
+        isOfflineStub: false,
         error: null,
       };
     case "LOAD_ERROR":
@@ -119,7 +140,22 @@ export function noteContentReducer(
         hasEdits: false,
         isDecrypting: false,
         isContentReady: true,
+        isOfflineStub: false,
         error: action.error,
+      };
+    case "LOAD_OFFLINE_STUB":
+      if (state.status !== "loading" || state.date !== action.date) {
+        return state;
+      }
+      return {
+        status: "offline_stub",
+        date: action.date,
+        content: "",
+        hasEdits: false,
+        isDecrypting: false,
+        isContentReady: true,
+        isOfflineStub: true,
+        error: null,
       };
     case "REMOTE_UPDATE":
       if (state.date !== action.date || state.hasEdits) {
@@ -132,6 +168,7 @@ export function noteContentReducer(
         hasEdits: false,
         isDecrypting: false,
         isContentReady: true,
+        isOfflineStub: false,
         error: null,
       };
     case "EDIT":
@@ -145,6 +182,7 @@ export function noteContentReducer(
         hasEdits: true,
         isDecrypting: false,
         isContentReady: true,
+        isOfflineStub: false,
         error: null,
       };
     case "SAVE_SUCCESS":
@@ -258,6 +296,12 @@ export function useNoteContent(
           dispatch({ type: "LOAD_SUCCESS", date, content: loadedContent });
         }
       } catch (error) {
+        if (error instanceof OfflineStubError) {
+          if (!cancelled) {
+            dispatch({ type: "LOAD_OFFLINE_STUB", date });
+          }
+          return;
+        }
         console.error("Failed to load note:", error);
         if (!cancelled) {
           dispatch({
@@ -353,5 +397,6 @@ export function useNoteContent(
     isDecrypting: state.isDecrypting,
     hasEdits: state.hasEdits,
     isContentReady: state.isContentReady,
+    isOfflineStub: state.isOfflineStub,
   };
 }

@@ -90,6 +90,7 @@ export interface UseNoteRepositoryReturn {
   refreshNoteDates: (options?: { immediate?: boolean }) => void;
   isDecrypting: boolean;
   isContentReady: boolean;
+  isOfflineStub: boolean;
 }
 
 export function useNoteRepository({
@@ -200,8 +201,14 @@ export function useNoteRepository({
     };
   }, []);
 
-  const { content, setContent, isDecrypting, hasEdits, isContentReady } =
-    useNoteContent(date, repository, handleAfterSave);
+  const {
+    content,
+    setContent,
+    isDecrypting,
+    hasEdits,
+    isContentReady,
+    isOfflineStub,
+  } = useNoteContent(date, repository, handleAfterSave);
 
   return {
     repository,
@@ -220,5 +227,6 @@ export function useNoteRepository({
     refreshNoteDates,
     isDecrypting,
     isContentReady,
+    isOfflineStub,
   };
 }

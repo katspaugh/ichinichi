@@ -12,6 +12,7 @@ interface NoteModalProps {
   hasEdits: boolean;
   isDecrypting: boolean;
   isContentReady: boolean;
+  isOfflineStub: boolean;
   content: string;
   onChange: (content: string) => void;
   canNavigatePrev: boolean;
@@ -29,6 +30,7 @@ export function NoteModal({
   hasEdits,
   isDecrypting,
   isContentReady,
+  isOfflineStub,
   content,
   onChange,
   canNavigatePrev,
@@ -49,6 +51,7 @@ export function NoteModal({
               hasEdits={hasEdits}
               isDecrypting={isDecrypting}
               isContentReady={isContentReady}
+              isOfflineStub={isOfflineStub}
             />
           </div>
 

@@ -27,6 +27,14 @@ import { syncEncryptedImages } from "./unifiedImageSyncService";
 // Marker for stub records that only indicate a note exists remotely
 const STUB_KEY_ID = "__stub__";
 
+/** Thrown when trying to access a stub note while offline */
+export class OfflineStubError extends Error {
+  constructor() {
+    super("Note exists but cannot be loaded while offline");
+    this.name = "OfflineStubError";
+  }
+}
+
 export interface UnifiedSyncedNoteRepository extends NoteRepository {
   sync(): Promise<void>;
   getSyncStatus(): SyncStatus;
@@ -473,6 +481,10 @@ export function createUnifiedSyncedNoteRepository(
       const { record, meta, note } = await getLocalSnapshot(date);
 
       if (!navigator.onLine) {
+        // Check if this is a stub record (exists remotely but not cached locally)
+        if (record && record.keyId === STUB_KEY_ID) {
+          throw new OfflineStubError();
+        }
         return note;
       }
 

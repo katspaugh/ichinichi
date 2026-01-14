@@ -13,6 +13,7 @@ describe("noteContentReducer", () => {
       hasEdits: true,
       isDecrypting: false,
       isContentReady: true,
+      isOfflineStub: false,
       error: null,
     };
 
@@ -34,6 +35,7 @@ describe("noteContentReducer", () => {
       hasEdits: false,
       isDecrypting: true,
       isContentReady: false,
+      isOfflineStub: false,
       error: null,
     });
   });
@@ -57,6 +59,7 @@ describe("noteContentReducer", () => {
       hasEdits: false,
       isDecrypting: false,
       isContentReady: true,
+      isOfflineStub: false,
       error: null,
     });
   });
@@ -96,6 +99,7 @@ describe("noteContentReducer", () => {
       hasEdits: false,
       isDecrypting: false,
       isContentReady: true,
+      isOfflineStub: false,
       error,
     });
   });
@@ -119,6 +123,7 @@ describe("noteContentReducer", () => {
       hasEdits: false,
       isDecrypting: false,
       isContentReady: true,
+      isOfflineStub: false,
       error: null,
     });
   });
@@ -131,6 +136,7 @@ describe("noteContentReducer", () => {
       hasEdits: true,
       isDecrypting: false,
       isContentReady: true,
+      isOfflineStub: false,
       error: null,
     };
 
@@ -151,6 +157,7 @@ describe("noteContentReducer", () => {
       hasEdits: false,
       isDecrypting: false,
       isContentReady: true,
+      isOfflineStub: false,
       error: new Error("boom"),
     };
 
@@ -166,6 +173,7 @@ describe("noteContentReducer", () => {
       hasEdits: true,
       isDecrypting: false,
       isContentReady: true,
+      isOfflineStub: false,
       error: null,
     });
   });
@@ -178,6 +186,7 @@ describe("noteContentReducer", () => {
       hasEdits: true,
       isDecrypting: false,
       isContentReady: true,
+      isOfflineStub: false,
       error: null,
     };
 
