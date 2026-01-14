@@ -24,6 +24,9 @@ import {
 } from "./unifiedSyncService";
 import { syncEncryptedImages } from "./unifiedImageSyncService";
 
+// Marker for stub records that only indicate a note exists remotely
+const STUB_KEY_ID = "__stub__";
+
 export interface UnifiedSyncedNoteRepository extends NoteRepository {
   sync(): Promise<void>;
   getSyncStatus(): SyncStatus;
@@ -297,6 +300,29 @@ export function createUnifiedSyncedNoteRepository(
 
     try {
       const remoteDates = await fetchRemoteNoteDates(supabase, userId, year);
+
+      // Store stub records for remote dates not in local IDB
+      const localDatesSet = new Set(localDates);
+      for (const date of remoteDates) {
+        if (!localDatesSet.has(date) && !localDeletedDates.has(date)) {
+          const stubRecord: NoteRecord = {
+            version: 1,
+            date,
+            keyId: STUB_KEY_ID,
+            ciphertext: "",
+            nonce: "",
+            updatedAt: new Date().toISOString(),
+            deleted: false,
+          };
+          const stubMeta: NoteMetaRecord = {
+            date,
+            revision: 0,
+            pendingOp: null,
+          };
+          await setNoteAndMeta(stubRecord, stubMeta);
+        }
+      }
+
       const merged = new Set<string>([...remoteDates, ...localDates]);
       localDeletedDates.forEach((date) => merged.delete(date));
       return Array.from(merged);
