@@ -9,6 +9,7 @@ import {
   getNoteMeta,
   getNoteRecord,
   setNoteAndMeta,
+  deleteNoteAndMeta,
 } from "./unifiedNoteStore";
 
 export interface UnifiedNoteRepository extends NoteRepository {
@@ -27,7 +28,7 @@ export function createUnifiedNoteRepository(
     async get(date: string): Promise<Note | null> {
       try {
         const record = await getNoteRecord(date);
-        if (!record || record.deleted || record.version !== 1) {
+        if (!record || record.version !== 1) {
           return null;
         }
         const keyId = record.keyId ?? keyring.activeKeyId;
@@ -64,7 +65,6 @@ export function createUnifiedNoteRepository(
         ciphertext,
         nonce,
         updatedAt,
-        deleted: false,
       };
 
       const meta: NoteMetaRecord = {
@@ -80,41 +80,18 @@ export function createUnifiedNoteRepository(
     },
 
     async delete(date: string): Promise<void> {
-      const existing = await getNoteRecord(date);
-      if (!existing) return;
-      const existingMeta = await getNoteMeta(date);
-      const updatedAt = new Date().toISOString();
-
-      const record: NoteRecord = {
-        ...existing,
-        updatedAt,
-        deleted: true,
-      };
-
-      const meta: NoteMetaRecord = {
-        date,
-        revision: (existingMeta?.revision ?? 0) + 1,
-        remoteId: existingMeta?.remoteId ?? null,
-        serverUpdatedAt: existingMeta?.serverUpdatedAt ?? null,
-        lastSyncedAt: existingMeta?.lastSyncedAt ?? null,
-        pendingOp: "delete",
-      };
-
-      await setNoteAndMeta(record, meta);
+      await deleteNoteAndMeta(date);
     },
 
     async getAllDates(): Promise<string[]> {
       const records = await getAllNoteRecords();
-      return records
-        .filter((record) => !record.deleted)
-        .map((record) => record.date);
+      return records.map((record) => record.date);
     },
 
     async getAllDatesForYear(year: number): Promise<string[]> {
       const suffix = String(year);
       const records = await getAllNoteRecords();
       return records
-        .filter((record) => !record.deleted)
         .map((record) => record.date)
         .filter((date) => date.endsWith(suffix));
     },

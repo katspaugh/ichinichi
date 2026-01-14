@@ -178,3 +178,22 @@ export async function pushRemoteNote(
   }
   return mapRemoteRow(data as RemoteNoteRow);
 }
+
+export async function deleteRemoteNote(
+  supabase: SupabaseClient,
+  userId: string,
+  options: { id?: string | null; date: string },
+): Promise<void> {
+  let query = supabase
+    .from("notes")
+    .update({ deleted: true })
+    .eq("user_id", userId)
+    .eq("date", options.date);
+
+  if (options.id) {
+    query = query.eq("id", options.id);
+  }
+
+  const { error } = await query;
+  if (error) throw error;
+}

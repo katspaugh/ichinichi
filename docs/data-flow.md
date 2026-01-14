@@ -1,61 +1,202 @@
 # Data Flow
 
-This document explains how notes and images move between local storage and Supabase.
+This document explains how notes and images move between local storage and Supabase,
+based on the current code paths in `src/storage` and `src/hooks`.
 
-## Overview
+## Overview (Local-first)
 
-DailyNote is local-first. All notes and images are encrypted on-device and stored in IndexedDB.
-In Cloud mode, encrypted data is synced to Supabase. When you open a note, the app shows the
-local version immediately, then reconciles with the server in the background.
+- All note content and image blobs are encrypted client-side and stored in IndexedDB.
+- Cloud mode syncs encrypted payloads to Supabase but never blocks local reads/writes.
+- The calendar and editor are driven by local data first, then reconcile with remote.
+
+High-level flow (Cloud mode):
+
+```text
+UI events
+  |
+  v
+Local repositories (note/image) -> IndexedDB (dailynotes-unified)
+  |                                   |
+  | pendingOp flags                   | encrypted ciphertext + metadata
+  v                                   |
+Sync service (debounced + idle)       |
+  |                                   |
+  v                                   v
+Supabase (notes table, note_images, Storage)
+```
 
 ## Local storage
 
-- Notes and metadata live in `dailynotes-unified` IndexedDB.
-- Notes are encrypted with AES-GCM and stored as ciphertext + nonce.
-- Image blobs are encrypted, stored locally, and tracked with metadata.
-- Metadata records carry the note `revision`, `updated_at`, and pending sync state.
+- Notes live in the `notes` store with a companion meta record:
+  - `ciphertext`, `nonce`, `keyId` in `NoteRecord`.
+  - `revision`, `serverUpdatedAt`, `pendingOp` in `NoteMetaRecord`.
+- Images live in the `images` store with `ImageMetaRecord`.
+- Remote date indexes (per year) are cached in `remote_note_index`.
+- All encryption uses AES-GCM; images use a derived key per note key.
 
 ## Calendar dates (Cloud mode)
 
-1. Fetch the list of note dates from Supabase (`notes` table, `date` only).
-2. Merge with local dates, including unsynced local notes.
-3. Exclude locally deleted dates.
+Calendar only needs date presence, not content. It merges:
 
-This allows the calendar to render without downloading note content.
+1. Local note dates from IndexedDB.
+2. Remote note dates from Supabase (`notes` table), scoped by year.
+
+The remote date list is cached in `remote_note_index` for offline use.
+
+```text
+Calendar load (year=YYYY)
+  |
+  v
+getLocalDatesForYear()  -> local dates
+  |
+  v
+if online: fetchRemoteNoteDates() -> cache remote_note_index
+if offline: read remote_note_index
+  |
+  v
+merge(local, remote)
+```
 
 ## Opening a note (Cloud mode)
 
-1. Read local note + metadata from IndexedDB.
-2. Show the local content immediately (if present).
-3. In the background, fetch the remote note for that date.
-4. Reconcile using `revision` as the primary authority:
-   - Higher revision wins.
-   - If revisions match, `updated_at` breaks the tie.
-5. If local is newer, push it to Supabase.
-6. If remote is newer, update local IndexedDB and refresh the editor view.
+Opening a note uses `getWithRefresh`:
 
-If the device is offline, only local data is used.
+1. Read local record + meta.
+2. Render local content immediately (if present).
+3. In background, fetch remote note for that date.
+4. Reconcile and update local DB if needed.
 
-## Saving a note
+```text
+Open note
+  |
+  v
+Local snapshot (record + meta)
+  |
+  +--> show local content immediately
+  |
+  v
+Fetch remote note (if online)
+  |
+  v
+Resolve conflict (revision first, updatedAt tie-break)
+  |
+  +--> remote wins: update IndexedDB and refresh UI
+  |
+  +--> local wins: push rebased revision to Supabase
+```
 
-- Edits are debounced and saved to IndexedDB.
-- The note metadata is marked with `pendingOp: 'upsert'`.
-- Sync runs in the background when online.
+Offline behavior:
+- If the note only exists remotely (cached date index) and there is no local record,
+  the UI shows an offline stub until online again.
 
-## Deleting a note
+## Saving and deleting notes
 
-- Local delete sets `pendingOp: 'delete'` in metadata.
-- Sync propagates the deletion to Supabase.
+Edits are debounced and saved locally; sync happens asynchronously.
 
-## Image sync (Cloud mode)
+```text
+Editor change
+  |
+  v
+sanitize -> encrypt -> IndexedDB
+  |
+  v
+NoteMeta.pendingOp = "upsert"
+  |
+  v
+Sync service queues background sync
+```
 
-- Images are encrypted locally, stored in IndexedDB, and queued for upload.
-- Sync uploads encrypted blobs to Supabase Storage and writes metadata to `note_images`.
-- When a note is opened on a new device, images are downloaded and hydrated into IndexedDB
-  on demand so they can be decrypted and shown locally.
+Delete (making today's note empty):
 
-## Notes on reconciliation
+```text
+Delete note
+  |
+  v
+Delete local note record
+NoteMeta.pendingOp = "delete" (cloud mode)
+  |
+  v
+Sync service deletes remote and clears local metadata
+```
 
-- `revision` is the source of truth for conflict resolution.
-- Server updates are pulled only when needed (per-note on open).
-- Local updates are pushed when `pendingOp` is set or when local revision is newer.
+## Sync loop (Cloud mode)
+
+The sync service only runs when online and only pushes local pending changes.
+Remote pulls happen on note-open and calendar-year fetch.
+
+```text
+queueSync() / queueIdleSync()
+  |
+  v
+UnifiedSyncedNoteRepository.sync()
+  |
+  +--> for each note with pendingOp:
+  |       pushRemoteNote()
+  |       deleteRemoteNote() for pending deletes
+  |       handle conflicts -> resolveConflict()
+  |       update local meta (serverUpdatedAt, pendingOp=null)
+  |
+  +--> syncEncryptedImages()
+  |
+  v
+SyncStatus = Synced | Error | Offline
+```
+
+Conflict resolution:
+- Higher `revision` wins.
+- If equal, newer `updatedAt` wins.
+- Local winner is pushed with a rebased revision.
+
+## Images (Cloud mode)
+
+Images are encrypted locally and synced via Supabase Storage + `note_images`.
+
+Upload path:
+
+```text
+Insert image
+  |
+  v
+encrypt blob -> ImageRecord/ImageMeta (pendingOp="upload")
+  |
+  v
+syncEncryptedImages()
+  |
+  +--> upload ciphertext to Storage
+  +--> upsert metadata to note_images
+  +--> mark pendingOp=null, store serverUpdatedAt
+```
+
+Download-on-demand path:
+
+```text
+Render note images
+  |
+  v
+try local get(imageId)
+  |
+  +--> found: decrypt and render
+  |
+  +--> missing: fetch metadata -> download ciphertext -> store locally -> decrypt
+```
+
+Delete path:
+
+```text
+Delete image
+  |
+  v
+ImageMeta.pendingOp = "delete"
+  |
+  v
+syncEncryptedImages() -> delete Storage object + mark deleted row
+```
+
+## Where this lives in code
+
+- Note sync/reconciliation: `src/storage/unifiedSyncedNoteRepository.ts`
+- Remote note API: `src/storage/unifiedSyncService.ts`
+- Sync scheduling: `src/services/syncService.ts`, `src/hooks/useSync.ts`
+- Image sync: `src/storage/unifiedImageSyncService.ts`
+- Image hydration: `src/storage/unifiedSyncedImageRepository.ts`
+- Calendar remote index cache: `src/storage/remoteNoteIndexStore.ts`

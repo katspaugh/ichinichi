@@ -1,11 +1,12 @@
 export const UNIFIED_DB_NAME = "dailynotes-unified";
-export const UNIFIED_DB_VERSION = 2;
+export const UNIFIED_DB_VERSION = 3;
 
 export const NOTES_STORE = "notes";
 export const NOTE_META_STORE = "note_meta";
 export const IMAGES_STORE = "images";
 export const IMAGE_META_STORE = "image_meta";
 export const SYNC_STATE_STORE = "sync_state";
+export const REMOTE_NOTE_INDEX_STORE = "remote_note_index";
 
 export interface NoteRecord {
   version: 1;
@@ -14,7 +15,6 @@ export interface NoteRecord {
   ciphertext: string;
   nonce: string;
   updatedAt: string;
-  deleted: boolean;
 }
 
 export interface NoteMetaRecord {
@@ -56,6 +56,12 @@ export interface SyncStateRecord {
   cursor?: string | null;
 }
 
+export interface RemoteNoteIndexRecord {
+  date: string;
+  year: number;
+  fetchedAt: string;
+}
+
 const IDB_TIMEOUT_MS = 3000;
 const IDB_MAX_RETRIES = 3;
 
@@ -89,6 +95,13 @@ function openUnifiedDbOnce(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(SYNC_STATE_STORE)) {
         db.createObjectStore(SYNC_STATE_STORE, { keyPath: "id" });
       }
+      if (!db.objectStoreNames.contains(REMOTE_NOTE_INDEX_STORE)) {
+        const store = db.createObjectStore(REMOTE_NOTE_INDEX_STORE, {
+          keyPath: "date",
+        });
+        store.createIndex("year", "year", { unique: false });
+      }
+
     };
 
     request.onsuccess = () => {

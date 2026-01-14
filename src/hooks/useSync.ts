@@ -3,6 +3,7 @@ import { SyncStatus } from "../types";
 import type { UnifiedSyncedNoteRepository } from "../storage/unifiedSyncedNoteRepository";
 import type { PendingOpsSummary, SyncService } from "../domain/sync";
 import { createSyncService, getPendingOpsSummary } from "../domain/sync";
+import { useSyncCoordinator } from "./useSyncCoordinator";
 
 interface UseSyncReturn {
   syncStatus: SyncStatus;
@@ -14,8 +15,9 @@ interface UseSyncReturn {
 
 export function useSync(
   repository: UnifiedSyncedNoteRepository | null,
+  options?: { enabled?: boolean },
 ): UseSyncReturn {
-  const [syncStatus, setSyncStatus] = useState<SyncStatus>(SyncStatus.Idle);
+  const [repoStatus, setRepoStatus] = useState<SyncStatus>(SyncStatus.Idle);
   const [lastSynced, setLastSynced] = useState<Date | null>(null);
   const [pendingOps, setPendingOps] = useState<PendingOpsSummary>({
     notes: 0,
@@ -24,6 +26,11 @@ export function useSync(
   });
   const syncServiceRef = useRef<SyncService | null>(null);
   const pendingPollRef = useRef<number | null>(null);
+  const syncEnabled = options?.enabled ?? !!repository;
+  const coordinator = useSyncCoordinator(syncEnabled);
+  const coordinatorPhase = coordinator.phase;
+  const coordinatorShouldSync = coordinator.shouldSync;
+  const consumeSyncIntent = coordinator.consumeSyncIntent;
   const scheduleStateUpdate = useCallback((fn: () => void) => {
     if (typeof queueMicrotask === "function") {
       queueMicrotask(fn);
@@ -43,14 +50,14 @@ export function useSync(
   }, []);
 
   useEffect(() => {
-    if (!repository) {
-      scheduleStateUpdate(() => setSyncStatus(SyncStatus.Idle));
+    if (!repository || !syncEnabled) {
+      scheduleStateUpdate(() => setRepoStatus(SyncStatus.Idle));
       return;
     }
 
-    scheduleStateUpdate(() => setSyncStatus(repository.getSyncStatus()));
+    scheduleStateUpdate(() => setRepoStatus(repository.getSyncStatus()));
     return repository.onSyncStatusChange((status) => {
-      setSyncStatus(status);
+      setRepoStatus(status);
       if (status === SyncStatus.Synced) {
         setLastSynced(new Date());
         void refreshPendingOps();
@@ -59,10 +66,10 @@ export function useSync(
         void refreshPendingOps();
       }
     });
-  }, [repository, refreshPendingOps, scheduleStateUpdate]);
+  }, [repository, syncEnabled, refreshPendingOps, scheduleStateUpdate]);
 
   useEffect(() => {
-    if (!repository) {
+    if (!repository || !syncEnabled) {
       if (syncServiceRef.current) {
         syncServiceRef.current.dispose();
         syncServiceRef.current = null;
@@ -101,7 +108,7 @@ export function useSync(
         pendingPollRef.current = null;
       }
     };
-  }, [repository, refreshPendingOps, scheduleStateUpdate]);
+  }, [repository, syncEnabled, refreshPendingOps, scheduleStateUpdate]);
 
   // Sync function with debounce
   const triggerSync = useCallback(
@@ -121,29 +128,18 @@ export function useSync(
   );
 
   useEffect(() => {
-    if (!repository) return;
+    if (!repository || !syncEnabled) return;
+    if (!coordinatorShouldSync) return;
     scheduleStateUpdate(() => triggerSync({ immediate: true }));
-  }, [repository, triggerSync, scheduleStateUpdate]);
-
-  // Update offline/online status
-  useEffect(() => {
-    const handleOffline = () => {
-      setSyncStatus(SyncStatus.Offline);
-    };
-
-    const handleOnline = () => {
-      // When coming back online, trigger a sync
-      setSyncStatus(SyncStatus.Idle);
-      syncServiceRef.current?.queueSync({ immediate: true });
-    };
-
-    window.addEventListener("offline", handleOffline);
-    window.addEventListener("online", handleOnline);
-    return () => {
-      window.removeEventListener("offline", handleOffline);
-      window.removeEventListener("online", handleOnline);
-    };
-  }, []);
+    consumeSyncIntent();
+  }, [
+    repository,
+    syncEnabled,
+    coordinatorShouldSync,
+    consumeSyncIntent,
+    triggerSync,
+    scheduleStateUpdate,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -152,6 +148,13 @@ export function useSync(
       }
     };
   }, []);
+
+  const syncStatus =
+    !repository || !syncEnabled || coordinatorPhase === "disabled"
+      ? SyncStatus.Idle
+      : coordinatorPhase === "offline"
+        ? SyncStatus.Offline
+        : repoStatus;
 
   return {
     syncStatus,

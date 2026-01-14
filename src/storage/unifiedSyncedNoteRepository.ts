@@ -13,19 +13,26 @@ import {
   getNoteMeta,
   getNoteRecord,
   setNoteAndMeta,
+  setNoteMeta,
+  deleteNoteRecord,
+  deleteNoteAndMeta,
 } from "./unifiedNoteStore";
 import type { NoteMetaRecord, NoteRecord } from "./unifiedDb";
 import {
   fetchRemoteNoteByDate,
   fetchRemoteNoteDates,
+  deleteRemoteNote,
   pushRemoteNote,
   RevisionConflictError,
   type RemoteNote,
 } from "./unifiedSyncService";
 import { syncEncryptedImages } from "./unifiedImageSyncService";
-
-// Marker for stub records that only indicate a note exists remotely
-const STUB_KEY_ID = "__stub__";
+import {
+  deleteRemoteDate,
+  getRemoteDatesForYear,
+  hasRemoteDate,
+  setRemoteDatesForYear,
+} from "./remoteNoteIndexStore";
 
 /** Thrown when trying to access a stub note while offline */
 export class OfflineStubError extends Error {
@@ -56,7 +63,6 @@ function toLocalRecord(remote: RemoteNote): NoteRecord {
     ciphertext: remote.ciphertext,
     nonce: remote.nonce,
     updatedAt: remote.updatedAt,
-    deleted: remote.deleted,
   };
 }
 
@@ -97,7 +103,6 @@ interface ConflictResolutionContext {
 
 async function resolveConflict(
   ctx: ConflictResolutionContext,
-  isDeleted: boolean,
 ): Promise<RemoteNote> {
   const { supabase, userId, keyring, localRecord, localMeta, remote } = ctx;
   const localRevision = localMeta.revision;
@@ -128,7 +133,7 @@ async function resolveConflict(
       revision: rebasedRevision,
       updatedAt: localRecord.updatedAt,
       serverUpdatedAt: remote.serverUpdatedAt,
-      deleted: isDeleted,
+      deleted: false,
     });
   } catch (rebaseError) {
     // Rebased push failed, accept remote version as fallback
@@ -171,53 +176,19 @@ export function createUnifiedSyncedNoteRepository(
       for (const meta of metas) {
         if (!meta.pendingOp) continue;
         const record = recordMap.get(meta.date);
-        if (!record) continue;
-
-        const isDeleted = meta.pendingOp === "delete" || record.deleted;
         const now = new Date().toISOString();
 
-        if (isDeleted) {
-          if (meta.remoteId) {
-            const remote = await pushRemoteNote(supabase, userId, {
-              id: meta.remoteId,
-              date: record.date,
-              ciphertext: record.ciphertext,
-              nonce: record.nonce,
-              keyId: record.keyId ?? keyring.activeKeyId,
-              revision: meta.revision,
-              updatedAt: record.updatedAt,
-              serverUpdatedAt: meta.serverUpdatedAt ?? null,
-              deleted: true,
-            });
-            await setNoteAndMeta(
-              {
-                ...record,
-                deleted: true,
-                updatedAt: remote.updatedAt,
-              },
-              {
-                ...meta,
-                remoteId: remote.id,
-                serverUpdatedAt: remote.serverUpdatedAt,
-                lastSyncedAt: now,
-                pendingOp: null,
-              },
-            );
-          } else {
-            await setNoteAndMeta(
-              {
-                ...record,
-                deleted: true,
-              },
-              {
-                ...meta,
-                lastSyncedAt: now,
-                pendingOp: null,
-              },
-            );
-          }
+        if (meta.pendingOp === "delete") {
+          await deleteRemoteNote(supabase, userId, {
+            id: meta.remoteId ?? undefined,
+            date: meta.date,
+          });
+          await deleteRemoteDate(meta.date);
+          await deleteNoteAndMeta(meta.date);
           continue;
         }
+
+        if (!record) continue;
 
         try {
           const remote = await pushRemoteNote(supabase, userId, {
@@ -249,17 +220,14 @@ export function createUnifiedSyncedNoteRepository(
             throw error;
           }
 
-          const resolved = await resolveConflict(
-            {
-              supabase,
-              userId,
-              keyring,
-              localRecord: record,
-              localMeta: meta,
-              remote,
-            },
-            false,
-          );
+          const resolved = await resolveConflict({
+            supabase,
+            userId,
+            keyring,
+            localRecord: record,
+            localMeta: meta,
+            remote,
+          });
           await setNoteAndMeta(toLocalRecord(resolved), {
             ...toLocalMeta(resolved),
             lastSyncedAt: now,
@@ -279,28 +247,18 @@ export function createUnifiedSyncedNoteRepository(
   const getLocalDates = async (year?: number): Promise<string[]> => {
     const records = await getAllNoteRecords();
     return records
-      .filter((record) => !record.deleted)
       .map((record) => record.date)
       .filter((date) =>
         typeof year === "number" ? date.endsWith(String(year)) : true,
       );
   };
 
-  const getLocalDeletedDates = async (year?: number): Promise<Set<string>> => {
-    const records = await getAllNoteRecords();
-    return new Set(
-      records
-        .filter((record) => record.deleted)
-        .map((record) => record.date)
-        .filter((date) =>
-          typeof year === "number" ? date.endsWith(String(year)) : true,
-        ),
-    );
-  };
-
   const getMergedDates = async (year?: number): Promise<string[]> => {
     const localDates = await getLocalDates(year);
-    const localDeletedDates = await getLocalDeletedDates(year);
+
+    if (typeof year !== "number") {
+      return localDates;
+    }
 
     if (!navigator.onLine) {
       return localDates;
@@ -308,34 +266,14 @@ export function createUnifiedSyncedNoteRepository(
 
     try {
       const remoteDates = await fetchRemoteNoteDates(supabase, userId, year);
-
-      // Store stub records for remote dates not in local IDB
-      const localDatesSet = new Set(localDates);
-      for (const date of remoteDates) {
-        if (!localDatesSet.has(date) && !localDeletedDates.has(date)) {
-          const stubRecord: NoteRecord = {
-            version: 1,
-            date,
-            keyId: STUB_KEY_ID,
-            ciphertext: "",
-            nonce: "",
-            updatedAt: new Date().toISOString(),
-            deleted: false,
-          };
-          const stubMeta: NoteMetaRecord = {
-            date,
-            revision: 0,
-            pendingOp: null,
-          };
-          await setNoteAndMeta(stubRecord, stubMeta);
-        }
-      }
+      await setRemoteDatesForYear(year, remoteDates);
 
       const merged = new Set<string>([...remoteDates, ...localDates]);
-      localDeletedDates.forEach((date) => merged.delete(date));
       return Array.from(merged);
     } catch {
-      return localDates;
+      const remoteDates = await getRemoteDatesForYear(year);
+      const merged = new Set<string>([...remoteDates, ...localDates]);
+      return Array.from(merged);
     }
   };
 
@@ -350,17 +288,13 @@ export function createUnifiedSyncedNoteRepository(
       getNoteRecord(date),
       getNoteMeta(date),
     ]);
-    const note =
-      record && !record.deleted
-        ? await decryptLocalNote(record, keyring)
-        : null;
+    const note = record ? await decryptLocalNote(record, keyring) : null;
     return { record, meta, note };
   };
 
   const pushLocal = async (
     record: NoteRecord,
     meta: NoteMetaRecord,
-    isDeleted: boolean,
   ): Promise<RemoteNote | null> => {
     try {
       return await pushRemoteNote(supabase, userId, {
@@ -372,7 +306,7 @@ export function createUnifiedSyncedNoteRepository(
         revision: meta.revision,
         updatedAt: record.updatedAt,
         serverUpdatedAt: meta.serverUpdatedAt ?? null,
-        deleted: isDeleted,
+        deleted: false,
       });
     } catch (error) {
       if (!(error instanceof RevisionConflictError)) {
@@ -385,17 +319,14 @@ export function createUnifiedSyncedNoteRepository(
       return null;
     }
 
-    return await resolveConflict(
-      {
-        supabase,
-        userId,
-        keyring,
-        localRecord: record,
-        localMeta: meta,
-        remote,
-      },
-      isDeleted,
-    );
+    return await resolveConflict({
+      supabase,
+      userId,
+      keyring,
+      localRecord: record,
+      localMeta: meta,
+      remote,
+    });
   };
 
   const reconcileRemote = async (
@@ -407,9 +338,7 @@ export function createUnifiedSyncedNoteRepository(
     try {
       remote = await fetchRemoteNoteByDate(supabase, userId, date);
     } catch {
-      return localRecord && !localRecord.deleted
-        ? await decryptLocalNote(localRecord, keyring)
-        : null;
+      return localRecord ? await decryptLocalNote(localRecord, keyring) : null;
     }
 
     const meta: NoteMetaRecord | null =
@@ -425,33 +354,37 @@ export function createUnifiedSyncedNoteRepository(
           }
         : null);
 
+    if (meta?.pendingOp === "delete") {
+      if (remote) {
+        await deleteRemoteNote(supabase, userId, {
+          id: meta.remoteId ?? undefined,
+          date,
+        });
+      }
+      await deleteRemoteDate(date);
+      await deleteNoteAndMeta(date);
+      return null;
+    }
+
     if (!remote || remote.deleted) {
       if (!localRecord || !meta) {
         return null;
       }
 
       if (meta.pendingOp === "upsert") {
-        const pushed = await pushLocal(localRecord, meta, false);
+        const pushed = await pushLocal(localRecord, meta);
         if (pushed) {
           await setNoteAndMeta(toLocalRecord(pushed), toLocalMeta(pushed));
         }
-        return localRecord.deleted
-          ? null
-          : await decryptLocalNote(localRecord, keyring);
+        return await decryptLocalNote(localRecord, keyring);
       }
 
-      if (meta.pendingOp === "delete" || localRecord.deleted) {
-        return null;
-      }
-
-      await setNoteAndMeta(
-        { ...localRecord, deleted: true },
-        { ...meta, pendingOp: null },
-      );
+      await deleteRemoteDate(localRecord.date);
+      await deleteNoteAndMeta(localRecord.date);
       return null;
     }
 
-    if (!localRecord || localRecord.deleted || !meta) {
+    if (!localRecord || !meta) {
       await setNoteAndMeta(toLocalRecord(remote), toLocalMeta(remote));
       return await decryptLocalNote(toLocalRecord(remote), keyring);
     }
@@ -462,10 +395,14 @@ export function createUnifiedSyncedNoteRepository(
     }
 
     // Resolve conflict between local and remote
-    const resolved = await resolveConflict(
-      { supabase, userId, keyring, localRecord, localMeta: meta, remote },
-      localRecord.deleted,
-    );
+    const resolved = await resolveConflict({
+      supabase,
+      userId,
+      keyring,
+      localRecord,
+      localMeta: meta,
+      remote,
+    });
 
     // Update local state with resolved version
     await setNoteAndMeta(toLocalRecord(resolved), toLocalMeta(resolved));
@@ -474,6 +411,21 @@ export function createUnifiedSyncedNoteRepository(
 
   return {
     ...localRepo,
+    async delete(date: string): Promise<void> {
+      const existingMeta = await getNoteMeta(date);
+      const meta: NoteMetaRecord = {
+        date,
+        revision: (existingMeta?.revision ?? 0) + 1,
+        remoteId: existingMeta?.remoteId ?? null,
+        serverUpdatedAt: existingMeta?.serverUpdatedAt ?? null,
+        lastSyncedAt: existingMeta?.lastSyncedAt ?? null,
+        pendingOp: "delete",
+      };
+
+      await setNoteMeta(meta);
+      await deleteNoteRecord(date);
+      await deleteRemoteDate(date);
+    },
     async getWithRefresh(
       date: string,
       onRemoteUpdate: (note: Note | null) => void,
@@ -481,8 +433,10 @@ export function createUnifiedSyncedNoteRepository(
       const { record, meta, note } = await getLocalSnapshot(date);
 
       if (!navigator.onLine) {
-        // Check if this is a stub record (exists remotely but not cached locally)
-        if (record && record.keyId === STUB_KEY_ID) {
+        if (meta?.pendingOp === "delete") {
+          return null;
+        }
+        if (!note && !record && (await hasRemoteDate(date))) {
           throw new OfflineStubError();
         }
         return note;

@@ -59,7 +59,6 @@ interface LegacyNoteCandidate {
   revision: number;
   remoteId?: string | null;
   serverUpdatedAt?: string | null;
-  deleted: boolean;
   dirty: boolean;
   keyId: string | null;
 }
@@ -234,7 +233,6 @@ export async function migrateLegacyData({
         updatedAt: note.updatedAt,
         revision: 1,
         keyId: localKeyId,
-        deleted: false,
         dirty: true,
       };
       candidates.set(entry.key, candidate);
@@ -250,6 +248,7 @@ export async function migrateLegacyData({
     for (const entry of entries) {
       const payload = entry.value;
       if (!payload || !payload.iv || !payload.data) continue;
+      if (payload.deleted) continue;
       const decrypted = await decryptLegacySynced(cloudKey, payload);
       const candidate: LegacyNoteCandidate = {
         source: "synced",
@@ -259,7 +258,6 @@ export async function migrateLegacyData({
         revision: payload.revision ?? 1,
         remoteId: payload.id ?? null,
         serverUpdatedAt: payload.serverUpdatedAt ?? null,
-        deleted: payload.deleted ?? false,
         dirty: payload.dirty ?? false,
         keyId: cloudKeyId,
       };
@@ -299,14 +297,10 @@ export async function migrateLegacyData({
       ciphertext,
       nonce,
       updatedAt: candidate.updatedAt,
-      deleted: candidate.deleted,
     };
 
-    const pendingOp: NoteMetaRecord["pendingOp"] = candidate.deleted
-      ? "delete"
-      : candidate.source === "local" || candidate.dirty
-        ? "upsert"
-        : null;
+    const pendingOp: NoteMetaRecord["pendingOp"] =
+      candidate.source === "local" || candidate.dirty ? "upsert" : null;
 
     const meta: NoteMetaRecord = {
       date: candidate.date,

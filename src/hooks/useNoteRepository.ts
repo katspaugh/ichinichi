@@ -168,8 +168,12 @@ export function useNoteRepository({
     mode === AppMode.Cloud && userId
       ? (repository as UnifiedSyncedNoteRepository)
       : null;
-  const { syncStatus, triggerSync, queueIdleSync, pendingOps } =
-    useSync(syncedRepo);
+  const syncEnabled =
+    mode === AppMode.Cloud && !!userId && !!vaultKey && !!activeKeyId;
+  const { syncStatus, triggerSync, queueIdleSync, pendingOps } = useSync(
+    syncedRepo,
+    { enabled: syncEnabled },
+  );
   const { hasNote, noteDates, refreshNoteDates } = useNoteDates(
     repository,
     year,
