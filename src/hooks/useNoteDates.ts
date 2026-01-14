@@ -113,6 +113,15 @@ export function useNoteDates(
     refreshNoteDates({ immediate: true });
   }, [refreshNoteDates]);
 
+  // Refresh dates when coming back online
+  useEffect(() => {
+    const handleOnline = () => {
+      refreshNoteDates({ immediate: true });
+    };
+    window.addEventListener("online", handleOnline);
+    return () => window.removeEventListener("online", handleOnline);
+  }, [refreshNoteDates]);
+
   useEffect(() => {
     return () => {
       if (refreshTimeoutRef.current) {

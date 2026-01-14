@@ -59,11 +59,12 @@ export function useAuth(): UseAuthReturn {
   }, []);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setAuthState(session ? AuthState.SignedIn : AuthState.SignedOut);
-      if (session) markHasLoggedIn();
-      if (session) {
+    supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
+      setSession(initialSession);
+      setAuthState(initialSession ? AuthState.SignedIn : AuthState.SignedOut);
+      if (initialSession) markHasLoggedIn();
+      // Only validate session with server if online
+      if (initialSession && navigator.onLine) {
         supabase.auth.getUser().then(({ error }) => {
           if (isSessionMissingError(error)) {
             setSession(null);
@@ -75,13 +76,32 @@ export function useAuth(): UseAuthReturn {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setAuthState(session ? AuthState.SignedIn : AuthState.SignedOut);
-      if (session) markHasLoggedIn();
+    } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      setSession(newSession);
+      setAuthState(newSession ? AuthState.SignedIn : AuthState.SignedOut);
+      if (newSession) markHasLoggedIn();
     });
 
-    return () => subscription.unsubscribe();
+    // Re-validate session when coming back online
+    const handleOnline = () => {
+      supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
+        if (currentSession) {
+          supabase.auth.getUser().then(({ error }) => {
+            if (isSessionMissingError(error)) {
+              setSession(null);
+              setAuthState(AuthState.SignedOut);
+            }
+          });
+        }
+      });
+    };
+
+    window.addEventListener("online", handleOnline);
+
+    return () => {
+      subscription.unsubscribe();
+      window.removeEventListener("online", handleOnline);
+    };
   }, [markHasLoggedIn]);
 
   const signUp = useCallback(

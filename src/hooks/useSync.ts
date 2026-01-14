@@ -125,14 +125,24 @@ export function useSync(
     scheduleStateUpdate(() => triggerSync({ immediate: true }));
   }, [repository, triggerSync, scheduleStateUpdate]);
 
-  // Update offline status
+  // Update offline/online status
   useEffect(() => {
     const handleOffline = () => {
       setSyncStatus(SyncStatus.Offline);
     };
 
+    const handleOnline = () => {
+      // When coming back online, trigger a sync
+      setSyncStatus(SyncStatus.Idle);
+      syncServiceRef.current?.queueSync({ immediate: true });
+    };
+
     window.addEventListener("offline", handleOffline);
-    return () => window.removeEventListener("offline", handleOffline);
+    window.addEventListener("online", handleOnline);
+    return () => {
+      window.removeEventListener("offline", handleOffline);
+      window.removeEventListener("online", handleOnline);
+    };
   }, []);
 
   useEffect(() => {
