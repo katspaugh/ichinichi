@@ -1,7 +1,9 @@
 import { createUnifiedNoteRepository } from "../storage/unifiedNoteRepository";
 import { createUnifiedImageRepository } from "../storage/unifiedImageRepository";
+import { closeUnifiedDb } from "../storage/unifiedDb";
 
 async function deleteUnifiedDb(): Promise<void> {
+  closeUnifiedDb();
   await new Promise<void>((resolve, reject) => {
     const request = indexedDB.deleteDatabase("dailynotes-unified");
     request.onsuccess = () => resolve();

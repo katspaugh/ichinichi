@@ -56,8 +56,18 @@ export interface SyncStateRecord {
   cursor?: string | null;
 }
 
-export function openUnifiedDb(): Promise<IDBDatabase> {
+const IDB_TIMEOUT_MS = 3000;
+const IDB_MAX_RETRIES = 3;
+
+let cachedDb: IDBDatabase | null = null;
+let dbOpenPromise: Promise<IDBDatabase> | null = null;
+
+function openUnifiedDbOnce(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
+    const timeoutId = setTimeout(() => {
+      reject(new Error("IndexedDB open timeout"));
+    }, IDB_TIMEOUT_MS);
+
     const request = indexedDB.open(UNIFIED_DB_NAME, UNIFIED_DB_VERSION);
 
     request.onupgradeneeded = () => {
@@ -81,7 +91,71 @@ export function openUnifiedDb(): Promise<IDBDatabase> {
       }
     };
 
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      clearTimeout(timeoutId);
+      resolve(request.result);
+    };
+    request.onerror = () => {
+      clearTimeout(timeoutId);
+      reject(request.error);
+    };
   });
+}
+
+async function openUnifiedDbWithRetry(): Promise<IDBDatabase> {
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt < IDB_MAX_RETRIES; attempt++) {
+    try {
+      return await openUnifiedDbOnce();
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      if (attempt < IDB_MAX_RETRIES - 1) {
+        await new Promise((r) => setTimeout(r, 100 * (attempt + 1)));
+      }
+    }
+  }
+  throw lastError ?? new Error("IndexedDB open failed");
+}
+
+export async function openUnifiedDb(): Promise<IDBDatabase> {
+  // Return cached connection if still open
+  if (cachedDb) {
+    try {
+      // Test if connection is still valid by checking objectStoreNames
+      if (cachedDb.objectStoreNames.length > 0) {
+        return cachedDb;
+      }
+    } catch {
+      cachedDb = null;
+    }
+  }
+
+  // If already opening, wait for that promise
+  if (dbOpenPromise) {
+    return dbOpenPromise;
+  }
+
+  // Open new connection
+  dbOpenPromise = openUnifiedDbWithRetry();
+  try {
+    cachedDb = await dbOpenPromise;
+    // Handle connection close
+    cachedDb.onclose = () => {
+      cachedDb = null;
+    };
+    cachedDb.onerror = () => {
+      cachedDb = null;
+    };
+    return cachedDb;
+  } finally {
+    dbOpenPromise = null;
+  }
+}
+
+/** Close cached connection (for testing) */
+export function closeUnifiedDb(): void {
+  if (cachedDb) {
+    cachedDb.close();
+    cachedDb = null;
+  }
 }

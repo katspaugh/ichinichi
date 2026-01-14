@@ -3,9 +3,11 @@ import {
   unlockWithPassword,
   updatePasswordWrappedKey,
   tryUnlockWithDeviceKey,
+  closeVaultDb,
 } from "../storage/vault";
 
 async function clearVaultDb(): Promise<void> {
+  closeVaultDb();
   await new Promise<void>((resolve) => {
     const request = indexedDB.deleteDatabase("dailynotes-vault");
     request.onsuccess = () => resolve();

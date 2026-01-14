@@ -45,8 +45,15 @@ function saveVaultMeta(meta: VaultMeta): void {
   localStorage.setItem(VAULT_META_KEY, JSON.stringify(meta));
 }
 
-function openDeviceKeyDb(): Promise<IDBDatabase> {
+const IDB_TIMEOUT_MS = 3000;
+const IDB_MAX_RETRIES = 3;
+
+function openDeviceKeyDbOnce(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
+    const timeoutId = setTimeout(() => {
+      reject(new Error("IndexedDB open timeout"));
+    }, IDB_TIMEOUT_MS);
+
     const request = indexedDB.open(DB_NAME, 1);
     request.onupgradeneeded = () => {
       const db = request.result;
@@ -54,9 +61,71 @@ function openDeviceKeyDb(): Promise<IDBDatabase> {
         db.createObjectStore(STORE_NAME);
       }
     };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      clearTimeout(timeoutId);
+      resolve(request.result);
+    };
+    request.onerror = () => {
+      clearTimeout(timeoutId);
+      reject(request.error);
+    };
   });
+}
+
+let cachedDeviceDb: IDBDatabase | null = null;
+let deviceDbOpenPromise: Promise<IDBDatabase> | null = null;
+
+async function openDeviceKeyDbWithRetry(): Promise<IDBDatabase> {
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt < IDB_MAX_RETRIES; attempt++) {
+    try {
+      return await openDeviceKeyDbOnce();
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      if (attempt < IDB_MAX_RETRIES - 1) {
+        await new Promise((r) => setTimeout(r, 100 * (attempt + 1)));
+      }
+    }
+  }
+  throw lastError ?? new Error("IndexedDB open failed");
+}
+
+async function openDeviceKeyDb(): Promise<IDBDatabase> {
+  if (cachedDeviceDb) {
+    try {
+      if (cachedDeviceDb.objectStoreNames.length > 0) {
+        return cachedDeviceDb;
+      }
+    } catch {
+      cachedDeviceDb = null;
+    }
+  }
+
+  if (deviceDbOpenPromise) {
+    return deviceDbOpenPromise;
+  }
+
+  deviceDbOpenPromise = openDeviceKeyDbWithRetry();
+  try {
+    cachedDeviceDb = await deviceDbOpenPromise;
+    cachedDeviceDb.onclose = () => {
+      cachedDeviceDb = null;
+    };
+    cachedDeviceDb.onerror = () => {
+      cachedDeviceDb = null;
+    };
+    return cachedDeviceDb;
+  } finally {
+    deviceDbOpenPromise = null;
+  }
+}
+
+/** Close cached connection (for testing) */
+export function closeVaultDb(): void {
+  if (cachedDeviceDb) {
+    cachedDeviceDb.close();
+    cachedDeviceDb = null;
+  }
 }
 
 async function getDeviceKey(): Promise<CryptoKey | null> {
@@ -67,11 +136,7 @@ async function getDeviceKey(): Promise<CryptoKey | null> {
     const request = store.get(DEVICE_KEY_ID);
     request.onsuccess = () => resolve(request.result ?? null);
     request.onerror = () => reject(request.error);
-    tx.oncomplete = () => db.close();
-    tx.onerror = () => {
-      db.close();
-      reject(tx.error);
-    };
+    tx.onerror = () => reject(tx.error);
   });
 }
 
@@ -81,14 +146,8 @@ async function setDeviceKey(key: CryptoKey): Promise<void> {
     const tx = db.transaction(STORE_NAME, "readwrite");
     const store = tx.objectStore(STORE_NAME);
     store.put(key, DEVICE_KEY_ID);
-    tx.oncomplete = () => {
-      db.close();
-      resolve();
-    };
-    tx.onerror = () => {
-      db.close();
-      reject(tx.error);
-    };
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
   });
 }
 
@@ -211,14 +270,8 @@ export async function storeDeviceWrappedDEK(dek: CryptoKey): Promise<void> {
       const tx = db.transaction(STORE_NAME, "readwrite");
       const store = tx.objectStore(STORE_NAME);
       store.put(wrapped, DEVICE_DEK_ID);
-      tx.oncomplete = () => {
-        db.close();
-        resolve();
-      };
-      tx.onerror = () => {
-        db.close();
-        reject(tx.error);
-      };
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
     });
   } catch {
     // Device key storage unavailable
@@ -238,7 +291,7 @@ export async function tryUnlockWithDeviceDEK(): Promise<CryptoKey | null> {
         const request = store.get(DEVICE_DEK_ID);
         request.onsuccess = () => resolve(request.result ?? null);
         request.onerror = () => reject(request.error);
-        tx.oncomplete = () => db.close();
+        tx.onerror = () => reject(tx.error);
       },
     );
 
@@ -256,14 +309,8 @@ export async function clearDeviceWrappedDEK(): Promise<void> {
       const tx = db.transaction(STORE_NAME, "readwrite");
       const store = tx.objectStore(STORE_NAME);
       store.delete(DEVICE_DEK_ID);
-      tx.oncomplete = () => {
-        db.close();
-        resolve();
-      };
-      tx.onerror = () => {
-        db.close();
-        reject(tx.error);
-      };
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
     });
   } catch {
     // Ignore errors

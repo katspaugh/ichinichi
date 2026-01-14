@@ -15,14 +15,8 @@ export async function storeImageAndMeta(
     const tx = db.transaction([IMAGES_STORE, IMAGE_META_STORE], "readwrite");
     tx.objectStore(IMAGES_STORE).put(record);
     tx.objectStore(IMAGE_META_STORE).put(meta);
-    tx.oncomplete = () => {
-      db.close();
-      resolve();
-    };
-    tx.onerror = () => {
-      db.close();
-      reject(tx.error);
-    };
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
   });
 }
 
@@ -35,11 +29,7 @@ export async function getImageRecord(
     const request = tx.objectStore(IMAGES_STORE).get(imageId);
     request.onsuccess = () => resolve(request.result ?? null);
     request.onerror = () => reject(request.error);
-    tx.oncomplete = () => db.close();
-    tx.onerror = () => {
-      db.close();
-      reject(tx.error);
-    };
+    tx.onerror = () => reject(tx.error);
   });
 }
 
@@ -52,11 +42,7 @@ export async function getImageMeta(
     const request = tx.objectStore(IMAGE_META_STORE).get(imageId);
     request.onsuccess = () => resolve(request.result ?? null);
     request.onerror = () => reject(request.error);
-    tx.oncomplete = () => db.close();
-    tx.onerror = () => {
-      db.close();
-      reject(tx.error);
-    };
+    tx.onerror = () => reject(tx.error);
   });
 }
 
@@ -68,11 +54,7 @@ export async function getAllImageMeta(): Promise<ImageMetaRecord[]> {
     const request = store.getAll();
     request.onsuccess = () => resolve(request.result ?? []);
     request.onerror = () => reject(request.error);
-    tx.oncomplete = () => db.close();
-    tx.onerror = () => {
-      db.close();
-      reject(tx.error);
-    };
+    tx.onerror = () => reject(tx.error);
   });
 }
 
@@ -86,11 +68,7 @@ export async function getMetaByDate(
     const request = index.getAll(noteDate);
     request.onsuccess = () => resolve(request.result ?? []);
     request.onerror = () => reject(request.error);
-    tx.oncomplete = () => db.close();
-    tx.onerror = () => {
-      db.close();
-      reject(tx.error);
-    };
+    tx.onerror = () => reject(tx.error);
   });
 }
 
@@ -100,14 +78,8 @@ export async function deleteImageRecords(imageId: string): Promise<void> {
     const tx = db.transaction([IMAGES_STORE, IMAGE_META_STORE], "readwrite");
     tx.objectStore(IMAGES_STORE).delete(imageId);
     tx.objectStore(IMAGE_META_STORE).delete(imageId);
-    tx.oncomplete = () => {
-      db.close();
-      resolve();
-    };
-    tx.onerror = () => {
-      db.close();
-      reject(tx.error);
-    };
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
   });
 }
 
@@ -116,14 +88,8 @@ export async function deleteImageRecord(imageId: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(IMAGES_STORE, "readwrite");
     tx.objectStore(IMAGES_STORE).delete(imageId);
-    tx.oncomplete = () => {
-      db.close();
-      resolve();
-    };
-    tx.onerror = () => {
-      db.close();
-      reject(tx.error);
-    };
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
   });
 }
 
@@ -132,14 +98,8 @@ export async function setImageMeta(meta: ImageMetaRecord): Promise<void> {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(IMAGE_META_STORE, "readwrite");
     tx.objectStore(IMAGE_META_STORE).put(meta);
-    tx.oncomplete = () => {
-      db.close();
-      resolve();
-    };
-    tx.onerror = () => {
-      db.close();
-      reject(tx.error);
-    };
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
   });
 }
 
@@ -158,13 +118,7 @@ export async function deleteImagesByDate(noteDate: string): Promise<void> {
       });
     };
     request.onerror = () => reject(request.error);
-    tx.oncomplete = () => {
-      db.close();
-      resolve();
-    };
-    tx.onerror = () => {
-      db.close();
-      reject(tx.error);
-    };
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
   });
 }

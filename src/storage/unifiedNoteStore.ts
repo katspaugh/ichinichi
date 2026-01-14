@@ -58,11 +58,7 @@ export async function getNoteRecord(date: string): Promise<NoteRecord | null> {
     const request = store.get(date);
     request.onsuccess = () => resolve(request.result ?? null);
     request.onerror = () => reject(request.error);
-    tx.oncomplete = () => db.close();
-    tx.onerror = () => {
-      db.close();
-      reject(tx.error);
-    };
+    tx.onerror = () => reject(tx.error);
   });
 }
 
@@ -74,11 +70,7 @@ export async function getAllNoteRecords(): Promise<NoteRecord[]> {
     const request = store.getAll();
     request.onsuccess = () => resolve(request.result ?? []);
     request.onerror = () => reject(request.error);
-    tx.oncomplete = () => db.close();
-    tx.onerror = () => {
-      db.close();
-      reject(tx.error);
-    };
+    tx.onerror = () => reject(tx.error);
   });
 }
 
@@ -92,11 +84,7 @@ export async function getNoteMeta(
     const request = store.get(date);
     request.onsuccess = () => resolve(request.result ?? null);
     request.onerror = () => reject(request.error);
-    tx.oncomplete = () => db.close();
-    tx.onerror = () => {
-      db.close();
-      reject(tx.error);
-    };
+    tx.onerror = () => reject(tx.error);
   });
 }
 
@@ -108,11 +96,7 @@ export async function getAllNoteMeta(): Promise<NoteMetaRecord[]> {
     const request = store.getAll();
     request.onsuccess = () => resolve(request.result ?? []);
     request.onerror = () => reject(request.error);
-    tx.oncomplete = () => db.close();
-    tx.onerror = () => {
-      db.close();
-      reject(tx.error);
-    };
+    tx.onerror = () => reject(tx.error);
   });
 }
 
@@ -125,13 +109,7 @@ export async function setNoteAndMeta(
     const tx = db.transaction([NOTES_STORE, NOTE_META_STORE], "readwrite");
     tx.objectStore(NOTES_STORE).put(record);
     tx.objectStore(NOTE_META_STORE).put(meta);
-    tx.oncomplete = () => {
-      db.close();
-      resolve();
-    };
-    tx.onerror = () => {
-      db.close();
-      reject(tx.error);
-    };
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
   });
 }

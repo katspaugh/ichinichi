@@ -18,11 +18,7 @@ export async function getSyncState(): Promise<SyncStateRecord> {
       );
     };
     request.onerror = () => reject(request.error);
-    tx.oncomplete = () => db.close();
-    tx.onerror = () => {
-      db.close();
-      reject(tx.error);
-    };
+    tx.onerror = () => reject(tx.error);
   });
 }
 
@@ -31,13 +27,7 @@ export async function setSyncState(state: SyncStateRecord): Promise<void> {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(SYNC_STATE_STORE, "readwrite");
     tx.objectStore(SYNC_STATE_STORE).put(state);
-    tx.oncomplete = () => {
-      db.close();
-      resolve();
-    };
-    tx.onerror = () => {
-      db.close();
-      reject(tx.error);
-    };
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
   });
 }
