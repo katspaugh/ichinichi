@@ -1,8 +1,10 @@
 import { useCallback } from "react";
 import { Calendar } from "./components/Calendar";
 import { AppModals } from "./components/AppModals";
+import { UpdatePrompt } from "./components/UpdatePrompt";
 import { AuthState } from "./hooks/useAuth";
 import { AppMode } from "./hooks/useAppMode";
+import { usePWA } from "./hooks/usePWA";
 import { useAppController } from "./controllers/useAppController";
 import { AppModeProvider } from "./contexts/AppModeProvider";
 import { ActiveVaultProvider } from "./contexts/ActiveVaultProvider";
@@ -14,6 +16,7 @@ import "./styles/reset.css";
 
 function App() {
   const { urlState, auth, appMode, activeVault, notes } = useAppController();
+  const { needRefresh, updateServiceWorker, dismissUpdate } = usePWA();
   const {
     year,
     month,
@@ -70,6 +73,13 @@ function App() {
               />
 
               <AppModals />
+
+              {needRefresh && (
+                <UpdatePrompt
+                  onUpdate={updateServiceWorker}
+                  onDismiss={dismissUpdate}
+                />
+              )}
             </>
           </NoteRepositoryProvider>
         </ActiveVaultProvider>
