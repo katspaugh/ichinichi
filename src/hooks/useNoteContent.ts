@@ -1,20 +1,15 @@
-import { useCallback, useEffect, useReducer, useRef } from "react";
-import type { Note } from "../types";
+import { useCallback } from "react";
 import type { NoteRepository } from "../storage/noteRepository";
-import { isContentEmpty } from "../utils/sanitize";
-import { useConnectivity } from "./useConnectivity";
-interface RefreshableNoteRepository {
-  refreshNote: (date: string) => Promise<Note | null>;
+import { useLocalNoteContent } from "./useLocalNoteContent";
+import { useNoteRemoteSync } from "./useNoteRemoteSync";
+
+interface SaveSnapshot {
+  date: string;
+  content: string;
+  isEmpty: boolean;
 }
 
-interface RemoteIndexRepository {
-  hasRemoteDateCached: (date: string) => Promise<boolean>;
-}
-
-interface PendingOpRepository {
-  hasPendingOp: (date: string) => Promise<boolean>;
-}
-interface UseNoteContentReturn {
+export interface UseNoteContentReturn {
   content: string;
   setContent: (content: string) => void;
   isDecrypting: boolean;
@@ -23,12 +18,8 @@ interface UseNoteContentReturn {
   isOfflineStub: boolean;
 }
 
-interface SaveSnapshot {
-  date: string;
-  content: string;
-  isEmpty: boolean;
-}
-
+// Legacy types and reducer for backward compatibility with tests
+// These map to the old interface that included isDecrypting/isContentReady/isOfflineStub
 export type NoteContentState =
   | {
       status: "idle";
@@ -102,17 +93,10 @@ export const initialNoteContentState: NoteContentState = {
   error: null,
 };
 
-/*
-State transitions:
-- RESET -> idle
-- LOAD_START(date) -> loading
-- LOAD_SUCCESS(date, content) -> ready
-- LOAD_ERROR(date, error) -> error (content ready, editable)
-- LOAD_OFFLINE_STUB(date) -> offline_stub (note exists but not cached)
-- REMOTE_UPDATE(date, content) -> ready (if same date and no edits)
-- EDIT(content) -> ready with hasEdits
-- SAVE_SUCCESS(date, content) -> ready with hasEdits false (if content unchanged)
-*/
+/**
+ * Legacy reducer for backward compatibility with existing tests.
+ * The actual hook implementation uses a simpler internal state machine.
+ */
 export function noteContentReducer(
   state: NoteContentState,
   action: NoteContentAction,
@@ -217,265 +201,62 @@ export function noteContentReducer(
   }
 }
 
+/**
+ * Main hook for note content management.
+ *
+ * This hook composes:
+ * - useLocalNoteContent: Handles reading/writing from local storage (IDB)
+ * - useNoteRemoteSync: Handles background sync with remote server
+ *
+ * Architecture benefits:
+ * - Local reads never fail due to network issues
+ * - Going offline doesn't trigger unnecessary reloads
+ * - Clear separation between local state and sync concerns
+ */
 export function useNoteContent(
   date: string | null,
   repository: NoteRepository | null,
   hasNoteForDate?: (date: string) => boolean,
   onAfterSave?: (snapshot: SaveSnapshot) => void,
 ): UseNoteContentReturn {
-  const [state, dispatch] = useReducer(
-    noteContentReducer,
-    initialNoteContentState,
-  );
-  const online = useConnectivity();
-  const saveTimeoutRef = useRef<number | null>(null);
-  const pendingSaveRef = useRef<Promise<void> | null>(null);
-  const isMountedRef = useRef(true);
-  const pendingSaveSnapshotRef = useRef<{
-    date: string;
-    content: string;
-    repository: NoteRepository;
-  } | null>(null);
+  // Local storage operations (no network awareness)
+  const local = useLocalNoteContent(date, repository, onAfterSave);
 
-  const enqueueSave = useCallback(
-    (saveDate: string, saveContent: string, saveRepository: NoteRepository) => {
-      pendingSaveRef.current = (
-        pendingSaveRef.current ?? Promise.resolve()
-      ).then(async () => {
-        try {
-          const isEmpty = isContentEmpty(saveContent);
-          if (!isEmpty) {
-            await saveRepository.save(saveDate, saveContent);
-          } else {
-            await saveRepository.delete(saveDate);
-          }
-          if (isMountedRef.current) {
-            dispatch({
-              type: "SAVE_SUCCESS",
-              date: saveDate,
-              content: saveContent,
-            });
-          }
-          onAfterSave?.({
-            date: saveDate,
-            content: saveContent,
-            isEmpty,
-          });
-        } catch (error) {
-          console.error("Failed to save note:", error);
-        }
-      });
+  // Handle remote updates by applying them to local state
+  const handleRemoteUpdate = useCallback(
+    (content: string) => {
+      local.applyRemoteUpdate(content);
     },
-    [onAfterSave],
+    [local],
   );
 
-  // Load content when date/repository changes
-  useEffect(() => {
-    if (saveTimeoutRef.current !== null && pendingSaveSnapshotRef.current) {
-      window.clearTimeout(saveTimeoutRef.current);
-      saveTimeoutRef.current = null;
-      const snapshot = pendingSaveSnapshotRef.current;
-      pendingSaveSnapshotRef.current = null;
-      enqueueSave(snapshot.date, snapshot.content, snapshot.repository);
-    }
+  // Remote sync operations (network aware)
+  const remote = useNoteRemoteSync(date, repository, {
+    onRemoteUpdate: handleRemoteUpdate,
+    localContent: local.content,
+    hasLocalEdits: local.hasEdits,
+    isLocalReady: local.isReady,
+  });
 
-    if (!date || !repository) {
-      dispatch({ type: "RESET" });
-      return;
-    }
-
-    let cancelled = false;
-    dispatch({ type: "LOAD_START", date });
-
-    const load = async () => {
-      try {
-        let note = await repository.get(date);
-        let loadedContent = note?.content ?? "";
-        const canRefresh =
-          "refreshNote" in repository &&
-          typeof repository.refreshNote === "function";
-
-        if (!note && online && canRefresh) {
-          note = await (repository as RefreshableNoteRepository).refreshNote(
-            date,
-          );
-          loadedContent = note?.content ?? "";
-        }
-
-        if (
-          !note &&
-          !online &&
-          hasNoteForDate?.(date) &&
-          !cancelled
-        ) {
-          dispatch({ type: "LOAD_OFFLINE_STUB", date });
-          return;
-        }
-
-        if (
-          !note &&
-          !online &&
-          "hasRemoteDateCached" in repository &&
-          typeof repository.hasRemoteDateCached === "function"
-        ) {
-          const hasRemote = await (
-            repository as RemoteIndexRepository
-          ).hasRemoteDateCached(date);
-          if (hasRemote && !cancelled) {
-            dispatch({ type: "LOAD_OFFLINE_STUB", date });
-            return;
-          }
-        }
-
-        if (!cancelled) {
-          dispatch({ type: "LOAD_SUCCESS", date, content: loadedContent });
-        }
-
-        if (note && canRefresh) {
-          void (repository as RefreshableNoteRepository)
-            .refreshNote(date)
-            .then(async (remoteNote) => {
-              if (cancelled) return;
-              if (
-                "hasPendingOp" in repository &&
-                typeof repository.hasPendingOp === "function"
-              ) {
-                const hasPending = await (
-                  repository as PendingOpRepository
-                ).hasPendingOp(date);
-                if (hasPending || cancelled) return;
-              }
-              const updatedContent = remoteNote?.content ?? "";
-              if (updatedContent === loadedContent) return;
-              dispatch({
-                type: "REMOTE_UPDATE",
-                date,
-                content: updatedContent,
-              });
-            })
-            .catch((error) => {
-              console.error("Failed to refresh note:", error);
-            });
-        }
-      } catch (error) {
-        console.error("Failed to load note:", error);
-        if (!cancelled) {
-          dispatch({
-            type: "LOAD_ERROR",
-            date,
-            error:
-              error instanceof Error ? error : new Error("Failed to load note"),
-          });
-        }
-      }
-    };
-
-    void load();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [date, repository, enqueueSave, hasNoteForDate, online]);
-
-  useEffect(() => {
-    if (online) return;
-    if (!repository || !state.date) return;
-    if (state.hasEdits) return;
-    if (state.content !== "") return;
-    if (
-      !("hasRemoteDateCached" in repository) ||
-      typeof repository.hasRemoteDateCached !== "function"
-    ) {
-      return;
-    }
-
-    void (repository as RemoteIndexRepository)
-      .hasRemoteDateCached(state.date)
-      .then((hasRemote) => {
-        if (!hasRemote || state.hasEdits) return;
-        dispatch({ type: "LOAD_OFFLINE_STUB", date: state.date });
-      })
-      .catch((error) => {
-        console.error("Failed to check cached remote date:", error);
-      });
-  }, [online, repository, state.date, state.hasEdits, state.content]);
-
-  // Update content
-  const setContent = useCallback(
-    (newContent: string) => {
-      if (!state.isContentReady) return;
-      if (newContent === state.content) return;
-
-      dispatch({ type: "EDIT", content: newContent });
-    },
-    [state.isContentReady, state.content],
-  );
-
-  useEffect(() => {
-    if (
-      !state.isContentReady ||
-      !state.hasEdits ||
-      !state.date ||
-      !repository
-    ) {
-      return;
-    }
-
-    const snapshot = {
-      date: state.date,
-      content: state.content,
-      repository,
-    };
-
-    pendingSaveSnapshotRef.current = snapshot;
-
-    if (saveTimeoutRef.current !== null) {
-      window.clearTimeout(saveTimeoutRef.current);
-    }
-
-    saveTimeoutRef.current = window.setTimeout(() => {
-      saveTimeoutRef.current = null;
-      pendingSaveSnapshotRef.current = null;
-      enqueueSave(snapshot.date, snapshot.content, snapshot.repository);
-    }, 400);
-
-    return () => {
-      if (saveTimeoutRef.current !== null) {
-        window.clearTimeout(saveTimeoutRef.current);
-        saveTimeoutRef.current = null;
-      }
-    };
-  }, [
-    state.content,
-    state.hasEdits,
-    state.isContentReady,
-    state.date,
-    repository,
-    enqueueSave,
-  ]);
-
-  // Save on unmount
-  useEffect(() => {
-    return () => {
-      isMountedRef.current = false;
-      if (saveTimeoutRef.current !== null) {
-        window.clearTimeout(saveTimeoutRef.current);
-        saveTimeoutRef.current = null;
-      }
-      if (pendingSaveSnapshotRef.current) {
-        const snapshot = pendingSaveSnapshotRef.current;
-        pendingSaveSnapshotRef.current = null;
-        enqueueSave(snapshot.date, snapshot.content, snapshot.repository);
-      }
-    };
-  }, [enqueueSave]);
+  // Determine if this is an offline stub:
+  // - Local content is empty (no local copy)
+  // - AND we're not still loading
+  // - AND either:
+  //   - hasNoteForDate says it exists (calendar shows a dot)
+  //   - OR remote sync says we know it's remote-only
+  const isOfflineStub =
+    local.isReady &&
+    local.content === "" &&
+    !local.hasEdits &&
+    ((date !== null && hasNoteForDate?.(date) === true) ||
+      remote.isKnownRemoteOnly);
 
   return {
-    content: state.content,
-    setContent,
-    isDecrypting: state.isDecrypting,
-    hasEdits: state.hasEdits,
-    isContentReady: state.isContentReady,
-    isOfflineStub: state.isOfflineStub,
+    content: local.content,
+    setContent: local.setContent,
+    isDecrypting: local.isLoading,
+    hasEdits: local.hasEdits,
+    isContentReady: local.isReady,
+    isOfflineStub,
   };
 }

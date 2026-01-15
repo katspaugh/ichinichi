@@ -21,7 +21,7 @@ export function CalendarGrid({
   now,
 }: CalendarGridProps) {
   const months =
-    month === null ? Array.from({ length: 12 }, (_, i) => i) : [month];
+    month == null ? Array.from({ length: 12 }, (_, i) => i) : [month];
 
   return (
     <div
