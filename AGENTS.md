@@ -27,6 +27,79 @@ DailyNote is a minimalist daily notes app with a year-at-a-glance calendar. It i
 - Domain: `src/domain` (use cases for notes, vault, sync).
 - Infrastructure: `src/storage`, `src/services`, `src/lib` (crypto, persistence, backend).
 
+## Key Patterns
+
+### Error Handling
+
+The codebase uses a functional `Result<T, E>` pattern in the domain layer:
+
+```typescript
+// src/domain/result.ts
+type Result<T, E> = { ok: true; value: T } | { ok: false; error: E };
+```
+
+Domain-specific error types are discriminated unions in `src/domain/errors.ts`:
+
+- `StorageError`: NotFound, Corrupt, IO, Unknown
+- `CryptoError`: KeyMissing, EncryptFailed, DecryptFailed, Unknown
+- `SyncError`: Offline, Conflict, RemoteRejected, Unknown
+- `VaultError`: VaultLocked, KeyMissing, UnlockFailed, Unknown
+
+**Inconsistency warning**: Result pattern is used in sync/gateway code but NOT in repositories (which return `null` for errors) or hooks (which use try/catch). See `docs/effect-refactoring.md` for planned unification.
+
+### Async Patterns
+
+Hooks use a `cancelled` flag pattern for cleanup:
+
+```typescript
+useEffect(() => {
+  let cancelled = false;
+  const load = async () => {
+    const result = await repository.get(date);
+    if (!cancelled) dispatch({ type: "LOAD_SUCCESS", result });
+  };
+  void load();
+  return () => {
+    cancelled = true;
+  };
+}, [date]);
+```
+
+**Known issue**: This pattern prevents state updates but doesn't cancel in-flight operations. The operation runs to completion and the result is discarded.
+
+### Dependency Injection
+
+- Domain layer defines interfaces (`Clock`, `Connectivity`, `KeyringProvider`, `SyncStateStore`)
+- Infrastructure implements them (`src/storage/runtimeAdapters.ts`)
+- React Context provides dependencies to hooks
+- Factory functions compose dependencies (`src/domain/notes/repositoryFactory.ts`)
+
+Some services are module-level singletons (`syncStateStore`, `pendingOpsSource`) while others are passed as parameters. This inconsistency is being addressed.
+
+### State Machines
+
+Sync uses a reducer-based state machine (`src/domain/sync/stateMachine.ts`):
+
+```typescript
+type SyncPhase = "disabled" | "offline" | "ready" | "syncing" | "error";
+type SyncMachineEvent =
+  | { type: "INPUTS_CHANGED"; inputs: SyncMachineInputs }
+  | { type: "SYNC_REQUESTED"; intent: SyncIntent }
+  | { type: "SYNC_DISPATCHED" }
+  | { type: "SYNC_STARTED" }
+  | { type: "SYNC_FINISHED"; status: SyncStatus };
+```
+
+Note content also uses a state machine in `useLocalNoteContent.ts`:
+
+```typescript
+type LocalNoteState =
+  | { status: "idle"; ... }
+  | { status: "loading"; ... }
+  | { status: "ready"; ... }
+  | { status: "error"; ... };
+```
+
 ## App Modes
 
 - Local mode (default): single unified IndexedDB dataset; no account required.
@@ -94,3 +167,29 @@ src/
 - `docs/architecture.md` for layer boundaries.
 - `docs/data-flow.md` for local/cloud sync details.
 - `docs/key-derivation.md` for KEK/DEK and unlock flow.
+- `docs/effect-refactoring.md` for planned Effect adoption to fix async/cancellation issues.
+
+## Known Issues and Technical Debt
+
+### High-Severity Async Bugs
+
+These are documented in detail in `docs/effect-refactoring.md`:
+
+1. **useVault.ts:82-123** — `unlockingRef` not reset on cancellation; unlock can be permanently blocked
+2. **useUnifiedMigration.ts:28-67** — `isMigrating` in deps + set inside effect; migration can get stuck
+3. **useLocalNoteContent.ts:190-232** — Save queue captures stale repository/date; can save to wrong note
+4. **useNoteRemoteSync.ts:153-187** — Refresh uses refs for current date, not target; update applied to wrong note
+
+### Patterns to Avoid
+
+- **Multiple useEffects on shared state**: Leads to race conditions. Prefer single effect with state machine.
+- **Refs updated in one effect, read in async callbacks of another**: Values may be stale.
+- **`cancelled` flag without actual operation cancellation**: Side effects still run; only state updates are skipped.
+- **Fire-and-forget `void promise.then(...)`**: No tracking, no cancellation, no error handling.
+
+### Areas Needing Refactoring
+
+- **Error handling inconsistency**: Repositories return `null`, gateways return `Result`, hooks use try/catch.
+- **Mixed DI patterns**: Some services are singletons, others are passed as params.
+- **Large files**: `unifiedSyncedNoteRepository.ts` (668 lines) should be split.
+- **No React Error Boundaries**: Runtime errors can crash the entire app.
