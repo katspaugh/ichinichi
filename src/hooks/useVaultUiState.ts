@@ -1,4 +1,6 @@
-import { useEffect, useReducer } from "react";
+import { useEffect } from "react";
+import { useMachine } from "@xstate/react";
+import { assign, setup } from "xstate";
 import { AppMode } from "./useAppMode";
 import { AuthState } from "../types";
 
@@ -48,23 +50,49 @@ function deriveUiState(inputs: VaultUiInputs): VaultUiState {
   return "none";
 }
 
-type VaultUiAction = { type: "sync"; payload: VaultUiInputs };
+type VaultUiEvent = { type: "SYNC"; payload: VaultUiInputs };
 
-function reducer(_state: VaultUiState, action: VaultUiAction): VaultUiState {
-  switch (action.type) {
-    case "sync":
-      return deriveUiState(action.payload);
-    default:
-      return "none";
-  }
+interface VaultUiContext {
+  value: VaultUiState;
 }
 
+const vaultUiMachine = setup({
+  types: {
+    context: {} as VaultUiContext,
+    events: {} as VaultUiEvent,
+  },
+  actions: {
+    applyInputs: assign((args: { event: VaultUiEvent }) => {
+      const { event } = args;
+      if (event.type !== "SYNC") {
+        return {};
+      }
+      return { value: deriveUiState(event.payload) };
+    }),
+  },
+}).createMachine({
+  id: "vaultUi",
+  initial: "idle",
+  context: {
+    value: "none",
+  },
+  states: {
+    idle: {
+      on: {
+        SYNC: {
+          actions: "applyInputs",
+        },
+      },
+    },
+  },
+});
+
 export function useVaultUiState(inputs: VaultUiInputs): VaultUiState {
-  const [state, dispatch] = useReducer(reducer, inputs, deriveUiState);
+  const [state, send] = useMachine(vaultUiMachine);
 
   useEffect(() => {
-    dispatch({ type: "sync", payload: inputs });
-  }, [inputs]);
+    send({ type: "SYNC", payload: inputs });
+  }, [send, inputs]);
 
-  return state;
+  return state.context.value;
 }

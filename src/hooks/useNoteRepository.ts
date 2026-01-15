@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useMachine } from "@xstate/react";
+import { assign, fromCallback, setup } from "xstate";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { useNoteContent } from "./useNoteContent";
 import { useNoteDates } from "./useNoteDates";
@@ -104,6 +106,133 @@ export interface UseNoteRepositoryReturn {
   isContentReady: boolean;
   isOfflineStub: boolean;
 }
+
+type NoteRepositoryEvent =
+  | {
+      type: "UPDATE_INPUTS";
+      hasNote: (date: string) => boolean;
+      refreshNoteDates: (options?: { immediate?: boolean }) => void;
+      queueIdleSync: () => void;
+    }
+  | { type: "AFTER_SAVE"; date: string; isEmpty: boolean }
+  | { type: "CLEAR_TIMER" };
+
+interface NoteRepositoryContext {
+  hasNote: (date: string) => boolean;
+  refreshNoteDates: (options?: { immediate?: boolean }) => void;
+  queueIdleSync: () => void;
+  timerId: number | null;
+}
+
+const afterSaveActor = fromCallback(
+  ({
+    sendBack,
+    input,
+  }: {
+    sendBack: (event: NoteRepositoryEvent) => void;
+    input: {
+      snapshot: { date: string; isEmpty: boolean };
+      hasNote: (date: string) => boolean;
+      refreshNoteDates: (options?: { immediate?: boolean }) => void;
+    };
+  }) => {
+    const { snapshot, hasNote, refreshNoteDates } = input;
+    const shouldRefresh = snapshot.isEmpty || !hasNote(snapshot.date);
+    if (!shouldRefresh) {
+      sendBack({ type: "CLEAR_TIMER" });
+      return () => {};
+    }
+    const timer = window.setTimeout(() => {
+      refreshNoteDates();
+      sendBack({ type: "CLEAR_TIMER" });
+    }, 500);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  },
+);
+
+const noteRepositoryMachine = setup({
+  types: {
+    context: {} as NoteRepositoryContext,
+    events: {} as NoteRepositoryEvent,
+  },
+  actors: {
+    afterSaveActor,
+  },
+  actions: {
+    updateInputs: assign((args: { event: NoteRepositoryEvent }) => {
+      const { event } = args;
+      if (event.type !== "UPDATE_INPUTS") {
+        return {};
+      }
+      return {
+        hasNote: event.hasNote,
+        refreshNoteDates: event.refreshNoteDates,
+        queueIdleSync: event.queueIdleSync,
+      };
+    }),
+    clearTimer: assign({ timerId: null }),
+  },
+}).createMachine({
+  id: "noteRepository",
+  initial: "idle",
+  context: {
+    hasNote: () => false,
+    refreshNoteDates: () => {},
+    queueIdleSync: () => {},
+    timerId: null,
+  },
+  on: {
+    UPDATE_INPUTS: {
+      actions: "updateInputs",
+    },
+    CLEAR_TIMER: {
+      actions: "clearTimer",
+    },
+  },
+  states: {
+    idle: {
+      on: {
+        AFTER_SAVE: {
+          target: "refreshing",
+        },
+      },
+    },
+    refreshing: {
+      invoke: {
+        id: "afterSave",
+        src: "afterSaveActor",
+        input: ({
+          context,
+          event,
+        }: {
+          context: NoteRepositoryContext;
+          event: NoteRepositoryEvent;
+        }) => {
+          if (event.type !== "AFTER_SAVE") {
+            return {
+              snapshot: { date: "", isEmpty: false },
+              hasNote: context.hasNote,
+              refreshNoteDates: context.refreshNoteDates,
+            };
+          }
+          return {
+            snapshot: { date: event.date, isEmpty: event.isEmpty },
+            hasNote: context.hasNote,
+            refreshNoteDates: context.refreshNoteDates,
+          };
+        },
+      },
+      on: {
+        CLEAR_TIMER: {
+          target: "idle",
+        },
+      },
+    },
+  },
+});
 
 export function useNoteRepository({
   mode,
@@ -232,10 +361,7 @@ export function useNoteRepository({
   const syncEnabled =
     mode === AppMode.Cloud && !!userId && !!vaultKey && !!activeKeyId;
   const { syncStatus, syncError, triggerSync, queueIdleSync, pendingOps } =
-    useSync(
-      syncedRepo,
-      { enabled: syncEnabled },
-    );
+    useSync(syncedRepo, { enabled: syncEnabled });
   const { hasNote, noteDates, refreshNoteDates } = useNoteDates(
     repository,
     year,
@@ -247,36 +373,35 @@ export function useNoteRepository({
     }),
     [syncedRepo, imageRepository],
   );
-  const refreshTimerRef = useRef<number | null>(null);
-  // Use ref to avoid recreating handleAfterSave when hasNote changes
-  const hasNoteRef = useRef(hasNote);
+
+  const [state, send] = useMachine(noteRepositoryMachine);
+  const timerRef = useRef<number | null>(null);
+
   useEffect(() => {
-    hasNoteRef.current = hasNote;
-  }, [hasNote]);
+    send({ type: "UPDATE_INPUTS", hasNote, refreshNoteDates, queueIdleSync });
+  }, [send, hasNote, refreshNoteDates, queueIdleSync]);
+
+  useEffect(() => {
+    if (state.context.timerId !== null) {
+      timerRef.current = state.context.timerId;
+    }
+  }, [state.context.timerId]);
 
   const handleAfterSave = useCallback(
     (snapshot: { date: string; isEmpty: boolean }) => {
-      if (refreshTimerRef.current !== null) {
-        window.clearTimeout(refreshTimerRef.current);
+      if (timerRef.current !== null) {
+        window.clearTimeout(timerRef.current);
+        timerRef.current = null;
       }
-      if (snapshot.isEmpty || !hasNoteRef.current(snapshot.date)) {
-        refreshTimerRef.current = window.setTimeout(() => {
-          refreshTimerRef.current = null;
-          refreshNoteDates();
-        }, 500);
-      }
+      send({
+        type: "AFTER_SAVE",
+        date: snapshot.date,
+        isEmpty: snapshot.isEmpty,
+      });
       queueIdleSync();
     },
-    [queueIdleSync, refreshNoteDates],
+    [send, queueIdleSync],
   );
-
-  useEffect(() => {
-    return () => {
-      if (refreshTimerRef.current !== null) {
-        window.clearTimeout(refreshTimerRef.current);
-      }
-    };
-  }, []);
 
   const {
     content,

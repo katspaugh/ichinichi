@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect } from "react";
+import { useMachine } from "@xstate/react";
+import { assign, fromCallback, setup } from "xstate";
 import type { NoteRepository } from "../storage/noteRepository";
 import { useConnectivity } from "./useConnectivity";
 
@@ -39,127 +41,282 @@ function supportsDateRefresh(
   return !!repository && "refreshDates" in repository;
 }
 
-export function useNoteDates(
-  repository: NoteRepository | null,
-  year: number,
-): UseNoteDatesReturn {
-  const [noteDates, setNoteDates] = useState<Set<string>>(new Set());
-  const online = useConnectivity();
-  const refreshInFlightRef = useRef<Promise<void> | null>(null);
-  const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const runRefreshRef = useRef<() => void>(() => {});
-  const wasOfflineRef = useRef(!online);
+interface NoteDatesContext {
+  repository: NoteRepository | null;
+  year: number;
+  online: boolean;
+  noteDates: Set<string>;
+  pendingRefresh: boolean;
+}
 
-  const runRefresh = useCallback(() => {
-    // Skip if already refreshing - don't queue for later since repository-level
-    // deduplication handles the network call, and re-queuing causes extra requests
-    if (refreshInFlightRef.current) {
-      return;
+type NoteDatesEvent =
+  | {
+      type: "INPUTS_CHANGED";
+      repository: NoteRepository | null;
+      year: number;
+      online: boolean;
     }
-    const refreshPromise = (async () => {
-      if (!repository) {
-        setNoteDates(new Set());
+  | { type: "REFRESH_REQUEST"; immediate?: boolean }
+  | { type: "REFRESH_DONE" }
+  | { type: "DATES_UPDATED"; dates: string[] }
+  | { type: "DATES_CLEARED" }
+  | { type: "MARK_PENDING_REFRESH" }
+  | { type: "CLEAR_PENDING_REFRESH" };
+
+const refreshActor = fromCallback(
+  ({
+    sendBack,
+    input,
+  }: {
+    sendBack: (event: NoteDatesEvent) => void;
+    input: { repository: NoteRepository | null; year: number; online: boolean };
+  }) => {
+    let cancelled = false;
+
+    const refresh = async () => {
+      if (!input.repository) {
+        sendBack({ type: "DATES_CLEARED" });
+        sendBack({ type: "REFRESH_DONE" });
         return;
       }
 
       let hasLocalSnapshot = false;
-      if (supportsLocalDates(repository)) {
+      if (supportsLocalDates(input.repository)) {
         try {
-          const localDates = supportsYearDates(repository)
-            ? await repository.getAllLocalDatesForYear(year)
-            : await repository.getAllLocalDates();
+          const localDates = supportsYearDates(input.repository)
+            ? await input.repository.getAllLocalDatesForYear(input.year)
+            : await input.repository.getAllLocalDates();
           hasLocalSnapshot = true;
-          setNoteDates(new Set(localDates));
+          if (!cancelled) {
+            sendBack({ type: "DATES_UPDATED", dates: localDates });
+          }
         } catch {
-          setNoteDates(new Set());
+          if (!cancelled) {
+            sendBack({ type: "DATES_CLEARED" });
+          }
         }
       }
 
-      if (online && supportsDateRefresh(repository)) {
-        await repository.refreshDates(year);
+      if (input.online && supportsDateRefresh(input.repository)) {
+        await input.repository.refreshDates(input.year);
       }
 
       try {
-        const dates = supportsYearDates(repository)
-          ? await repository.getAllDatesForYear(year)
-          : await repository.getAllDates();
-        setNoteDates(new Set(dates));
+        const dates = supportsYearDates(input.repository)
+          ? await input.repository.getAllDatesForYear(input.year)
+          : await input.repository.getAllDates();
+        if (!cancelled) {
+          sendBack({ type: "DATES_UPDATED", dates });
+        }
       } catch {
-        if (!hasLocalSnapshot) {
-          setNoteDates(new Set());
+        if (!cancelled && !hasLocalSnapshot) {
+          sendBack({ type: "DATES_CLEARED" });
         }
       }
-    })().finally(() => {
-      refreshInFlightRef.current = null;
-    });
-    refreshInFlightRef.current = refreshPromise;
-  }, [repository, year, online]);
+
+      if (!cancelled) {
+        sendBack({ type: "REFRESH_DONE" });
+      }
+    };
+
+    void refresh();
+
+    return () => {
+      cancelled = true;
+    };
+  },
+);
+
+const noteDatesMachine = setup({
+  types: {
+    context: {} as NoteDatesContext,
+    events: {} as NoteDatesEvent,
+  },
+  actors: {
+    refreshActor,
+  },
+  actions: {
+    applyInputs: assign((args: { event: NoteDatesEvent }) => {
+      const { event } = args;
+      if (event.type !== "INPUTS_CHANGED") {
+        return {};
+      }
+      return {
+        repository: event.repository,
+        year: event.year,
+        online: event.online,
+      };
+    }),
+    setNoteDates: assign((args: { event: NoteDatesEvent }) => {
+      const { event } = args;
+      if (event.type !== "DATES_UPDATED") {
+        return {};
+      }
+      return { noteDates: new Set(event.dates) };
+    }),
+    clearNoteDates: assign({ noteDates: new Set() }),
+    markPendingRefresh: assign({ pendingRefresh: true }),
+    clearPendingRefresh: assign({ pendingRefresh: false }),
+    maybeRefreshOnOnline: (args: {
+      event: NoteDatesEvent;
+      context: NoteDatesContext;
+      self: { send: (event: NoteDatesEvent) => void };
+    }) => {
+      const { event, context, self } = args;
+      if (event.type !== "INPUTS_CHANGED") {
+        return;
+      }
+      if (event.online && !context.online) {
+        self.send({ type: "REFRESH_REQUEST", immediate: true });
+      }
+    },
+  },
+  guards: {
+    inputsChanged: ({
+      event,
+      context,
+    }: {
+      event: NoteDatesEvent;
+      context: NoteDatesContext;
+    }) =>
+      event.type === "INPUTS_CHANGED" &&
+      (event.repository !== context.repository || event.year !== context.year),
+    isImmediateRefresh: ({ event }: { event: NoteDatesEvent }) =>
+      event.type === "REFRESH_REQUEST" && Boolean(event.immediate),
+    hasPendingRefresh: ({ context }: { context: NoteDatesContext }) =>
+      context.pendingRefresh,
+  },
+}).createMachine({
+  id: "noteDates",
+  initial: "idle",
+  context: {
+    repository: null,
+    year: new Date().getFullYear(),
+    online: false,
+    noteDates: new Set(),
+    pendingRefresh: false,
+  },
+  on: {
+    INPUTS_CHANGED: [
+      {
+        guard: "inputsChanged",
+        target: "refreshing",
+        actions: ["applyInputs", "clearPendingRefresh"],
+      },
+      {
+        actions: ["applyInputs", "maybeRefreshOnOnline"],
+      },
+    ],
+  },
+  states: {
+    idle: {
+      on: {
+        REFRESH_REQUEST: [
+          {
+            guard: "isImmediateRefresh",
+            target: "refreshing",
+            actions: "clearPendingRefresh",
+          },
+          {
+            target: "debouncing",
+          },
+        ],
+      },
+    },
+    debouncing: {
+      after: {
+        400: {
+          target: "refreshing",
+          actions: "clearPendingRefresh",
+        },
+      },
+      on: {
+        REFRESH_REQUEST: [
+          {
+            guard: "isImmediateRefresh",
+            target: "refreshing",
+            actions: "clearPendingRefresh",
+          },
+          {
+            target: "debouncing",
+            reenter: true,
+          },
+        ],
+        INPUTS_CHANGED: {
+          target: "refreshing",
+          actions: ["applyInputs", "clearPendingRefresh"],
+        },
+      },
+    },
+    refreshing: {
+      entry: "clearPendingRefresh",
+      invoke: {
+        id: "refreshActor",
+        src: "refreshActor",
+        input: ({ context }: { context: NoteDatesContext }) => ({
+          repository: context.repository,
+          year: context.year,
+          online: context.online,
+        }),
+      },
+      on: {
+        DATES_UPDATED: {
+          actions: "setNoteDates",
+        },
+        DATES_CLEARED: {
+          actions: "clearNoteDates",
+        },
+        REFRESH_DONE: [
+          {
+            guard: "hasPendingRefresh",
+            target: "refreshing",
+            actions: "clearPendingRefresh",
+          },
+          {
+            target: "idle",
+          },
+        ],
+        REFRESH_REQUEST: {
+          actions: "markPendingRefresh",
+        },
+        INPUTS_CHANGED: {
+          actions: ["applyInputs", "markPendingRefresh"],
+        },
+      },
+    },
+  },
+});
+
+export function useNoteDates(
+  repository: NoteRepository | null,
+  year: number,
+): UseNoteDatesReturn {
+  const online = useConnectivity();
+  const [state, send] = useMachine(noteDatesMachine);
+
+  useEffect(() => {
+    send({ type: "INPUTS_CHANGED", repository, year, online });
+  }, [send, repository, year, online]);
+
+  useEffect(() => {
+    send({ type: "REFRESH_REQUEST", immediate: true });
+  }, [send]);
 
   const refreshNoteDates = useCallback(
     (options?: { immediate?: boolean }) => {
-      if (options?.immediate) {
-        if (refreshTimeoutRef.current) {
-          clearTimeout(refreshTimeoutRef.current);
-          refreshTimeoutRef.current = null;
-        }
-        runRefresh();
-        return;
-      }
-
-      if (refreshTimeoutRef.current) {
-        return;
-      }
-
-      refreshTimeoutRef.current = setTimeout(() => {
-        refreshTimeoutRef.current = null;
-        runRefresh();
-      }, 400);
+      send({ type: "REFRESH_REQUEST", immediate: options?.immediate });
     },
-    [runRefresh],
+    [send],
   );
 
-  useEffect(() => {
-    runRefreshRef.current = runRefresh;
-  }, [runRefresh]);
-
-  useEffect(() => {
-    refreshNoteDates({ immediate: true });
-  }, [refreshNoteDates]);
-
-  // Refresh dates only when coming back online from offline
-  // Use runRefreshRef to avoid depending on refreshNoteDates which would cause duplicate calls
-  useEffect(() => {
-    if (online && wasOfflineRef.current) {
-      runRefreshRef.current();
-    }
-    wasOfflineRef.current = !online;
-  }, [online]);
-
-  useEffect(() => {
-    return () => {
-      if (refreshTimeoutRef.current) {
-        clearTimeout(refreshTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (refreshTimeoutRef.current) {
-      clearTimeout(refreshTimeoutRef.current);
-      refreshTimeoutRef.current = null;
-    }
-  }, [repository, year]);
-
   const hasNote = useCallback(
-    (checkDate: string): boolean => {
-      return noteDates.has(checkDate);
-    },
-    [noteDates],
+    (checkDate: string): boolean => state.context.noteDates.has(checkDate),
+    [state.context.noteDates],
   );
 
   return {
     hasNote,
-    noteDates,
+    noteDates: state.context.noteDates,
     refreshNoteDates,
   };
 }
