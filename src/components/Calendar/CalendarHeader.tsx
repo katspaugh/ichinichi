@@ -66,7 +66,7 @@ export function CalendarHeader({
         )}
       </div>
       <div className={styles.yearControls}>
-        {month === null ? (
+        {month == null ? (
           <>
             <Button
               icon

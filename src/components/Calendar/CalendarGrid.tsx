@@ -26,7 +26,7 @@ export function CalendarGrid({
   return (
     <div
       className={styles.grid}
-      data-month-view={month !== null ? "true" : undefined}
+      data-month-view={month != null ? "true" : undefined}
     >
       {months.map((monthIndex) => (
         <MonthGrid
@@ -36,7 +36,7 @@ export function CalendarGrid({
           hasNote={hasNote}
           onDayClick={onDayClick}
           onMonthClick={onMonthClick}
-          showMonthView={month !== null}
+          showMonthView={month != null}
           onWeekStartChange={onWeekStartChange}
           now={now}
         />
