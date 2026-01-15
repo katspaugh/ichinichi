@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
+import { useMachine } from "@xstate/react";
+import { assign, fromCallback, setup } from "xstate";
 import type { Note } from "../types";
 import type { NoteRepository } from "../storage/noteRepository";
 import { useConnectivity } from "./useConnectivity";
@@ -59,19 +61,264 @@ interface UseNoteRemoteSyncOptions {
   isLocalReady: boolean;
 }
 
+type RemoteSyncEvent =
+  | {
+      type: "INPUTS_CHANGED";
+      date: string | null;
+      repository: NoteRepository | null;
+      online: boolean;
+      localContent: string;
+      hasLocalEdits: boolean;
+      isLocalReady: boolean;
+    }
+  | { type: "REMOTE_CACHE_READY"; date: string; hasRemote: boolean }
+  | { type: "REMOTE_REFRESHED"; content: string }
+  | { type: "CHECK_DONE" }
+  | { type: "CLEAR_PENDING_REMOTE" };
+
+interface RemoteSyncContext {
+  date: string | null;
+  repository: NoteRepository | null;
+  online: boolean;
+  localContent: string;
+  hasLocalEdits: boolean;
+  isLocalReady: boolean;
+  remoteCacheResult: { date: string; hasRemote: boolean } | null;
+  pendingRemoteContent: string | null;
+}
+
+const remoteCacheCheck = fromCallback(
+  ({
+    sendBack,
+    input,
+  }: {
+    sendBack: (event: RemoteSyncEvent) => void;
+    input: { date: string; repository: NoteRepository };
+  }) => {
+    let cancelled = false;
+
+    const check = async () => {
+      try {
+        if (!hasRemoteIndex(input.repository)) {
+          sendBack({ type: "CHECK_DONE" });
+          return;
+        }
+        const hasRemote = await input.repository.hasRemoteDateCached(
+          input.date,
+        );
+        if (!cancelled) {
+          sendBack({ type: "REMOTE_CACHE_READY", date: input.date, hasRemote });
+        }
+      } catch (error) {
+        console.error("Failed to check remote date cache:", error);
+        if (!cancelled) {
+          sendBack({ type: "CHECK_DONE" });
+        }
+      }
+    };
+
+    void check();
+
+    return () => {
+      cancelled = true;
+    };
+  },
+);
+
+const remoteRefresh = fromCallback(
+  ({
+    sendBack,
+    input,
+  }: {
+    sendBack: (event: RemoteSyncEvent) => void;
+    input: {
+      date: string;
+      repository: NoteRepository;
+      localContent: string;
+      hasLocalEdits: boolean;
+    };
+  }) => {
+    let cancelled = false;
+
+    const refresh = async () => {
+      try {
+        if (!canRefresh(input.repository)) {
+          return;
+        }
+        const remoteNote = await input.repository.refreshNote(input.date);
+        if (!remoteNote || cancelled) return;
+
+        if (hasPendingOps(input.repository)) {
+          const hasPending = await input.repository.hasPendingOp(input.date);
+          if (hasPending) return;
+        }
+
+        if (input.hasLocalEdits) return;
+
+        const remoteContent = remoteNote.content ?? "";
+        if (remoteContent !== input.localContent) {
+          sendBack({ type: "REMOTE_REFRESHED", content: remoteContent });
+        }
+      } catch (error) {
+        console.error("Failed to refresh note from remote:", error);
+      }
+    };
+
+    void refresh();
+
+    return () => {
+      cancelled = true;
+    };
+  },
+);
+
+const remoteSyncMachine = setup({
+  types: {
+    context: {} as RemoteSyncContext,
+    events: {} as RemoteSyncEvent,
+  },
+  actors: {
+    remoteCacheCheck,
+    remoteRefresh,
+  },
+  actions: {
+    applyInputs: assign((args: { event: RemoteSyncEvent }) => {
+      const { event } = args;
+      if (event.type !== "INPUTS_CHANGED") {
+        return {};
+      }
+      return {
+        date: event.date,
+        repository: event.repository,
+        online: event.online,
+        localContent: event.localContent,
+        hasLocalEdits: event.hasLocalEdits,
+        isLocalReady: event.isLocalReady,
+      };
+    }),
+    applyRemoteCache: assign((args: { event: RemoteSyncEvent }) => {
+      const { event } = args;
+      if (event.type !== "REMOTE_CACHE_READY") {
+        return {};
+      }
+      return {
+        remoteCacheResult: { date: event.date, hasRemote: event.hasRemote },
+      };
+    }),
+    setPendingRemoteContent: assign((args: { event: RemoteSyncEvent }) => {
+      const { event } = args;
+      if (event.type !== "REMOTE_REFRESHED") {
+        return {};
+      }
+      return { pendingRemoteContent: event.content };
+    }),
+    clearPendingRemoteContent: assign({ pendingRemoteContent: null }),
+  },
+  guards: {
+    shouldCheckRemoteCache: ({ context }: { context: RemoteSyncContext }) =>
+      !!context.date &&
+      !!context.repository &&
+      context.isLocalReady &&
+      !context.online &&
+      context.localContent === "" &&
+      hasRemoteIndex(context.repository),
+    shouldRefresh: ({ context }: { context: RemoteSyncContext }) =>
+      !!context.date &&
+      !!context.repository &&
+      context.online &&
+      context.isLocalReady &&
+      context.localContent !== "",
+  },
+}).createMachine({
+  id: "noteRemoteSync",
+  initial: "idle",
+  context: {
+    date: null,
+    repository: null,
+    online: false,
+    localContent: "",
+    hasLocalEdits: false,
+    isLocalReady: false,
+    remoteCacheResult: null,
+    pendingRemoteContent: null,
+  },
+  on: {
+    INPUTS_CHANGED: {
+      actions: "applyInputs",
+      target: ".decide",
+    },
+    CLEAR_PENDING_REMOTE: {
+      actions: "clearPendingRemoteContent",
+    },
+  },
+  states: {
+    idle: {},
+    decide: {
+      always: [
+        {
+          guard: "shouldCheckRemoteCache",
+          target: "checkingCache",
+        },
+        {
+          guard: "shouldRefresh",
+          target: "refreshing",
+        },
+        {
+          target: "idle",
+        },
+      ],
+    },
+    checkingCache: {
+      invoke: {
+        id: "remoteCacheCheck",
+        src: "remoteCacheCheck",
+        input: ({ context }: { context: RemoteSyncContext }) => ({
+          date: context.date as string,
+          repository: context.repository as NoteRepository,
+        }),
+      },
+      on: {
+        REMOTE_CACHE_READY: {
+          target: "idle",
+          actions: "applyRemoteCache",
+        },
+        CHECK_DONE: {
+          target: "idle",
+        },
+        INPUTS_CHANGED: {
+          target: "decide",
+          actions: "applyInputs",
+        },
+      },
+    },
+    refreshing: {
+      invoke: {
+        id: "remoteRefresh",
+        src: "remoteRefresh",
+        input: ({ context }: { context: RemoteSyncContext }) => ({
+          date: context.date as string,
+          repository: context.repository as NoteRepository,
+          localContent: context.localContent,
+          hasLocalEdits: context.hasLocalEdits,
+        }),
+      },
+      on: {
+        REMOTE_REFRESHED: {
+          target: "idle",
+          actions: "setPendingRemoteContent",
+        },
+        INPUTS_CHANGED: {
+          target: "decide",
+          actions: "applyInputs",
+        },
+      },
+    },
+  },
+});
+
 /**
  * Hook for syncing note content with remote server.
  * This hook handles all network-related operations.
- *
- * Responsibilities:
- * - Check if note exists remotely but not locally (for offline stub detection)
- * - Trigger background refresh when online
- * - Notify when remote has updated content
- *
- * NOT responsible for:
- * - Reading/writing local storage
- * - Managing edit state
- * - Determining overall loading state
  */
 export function useNoteRemoteSync(
   date: string | null,
@@ -80,17 +327,10 @@ export function useNoteRemoteSync(
 ): UseNoteRemoteSyncReturn {
   const { onRemoteUpdate, localContent, hasLocalEdits, isLocalReady } = options;
   const online = useConnectivity();
-
-  // Track async result of remote cache check
-  const [remoteCacheResult, setRemoteCacheResult] = useState<{
-    date: string;
-    hasRemote: boolean;
-  } | null>(null);
-
   const localContentRef = useRef(localContent);
   const hasLocalEditsRef = useRef(hasLocalEdits);
+  const onRemoteUpdateRef = useRef(onRemoteUpdate);
 
-  // Keep refs in sync
   useEffect(() => {
     localContentRef.current = localContent;
   }, [localContent]);
@@ -99,101 +339,58 @@ export function useNoteRemoteSync(
     hasLocalEditsRef.current = hasLocalEdits;
   }, [hasLocalEdits]);
 
-  // Check for remote-only note status when offline
   useEffect(() => {
-    // Early exit conditions that don't need async check
-    if (
-      !date ||
-      !repository ||
-      !isLocalReady ||
-      online ||
-      localContent !== ""
-    ) {
-      return;
-    }
+    onRemoteUpdateRef.current = onRemoteUpdate;
+  }, [onRemoteUpdate]);
 
-    // Check if repository supports remote index
-    if (!hasRemoteIndex(repository)) {
-      return;
-    }
+  const [state, send] = useMachine(remoteSyncMachine);
 
-    let cancelled = false;
+  useEffect(() => {
+    send({
+      type: "INPUTS_CHANGED",
+      date,
+      repository,
+      online,
+      localContent,
+      hasLocalEdits,
+      isLocalReady,
+    });
+  }, [
+    send,
+    date,
+    repository,
+    online,
+    localContent,
+    hasLocalEdits,
+    isLocalReady,
+  ]);
 
-    void repository
-      .hasRemoteDateCached(date)
-      .then((hasRemote) => {
-        if (!cancelled) {
-          setRemoteCacheResult({ date, hasRemote });
-        }
-      })
-      .catch((error) => {
-        console.error("Failed to check remote date cache:", error);
-      });
+  const triggerRefresh = useCallback(() => {
+    send({
+      type: "INPUTS_CHANGED",
+      date,
+      repository,
+      online,
+      localContent: localContentRef.current,
+      hasLocalEdits: hasLocalEditsRef.current,
+      isLocalReady,
+    });
+  }, [send, date, repository, online, isLocalReady]);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [date, repository, localContent, online, isLocalReady]);
+  useEffect(() => {
+    const pending = state.context.pendingRemoteContent;
+    if (!pending) return;
+    onRemoteUpdateRef.current?.(pending);
+    send({ type: "CLEAR_PENDING_REMOTE" });
+  }, [state.context.pendingRemoteContent, send]);
 
-  // Derive isKnownRemoteOnly from state
-  // A note is "known remote only" when:
-  // - We're offline
-  // - Local content is empty
-  // - We've checked the remote cache and it says the note exists
-  // - The cache result is for the current date
   const isKnownRemoteOnly =
     !online &&
     localContent === "" &&
     isLocalReady &&
-    remoteCacheResult !== null &&
-    remoteCacheResult.date === date &&
-    remoteCacheResult.hasRemote;
-
-  // Background refresh when online and local is ready
-  const triggerRefresh = useCallback(() => {
-    if (!date || !repository || !online || !isLocalReady) {
-      return;
-    }
-
-    if (!canRefresh(repository)) {
-      return;
-    }
-
-    void repository
-      .refreshNote(date)
-      .then(async (remoteNote) => {
-        // If we couldn't reach the server, ignore
-        if (!remoteNote) return;
-
-        // Check for pending local ops - don't overwrite if we have pending changes
-        if (hasPendingOps(repository)) {
-          const hasPending = await repository.hasPendingOp(date);
-          if (hasPending) return;
-        }
-
-        // Don't overwrite local edits
-        if (hasLocalEditsRef.current) return;
-
-        const remoteContent = remoteNote.content ?? "";
-
-        // Only notify if content actually changed
-        if (remoteContent !== localContentRef.current) {
-          onRemoteUpdate?.(remoteContent);
-        }
-      })
-      .catch((error) => {
-        console.error("Failed to refresh note from remote:", error);
-      });
-  }, [date, repository, online, isLocalReady, onRemoteUpdate]);
-
-  // Auto-trigger refresh when going online or when local load completes
-  useEffect(() => {
-    if (online && isLocalReady && localContent !== "") {
-      // Only refresh if we have local content (i.e., note exists)
-      // For new notes, no need to refresh
-      triggerRefresh();
-    }
-  }, [online, isLocalReady, triggerRefresh, localContent]);
+    state.context.remoteCacheResult !== null &&
+    state.context.remoteCacheResult.date === date &&
+    state.context.remoteCacheResult.hasRemote;
 
   return {
     isKnownRemoteOnly,

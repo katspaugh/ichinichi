@@ -3391,6 +3391,22 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@xstate/react@npm:^5.0.0":
+  version: 5.0.5
+  resolution: "@xstate/react@npm:5.0.5"
+  dependencies:
+    use-isomorphic-layout-effect: "npm:^1.1.2"
+    use-sync-external-store: "npm:^1.2.0"
+  peerDependencies:
+    react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+    xstate: ^5.19.4
+  peerDependenciesMeta:
+    xstate:
+      optional: true
+  checksum: 10c0/2e22ef30f3d642d424d219106512234bc77dbdb9a8f57a363699eb3d82e69586ab3a670d7eb9b3b7f1fda990bea10e3e62425fdad5ce7590e4a6715eac7c341a
+  languageName: node
+  linkType: hard
+
 "abab@npm:^2.0.6":
   version: 2.0.6
   resolution: "abab@npm:2.0.6"
@@ -4244,6 +4260,7 @@ __metadata:
     "@types/react": "npm:^19.2.5"
     "@types/react-dom": "npm:^19.2.3"
     "@vitejs/plugin-react": "npm:^5.1.1"
+    "@xstate/react": "npm:^5.0.0"
     cheerio: "npm:^1.0.0"
     dompurify: "npm:^3.3.1"
     eslint: "npm:^9.39.1"
@@ -4265,6 +4282,7 @@ __metadata:
     vite-plugin-pwa: "npm:^1.2.0"
     vite-plugin-sri: "npm:^0.0.2"
     wrangler: "npm:^4.54.0"
+    xstate: "npm:^5.21.0"
   languageName: unknown
   linkType: soft
 
@@ -9192,6 +9210,27 @@ __metadata:
   languageName: node
   linkType: hard
 
+"use-isomorphic-layout-effect@npm:^1.1.2":
+  version: 1.2.1
+  resolution: "use-isomorphic-layout-effect@npm:1.2.1"
+  peerDependencies:
+    react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+  peerDependenciesMeta:
+    "@types/react":
+      optional: true
+  checksum: 10c0/4d3c1124d630fbe09c1d2a16af0cd78ac2fe1d22eb24a178363e3d84a897659cc04e8e8cd71f66ff78ff75ef8287fa72e746cb213b96c1097e70e4b4ed69f63f
+  languageName: node
+  linkType: hard
+
+"use-sync-external-store@npm:^1.2.0":
+  version: 1.6.0
+  resolution: "use-sync-external-store@npm:1.6.0"
+  peerDependencies:
+    react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+  checksum: 10c0/35e1179f872a53227bdf8a827f7911da4c37c0f4091c29b76b1e32473d1670ebe7bcd880b808b7549ba9a5605c233350f800ffab963ee4a4ee346ee983b6019b
+  languageName: node
+  linkType: hard
+
 "v8-to-istanbul@npm:^9.0.1":
   version: 9.3.0
   resolution: "v8-to-istanbul@npm:9.3.0"
@@ -9829,6 +9868,13 @@ __metadata:
   version: 2.2.0
   resolution: "xmlchars@npm:2.2.0"
   checksum: 10c0/b64b535861a6f310c5d9bfa10834cf49127c71922c297da9d4d1b45eeaae40bf9b4363275876088fbe2667e5db028d2cd4f8ee72eed9bede840a67d57dab7593
+  languageName: node
+  linkType: hard
+
+"xstate@npm:^5.21.0":
+  version: 5.25.1
+  resolution: "xstate@npm:5.25.1"
+  checksum: 10c0/1b1cd0ffa27e70b1016a1e5974437b211af334715e2c223794c6344cf4134f01fe43cbad6fd63751e43b935a98629386e1cb0fabab8003d10590d11cd1ad217b
   languageName: node
   linkType: hard
 

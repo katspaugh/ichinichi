@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMachine } from "@xstate/react";
+import { assign, fromCallback, setup } from "xstate";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { UseAuthReturn } from "./useAuth";
 import { useLocalVault } from "./useLocalVault";
@@ -41,6 +43,288 @@ export interface UseActiveVaultReturn {
   setLocalPassword: (password: string | null) => void;
 }
 
+type ActiveVaultEvent =
+  | {
+      type: "INPUTS_CHANGED";
+      vaultService: ReturnType<typeof createVaultService>;
+      mode: AppMode;
+      authUserId: string | null;
+      vaultKey: CryptoKey | null;
+      cloudKeyring: Map<string, CryptoKey>;
+      cloudPrimaryKeyId: string | null;
+      localKeyring: Map<string, CryptoKey>;
+    }
+  | {
+      type: "LOCAL_KEYRING_LOADED";
+      keyId: string;
+      keyring: Map<string, CryptoKey>;
+    }
+  | { type: "CLOUD_KEY_CACHED" }
+  | { type: "CLOUD_KEY_RESTORED"; vaultKey: CryptoKey };
+
+interface ActiveVaultContext {
+  vaultService: ReturnType<typeof createVaultService> | null;
+  mode: AppMode;
+  authUserId: string | null;
+  vaultKey: CryptoKey | null;
+  cloudKeyring: Map<string, CryptoKey>;
+  cloudPrimaryKeyId: string | null;
+  localKeyring: Map<string, CryptoKey>;
+  localKeyId: string | null;
+  restoredCloudVaultKey: CryptoKey | null;
+}
+
+const localKeyringLoader = fromCallback(
+  ({
+    sendBack,
+    input,
+  }: {
+    sendBack: (event: ActiveVaultEvent) => void;
+    input: { localKey: CryptoKey };
+  }) => {
+    let cancelled = false;
+
+    const load = async () => {
+      const keyId = await computeKeyId(input.localKey);
+      if (cancelled) return;
+
+      const entries = new Map<string, CryptoKey>();
+      entries.set(keyId, input.localKey);
+
+      const extraKeys = listLocalKeyIds().filter((id) => id !== keyId);
+      for (const id of extraKeys) {
+        try {
+          const restored = await restoreLocalWrappedKey(id, input.localKey);
+          if (restored) {
+            entries.set(id, restored);
+          }
+        } catch {
+          // Ignore corrupted entries.
+        }
+      }
+
+      if (!cancelled) {
+        sendBack({ type: "LOCAL_KEYRING_LOADED", keyId, keyring: entries });
+      }
+    };
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  },
+);
+
+const cloudKeyRestorer = fromCallback(
+  ({
+    sendBack,
+    input,
+  }: {
+    sendBack: (event: ActiveVaultEvent) => void;
+    input: { vaultService: ReturnType<typeof createVaultService> };
+  }) => {
+    let cancelled = false;
+
+    const restore = async () => {
+      const result = await input.vaultService.tryDeviceUnlockCloudKey();
+      if (!cancelled && result) {
+        sendBack({ type: "CLOUD_KEY_RESTORED", vaultKey: result.vaultKey });
+      }
+    };
+
+    void restore();
+
+    return () => {
+      cancelled = true;
+    };
+  },
+);
+
+const cloudKeyCacher = fromCallback(
+  ({
+    sendBack,
+    input,
+  }: {
+    sendBack: (event: ActiveVaultEvent) => void;
+    input: {
+      localKey: CryptoKey;
+      cloudKeyring: Map<string, CryptoKey>;
+      localKeyId: string | null;
+    };
+  }) => {
+    let cancelled = false;
+
+    const cache = async () => {
+      for (const [keyId, key] of input.cloudKeyring.entries()) {
+        if (keyId === input.localKeyId) continue;
+        try {
+          await storeLocalWrappedKey(keyId, key, input.localKey);
+        } catch (error) {
+          console.warn("Failed to cache cloud key locally:", error);
+        }
+      }
+      if (!cancelled) {
+        sendBack({ type: "CLOUD_KEY_CACHED" });
+      }
+    };
+
+    void cache();
+
+    return () => {
+      cancelled = true;
+    };
+  },
+);
+
+const activeVaultMachine = setup({
+  types: {
+    context: {} as ActiveVaultContext,
+    events: {} as ActiveVaultEvent,
+  },
+  actors: {
+    localKeyringLoader,
+    cloudKeyRestorer,
+    cloudKeyCacher,
+  },
+  actions: {
+    applyInputs: assign((args: { event: ActiveVaultEvent }) => {
+      const { event } = args;
+      if (event.type !== "INPUTS_CHANGED") {
+        return {};
+      }
+      return {
+        vaultService: event.vaultService,
+        mode: event.mode,
+        authUserId: event.authUserId,
+        vaultKey: event.vaultKey,
+        cloudKeyring: event.cloudKeyring,
+        cloudPrimaryKeyId: event.cloudPrimaryKeyId,
+        localKeyring: event.localKeyring,
+      };
+    }),
+    applyLocalKeyring: assign((args: { event: ActiveVaultEvent }) => {
+      const { event } = args;
+      if (event.type !== "LOCAL_KEYRING_LOADED") {
+        return {};
+      }
+      return {
+        localKeyId: event.keyId,
+        localKeyring: event.keyring,
+      };
+    }),
+    applyRestoredCloudKey: assign((args: { event: ActiveVaultEvent }) => {
+      const { event } = args;
+      if (event.type !== "CLOUD_KEY_RESTORED") {
+        return {};
+      }
+      return { restoredCloudVaultKey: event.vaultKey };
+    }),
+  },
+  guards: {
+    shouldRestoreCloudKey: ({ context }: { context: ActiveVaultContext }) =>
+      !!context.vaultService &&
+      !context.restoredCloudVaultKey &&
+      !context.vaultKey &&
+      context.mode === AppMode.Cloud,
+    shouldLoadLocalKeyring: ({ context }: { context: ActiveVaultContext }) =>
+      !!context.vaultKey,
+    shouldCacheCloudKeys: ({ context }: { context: ActiveVaultContext }) =>
+      !!context.vaultKey && context.cloudKeyring.size > 0,
+  },
+}).createMachine({
+  id: "activeVault",
+  initial: "idle",
+  context: {
+    vaultService: null,
+    mode: AppMode.Local,
+    authUserId: null,
+    vaultKey: null,
+    cloudKeyring: new Map(),
+    cloudPrimaryKeyId: null,
+    localKeyring: new Map(),
+    localKeyId: null,
+    restoredCloudVaultKey: null,
+  },
+  on: {
+    INPUTS_CHANGED: {
+      actions: "applyInputs",
+      target: "evaluate",
+    },
+  },
+  states: {
+    idle: {},
+    evaluate: {
+      always: [
+        { guard: "shouldRestoreCloudKey", target: "restoringCloudKey" },
+        { guard: "shouldLoadLocalKeyring", target: "loadingLocalKeyring" },
+        { guard: "shouldCacheCloudKeys", target: "cachingCloudKeys" },
+        { target: "idle" },
+      ],
+    },
+    restoringCloudKey: {
+      invoke: {
+        id: "cloudKeyRestorer",
+        src: "cloudKeyRestorer",
+        input: ({ context }: { context: ActiveVaultContext }) => ({
+          vaultService: context.vaultService as ReturnType<
+            typeof createVaultService
+          >,
+        }),
+      },
+      on: {
+        CLOUD_KEY_RESTORED: {
+          target: "idle",
+          actions: "applyRestoredCloudKey",
+        },
+        INPUTS_CHANGED: {
+          target: "evaluate",
+          actions: "applyInputs",
+        },
+      },
+    },
+    loadingLocalKeyring: {
+      invoke: {
+        id: "localKeyringLoader",
+        src: "localKeyringLoader",
+        input: ({ context }: { context: ActiveVaultContext }) => ({
+          localKey: context.vaultKey as CryptoKey,
+        }),
+      },
+      on: {
+        LOCAL_KEYRING_LOADED: {
+          target: "idle",
+          actions: "applyLocalKeyring",
+        },
+        INPUTS_CHANGED: {
+          target: "evaluate",
+          actions: "applyInputs",
+        },
+      },
+    },
+    cachingCloudKeys: {
+      invoke: {
+        id: "cloudKeyCacher",
+        src: "cloudKeyCacher",
+        input: ({ context }: { context: ActiveVaultContext }) => ({
+          localKey: context.vaultKey as CryptoKey,
+          cloudKeyring: context.cloudKeyring,
+          localKeyId: context.localKeyId,
+        }),
+      },
+      on: {
+        CLOUD_KEY_CACHED: {
+          target: "idle",
+        },
+        INPUTS_CHANGED: {
+          target: "evaluate",
+          actions: "applyInputs",
+        },
+      },
+    },
+  },
+});
+
 export function useActiveVault({
   auth,
   mode,
@@ -54,12 +338,7 @@ export function useActiveVault({
   const localVault = useLocalVault({ vaultService });
   const [authPassword, setAuthPassword] = useState<string | null>(null);
   const [localPassword, setLocalPassword] = useState<string | null>(null);
-  const [restoredCloudVaultKey, setRestoredCloudVaultKey] =
-    useState<CryptoKey | null>(null);
-  const [localKeyId, setLocalKeyId] = useState<string | null>(null);
-  const [localKeyring, setLocalKeyring] = useState<Map<string, CryptoKey>>(
-    new Map(),
-  );
+  const [state, send] = useMachine(activeVaultMachine);
 
   const handlePasswordConsumed = useCallback(() => {
     setAuthPassword(null);
@@ -70,87 +349,35 @@ export function useActiveVault({
     user: mode === AppMode.Cloud ? auth.user : null,
     password: authPassword,
     localDek: localVault.vaultKey,
-    localKeyring,
+    localKeyring: state.context.localKeyring,
     onPasswordConsumed: handlePasswordConsumed,
   });
 
-  const cloudPrimaryKey = cloudVault.vaultKey ?? restoredCloudVaultKey;
-
   useEffect(() => {
-    if (cloudVault.vaultKey || restoredCloudVaultKey) return;
-    let cancelled = false;
-
-    const restoreCloudKey = async () => {
-      const result = await vaultService.tryDeviceUnlockCloudKey();
-      if (!cancelled && result) {
-        setRestoredCloudVaultKey(result.vaultKey);
-        return;
-      }
-    };
-
-    void restoreCloudKey();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [cloudVault.vaultKey, restoredCloudVaultKey, vaultService]);
-
-  useEffect(() => {
-    const localKey = localVault.vaultKey;
-    if (!localKey) return;
-    let cancelled = false;
-
-    const loadLocalKeyring = async () => {
-      const keyId = await computeKeyId(localKey);
-      if (cancelled) return;
-      setLocalKeyId(keyId);
-      const entries = new Map<string, CryptoKey>();
-      entries.set(keyId, localKey);
-
-      const extraKeys = listLocalKeyIds().filter((id) => id !== keyId);
-      for (const id of extraKeys) {
-        try {
-          const restored = await restoreLocalWrappedKey(id, localKey);
-          if (restored) {
-            entries.set(id, restored);
-          }
-        } catch {
-          // Ignore corrupted entries.
-        }
-      }
-      if (!cancelled) {
-        setLocalKeyring(entries);
-      }
-    };
-
-    void loadLocalKeyring();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [localVault.vaultKey]);
-
-  useEffect(() => {
-    const localKey = localVault.vaultKey;
-    if (!localKey || !cloudVault.keyring.size) return;
-
-    const cacheCloudKeys = async () => {
-      for (const [keyId, key] of cloudVault.keyring.entries()) {
-        if (keyId === localKeyId) continue;
-        try {
-          await storeLocalWrappedKey(keyId, key, localKey);
-        } catch (error) {
-          console.warn("Failed to cache cloud key locally:", error);
-        }
-      }
-    };
-
-    void cacheCloudKeys();
-  }, [cloudVault.keyring, localVault.vaultKey, localKeyId]);
+    send({
+      type: "INPUTS_CHANGED",
+      vaultService,
+      mode,
+      authUserId: auth.user?.id ?? null,
+      vaultKey: localVault.vaultKey,
+      cloudKeyring: cloudVault.keyring,
+      cloudPrimaryKeyId: cloudVault.primaryKeyId,
+      localKeyring: state.context.localKeyring,
+    });
+  }, [
+    send,
+    vaultService,
+    mode,
+    auth.user,
+    localVault.vaultKey,
+    cloudVault.keyring,
+    cloudVault.primaryKeyId,
+    state.context.localKeyring,
+  ]);
 
   const mergedKeyring = useMemo(() => {
     const merged = new Map<string, CryptoKey>();
-    localKeyring.forEach((value, key) => merged.set(key, value));
+    state.context.localKeyring.forEach((value, key) => merged.set(key, value));
     cloudVault.keyring.forEach((value, key) => merged.set(key, value));
     if (cloudVault.primaryKeyId && !merged.has("legacy")) {
       const primary = cloudVault.keyring.get(cloudVault.primaryKeyId);
@@ -159,17 +386,21 @@ export function useActiveVault({
       }
     }
     return merged;
-  }, [localKeyring, cloudVault.keyring, cloudVault.primaryKeyId]);
+  }, [state.context.localKeyring, cloudVault.keyring, cloudVault.primaryKeyId]);
+
+  const cloudPrimaryKey =
+    cloudVault.vaultKey ?? state.context.restoredCloudVaultKey;
 
   const candidateKeyId =
     mode === AppMode.Cloud && cloudVault.primaryKeyId
       ? cloudVault.primaryKeyId
-      : localKeyId;
+      : state.context.localKeyId;
   const activeKeyId =
     candidateKeyId && mergedKeyring.has(candidateKeyId) ? candidateKeyId : null;
   const vaultKey = activeKeyId
     ? (mergedKeyring.get(activeKeyId) ?? null)
     : null;
+
   const isVaultReady =
     mode === AppMode.Cloud ? cloudVault.isReady : localVault.isReady;
   const isVaultLocked =
