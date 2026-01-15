@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useReducer, useRef } from "react";
+import { useCallback, useEffect } from "react";
+import { useMachine } from "@xstate/react";
+import { assign, fromCallback, setup } from "xstate";
 import type { NoteRepository } from "../storage/noteRepository";
 import { isContentEmpty } from "../utils/sanitize";
 
@@ -19,240 +21,56 @@ export interface UseLocalNoteContentReturn {
   applyRemoteUpdate: (content: string) => void;
 }
 
-type LocalNoteState =
+type LocalNoteEvent =
   | {
-      status: "idle";
-      date: null;
-      content: "";
-      hasEdits: false;
-      error: null;
+      type: "INPUTS_CHANGED";
+      date: string | null;
+      repository: NoteRepository | null;
     }
-  | {
-      status: "loading";
-      date: string;
-      content: "";
-      hasEdits: false;
-      error: null;
-    }
-  | {
-      status: "ready";
-      date: string;
-      content: string;
-      hasEdits: boolean;
-      error: null;
-    }
-  | {
-      status: "error";
-      date: string;
-      content: string;
-      hasEdits: boolean;
-      error: Error;
-    };
-
-type LocalNoteAction =
-  | { type: "RESET" }
-  | { type: "LOAD_START"; date: string }
   | { type: "LOAD_SUCCESS"; date: string; content: string }
   | { type: "LOAD_ERROR"; date: string; error: Error }
   | { type: "EDIT"; content: string }
-  | { type: "REMOTE_UPDATE"; date: string; content: string }
-  | { type: "SAVE_SUCCESS"; date: string; content: string };
+  | { type: "REMOTE_UPDATE"; content: string }
+  | { type: "SAVE_SUCCESS"; snapshot: SaveSnapshot }
+  | { type: "SAVE_FAILED" }
+  | { type: "FLUSH" }
+  | { type: "UPDATE_AFTER_SAVE"; callback?: (snapshot: SaveSnapshot) => void };
 
-const initialState: LocalNoteState = {
-  status: "idle",
-  date: null,
-  content: "",
-  hasEdits: false,
-  error: null,
-};
-
-function reducer(
-  state: LocalNoteState,
-  action: LocalNoteAction,
-): LocalNoteState {
-  switch (action.type) {
-    case "RESET":
-      return initialState;
-
-    case "LOAD_START":
-      return {
-        status: "loading",
-        date: action.date,
-        content: "",
-        hasEdits: false,
-        error: null,
-      };
-
-    case "LOAD_SUCCESS":
-      // Only accept if we're loading for this date
-      if (state.status !== "loading" || state.date !== action.date) {
-        return state;
-      }
-      return {
-        status: "ready",
-        date: action.date,
-        content: action.content,
-        hasEdits: false,
-        error: null,
-      };
-
-    case "LOAD_ERROR":
-      if (state.status !== "loading" || state.date !== action.date) {
-        return state;
-      }
-      return {
-        status: "error",
-        date: action.date,
-        content: "",
-        hasEdits: false,
-        error: action.error,
-      };
-
-    case "EDIT":
-      // Can only edit when ready or in error state
-      if (state.status !== "ready" && state.status !== "error") {
-        return state;
-      }
-      return {
-        status: "ready",
-        date: state.date,
-        content: action.content,
-        hasEdits: true,
-        error: null,
-      };
-
-    case "REMOTE_UPDATE":
-      // Only accept remote updates if no local edits and same date
-      if (state.date !== action.date || state.hasEdits) {
-        return state;
-      }
-      // Can receive remote updates in ready or error state
-      if (state.status !== "ready" && state.status !== "error") {
-        return state;
-      }
-      return {
-        status: "ready",
-        date: action.date,
-        content: action.content,
-        hasEdits: false,
-        error: null,
-      };
-
-    case "SAVE_SUCCESS":
-      if (state.status !== "ready" || state.date !== action.date) {
-        return state;
-      }
-      // Only clear hasEdits if content matches what was saved
-      if (state.content !== action.content) {
-        return state;
-      }
-      return {
-        ...state,
-        hasEdits: false,
-      };
-
-    default:
-      return state;
-  }
+interface LocalNoteContext {
+  date: string | null;
+  repository: NoteRepository | null;
+  content: string;
+  hasEdits: boolean;
+  error: Error | null;
+  afterSave?: (snapshot: SaveSnapshot) => void;
 }
 
-/**
- * Hook for reading/writing note content from local storage (IDB).
- * This hook has NO network awareness - it only deals with local data.
- *
- * Responsibilities:
- * - Load note content from repository when date changes
- * - Save content to repository with debouncing
- * - Track edit state
- *
- * NOT responsible for:
- * - Checking online/offline status
- * - Syncing with remote
- * - Determining if note exists remotely but not locally
- */
-export function useLocalNoteContent(
-  date: string | null,
-  repository: NoteRepository | null,
-  onAfterSave?: (snapshot: SaveSnapshot) => void,
-): UseLocalNoteContentReturn {
-  const [state, dispatch] = useReducer(reducer, initialState);
-
-  const saveTimeoutRef = useRef<number | null>(null);
-  const pendingSaveRef = useRef<Promise<void> | null>(null);
-  const isMountedRef = useRef(true);
-  const pendingSaveSnapshotRef = useRef<{
-    date: string;
-    content: string;
-    repository: NoteRepository;
-  } | null>(null);
-
-  // Save function that queues saves to avoid race conditions
-  const enqueueSave = useCallback(
-    (saveDate: string, saveContent: string, saveRepository: NoteRepository) => {
-      pendingSaveRef.current = (
-        pendingSaveRef.current ?? Promise.resolve()
-      ).then(async () => {
-        try {
-          const isEmpty = isContentEmpty(saveContent);
-          if (!isEmpty) {
-            await saveRepository.save(saveDate, saveContent);
-          } else {
-            await saveRepository.delete(saveDate);
-          }
-          if (isMountedRef.current) {
-            dispatch({
-              type: "SAVE_SUCCESS",
-              date: saveDate,
-              content: saveContent,
-            });
-          }
-          onAfterSave?.({
-            date: saveDate,
-            content: saveContent,
-            isEmpty,
-          });
-        } catch (error) {
-          console.error("Failed to save note:", error);
-        }
-      });
-    },
-    [onAfterSave],
-  );
-
-  // Load content when date/repository changes
-  // NOTE: No 'online' dependency - we always load from local storage
-  useEffect(() => {
-    // Flush any pending save before switching notes
-    if (saveTimeoutRef.current !== null && pendingSaveSnapshotRef.current) {
-      window.clearTimeout(saveTimeoutRef.current);
-      saveTimeoutRef.current = null;
-      const snapshot = pendingSaveSnapshotRef.current;
-      pendingSaveSnapshotRef.current = null;
-      enqueueSave(snapshot.date, snapshot.content, snapshot.repository);
-    }
-
-    if (!date || !repository) {
-      dispatch({ type: "RESET" });
-      return;
-    }
-
+const loadNoteActor = fromCallback(
+  ({
+    sendBack,
+    input,
+  }: {
+    sendBack: (event: LocalNoteEvent) => void;
+    input: { date: string; repository: NoteRepository };
+  }) => {
     let cancelled = false;
-    dispatch({ type: "LOAD_START", date });
 
     const load = async () => {
       try {
-        const note = await repository.get(date);
+        const note = await input.repository.get(input.date);
         const loadedContent = note?.content ?? "";
-
         if (!cancelled) {
-          dispatch({ type: "LOAD_SUCCESS", date, content: loadedContent });
+          sendBack({
+            type: "LOAD_SUCCESS",
+            date: input.date,
+            content: loadedContent,
+          });
         }
       } catch (error) {
-        console.error("Failed to load note:", error);
         if (!cancelled) {
-          dispatch({
+          sendBack({
             type: "LOAD_ERROR",
-            date,
+            date: input.date,
             error:
               error instanceof Error ? error : new Error("Failed to load note"),
           });
@@ -265,94 +83,430 @@ export function useLocalNoteContent(
     return () => {
       cancelled = true;
     };
-  }, [date, repository, enqueueSave]);
+  },
+);
 
-  // Update content
+const saveNoteActor = fromCallback(
+  ({
+    sendBack,
+    input,
+  }: {
+    sendBack: (event: LocalNoteEvent) => void;
+    input: { date: string; content: string; repository: NoteRepository };
+  }) => {
+    let cancelled = false;
+
+    const save = async () => {
+      try {
+        const isEmpty = isContentEmpty(input.content);
+        if (!isEmpty) {
+          await input.repository.save(input.date, input.content);
+        } else {
+          await input.repository.delete(input.date);
+        }
+        if (!cancelled) {
+          sendBack({
+            type: "SAVE_SUCCESS",
+            snapshot: {
+              date: input.date,
+              content: input.content,
+              isEmpty,
+            },
+          });
+        }
+      } catch (error) {
+        console.error("Failed to save note:", error);
+        if (!cancelled) {
+          sendBack({ type: "SAVE_FAILED" });
+        }
+      }
+    };
+
+    void save();
+
+    return () => {
+      cancelled = true;
+    };
+  },
+);
+
+const localNoteMachine = setup({
+  types: {
+    context: {} as LocalNoteContext,
+    events: {} as LocalNoteEvent,
+  },
+  actors: {
+    loadNote: loadNoteActor,
+    saveNote: saveNoteActor,
+  },
+  actions: {
+    applyInputs: assign((args: { event: LocalNoteEvent }) => {
+      const { event } = args;
+      if (event.type !== "INPUTS_CHANGED") {
+        return {};
+      }
+      return {
+        date: event.date,
+        repository: event.repository,
+      };
+    }),
+    resetState: assign({
+      date: null,
+      repository: null,
+      content: "",
+      hasEdits: false,
+      error: null,
+    }),
+    clearError: assign({ error: null }),
+    resetEdits: assign({ hasEdits: false }),
+    clearContent: assign({ content: "" }),
+    applyLoadedContent: assign((args: { event: LocalNoteEvent }) => {
+      const { event } = args;
+      if (event.type !== "LOAD_SUCCESS") {
+        return {};
+      }
+      return {
+        content: event.content,
+        hasEdits: false,
+        error: null,
+      };
+    }),
+    applyLoadError: assign((args: { event: LocalNoteEvent }) => {
+      const { event } = args;
+      if (event.type !== "LOAD_ERROR") {
+        return {};
+      }
+      return {
+        content: "",
+        hasEdits: false,
+        error: event.error,
+      };
+    }),
+    applyEdit: assign(
+      (args: { event: LocalNoteEvent; context: LocalNoteContext }) => {
+        const { event, context } = args;
+        if (event.type !== "EDIT") {
+          return {};
+        }
+        if (event.content === context.content) {
+          return {};
+        }
+        return {
+          content: event.content,
+          hasEdits: true,
+          error: null,
+        };
+      },
+    ),
+    applyRemoteUpdate: assign((args: { event: LocalNoteEvent }) => {
+      const { event } = args;
+      if (event.type !== "REMOTE_UPDATE") {
+        return {};
+      }
+      return {
+        content: event.content,
+        hasEdits: false,
+        error: null,
+      };
+    }),
+    applySaveSuccess: assign(
+      (args: { event: LocalNoteEvent; context: LocalNoteContext }) => {
+        const { event, context } = args;
+        if (event.type !== "SAVE_SUCCESS") {
+          return {};
+        }
+        if (context.date !== event.snapshot.date) {
+          return {};
+        }
+        if (context.content !== event.snapshot.content) {
+          return { hasEdits: true };
+        }
+        return { hasEdits: false };
+      },
+    ),
+    notifyAfterSave: (args: {
+      event: LocalNoteEvent;
+      context: LocalNoteContext;
+    }) => {
+      const { event, context } = args;
+      if (event.type !== "SAVE_SUCCESS") {
+        return;
+      }
+      context.afterSave?.(event.snapshot);
+    },
+    flushPendingSave: (args: { context: LocalNoteContext }) => {
+      const { context } = args;
+      if (!context.date || !context.repository || !context.hasEdits) {
+        return;
+      }
+      const snapshot: SaveSnapshot = {
+        date: context.date,
+        content: context.content,
+        isEmpty: isContentEmpty(context.content),
+      };
+      if (!snapshot.isEmpty) {
+        void context.repository
+          .save(snapshot.date, snapshot.content)
+          .then(() => {
+            context.afterSave?.(snapshot);
+          })
+          .catch((error) => {
+            console.error("Failed to save note:", error);
+          });
+      } else {
+        void context.repository
+          .delete(snapshot.date)
+          .then(() => {
+            context.afterSave?.(snapshot);
+          })
+          .catch((error) => {
+            console.error("Failed to save note:", error);
+          });
+      }
+    },
+    updateAfterSave: assign((args: { event: LocalNoteEvent }) => {
+      const { event } = args;
+      if (event.type !== "UPDATE_AFTER_SAVE") {
+        return {};
+      }
+      return { afterSave: event.callback };
+    }),
+  },
+  guards: {
+    hasInputs: ({ event }: { event: LocalNoteEvent }) =>
+      event.type === "INPUTS_CHANGED" && !!event.date && !!event.repository,
+    canApplyRemote: ({ context }: { context: LocalNoteContext }) =>
+      !context.hasEdits,
+  },
+}).createMachine({
+  id: "localNote",
+  initial: "idle",
+  context: {
+    date: null,
+    repository: null,
+    content: "",
+    hasEdits: false,
+    error: null,
+    afterSave: undefined,
+  },
+  on: {
+    UPDATE_AFTER_SAVE: {
+      actions: "updateAfterSave",
+    },
+  },
+  states: {
+    idle: {
+      on: {
+        INPUTS_CHANGED: [
+          {
+            guard: "hasInputs",
+            target: "loading",
+            actions: "applyInputs",
+          },
+          {
+            actions: "resetState",
+          },
+        ],
+      },
+    },
+    loading: {
+      entry: ["clearError", "resetEdits", "clearContent"],
+      invoke: {
+        id: "loadNote",
+        src: "loadNote",
+        input: ({ context }: { context: LocalNoteContext }) => ({
+          date: context.date as string,
+          repository: context.repository as NoteRepository,
+        }),
+      },
+      on: {
+        LOAD_SUCCESS: {
+          target: "ready",
+          actions: "applyLoadedContent",
+        },
+        LOAD_ERROR: {
+          target: "error",
+          actions: "applyLoadError",
+        },
+        INPUTS_CHANGED: [
+          {
+            guard: "hasInputs",
+            target: "loading",
+            reenter: true,
+            actions: "applyInputs",
+          },
+          {
+            target: "idle",
+            actions: "resetState",
+          },
+        ],
+      },
+    },
+    ready: {
+      on: {
+        EDIT: {
+          target: "dirty",
+          actions: "applyEdit",
+        },
+        REMOTE_UPDATE: {
+          guard: "canApplyRemote",
+          actions: "applyRemoteUpdate",
+        },
+        INPUTS_CHANGED: [
+          {
+            guard: "hasInputs",
+            target: "loading",
+            actions: ["flushPendingSave", "applyInputs"],
+          },
+          {
+            target: "idle",
+            actions: ["flushPendingSave", "resetState"],
+          },
+        ],
+      },
+    },
+    dirty: {
+      after: {
+        400: { target: "saving" },
+      },
+      on: {
+        EDIT: {
+          target: "dirty",
+          reenter: true,
+          actions: "applyEdit",
+        },
+        INPUTS_CHANGED: [
+          {
+            guard: "hasInputs",
+            target: "loading",
+            actions: ["flushPendingSave", "applyInputs"],
+          },
+          {
+            target: "idle",
+            actions: ["flushPendingSave", "resetState"],
+          },
+        ],
+        FLUSH: {
+          target: "saving",
+        },
+      },
+    },
+    saving: {
+      invoke: {
+        id: "saveNote",
+        src: "saveNote",
+        input: ({ context }: { context: LocalNoteContext }) => ({
+          date: context.date as string,
+          content: context.content,
+          repository: context.repository as NoteRepository,
+        }),
+      },
+      on: {
+        SAVE_SUCCESS: {
+          target: "ready",
+          actions: ["applySaveSuccess", "notifyAfterSave"],
+        },
+        SAVE_FAILED: {
+          target: "ready",
+        },
+        EDIT: {
+          target: "dirty",
+          actions: "applyEdit",
+        },
+        INPUTS_CHANGED: [
+          {
+            guard: "hasInputs",
+            target: "loading",
+            actions: ["flushPendingSave", "applyInputs"],
+          },
+          {
+            target: "idle",
+            actions: ["flushPendingSave", "resetState"],
+          },
+        ],
+      },
+    },
+    error: {
+      on: {
+        EDIT: {
+          target: "dirty",
+          actions: "applyEdit",
+        },
+        REMOTE_UPDATE: {
+          guard: "canApplyRemote",
+          actions: "applyRemoteUpdate",
+        },
+        INPUTS_CHANGED: [
+          {
+            guard: "hasInputs",
+            target: "loading",
+            actions: ["flushPendingSave", "applyInputs"],
+          },
+          {
+            target: "idle",
+            actions: ["flushPendingSave", "resetState"],
+          },
+        ],
+      },
+    },
+  },
+});
+
+/**
+ * Hook for reading/writing note content from local storage (IDB).
+ * This hook has NO network awareness - it only deals with local data.
+ *
+ * NOTE: Implemented with an XState machine to avoid effect chains.
+ */
+export function useLocalNoteContent(
+  date: string | null,
+  repository: NoteRepository | null,
+  onAfterSave?: (snapshot: SaveSnapshot) => void,
+): UseLocalNoteContentReturn {
+  const [state, send] = useMachine(localNoteMachine);
+
+  useEffect(() => {
+    send({ type: "UPDATE_AFTER_SAVE", callback: onAfterSave });
+  }, [send, onAfterSave]);
+
+  useEffect(() => {
+    send({ type: "INPUTS_CHANGED", date, repository });
+  }, [send, date, repository]);
+
+  useEffect(() => {
+    return () => {
+      send({ type: "FLUSH" });
+    };
+  }, [send]);
+
   const setContent = useCallback(
     (newContent: string) => {
-      if (state.status !== "ready" && state.status !== "error") return;
-      if (newContent === state.content) return;
-      dispatch({ type: "EDIT", content: newContent });
+      send({ type: "EDIT", content: newContent });
     },
-    [state.status, state.content],
+    [send],
   );
 
-  // Allow external code to apply remote updates
   const applyRemoteUpdate = useCallback(
     (content: string) => {
-      if (!state.date) return;
-      dispatch({ type: "REMOTE_UPDATE", date: state.date, content });
+      send({ type: "REMOTE_UPDATE", content });
     },
-    [state.date],
+    [send],
   );
 
-  // Debounced auto-save effect
-  useEffect(() => {
-    if (
-      state.status !== "ready" ||
-      !state.hasEdits ||
-      !state.date ||
-      !repository
-    ) {
-      return;
-    }
-
-    const snapshot = {
-      date: state.date,
-      content: state.content,
-      repository,
-    };
-
-    pendingSaveSnapshotRef.current = snapshot;
-
-    if (saveTimeoutRef.current !== null) {
-      window.clearTimeout(saveTimeoutRef.current);
-    }
-
-    saveTimeoutRef.current = window.setTimeout(() => {
-      saveTimeoutRef.current = null;
-      pendingSaveSnapshotRef.current = null;
-      enqueueSave(snapshot.date, snapshot.content, snapshot.repository);
-    }, 400);
-
-    return () => {
-      if (saveTimeoutRef.current !== null) {
-        window.clearTimeout(saveTimeoutRef.current);
-        saveTimeoutRef.current = null;
-      }
-    };
-  }, [
-    state.content,
-    state.hasEdits,
-    state.status,
-    state.date,
-    repository,
-    enqueueSave,
-  ]);
-
-  // Save on unmount
-  useEffect(() => {
-    return () => {
-      isMountedRef.current = false;
-      if (saveTimeoutRef.current !== null) {
-        window.clearTimeout(saveTimeoutRef.current);
-        saveTimeoutRef.current = null;
-      }
-      if (pendingSaveSnapshotRef.current) {
-        const snapshot = pendingSaveSnapshotRef.current;
-        pendingSaveSnapshotRef.current = null;
-        enqueueSave(snapshot.date, snapshot.content, snapshot.repository);
-      }
-    };
-  }, [enqueueSave]);
+  const stateValue = state.value;
+  const isReady =
+    stateValue === "ready" ||
+    stateValue === "dirty" ||
+    stateValue === "saving" ||
+    stateValue === "error";
 
   return {
-    content: state.content,
+    content: state.context.content,
     setContent,
-    isLoading: state.status === "loading",
-    hasEdits: state.hasEdits,
-    isReady: state.status === "ready" || state.status === "error",
-    error: state.error,
+    isLoading: stateValue === "loading",
+    hasEdits: state.context.hasEdits,
+    isReady,
+    error: state.context.error,
     applyRemoteUpdate,
   };
 }
