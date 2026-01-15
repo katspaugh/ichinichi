@@ -1,9 +1,8 @@
-export type {
-  PendingOpsSummary,
-  SyncService,
-} from "../../services/syncService";
+export type { SyncService } from "./syncService";
 export {
   createSyncService,
   getPendingOpsSummary,
   hasPendingOps,
-} from "../../services/syncService";
+} from "./syncService";
+export type { PendingOpsSource, PendingOpsSummary } from "./pendingOpsSource";
+export { createSyncIntentScheduler } from "./intentScheduler";

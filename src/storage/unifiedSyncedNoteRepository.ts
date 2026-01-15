@@ -1,58 +1,58 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { SyncStatus, type Note } from "../types";
-import type { NoteRepository } from "./noteRepository";
+import type { Clock } from "../domain/runtime/clock";
+import type { Connectivity } from "../domain/runtime/connectivity";
+import type { SyncStateStore } from "../domain/sync/syncStateStore";
+import { SyncStatus, type NoteEnvelope } from "../types";
 import {
-  createUnifiedNoteRepository,
-  type KeyringProvider,
-  type UnifiedNoteRepository,
-} from "./unifiedNoteRepository";
-import {
-  decryptNoteContent,
-  getAllNoteMeta,
-  getAllNoteRecords,
-  getNoteMeta,
-  getNoteRecord,
   setNoteAndMeta,
   setNoteMeta,
   deleteNoteRecord,
   deleteNoteAndMeta,
 } from "./unifiedNoteStore";
 import type { NoteMetaRecord, NoteRecord } from "./unifiedDb";
-import {
-  fetchRemoteNoteByDate,
-  fetchRemoteNoteDates,
-  deleteRemoteNote,
-  pushRemoteNote,
-  RevisionConflictError,
-  type RemoteNote,
-} from "./unifiedSyncService";
-import { syncEncryptedImages } from "./unifiedImageSyncService";
+import type { SyncError } from "../domain/errors";
+import { err, ok, type Result } from "../domain/result";
+import type {
+  RemoteNote,
+  RemoteNotesGateway,
+} from "../domain/sync/remoteNotesGateway";
 import {
   deleteRemoteDate,
   getRemoteDatesForYear,
   hasRemoteDate,
   setRemoteDatesForYear,
 } from "./remoteNoteIndexStore";
+import {
+  getAllNoteEnvelopeStates,
+  getNoteEnvelopeState,
+  toNoteEnvelope,
+} from "./unifiedNoteEnvelopeRepository";
 
-/** Thrown when trying to access a stub note while offline */
-export class OfflineStubError extends Error {
-  constructor() {
-    super("Note exists but cannot be loaded while offline");
-    this.name = "OfflineStubError";
-  }
-}
+// Module-level deduplication for refreshDates calls with cooldown
+const refreshDatesInFlight = new Map<number, Promise<void>>();
+const refreshDatesLastCompleted = new Map<number, number>();
+const REFRESH_DATES_COOLDOWN_MS = 2000;
 
-export interface UnifiedSyncedNoteRepository extends NoteRepository {
-  sync(): Promise<void>;
+export interface UnifiedSyncedNoteEnvelopeRepository {
+  sync(): Promise<Result<SyncStatus, SyncError>>;
   getSyncStatus(): SyncStatus;
   onSyncStatusChange(callback: (status: SyncStatus) => void): () => void;
+  getEnvelope(date: string): Promise<NoteEnvelope | null>;
+  refreshEnvelope(date: string): Promise<NoteEnvelope | null>;
+  hasPendingOp(date: string): Promise<boolean>;
+  saveEnvelope(payload: {
+    date: string;
+    ciphertext: string;
+    nonce: string;
+    keyId: string;
+    updatedAt: string;
+  }): Promise<void>;
+  deleteEnvelope(date: string): Promise<void>;
+  getAllDates(): Promise<string[]>;
   getAllDatesForYear(year: number): Promise<string[]>;
   getAllLocalDates(): Promise<string[]>;
   getAllLocalDatesForYear(year: number): Promise<string[]>;
-  getWithRefresh(
-    date: string,
-    onRemoteUpdate: (note: Note | null) => void,
-  ): Promise<Note | null>;
+  refreshDates(year: number): Promise<void>;
+  hasRemoteDateCached(date: string): Promise<boolean>;
 }
 
 function toLocalRecord(remote: RemoteNote): NoteRecord {
@@ -66,36 +66,43 @@ function toLocalRecord(remote: RemoteNote): NoteRecord {
   };
 }
 
-function toLocalMeta(remote: RemoteNote): NoteMetaRecord {
+function toLocalMeta(remote: RemoteNote, now: string): NoteMetaRecord {
   return {
     date: remote.date,
     revision: remote.revision,
     remoteId: remote.id,
     serverUpdatedAt: remote.serverUpdatedAt,
-    lastSyncedAt: new Date().toISOString(),
+    lastSyncedAt: now,
     pendingOp: null,
   };
 }
 
-async function decryptLocalNote(
-  record: NoteRecord,
-  keyring: KeyringProvider,
-): Promise<Note | null> {
-  const keyId = record.keyId ?? keyring.activeKeyId;
-  const key = keyring.getKey(keyId);
-  if (!key) return null;
-  const content = await decryptNoteContent(key, record);
-  return {
-    date: record.date,
-    content,
-    updatedAt: record.updatedAt,
-  };
+function isSyncError(error: unknown): error is SyncError {
+  if (!error || typeof error !== "object") return false;
+  const record = error as { type?: string; message?: string };
+  return typeof record.type === "string" && typeof record.message === "string";
+}
+
+function unwrapOrThrow<T>(result: Result<T, SyncError>): T {
+  if (!result.ok) {
+    throw result.error;
+  }
+  return result.value;
+}
+
+function toUnknownSyncError(error: unknown): SyncError {
+  if (error instanceof Error) {
+    return { type: "Unknown", message: error.message };
+  }
+  if (isSyncError(error)) {
+    return error;
+  }
+  return { type: "Unknown", message: "Sync failed." };
 }
 
 interface ConflictResolutionContext {
-  supabase: SupabaseClient;
-  userId: string;
-  keyring: KeyringProvider;
+  gateway: RemoteNotesGateway;
+  activeKeyId: string;
   localRecord: NoteRecord;
   localMeta: NoteMetaRecord;
   remote: RemoteNote;
@@ -104,7 +111,7 @@ interface ConflictResolutionContext {
 async function resolveConflict(
   ctx: ConflictResolutionContext,
 ): Promise<RemoteNote> {
-  const { supabase, userId, keyring, localRecord, localMeta, remote } = ctx;
+  const { gateway, activeKeyId, localRecord, localMeta, remote } = ctx;
   const localRevision = localMeta.revision;
   const remoteRevision = remote.revision;
 
@@ -124,17 +131,18 @@ async function resolveConflict(
     const rebasedRevision =
       localRevision > remoteRevision ? localRevision : remoteRevision + 1;
 
-    return await pushRemoteNote(supabase, userId, {
+    const pushed = await gateway.pushNote({
       id: localMeta.remoteId ?? remote.id,
       date: localRecord.date,
       ciphertext: localRecord.ciphertext,
       nonce: localRecord.nonce,
-      keyId: localRecord.keyId ?? keyring.activeKeyId,
+      keyId: localRecord.keyId ?? activeKeyId,
       revision: rebasedRevision,
       updatedAt: localRecord.updatedAt,
       serverUpdatedAt: remote.serverUpdatedAt,
       deleted: false,
     });
+    return unwrapOrThrow(pushed);
   } catch (rebaseError) {
     // Rebased push failed, accept remote version as fallback
     console.warn("Rebased push failed, accepting remote version:", rebaseError);
@@ -142,12 +150,29 @@ async function resolveConflict(
   }
 }
 
-export function createUnifiedSyncedNoteRepository(
-  supabase: SupabaseClient,
-  userId: string,
-  keyring: KeyringProvider,
-): UnifiedSyncedNoteRepository {
-  const localRepo: UnifiedNoteRepository = createUnifiedNoteRepository(keyring);
+function localWinsRemote(
+  localRecord: NoteRecord,
+  localMeta: NoteMetaRecord,
+  remote: RemoteNote,
+): boolean {
+  const localRevision = localMeta.revision;
+  const remoteRevision = remote.revision;
+  return (
+    localRevision > remoteRevision ||
+    (localRevision === remoteRevision &&
+      new Date(localRecord.updatedAt).getTime() >=
+        new Date(remote.updatedAt).getTime())
+  );
+}
+
+export function createUnifiedSyncedNoteEnvelopeRepository(
+  gateway: RemoteNotesGateway,
+  activeKeyId: string,
+  syncImages: () => Promise<void>,
+  connectivity: Connectivity,
+  clock: Clock,
+  syncStateStore: SyncStateStore,
+): UnifiedSyncedNoteEnvelopeRepository {
   let syncStatus: SyncStatus = SyncStatus.Idle;
   const listeners = new Set<(status: SyncStatus) => void>();
 
@@ -156,33 +181,30 @@ export function createUnifiedSyncedNoteRepository(
     listeners.forEach((cb) => cb(status));
   };
 
-  const sync = async (): Promise<void> => {
-    if (!navigator.onLine) {
+  const sync = async (): Promise<Result<SyncStatus, SyncError>> => {
+    if (!connectivity.isOnline()) {
       setSyncStatus(SyncStatus.Offline);
-      return;
+      return ok(SyncStatus.Offline);
     }
 
     setSyncStatus(SyncStatus.Syncing);
 
     try {
-      const [records, metas] = await Promise.all([
-        getAllNoteRecords(),
-        getAllNoteMeta(),
-      ]);
-
-      const recordMap = new Map(records.map((record) => [record.date, record]));
+      const states = await getAllNoteEnvelopeStates();
 
       // Push pending local changes.
-      for (const meta of metas) {
-        if (!meta.pendingOp) continue;
-        const record = recordMap.get(meta.date);
-        const now = new Date().toISOString();
+      for (const state of states) {
+        const meta = state.meta;
+        if (!meta?.pendingOp) continue;
+        const record = state.record;
+        const now = clock.now().toISOString();
 
         if (meta.pendingOp === "delete") {
-          await deleteRemoteNote(supabase, userId, {
+          const deleted = await gateway.deleteNote({
             id: meta.remoteId ?? undefined,
             date: meta.date,
           });
+          unwrapOrThrow(deleted);
           await deleteRemoteDate(meta.date);
           await deleteNoteAndMeta(meta.date);
           continue;
@@ -190,91 +212,115 @@ export function createUnifiedSyncedNoteRepository(
 
         if (!record) continue;
 
-        try {
-          const remote = await pushRemoteNote(supabase, userId, {
-            id: meta.remoteId,
-            date: record.date,
-            ciphertext: record.ciphertext,
-            nonce: record.nonce,
-            keyId: record.keyId ?? keyring.activeKeyId,
-            revision: meta.revision,
-            updatedAt: record.updatedAt,
-            serverUpdatedAt: meta.serverUpdatedAt ?? null,
-            deleted: false,
-          });
-          await setNoteAndMeta(toLocalRecord(remote), {
-            ...toLocalMeta(remote),
+        const pushed = await gateway.pushNote({
+          id: meta.remoteId,
+          date: record.date,
+          ciphertext: record.ciphertext,
+          nonce: record.nonce,
+          keyId: record.keyId ?? activeKeyId,
+          revision: meta.revision,
+          updatedAt: record.updatedAt,
+          serverUpdatedAt: meta.serverUpdatedAt ?? null,
+          deleted: false,
+        });
+
+        if (pushed.ok) {
+          await setNoteAndMeta(toLocalRecord(pushed.value), {
+            ...toLocalMeta(pushed.value, now),
             lastSyncedAt: now,
           });
-        } catch (error) {
-          if (!(error instanceof RevisionConflictError)) {
-            throw error;
-          }
-
-          const remote = await fetchRemoteNoteByDate(
-            supabase,
-            userId,
-            record.date,
-          );
+        } else if (pushed.error.type === "Conflict") {
+          const remoteResult = await gateway.fetchNoteByDate(record.date);
+          const remote = unwrapOrThrow(remoteResult);
           if (!remote) {
-            throw error;
+            throw { type: "Conflict", message: "Remote note missing." };
           }
 
           const resolved = await resolveConflict({
-            supabase,
-            userId,
-            keyring,
+            gateway,
+            activeKeyId,
             localRecord: record,
             localMeta: meta,
             remote,
           });
           await setNoteAndMeta(toLocalRecord(resolved), {
-            ...toLocalMeta(resolved),
+            ...toLocalMeta(resolved, now),
             lastSyncedAt: now,
           });
+        } else {
+          throw pushed.error;
         }
       }
 
-      await syncEncryptedImages(supabase, userId);
+      await syncImages();
+
+      const syncStateResult = await syncStateStore.getState();
+      const syncState = unwrapOrThrow(syncStateResult);
+      const remoteUpdatesResult = await gateway.fetchNotesSince(
+        syncState.cursor ?? null,
+      );
+      const remoteUpdates = unwrapOrThrow(remoteUpdatesResult);
+      let nextCursor = syncState.cursor ?? null;
+      for (const remote of remoteUpdates) {
+        await applyRemoteUpdate(remote);
+        nextCursor = remote.serverUpdatedAt;
+      }
+      if (nextCursor && nextCursor !== syncState.cursor) {
+        const setResult = await syncStateStore.setState({
+          id: "state",
+          cursor: nextCursor,
+        });
+        unwrapOrThrow(setResult);
+      }
 
       setSyncStatus(SyncStatus.Synced);
+      return ok(SyncStatus.Synced);
     } catch (error) {
-      console.error("Sync error:", error);
+      const syncError = toUnknownSyncError(error);
+      console.error("Sync error:", syncError);
       setSyncStatus(SyncStatus.Error);
+      return err(syncError);
     }
   };
 
   const getLocalDates = async (year?: number): Promise<string[]> => {
-    const records = await getAllNoteRecords();
-    return records
-      .map((record) => record.date)
+    const states = await getAllNoteEnvelopeStates();
+    return states
+      .map((state) => state.record?.date)
+      .filter((date): date is string => Boolean(date))
       .filter((date) =>
         typeof year === "number" ? date.endsWith(String(year)) : true,
       );
   };
 
-  const getMergedDates = async (year?: number): Promise<string[]> => {
-    const localDates = await getLocalDates(year);
-
-    if (typeof year !== "number") {
-      return localDates;
+  const refreshDates = async (year: number): Promise<void> => {
+    if (!connectivity.isOnline()) {
+      return;
     }
-
-    if (!navigator.onLine) {
-      return localDates;
+    // Deduplicate concurrent calls for the same year
+    const existing = refreshDatesInFlight.get(year);
+    if (existing) {
+      return existing;
     }
-
-    try {
-      const remoteDates = await fetchRemoteNoteDates(supabase, userId, year);
-      await setRemoteDatesForYear(year, remoteDates);
-
-      const merged = new Set<string>([...remoteDates, ...localDates]);
-      return Array.from(merged);
-    } catch {
-      const remoteDates = await getRemoteDatesForYear(year);
-      const merged = new Set<string>([...remoteDates, ...localDates]);
-      return Array.from(merged);
+    // Skip if we just completed a refresh recently
+    const lastCompleted = refreshDatesLastCompleted.get(year);
+    if (lastCompleted && Date.now() - lastCompleted < REFRESH_DATES_COOLDOWN_MS) {
+      return;
     }
+    const promise = (async () => {
+      try {
+        const remoteDatesResult = await gateway.fetchNoteDates(year);
+        const remoteDates = unwrapOrThrow(remoteDatesResult);
+        await setRemoteDatesForYear(year, remoteDates);
+      } catch {
+        return;
+      } finally {
+        refreshDatesInFlight.delete(year);
+        refreshDatesLastCompleted.set(year, Date.now());
+      }
+    })();
+    refreshDatesInFlight.set(year, promise);
+    return promise;
   };
 
   const getLocalSnapshot = async (
@@ -282,64 +328,166 @@ export function createUnifiedSyncedNoteRepository(
   ): Promise<{
     record: NoteRecord | null;
     meta: NoteMetaRecord | null;
-    note: Note | null;
+    envelope: NoteEnvelope | null;
   }> => {
-    const [record, meta] = await Promise.all([
-      getNoteRecord(date),
-      getNoteMeta(date),
-    ]);
-    const note = record ? await decryptLocalNote(record, keyring) : null;
-    return { record, meta, note };
+    const state = await getNoteEnvelopeState(date);
+    const record = state.record;
+    const meta = state.meta;
+    const envelope = record ? toNoteEnvelope(record, meta) : null;
+    return { record, meta, envelope };
   };
 
   const pushLocal = async (
     record: NoteRecord,
     meta: NoteMetaRecord,
   ): Promise<RemoteNote | null> => {
-    try {
-      return await pushRemoteNote(supabase, userId, {
-        id: meta.remoteId,
-        date: record.date,
-        ciphertext: record.ciphertext,
-        nonce: record.nonce,
-        keyId: record.keyId ?? keyring.activeKeyId,
-        revision: meta.revision,
-        updatedAt: record.updatedAt,
-        serverUpdatedAt: meta.serverUpdatedAt ?? null,
-        deleted: false,
-      });
-    } catch (error) {
-      if (!(error instanceof RevisionConflictError)) {
-        throw error;
-      }
+    const pushed = await gateway.pushNote({
+      id: meta.remoteId,
+      date: record.date,
+      ciphertext: record.ciphertext,
+      nonce: record.nonce,
+      keyId: record.keyId ?? activeKeyId,
+      revision: meta.revision,
+      updatedAt: record.updatedAt,
+      serverUpdatedAt: meta.serverUpdatedAt ?? null,
+      deleted: false,
+    });
+
+    if (pushed.ok) {
+      return pushed.value;
     }
 
-    const remote = await fetchRemoteNoteByDate(supabase, userId, record.date);
+    if (pushed.error.type !== "Conflict") {
+      throw new Error(pushed.error.message);
+    }
+
+    const remoteResult = await gateway.fetchNoteByDate(record.date);
+    const remote = unwrapOrThrow(remoteResult);
     if (!remote) {
       return null;
     }
 
     return await resolveConflict({
-      supabase,
-      userId,
-      keyring,
+      gateway,
+      activeKeyId,
       localRecord: record,
       localMeta: meta,
       remote,
     });
   };
 
+  const applyRemoteUpdate = async (remote: RemoteNote): Promise<void> => {
+    const state = await getNoteEnvelopeState(remote.date);
+    const localRecord = state.record;
+    const localMeta = state.meta;
+
+    const meta: NoteMetaRecord | null =
+      localMeta ??
+      (localRecord
+        ? {
+            date: remote.date,
+            revision: 1,
+            remoteId: null,
+            serverUpdatedAt: null,
+            lastSyncedAt: null,
+            pendingOp: "upsert",
+          }
+        : null);
+
+    if (meta?.pendingOp === "delete") {
+      return;
+    }
+
+    if (remote.deleted) {
+      if (!localRecord || !meta) {
+        await deleteNoteAndMeta(remote.date);
+        await deleteRemoteDate(remote.date);
+        return;
+      }
+
+      const shouldPushLocal =
+        meta.pendingOp === "upsert" ||
+        localWinsRemote(localRecord, meta, remote);
+      if (shouldPushLocal) {
+        const pushed = await pushLocal(localRecord, meta);
+        if (pushed?.deleted) {
+          await deleteNoteAndMeta(remote.date);
+          await deleteRemoteDate(remote.date);
+          return;
+        }
+        if (pushed) {
+          await setNoteAndMeta(
+            toLocalRecord(pushed),
+            toLocalMeta(pushed, clock.now().toISOString()),
+          );
+        }
+        return;
+      }
+
+      await deleteNoteAndMeta(remote.date);
+      await deleteRemoteDate(remote.date);
+      return;
+    }
+
+    if (!localRecord || !meta) {
+      await setNoteAndMeta(
+        toLocalRecord(remote),
+        toLocalMeta(remote, clock.now().toISOString()),
+      );
+      return;
+    }
+
+    if (meta.serverUpdatedAt === remote.serverUpdatedAt && !meta.pendingOp) {
+      return;
+    }
+
+    if (meta.pendingOp === "upsert") {
+      const pushed = await pushLocal(localRecord, meta);
+      if (pushed?.deleted) {
+        await deleteNoteAndMeta(remote.date);
+        await deleteRemoteDate(remote.date);
+        return;
+      }
+      if (pushed) {
+        await setNoteAndMeta(
+          toLocalRecord(pushed),
+          toLocalMeta(pushed, clock.now().toISOString()),
+        );
+      }
+      return;
+    }
+
+    const resolved = await resolveConflict({
+      gateway,
+      activeKeyId,
+      localRecord,
+      localMeta: meta,
+      remote,
+    });
+
+    if (resolved.deleted) {
+      await deleteNoteAndMeta(remote.date);
+      await deleteRemoteDate(remote.date);
+      return;
+    }
+
+    await setNoteAndMeta(
+      toLocalRecord(resolved),
+      toLocalMeta(resolved, clock.now().toISOString()),
+    );
+  };
+
   const reconcileRemote = async (
     date: string,
     localRecord: NoteRecord | null,
     localMeta: NoteMetaRecord | null,
-  ): Promise<Note | null> => {
+  ): Promise<NoteEnvelope | null> => {
     let remote: RemoteNote | null = null;
-    try {
-      remote = await fetchRemoteNoteByDate(supabase, userId, date);
-    } catch {
-      return localRecord ? await decryptLocalNote(localRecord, keyring) : null;
+    const remoteResult = await gateway.fetchNoteByDate(date);
+    if (!remoteResult.ok) {
+      return localRecord ? toNoteEnvelope(localRecord, localMeta) : null;
     }
+    remote = remoteResult.value;
 
     const meta: NoteMetaRecord | null =
       localMeta ??
@@ -356,10 +504,11 @@ export function createUnifiedSyncedNoteRepository(
 
     if (meta?.pendingOp === "delete") {
       if (remote) {
-        await deleteRemoteNote(supabase, userId, {
+        const deleted = await gateway.deleteNote({
           id: meta.remoteId ?? undefined,
           date,
         });
+        unwrapOrThrow(deleted);
       }
       await deleteRemoteDate(date);
       await deleteNoteAndMeta(date);
@@ -374,9 +523,12 @@ export function createUnifiedSyncedNoteRepository(
       if (meta.pendingOp === "upsert") {
         const pushed = await pushLocal(localRecord, meta);
         if (pushed) {
-          await setNoteAndMeta(toLocalRecord(pushed), toLocalMeta(pushed));
+          const record = toLocalRecord(pushed);
+          const metaRecord = toLocalMeta(pushed, clock.now().toISOString());
+          await setNoteAndMeta(record, metaRecord);
+          return toNoteEnvelope(record, metaRecord);
         }
-        return await decryptLocalNote(localRecord, keyring);
+        return toNoteEnvelope(localRecord, meta);
       }
 
       await deleteRemoteDate(localRecord.date);
@@ -385,34 +537,86 @@ export function createUnifiedSyncedNoteRepository(
     }
 
     if (!localRecord || !meta) {
-      await setNoteAndMeta(toLocalRecord(remote), toLocalMeta(remote));
-      return await decryptLocalNote(toLocalRecord(remote), keyring);
+      const record = toLocalRecord(remote);
+      const metaRecord = toLocalMeta(remote, clock.now().toISOString());
+      await setNoteAndMeta(record, metaRecord);
+      return toNoteEnvelope(record, metaRecord);
     }
 
     // Skip conflict resolution if local is already synced with this remote version
     if (meta.serverUpdatedAt === remote.serverUpdatedAt && !meta.pendingOp) {
-      return await decryptLocalNote(localRecord, keyring);
+      return toNoteEnvelope(localRecord, meta);
     }
 
     // Resolve conflict between local and remote
     const resolved = await resolveConflict({
-      supabase,
-      userId,
-      keyring,
+      gateway,
+      activeKeyId,
       localRecord,
       localMeta: meta,
       remote,
     });
 
-    // Update local state with resolved version
-    await setNoteAndMeta(toLocalRecord(resolved), toLocalMeta(resolved));
-    return await decryptLocalNote(toLocalRecord(resolved), keyring);
+    if (resolved.deleted) {
+      await deleteNoteAndMeta(remote.date);
+      await deleteRemoteDate(remote.date);
+      return null;
+    }
+
+    const record = toLocalRecord(resolved);
+    const metaRecord = toLocalMeta(resolved, clock.now().toISOString());
+    await setNoteAndMeta(record, metaRecord);
+    return toNoteEnvelope(record, metaRecord);
   };
 
   return {
-    ...localRepo,
-    async delete(date: string): Promise<void> {
-      const existingMeta = await getNoteMeta(date);
+    async getEnvelope(date: string): Promise<NoteEnvelope | null> {
+      const snapshot = await getLocalSnapshot(date);
+      return snapshot.envelope;
+    },
+    async refreshEnvelope(date: string): Promise<NoteEnvelope | null> {
+    if (!connectivity.isOnline()) {
+      return null;
+    }
+      const snapshot = await getLocalSnapshot(date);
+      try {
+        return await reconcileRemote(date, snapshot.record, snapshot.meta);
+      } catch {
+        return snapshot.envelope;
+      }
+    },
+    async hasPendingOp(date: string): Promise<boolean> {
+      const state = await getNoteEnvelopeState(date);
+      return Boolean(state.meta?.pendingOp);
+    },
+    async saveEnvelope(payload: {
+      date: string;
+      ciphertext: string;
+      nonce: string;
+      keyId: string;
+      updatedAt: string;
+    }): Promise<void> {
+      const existingMeta = (await getNoteEnvelopeState(payload.date)).meta;
+      const record: NoteRecord = {
+        version: 1,
+        date: payload.date,
+        keyId: payload.keyId,
+        ciphertext: payload.ciphertext,
+        nonce: payload.nonce,
+        updatedAt: payload.updatedAt,
+      };
+      const meta: NoteMetaRecord = {
+        date: payload.date,
+        revision: (existingMeta?.revision ?? 0) + 1,
+        remoteId: existingMeta?.remoteId ?? null,
+        serverUpdatedAt: existingMeta?.serverUpdatedAt ?? null,
+        lastSyncedAt: existingMeta?.lastSyncedAt ?? null,
+        pendingOp: "upsert",
+      };
+      await setNoteAndMeta(record, meta);
+    },
+    async deleteEnvelope(date: string): Promise<void> {
+      const existingMeta = (await getNoteEnvelopeState(date)).meta;
       const meta: NoteMetaRecord = {
         date,
         revision: (existingMeta?.revision ?? 0) + 1,
@@ -426,58 +630,30 @@ export function createUnifiedSyncedNoteRepository(
       await deleteNoteRecord(date);
       await deleteRemoteDate(date);
     },
-    async getWithRefresh(
-      date: string,
-      onRemoteUpdate: (note: Note | null) => void,
-    ): Promise<Note | null> {
-      const { record, meta, note } = await getLocalSnapshot(date);
-
-      if (!navigator.onLine) {
-        if (meta?.pendingOp === "delete") {
-          return null;
-        }
-        if (!note && !record && (await hasRemoteDate(date))) {
-          throw new OfflineStubError();
-        }
-        return note;
-      }
-
-      void (async () => {
-        const updated = await reconcileRemote(date, record, meta);
-        if (!note && updated) {
-          onRemoteUpdate(updated);
-          return;
-        }
-        if (note && !updated) {
-          onRemoteUpdate(null);
-          return;
-        }
-        if (note && updated && note.updatedAt !== updated.updatedAt) {
-          onRemoteUpdate(updated);
-        }
-      })();
-
-      return note;
-    },
-    async get(date: string): Promise<Note | null> {
-      if (!navigator.onLine) {
-        const snapshot = await getLocalSnapshot(date);
-        return snapshot.note;
-      }
-      const snapshot = await getLocalSnapshot(date);
-      return await reconcileRemote(date, snapshot.record, snapshot.meta);
-    },
     async getAllDates(): Promise<string[]> {
-      return await getMergedDates();
+      return await getLocalDates();
     },
     async getAllDatesForYear(year: number): Promise<string[]> {
-      return await getMergedDates(year);
+      const localDates = await getLocalDates(year);
+      try {
+        const remoteDates = await getRemoteDatesForYear(year);
+        const merged = new Set<string>([...localDates, ...remoteDates]);
+        return Array.from(merged);
+      } catch {
+        return localDates;
+      }
     },
     async getAllLocalDates(): Promise<string[]> {
       return await getLocalDates();
     },
     async getAllLocalDatesForYear(year: number): Promise<string[]> {
       return await getLocalDates(year);
+    },
+    async refreshDates(year: number): Promise<void> {
+      await refreshDates(year);
+    },
+    async hasRemoteDateCached(date: string): Promise<boolean> {
+      return await hasRemoteDate(date);
     },
     sync,
     getSyncStatus(): SyncStatus {

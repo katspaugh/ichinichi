@@ -1,84 +1,17 @@
 import type { NoteImage } from "../types";
 import type { ImageRepository } from "./imageRepository";
-import {
-  deriveImageKey,
-  decryptImageBuffer,
-  encryptImageBuffer,
-} from "./unifiedImageCrypto";
-import type { ImageMetaRecord, ImageRecord } from "./unifiedDb";
-import type { KeyringProvider } from "./unifiedNoteRepository";
+import type { ImageMetaRecord } from "./unifiedDb";
+import type { KeyringProvider } from "../domain/crypto/keyring";
 import {
   deleteImageRecord,
   deleteImageRecords,
   deleteImagesByDate,
-  getImageMeta,
-  getImageRecord,
   getMetaByDate,
   setImageMeta,
   storeImageAndMeta,
 } from "./unifiedImageStore";
-
-function bytesToHex(bytes: Uint8Array): string {
-  return Array.from(bytes)
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
-}
-
-async function computeSha256Hex(buffer: ArrayBuffer): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", new Uint8Array(buffer));
-  return bytesToHex(new Uint8Array(digest));
-}
-
-async function encryptImageBlob(
-  imageKey: CryptoKey,
-  blob: Blob,
-): Promise<{ record: ImageRecord; sha256: string; size: number }> {
-  const buffer = await (blob.arrayBuffer
-    ? blob.arrayBuffer()
-    : blobToArrayBuffer(blob));
-  const bytes = new Uint8Array(buffer);
-  const sha256 = await computeSha256Hex(buffer);
-  const { ciphertext, nonce } = await encryptImageBuffer(imageKey, bytes);
-  return {
-    record: {
-      version: 1,
-      id: "",
-      keyId: "",
-      ciphertext,
-      nonce,
-    },
-    sha256,
-    size: buffer.byteLength,
-  };
-}
-
-async function blobToArrayBuffer(blob: Blob): Promise<ArrayBuffer> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (reader.result instanceof ArrayBuffer) {
-        resolve(reader.result);
-      } else {
-        reject(new Error("Unexpected FileReader result"));
-      }
-    };
-    reader.onerror = () => reject(reader.error);
-    reader.readAsArrayBuffer(blob);
-  });
-}
-
-async function decryptImagePayload(
-  imageKey: CryptoKey,
-  record: ImageRecord,
-  mimeType: string,
-): Promise<Blob> {
-  const decrypted = await decryptImageBuffer(
-    imageKey,
-    record.ciphertext,
-    record.nonce,
-  );
-  return new Blob([decrypted], { type: mimeType });
-}
+import { createE2eeService } from "../services/e2eeService";
+import { getImageEnvelopeState } from "./unifiedImageEnvelopeRepository";
 
 function generateUuid(): string {
   return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
@@ -91,16 +24,7 @@ function generateUuid(): string {
 export function createUnifiedImageRepository(
   keyring: KeyringProvider,
 ): ImageRepository {
-  const imageKeyCache = new Map<string, Promise<CryptoKey>>();
-
-  const getImageKey = async (keyId: string) => {
-    const baseKey = keyring.getKey(keyId);
-    if (!baseKey) return null;
-    if (!imageKeyCache.has(keyId)) {
-      imageKeyCache.set(keyId, deriveImageKey(baseKey));
-    }
-    return imageKeyCache.get(keyId)!;
-  };
+  const e2ee = createE2eeService(keyring);
 
   return {
     async upload(
@@ -111,11 +35,11 @@ export function createUnifiedImageRepository(
       options?: { width?: number; height?: number },
     ): Promise<NoteImage> {
       const imageId = generateUuid();
-      const imageKey = await getImageKey(keyring.activeKeyId);
-      if (!imageKey) {
+      const encrypted = await e2ee.encryptImageBlob(file);
+      if (!encrypted) {
         throw new Error("Image key unavailable");
       }
-      const { record, sha256, size } = await encryptImageBlob(imageKey, file);
+      const { record, sha256, size, keyId } = encrypted;
 
       const meta: ImageMetaRecord = {
         id: imageId,
@@ -128,7 +52,7 @@ export function createUnifiedImageRepository(
         size,
         createdAt: new Date().toISOString(),
         sha256,
-        keyId: keyring.activeKeyId,
+        keyId,
         pendingOp: "upload",
       };
 
@@ -136,7 +60,7 @@ export function createUnifiedImageRepository(
         {
           ...record,
           id: imageId,
-          keyId: keyring.activeKeyId,
+          keyId,
         },
         meta,
       );
@@ -156,14 +80,13 @@ export function createUnifiedImageRepository(
 
     async get(imageId: string): Promise<Blob | null> {
       try {
-        const record = await getImageRecord(imageId);
-        const meta = await getImageMeta(imageId);
+        const state = await getImageEnvelopeState(imageId);
+        const record = state.record;
+        const meta = state.meta;
         if (!record || !meta || record.version !== 1) {
           return null;
         }
-        const imageKey = await getImageKey(meta.keyId ?? keyring.activeKeyId);
-        if (!imageKey) return null;
-        return await decryptImagePayload(imageKey, record, meta.mimeType);
+        return await e2ee.decryptImageRecord(record, meta.mimeType);
       } catch {
         return null;
       }
@@ -175,7 +98,7 @@ export function createUnifiedImageRepository(
     },
 
     async delete(imageId: string): Promise<void> {
-      const meta = await getImageMeta(imageId);
+      const meta = (await getImageEnvelopeState(imageId)).meta;
       if (meta) {
         await setImageMeta({
           ...meta,

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { NoteRepository } from "../storage/noteRepository";
+import { useConnectivity } from "./useConnectivity";
 
 interface UseNoteDatesReturn {
   hasNote: (date: string) => boolean;
@@ -16,6 +17,10 @@ interface LocalDateRepository {
   getAllLocalDatesForYear: (year: number) => Promise<string[]>;
 }
 
+interface RefreshableDateRepository {
+  refreshDates: (year: number) => Promise<void>;
+}
+
 function supportsYearDates(
   repository: NoteRepository | null,
 ): repository is NoteRepository & YearDateRepository {
@@ -28,19 +33,27 @@ function supportsLocalDates(
   return !!repository && "getAllLocalDates" in repository;
 }
 
+function supportsDateRefresh(
+  repository: NoteRepository | null,
+): repository is NoteRepository & RefreshableDateRepository {
+  return !!repository && "refreshDates" in repository;
+}
+
 export function useNoteDates(
   repository: NoteRepository | null,
   year: number,
 ): UseNoteDatesReturn {
   const [noteDates, setNoteDates] = useState<Set<string>>(new Set());
+  const online = useConnectivity();
   const refreshInFlightRef = useRef<Promise<void> | null>(null);
   const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const refreshPendingRef = useRef(false);
   const runRefreshRef = useRef<() => void>(() => {});
+  const wasOfflineRef = useRef(!online);
 
   const runRefresh = useCallback(() => {
+    // Skip if already refreshing - don't queue for later since repository-level
+    // deduplication handles the network call, and re-queuing causes extra requests
     if (refreshInFlightRef.current) {
-      refreshPendingRef.current = true;
       return;
     }
     const refreshPromise = (async () => {
@@ -62,6 +75,10 @@ export function useNoteDates(
         }
       }
 
+      if (online && supportsDateRefresh(repository)) {
+        await repository.refreshDates(year);
+      }
+
       try {
         const dates = supportsYearDates(repository)
           ? await repository.getAllDatesForYear(year)
@@ -74,13 +91,9 @@ export function useNoteDates(
       }
     })().finally(() => {
       refreshInFlightRef.current = null;
-      if (refreshPendingRef.current) {
-        refreshPendingRef.current = false;
-        runRefreshRef.current();
-      }
     });
     refreshInFlightRef.current = refreshPromise;
-  }, [repository, year]);
+  }, [repository, year, online]);
 
   const refreshNoteDates = useCallback(
     (options?: { immediate?: boolean }) => {
@@ -113,14 +126,14 @@ export function useNoteDates(
     refreshNoteDates({ immediate: true });
   }, [refreshNoteDates]);
 
-  // Refresh dates when coming back online
+  // Refresh dates only when coming back online from offline
+  // Use runRefreshRef to avoid depending on refreshNoteDates which would cause duplicate calls
   useEffect(() => {
-    const handleOnline = () => {
-      refreshNoteDates({ immediate: true });
-    };
-    window.addEventListener("online", handleOnline);
-    return () => window.removeEventListener("online", handleOnline);
-  }, [refreshNoteDates]);
+    if (online && wasOfflineRef.current) {
+      runRefreshRef.current();
+    }
+    wasOfflineRef.current = !online;
+  }, [online]);
 
   useEffect(() => {
     return () => {
@@ -135,12 +148,14 @@ export function useNoteDates(
       clearTimeout(refreshTimeoutRef.current);
       refreshTimeoutRef.current = null;
     }
-    refreshPendingRef.current = false;
   }, [repository, year]);
 
-  const hasNote = (checkDate: string): boolean => {
-    return noteDates.has(checkDate);
-  };
+  const hasNote = useCallback(
+    (checkDate: string): boolean => {
+      return noteDates.has(checkDate);
+    },
+    [noteDates],
+  );
 
   return {
     hasNote,

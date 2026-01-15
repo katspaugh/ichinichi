@@ -44,9 +44,9 @@ export function NoteEditor({
       ? "Loading..."
       : isOfflineStub
         ? "This note can't be loaded while offline. Go online to view it."
-        : isEditable
-          ? "Write your note for today..."
-          : "No note for this day";
+      : isEditable
+        ? "Write your note for today..."
+        : "No note for this day";
 
   const { isDraggingImage, endImageDrag } = useImageDragState();
 

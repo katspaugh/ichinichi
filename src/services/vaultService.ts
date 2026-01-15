@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { VaultService } from "../domain/vault/vaultService";
 import { fetchUserKeyring, saveUserKeyringEntry } from "../storage/userKeyring";
 import type { UserKeyringEntry } from "../storage/userKeyring";
 import { computeKeyId } from "../storage/keyId";
@@ -195,5 +196,16 @@ export async function unlockLocalVault(options: {
   return {
     vaultKey: key,
     hasVault: true,
+  };
+}
+
+export function createVaultService(supabase: SupabaseClient): VaultService {
+  return {
+    tryDeviceUnlockCloudKey,
+    unlockCloudVault: (options) =>
+      unlockCloudVault({ supabase, ...options }),
+    getHasLocalVault,
+    bootstrapLocalVault,
+    unlockLocalVault,
   };
 }

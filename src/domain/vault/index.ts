@@ -1,7 +1,2 @@
-export {
-  tryDeviceUnlockCloudKey,
-  unlockCloudVault,
-  getHasLocalVault,
-  bootstrapLocalVault,
-  unlockLocalVault,
-} from "../../services/vaultService";
+export type { CloudVaultUnlockResult, VaultService } from "./vaultService";
+export { createVaultService } from "../../services/vaultService";

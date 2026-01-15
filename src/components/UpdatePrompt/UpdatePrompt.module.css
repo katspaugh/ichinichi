@@ -25,6 +25,18 @@
   gap: var(--spacing-xs);
 }
 
+@media (max-width: 768px) {
+  .toast {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
+
 @keyframes slideUp {
   from {
     opacity: 0;

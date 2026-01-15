@@ -14,6 +14,7 @@ interface CalendarProps {
   onMonthChange?: (year: number, month: number) => void;
   onReturnToYear?: () => void;
   syncStatus?: SyncStatus;
+  syncError?: string | null;
   pendingOps?: PendingOpsSummary;
   onSignIn?: () => void;
   onSignOut?: () => void;
@@ -29,6 +30,7 @@ export function Calendar({
   onMonthChange,
   onReturnToYear,
   syncStatus,
+  syncError,
   pendingOps,
   onSignIn,
   onSignOut,
@@ -80,6 +82,7 @@ export function Calendar({
         onMonthChange={onMonthChange}
         onReturnToYear={onReturnToYear}
         syncStatus={syncStatus}
+        syncError={syncError}
         pendingOps={pendingOps}
         onSignIn={onSignIn}
         onSignOut={onSignOut}

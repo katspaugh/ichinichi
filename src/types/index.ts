@@ -4,6 +4,18 @@ export interface Note {
   updatedAt: string; // ISO timestamp
 }
 
+// Encrypted envelope for storage/sync layers (ciphertext only, no plaintext)
+export interface NoteEnvelope {
+  date: string; // "DD-MM-YYYY"
+  ciphertext: string;
+  nonce: string;
+  keyId: string;
+  updatedAt: string; // ISO timestamp
+  revision: number;
+  serverUpdatedAt?: string | null;
+  deleted?: boolean;
+}
+
 export interface SyncedNote extends Note {
   id?: string;
   revision: number;
@@ -21,6 +33,26 @@ export interface NoteImage {
   height: number;
   size: number; // File size in bytes
   createdAt: string; // ISO timestamp
+}
+
+// Encrypted envelope for image storage/sync (ciphertext + metadata)
+export interface ImageEnvelope {
+  id: string; // UUID for the image
+  noteDate: string; // DD-MM-YYYY format
+  type: "background" | "inline";
+  filename: string;
+  mimeType: string;
+  width: number;
+  height: number;
+  size: number; // File size in bytes
+  createdAt: string; // ISO timestamp
+  sha256: string;
+  ciphertext: string;
+  nonce: string;
+  keyId: string;
+  serverUpdatedAt?: string | null;
+  deleted?: boolean;
+  remotePath?: string | null;
 }
 
 export const AuthState = {

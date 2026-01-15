@@ -57,6 +57,7 @@ function App() {
                 onMonthChange={handleMonthChange}
                 onReturnToYear={handleReturnToYear}
                 syncStatus={canSync ? notes.syncStatus : undefined}
+                syncError={canSync ? notes.syncError : undefined}
                 pendingOps={canSync ? notes.pendingOps : undefined}
                 onSignIn={
                   appMode.mode !== AppMode.Cloud &&

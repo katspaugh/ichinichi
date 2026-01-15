@@ -1,16 +1,26 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import type { User } from "@supabase/supabase-js";
+import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { useNoteContent } from "./useNoteContent";
 import { useNoteDates } from "./useNoteDates";
 import { useSync } from "./useSync";
 import {
   createNoteRepository,
   createImageRepository,
+  type SyncedRepositoryFactories,
 } from "../domain/notes/repositoryFactory";
-import type { UnifiedSyncedNoteRepository } from "../storage/unifiedSyncedNoteRepository";
+import type { E2eeServiceFactory } from "../domain/crypto/e2eeService";
+import type { UnifiedSyncedNoteRepository } from "../domain/notes/hydratingSyncedNoteRepository";
 import type { NoteRepository } from "../storage/noteRepository";
 import type { ImageRepository } from "../storage/imageRepository";
 import { AppMode } from "./useAppMode";
+import { createHydratingSyncedNoteRepository } from "../domain/notes/hydratingSyncedNoteRepository";
+import { createRemoteNotesGateway } from "../storage/remoteNotesGateway";
+import { syncEncryptedImages } from "../storage/unifiedImageSyncService";
+import { createUnifiedSyncedImageRepository } from "../storage/unifiedSyncedImageRepository";
+import { createUnifiedSyncedNoteEnvelopeRepository } from "../storage/unifiedSyncedNoteRepository";
+import { runtimeClock, runtimeConnectivity } from "../storage/runtimeAdapters";
+import { syncStateStore } from "../storage/syncStateStore";
+import { createE2eeService } from "../services/e2eeService";
 
 const keyringTokenByKey = new WeakMap<CryptoKey, number>();
 let keyringTokenSeed = 0;
@@ -63,6 +73,7 @@ function getRepositoryCacheKey({
 interface UseNoteRepositoryProps {
   mode: AppMode;
   authUser: User | null;
+  supabaseClient: SupabaseClient;
   vaultKey: CryptoKey | null;
   keyring: Map<string, CryptoKey>;
   activeKeyId: string | null;
@@ -75,6 +86,7 @@ export interface UseNoteRepositoryReturn {
   imageRepository: ImageRepository | null;
   syncedRepo: UnifiedSyncedNoteRepository | null;
   syncStatus: ReturnType<typeof useSync>["syncStatus"];
+  syncError: ReturnType<typeof useSync>["syncError"];
   triggerSync: ReturnType<typeof useSync>["triggerSync"];
   queueIdleSync: ReturnType<typeof useSync>["queueIdleSync"];
   pendingOps: ReturnType<typeof useSync>["pendingOps"];
@@ -96,6 +108,7 @@ export interface UseNoteRepositoryReturn {
 export function useNoteRepository({
   mode,
   authUser,
+  supabaseClient,
   vaultKey,
   keyring,
   activeKeyId,
@@ -103,6 +116,36 @@ export function useNoteRepository({
   year,
 }: UseNoteRepositoryProps): UseNoteRepositoryReturn {
   const userId = authUser?.id ?? null;
+  const e2eeFactory = useMemo<E2eeServiceFactory>(
+    () => ({
+      create: createE2eeService,
+    }),
+    [],
+  );
+  const syncedFactories = useMemo<SyncedRepositoryFactories>(
+    () => ({
+      createSyncedNoteRepository: ({ userId, keyProvider }) => {
+        const gateway = createRemoteNotesGateway(supabaseClient, userId);
+        const envelopeRepo = createUnifiedSyncedNoteEnvelopeRepository(
+          gateway,
+          keyProvider.activeKeyId,
+          () => syncEncryptedImages(supabaseClient, userId),
+          runtimeConnectivity,
+          runtimeClock,
+          syncStateStore,
+        );
+        return createHydratingSyncedNoteRepository(
+          envelopeRepo,
+          keyProvider,
+          e2eeFactory,
+        );
+      },
+      createSyncedImageRepository: ({ userId, keyProvider }) =>
+        createUnifiedSyncedImageRepository(supabaseClient, userId, keyProvider),
+      e2eeFactory,
+    }),
+    [e2eeFactory, supabaseClient],
+  );
   const keyringSignature = useMemo(
     () => getKeyringSignature(keyring),
     [keyring],
@@ -132,10 +175,19 @@ export function useNoteRepository({
       mode,
       userId,
       keyProvider,
+      syncedFactories,
     });
     noteRepositoryCache.set(cacheKey, created);
     return created;
-  }, [mode, userId, vaultKey, keyring, activeKeyId, keyringSignature]);
+  }, [
+    mode,
+    userId,
+    vaultKey,
+    activeKeyId,
+    keyringSignature,
+    keyring,
+    syncedFactories,
+  ]);
 
   const imageRepository = useMemo<ImageRepository | null>(() => {
     if (!vaultKey || !activeKeyId) return null;
@@ -159,10 +211,19 @@ export function useNoteRepository({
       mode,
       userId,
       keyProvider,
+      syncedFactories,
     });
     imageRepositoryCache.set(cacheKey, created);
     return created;
-  }, [vaultKey, keyring, activeKeyId, mode, userId, keyringSignature]);
+  }, [
+    vaultKey,
+    activeKeyId,
+    mode,
+    userId,
+    keyringSignature,
+    keyring,
+    syncedFactories,
+  ]);
 
   const syncedRepo =
     mode === AppMode.Cloud && userId
@@ -170,10 +231,11 @@ export function useNoteRepository({
       : null;
   const syncEnabled =
     mode === AppMode.Cloud && !!userId && !!vaultKey && !!activeKeyId;
-  const { syncStatus, triggerSync, queueIdleSync, pendingOps } = useSync(
-    syncedRepo,
-    { enabled: syncEnabled },
-  );
+  const { syncStatus, syncError, triggerSync, queueIdleSync, pendingOps } =
+    useSync(
+      syncedRepo,
+      { enabled: syncEnabled },
+    );
   const { hasNote, noteDates, refreshNoteDates } = useNoteDates(
     repository,
     year,
@@ -186,16 +248,27 @@ export function useNoteRepository({
     [syncedRepo, imageRepository],
   );
   const refreshTimerRef = useRef<number | null>(null);
-  const handleAfterSave = useCallback(() => {
-    if (refreshTimerRef.current !== null) {
-      window.clearTimeout(refreshTimerRef.current);
-    }
-    refreshTimerRef.current = window.setTimeout(() => {
-      refreshTimerRef.current = null;
-      refreshNoteDates();
-    }, 500);
-    queueIdleSync();
-  }, [queueIdleSync, refreshNoteDates]);
+  // Use ref to avoid recreating handleAfterSave when hasNote changes
+  const hasNoteRef = useRef(hasNote);
+  useEffect(() => {
+    hasNoteRef.current = hasNote;
+  }, [hasNote]);
+
+  const handleAfterSave = useCallback(
+    (snapshot: { date: string; isEmpty: boolean }) => {
+      if (refreshTimerRef.current !== null) {
+        window.clearTimeout(refreshTimerRef.current);
+      }
+      if (snapshot.isEmpty || !hasNoteRef.current(snapshot.date)) {
+        refreshTimerRef.current = window.setTimeout(() => {
+          refreshTimerRef.current = null;
+          refreshNoteDates();
+        }, 500);
+      }
+      queueIdleSync();
+    },
+    [queueIdleSync, refreshNoteDates],
+  );
 
   useEffect(() => {
     return () => {
@@ -212,13 +285,14 @@ export function useNoteRepository({
     hasEdits,
     isContentReady,
     isOfflineStub,
-  } = useNoteContent(date, repository, handleAfterSave);
+  } = useNoteContent(date, repository, hasNote, handleAfterSave);
 
   return {
     repository,
     imageRepository,
     syncedRepo,
     syncStatus,
+    syncError,
     triggerSync,
     queueIdleSync,
     pendingOps,

@@ -5,9 +5,14 @@ import styles from "./SyncIndicator.module.css";
 interface SyncIndicatorProps {
   status: SyncStatus;
   pendingOps?: PendingOpsSummary;
+  errorMessage?: string;
 }
 
-export function SyncIndicator({ status, pendingOps }: SyncIndicatorProps) {
+export function SyncIndicator({
+  status,
+  pendingOps,
+  errorMessage,
+}: SyncIndicatorProps) {
   const hasPendingOps = (pendingOps?.total ?? 0) > 0;
 
   const getLabel = () => {
@@ -42,7 +47,10 @@ export function SyncIndicator({ status, pendingOps }: SyncIndicatorProps) {
   const statusClass = statusClassMap[classSuffix];
 
   return (
-    <span className={[styles.indicator, statusClass].filter(Boolean).join(" ")}>
+    <span
+      className={[styles.indicator, statusClass].filter(Boolean).join(" ")}
+      title={status === SyncStatus.Error ? errorMessage : undefined}
+    >
       {status === SyncStatus.Syncing && <span className={styles.spinner} />}
       {label}
     </span>

@@ -176,7 +176,6 @@ src/
 │   └── useUrlState.ts          # URL state management
 ├── storage/
 │   ├── noteStorage.ts          # Local encrypted notes
-│   ├── syncedNoteRepository.ts # Local sync cache + conflict handling
 │   └── vault.ts                # Key management
 ├── utils/
 │   ├── date.ts                 # Date utilities

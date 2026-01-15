@@ -1,8 +1,9 @@
 import { base64ToBytes, decodeUtf8 } from "./cryptoUtils";
-import { encryptNoteContent, setNoteAndMeta } from "./unifiedNoteStore";
+import { setNoteAndMeta } from "./unifiedNoteStore";
 import { storeImageAndMeta } from "./unifiedImageStore";
-import { deriveImageKey, encryptImageBuffer } from "./unifiedImageCrypto";
 import { computeKeyId } from "./keyId";
+import { createE2eeService } from "../services/e2eeService";
+import type { KeyringProvider } from "../domain/crypto/keyring";
 import type {
   ImageMetaRecord,
   ImageRecord,
@@ -216,6 +217,22 @@ export async function migrateLegacyData({
   const candidates = new Map<string, LegacyNoteCandidate>();
   const localKeyId = localKey ? await computeKeyId(localKey) : null;
   const cloudKeyId = cloudKey ? "legacy" : null;
+  const targetKeyId = await computeKeyId(targetKey);
+  const keyMap = new Map<string, CryptoKey>();
+
+  keyMap.set(targetKeyId, targetKey);
+  if (localKey && localKeyId) {
+    keyMap.set(localKeyId, localKey);
+  }
+  if (cloudKey && cloudKeyId) {
+    keyMap.set(cloudKeyId, cloudKey);
+  }
+
+  const keyring: KeyringProvider = {
+    activeKeyId: targetKeyId,
+    getKey: (keyId: string) => keyMap.get(keyId) ?? null,
+  };
+  const e2ee = createE2eeService(keyring);
 
   if (localKey) {
     const entries = await getAllFromStoreWithKeys<LegacyEncryptedNotePayload>(
@@ -279,21 +296,19 @@ export async function migrateLegacyData({
   }
 
   for (const candidate of candidates.values()) {
-    const key =
-      candidate.source === "synced" && cloudKey
-        ? cloudKey
-        : (localKey ?? targetKey);
-    if (!key || !candidate.keyId) {
+    if (!candidate.keyId) {
       continue;
     }
-    const { ciphertext, nonce } = await encryptNoteContent(
-      key,
+    const encrypted = await e2ee.encryptNoteContent(
       candidate.content,
+      candidate.keyId,
     );
+    if (!encrypted) continue;
+    const { ciphertext, nonce, keyId } = encrypted;
     const record: NoteRecord = {
       version: 1,
       date: candidate.date,
-      keyId: candidate.keyId,
+      keyId,
       ciphertext,
       nonce,
       updatedAt: candidate.updatedAt,
@@ -326,30 +341,24 @@ export async function migrateLegacyData({
     const payloadMap = new Map(
       payloadEntries.map((entry) => [entry.key, entry.value]),
     );
-    const imageKey = await deriveImageKey(localKey);
     const imageKeyId = localKeyId ?? (await computeKeyId(localKey));
 
     for (const meta of legacyMetas) {
       const payload = payloadMap.get(meta.id);
       if (!payload || payload.version !== 1) continue;
       const decrypted = await decryptLegacyImage(localKey, payload);
-      const { ciphertext, nonce } = await encryptImageBuffer(
-        imageKey,
-        decrypted,
+      const encrypted = await e2ee.encryptImageBlob(
+        new Blob([decrypted], {
+          type: meta.mimeType || "application/octet-stream",
+        }),
+        imageKeyId,
       );
+      if (!encrypted) continue;
 
       const record: ImageRecord = {
-        version: 1,
+        ...encrypted.record,
         id: meta.id,
-        keyId: imageKeyId,
-        ciphertext,
-        nonce,
       };
-
-      const sha256Buffer = await crypto.subtle.digest("SHA-256", decrypted);
-      const sha256 = Array.from(new Uint8Array(sha256Buffer))
-        .map((byte) => byte.toString(16).padStart(2, "0"))
-        .join("");
 
       const imageMeta: ImageMetaRecord = {
         id: meta.id,
@@ -361,8 +370,8 @@ export async function migrateLegacyData({
         height: meta.height,
         size: meta.size,
         createdAt: meta.createdAt,
-        sha256,
-        keyId: imageKeyId,
+        sha256: encrypted.sha256,
+        keyId: encrypted.keyId,
         pendingOp: "upload",
       };
 

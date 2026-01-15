@@ -1,12 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { base64ToBytes } from "./cryptoUtils";
-import {
-  deleteImageRecords,
-  getAllImageMeta,
-  getImageRecord,
-  storeImageAndMeta,
-} from "./unifiedImageStore";
-import type { ImageMetaRecord, ImageRecord } from "./unifiedDb";
+import { deleteImageRecords, storeImageAndMeta } from "./unifiedImageStore";
+import type { ImageMetaRecord } from "./unifiedDb";
+import { getAllImageEnvelopeStates } from "./unifiedImageEnvelopeRepository";
 
 const IMAGE_BUCKET = "note-images";
 
@@ -19,8 +15,8 @@ function buildStoragePath(
   return `${userId}/${noteDate}/${imageId}${suffix}`;
 }
 
-function cipherRecordToBlob(record: ImageRecord): Blob {
-  const bytes = base64ToBytes(record.ciphertext);
+function ciphertextToBlob(ciphertext: string): Blob {
+  const bytes = base64ToBytes(ciphertext);
   return new Blob([bytes], { type: "application/octet-stream" });
 }
 
@@ -28,7 +24,8 @@ async function upsertImageMetadata(
   supabase: SupabaseClient,
   userId: string,
   meta: ImageMetaRecord,
-  record: ImageRecord,
+  nonce: string,
+  keyId: string,
   ciphertextPath: string,
 ): Promise<{ serverUpdatedAt: string }> {
   const payload = {
@@ -44,8 +41,8 @@ async function upsertImageMetadata(
     ciphertext_path: ciphertextPath,
     storage_path: ciphertextPath,
     sha256: meta.sha256,
-    nonce: record.nonce,
-    key_id: meta.keyId ?? "legacy",
+    nonce,
+    key_id: keyId,
     deleted: false,
   };
 
@@ -79,10 +76,11 @@ export async function syncEncryptedImages(
   supabase: SupabaseClient,
   userId: string,
 ): Promise<void> {
-  const metas = await getAllImageMeta();
+  const states = await getAllImageEnvelopeStates();
 
-  for (const meta of metas) {
-    if (!meta.pendingOp) continue;
+  for (const state of states) {
+    const meta = state.meta;
+    if (!meta?.pendingOp) continue;
 
     if (meta.pendingOp === "delete") {
       if (meta.remotePath) {
@@ -93,8 +91,8 @@ export async function syncEncryptedImages(
       continue;
     }
 
-    const record = await getImageRecord(meta.id);
-    if (!record) continue;
+    const envelope = state.envelope;
+    if (!envelope) continue;
 
     const ciphertextPath = buildStoragePath(
       userId,
@@ -102,7 +100,7 @@ export async function syncEncryptedImages(
       meta.id,
       ".enc",
     );
-    const blob = cipherRecordToBlob(record);
+    const blob = ciphertextToBlob(envelope.ciphertext);
 
     const { error: uploadError } = await supabase.storage
       .from(IMAGE_BUCKET)
@@ -117,9 +115,13 @@ export async function syncEncryptedImages(
       supabase,
       userId,
       meta,
-      record,
+      envelope.nonce,
+      envelope.keyId,
       ciphertextPath,
     );
+
+    const record = state.record;
+    if (!record) continue;
 
     await storeImageAndMeta(record, {
       ...meta,

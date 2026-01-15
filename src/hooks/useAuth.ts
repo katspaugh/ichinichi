@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Session, User, AuthError } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
 import { AUTH_HAS_LOGGED_IN_KEY } from "../utils/constants";
 import { AuthState } from "../types";
+import { connectivity } from "../services/connectivity";
+import { useConnectivity } from "./useConnectivity";
 
 export interface UseAuthReturn {
   session: Session | null;
@@ -52,10 +54,23 @@ export function useAuth(): UseAuthReturn {
   const [confirmationEmail, setConfirmationEmail] = useState<string | null>(
     null,
   );
+  const online = useConnectivity();
+  const hasValidatedRef = useRef(false);
+  const wasOfflineRef = useRef(!connectivity.getOnline());
 
   const markHasLoggedIn = useCallback(() => {
     if (typeof window === "undefined") return;
     localStorage.setItem(AUTH_HAS_LOGGED_IN_KEY, "1");
+  }, []);
+
+  const validateSession = useCallback(async () => {
+    const { data: { session: currentSession } } = await supabase.auth.getSession();
+    if (!currentSession) return;
+    const { error } = await supabase.auth.getUser();
+    if (isSessionMissingError(error)) {
+      setSession(null);
+      setAuthState(AuthState.SignedOut);
+    }
   }, []);
 
   useEffect(() => {
@@ -64,13 +79,9 @@ export function useAuth(): UseAuthReturn {
       setAuthState(initialSession ? AuthState.SignedIn : AuthState.SignedOut);
       if (initialSession) markHasLoggedIn();
       // Only validate session with server if online
-      if (initialSession && navigator.onLine) {
-        supabase.auth.getUser().then(({ error }) => {
-          if (isSessionMissingError(error)) {
-            setSession(null);
-            setAuthState(AuthState.SignedOut);
-          }
-        });
+      if (initialSession && connectivity.getOnline() && !hasValidatedRef.current) {
+        hasValidatedRef.current = true;
+        validateSession();
       }
     });
 
@@ -82,27 +93,18 @@ export function useAuth(): UseAuthReturn {
       if (newSession) markHasLoggedIn();
     });
 
-    // Re-validate session when coming back online
-    const handleOnline = () => {
-      supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
-        if (currentSession) {
-          supabase.auth.getUser().then(({ error }) => {
-            if (isSessionMissingError(error)) {
-              setSession(null);
-              setAuthState(AuthState.SignedOut);
-            }
-          });
-        }
-      });
-    };
-
-    window.addEventListener("online", handleOnline);
-
     return () => {
       subscription.unsubscribe();
-      window.removeEventListener("online", handleOnline);
     };
-  }, [markHasLoggedIn]);
+  }, [markHasLoggedIn, validateSession]);
+
+  // Re-validate session only when coming back online from offline
+  useEffect(() => {
+    if (online && wasOfflineRef.current) {
+      validateSession();
+    }
+    wasOfflineRef.current = !online;
+  }, [online, validateSession]);
 
   const signUp = useCallback(
     async (

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { UseAuthReturn } from "./useAuth";
 import { useLocalVault } from "./useLocalVault";
 import { useVault } from "./useVault";
 import { AppMode } from "./useAppMode";
-import { tryDeviceUnlockCloudKey } from "../domain/vault";
+import { createVaultService } from "../domain/vault";
 import { computeKeyId } from "../storage/keyId";
 import {
   listLocalKeyIds,
@@ -15,6 +16,7 @@ interface UseActiveVaultProps {
   auth: UseAuthReturn;
   mode: AppMode;
   setMode: (mode: AppMode) => void;
+  supabaseClient: SupabaseClient;
 }
 
 export interface UseActiveVaultReturn {
@@ -43,8 +45,13 @@ export function useActiveVault({
   auth,
   mode,
   setMode,
+  supabaseClient,
 }: UseActiveVaultProps): UseActiveVaultReturn {
-  const localVault = useLocalVault();
+  const vaultService = useMemo(
+    () => createVaultService(supabaseClient),
+    [supabaseClient],
+  );
+  const localVault = useLocalVault({ vaultService });
   const [authPassword, setAuthPassword] = useState<string | null>(null);
   const [localPassword, setLocalPassword] = useState<string | null>(null);
   const [restoredCloudVaultKey, setRestoredCloudVaultKey] =
@@ -59,6 +66,7 @@ export function useActiveVault({
   }, []);
 
   const cloudVault = useVault({
+    vaultService,
     user: mode === AppMode.Cloud ? auth.user : null,
     password: authPassword,
     localDek: localVault.vaultKey,
@@ -73,7 +81,7 @@ export function useActiveVault({
     let cancelled = false;
 
     const restoreCloudKey = async () => {
-      const result = await tryDeviceUnlockCloudKey();
+      const result = await vaultService.tryDeviceUnlockCloudKey();
       if (!cancelled && result) {
         setRestoredCloudVaultKey(result.vaultKey);
         return;
@@ -85,7 +93,7 @@ export function useActiveVault({
     return () => {
       cancelled = true;
     };
-  }, [cloudVault.vaultKey, restoredCloudVaultKey]);
+  }, [cloudVault.vaultKey, restoredCloudVaultKey, vaultService]);
 
   useEffect(() => {
     const localKey = localVault.vaultKey;

@@ -188,7 +188,7 @@ Refs: src/types/index.ts, src/components/SyncIndicator/SyncIndicator.tsx
 - Last-write-wins by updatedAt timestamp.
 - Tie-breaker: higher revision wins.
 
-Ref: src/storage/syncService.ts
+Ref: src/storage/unifiedSyncedNoteRepository.ts
 
 ### 12.4 Sync Algorithm (High Level)
 
@@ -204,16 +204,16 @@ Ref: src/storage/unifiedSyncedNoteRepository.ts
 - Remote updates use server_updated_at to detect conflicts.
 - Conflict triggers re-fetch and resolution.
 
-Ref: src/storage/syncService.ts
+Ref: src/storage/remoteNotesGateway.ts
 
 ## 13) Legacy Migration
 
-- One-time migration imports legacy local/synced stores into unified dataset.
-- Re-encrypts legacy data using the same source DEK (no cross-key re-encryption).
-- Marks migration complete in localStorage (dailynotes_unified_migrated_v1).
-- Triggers sync after migration when in cloud mode.
+- Legacy migration has been removed; unified storage is now the single source
+  of truth for local and synced notes/images.
+- E2EE boundary: storage persists encrypted envelopes only; plaintext is
+  hydrated in domain repositories via the E2EE service.
 
-Ref: src/hooks/useUnifiedMigration.ts
+Ref: src/services/e2eeService.ts
 
 ## 14) Inline Images
 
@@ -250,7 +250,7 @@ correctness and data consistency.
 - If the remote index is empty due to transient errors or slow propagation, this
   prevents wipes but can leave stale notes un-deleted.
 
-Ref: src/storage/syncedNoteRepository.ts
+Ref: src/storage/unifiedSyncedNoteRepository.ts
 
 ## B) Dirty Notes and Offline Reads
 
@@ -258,14 +258,14 @@ Ref: src/storage/syncedNoteRepository.ts
 - This can cause the UI to show stale content if a remote update exists but local
   dirty flag remains true (e.g., interrupted sync).
 
-Ref: src/storage/syncedNoteRepository.ts
+Ref: src/storage/unifiedSyncedNoteRepository.ts
 
 ## C) Conflict Resolution and UpdatedAt Accuracy
 
 - Conflict resolution depends on updatedAt timestamps, which are client-generated.
 - Clock drift between devices can cause a device to win incorrectly.
 
-Ref: src/storage/syncService.ts
+Ref: src/storage/remoteNotesGateway.ts
 
 ## D) Revision Conflicts
 
@@ -273,22 +273,21 @@ Ref: src/storage/syncService.ts
 - If server_updated_at is null or mismatched due to previous client state, the
   update can fail and fall into conflict handling.
 
-Ref: src/storage/syncService.ts
+Ref: src/storage/remoteNotesGateway.ts
 
 ## E) Dirty Flag Handling
 
 - Dirty is set on save and cleared only after sync updates local note.
 - If sync fails mid-cycle, dirty may remain true and block later remote updates.
 
-Ref: src/storage/syncedNoteRepository.ts
+Ref: src/storage/unifiedSyncedNoteRepository.ts
 
 ## F) Migration Timing
 
-- Local-to-cloud migration runs once after switching to cloud mode.
-- If sync is triggered while migration is in progress, ordering issues can
-  cause duplicate updates or conflict resolution to run on incomplete data.
+- Unified migration should complete before sync begins, otherwise ordering
+  issues can cause duplicate updates or conflict resolution on incomplete data.
 
-Ref: src/hooks/useLocalMigration.ts
+Ref: src/storage/unifiedMigration.ts
 
 ## G) Cloud Key Caching
 

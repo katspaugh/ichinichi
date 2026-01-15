@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
-import { supabase } from "../lib/supabase";
-import { tryDeviceUnlockCloudKey, unlockCloudVault } from "../domain/vault";
+import type { VaultService } from "../domain/vault";
 
 export interface UseVaultReturn {
   vaultKey: CryptoKey | null;
@@ -15,6 +14,7 @@ export interface UseVaultReturn {
 }
 
 interface UseVaultProps {
+  vaultService: VaultService;
   user: User | null;
   password: string | null;
   localDek: CryptoKey | null;
@@ -23,6 +23,7 @@ interface UseVaultProps {
 }
 
 export function useVault({
+  vaultService,
   user,
   password,
   localDek,
@@ -59,7 +60,7 @@ export function useVault({
     let cancelled = false;
 
     const tryDeviceUnlock = async () => {
-      const result = await tryDeviceUnlockCloudKey();
+      const result = await vaultService.tryDeviceUnlockCloudKey();
       if (!cancelled && result) {
         setVaultKey(result.vaultKey);
         setKeyring(new Map([[result.keyId, result.vaultKey]]));
@@ -75,7 +76,7 @@ export function useVault({
     return () => {
       cancelled = true;
     };
-  }, [userId]);
+  }, [userId, vaultService]);
 
   // Unlock with password when provided
   useEffect(() => {
@@ -89,8 +90,7 @@ export function useVault({
 
     const unlock = async () => {
       try {
-        const result = await unlockCloudVault({
-          supabase,
+        const result = await vaultService.unlockCloudVault({
           userId: user.id,
           password,
           localDek,
@@ -112,7 +112,15 @@ export function useVault({
     };
 
     void unlock();
-  }, [user, password, vaultKey, localDek, localKeyring, onPasswordConsumed]);
+  }, [
+    user,
+    password,
+    vaultKey,
+    localDek,
+    localKeyring,
+    onPasswordConsumed,
+    vaultService,
+  ]);
 
   // Clear vault on sign out
   const clearVault = useCallback(async () => {

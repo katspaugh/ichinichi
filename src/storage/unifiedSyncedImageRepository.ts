@@ -3,13 +3,13 @@ import type { NoteImage } from "../types";
 import { bytesToBase64 } from "./cryptoUtils";
 import type { ImageRepository } from "./imageRepository";
 import type { ImageMetaRecord, ImageRecord } from "./unifiedDb";
-import type { KeyringProvider } from "./unifiedNoteRepository";
+import type { KeyringProvider } from "../domain/crypto/keyring";
 import {
   getImageMeta,
-  getImageRecord,
   setImageMeta,
   storeImageAndMeta,
 } from "./unifiedImageStore";
+import { getImageEnvelopeState } from "./unifiedImageEnvelopeRepository";
 import { createUnifiedImageRepository } from "./unifiedImageRepository";
 
 const IMAGE_BUCKET = "note-images";
@@ -93,16 +93,13 @@ async function ensureLocalImage(
   keyring: KeyringProvider,
   imageId: string,
 ): Promise<boolean> {
-  const [record, meta] = await Promise.all([
-    getImageRecord(imageId),
-    getImageMeta(imageId),
-  ]);
+  const state = await getImageEnvelopeState(imageId);
 
-  if (record && meta) {
+  if (state.record && state.meta) {
     return true;
   }
 
-  if (meta?.pendingOp === "delete") {
+  if (state.meta?.pendingOp === "delete") {
     return false;
   }
 

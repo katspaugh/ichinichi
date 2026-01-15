@@ -14,6 +14,20 @@
 - Domain depends on infrastructure adapters and storage.
 - Infrastructure has no dependency on UI/controllers.
 
+## Encryption Boundary
+
+- E2EE lives in a dedicated service (`src/services/e2eeService.ts`).
+- Storage repositories persist encrypted envelopes only (ciphertext + metadata).
+- Domain repositories hydrate/dehydrate plaintext at the boundary and pass
+  envelopes to storage/sync.
+
+## Error Flow
+
+- Infrastructure adapters return typed error results (see `src/domain/result.ts`).
+- Domain use-cases propagate `Result<T, E>` instead of throwing.
+- Controllers map domain errors to UI-friendly messages.
+- UI components render state and avoid interpreting domain errors directly.
+
 ## Module Organization
 
 - `src/components`: UI views and view-only components.

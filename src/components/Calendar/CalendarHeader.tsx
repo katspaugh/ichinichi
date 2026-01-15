@@ -14,6 +14,7 @@ interface CalendarHeaderProps {
   onMonthChange?: (year: number, month: number) => void;
   onReturnToYear?: () => void;
   syncStatus?: SyncStatus;
+  syncError?: string | null;
   pendingOps?: PendingOpsSummary;
   onSignIn?: () => void;
   onSignOut?: () => void;
@@ -28,6 +29,7 @@ export function CalendarHeader({
   onMonthChange,
   onReturnToYear,
   syncStatus,
+  syncError,
   pendingOps,
   onSignIn,
   onSignOut,
@@ -46,7 +48,11 @@ export function CalendarHeader({
       <div className={styles.headerSpacer} aria-hidden="true" />
       <div className={styles.headerActions}>
         {syncStatus && (
-          <SyncIndicator status={syncStatus} pendingOps={pendingOps} />
+          <SyncIndicator
+            status={syncStatus}
+            pendingOps={pendingOps}
+            errorMessage={syncError ?? undefined}
+          />
         )}
         {onSignIn && (
           <button className={styles.auth} onClick={onSignIn}>

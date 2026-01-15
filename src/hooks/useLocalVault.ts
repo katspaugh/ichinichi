@@ -1,9 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import {
-  bootstrapLocalVault,
-  getHasLocalVault,
-  unlockLocalVault,
-} from "../domain/vault";
+import type { VaultService } from "../domain/vault";
 
 export interface UseLocalVaultReturn {
   vaultKey: CryptoKey | null;
@@ -17,10 +13,14 @@ export interface UseLocalVaultReturn {
   clearError: () => void;
 }
 
-export function useLocalVault(): UseLocalVaultReturn {
+export function useLocalVault({
+  vaultService,
+}: {
+  vaultService: VaultService;
+}): UseLocalVaultReturn {
   const [vaultKey, setVaultKey] = useState<CryptoKey | null>(null);
   const [isReady, setIsReady] = useState(false);
-  const [hasVault, setHasVault] = useState(getHasLocalVault());
+  const [hasVault, setHasVault] = useState(vaultService.getHasLocalVault());
   const [requiresPassword, setRequiresPassword] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,7 +30,7 @@ export function useLocalVault(): UseLocalVaultReturn {
 
     const load = async () => {
       try {
-        const result = await bootstrapLocalVault();
+        const result = await vaultService.bootstrapLocalVault();
         if (!cancelled) {
           setHasVault(result.hasVault);
           setRequiresPassword(result.requiresPassword);
@@ -51,7 +51,7 @@ export function useLocalVault(): UseLocalVaultReturn {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [vaultService]);
 
   const unlock = useCallback(
     async (password: string): Promise<boolean> => {
@@ -64,7 +64,10 @@ export function useLocalVault(): UseLocalVaultReturn {
       setError(null);
 
       try {
-        const result = await unlockLocalVault({ password, hasVault });
+        const result = await vaultService.unlockLocalVault({
+          password,
+          hasVault,
+        });
         setVaultKey(result.vaultKey);
         setHasVault(result.hasVault);
         setRequiresPassword(false);
@@ -77,7 +80,7 @@ export function useLocalVault(): UseLocalVaultReturn {
         setIsReady(true);
       }
     },
-    [hasVault],
+    [hasVault, vaultService],
   );
 
   const clearError = useCallback(() => {

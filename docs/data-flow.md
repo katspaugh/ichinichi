@@ -15,7 +15,7 @@ High-level flow (Cloud mode):
 UI events
   |
   v
-Local repositories (note/image) -> IndexedDB (dailynotes-unified)
+Domain repositories (hydrate/dehydrate) -> envelope stores -> IndexedDB (dailynotes-unified)
   |                                   |
   | pendingOp flags                   | encrypted ciphertext + metadata
   v                                   |
@@ -27,10 +27,12 @@ Supabase (notes table, note_images, Storage)
 
 ## Local storage
 
-- Notes live in the `notes` store with a companion meta record:
+- Notes live in the `notes` store with a companion meta record (envelopes
+  assembled via `src/storage/unifiedNoteEnvelopeRepository.ts`):
   - `ciphertext`, `nonce`, `keyId` in `NoteRecord`.
   - `revision`, `serverUpdatedAt`, `pendingOp` in `NoteMetaRecord`.
-- Images live in the `images` store with `ImageMetaRecord`.
+- Images live in the `images` store with `ImageMetaRecord` (envelopes
+  assembled via `src/storage/unifiedImageEnvelopeRepository.ts`).
 - Remote date indexes (per year) are cached in `remote_note_index`.
 - All encryption uses AES-GCM; images use a derived key per note key.
 
@@ -61,7 +63,7 @@ merge(local, remote)
 
 Opening a note uses `getWithRefresh`:
 
-1. Read local record + meta.
+1. Read local envelope (record + meta).
 2. Render local content immediately (if present).
 3. In background, fetch remote note for that date.
 4. Reconcile and update local DB if needed.
@@ -70,7 +72,7 @@ Opening a note uses `getWithRefresh`:
 Open note
   |
   v
-Local snapshot (record + meta)
+Local snapshot (envelope)
   |
   +--> show local content immediately
   |
@@ -97,7 +99,7 @@ Edits are debounced and saved locally; sync happens asynchronously.
 Editor change
   |
   v
-sanitize -> encrypt -> IndexedDB
+sanitize -> encrypt -> envelope -> IndexedDB
   |
   v
 NoteMeta.pendingOp = "upsert"
@@ -121,8 +123,8 @@ Sync service deletes remote and clears local metadata
 
 ## Sync loop (Cloud mode)
 
-The sync service only runs when online and only pushes local pending changes.
-Remote pulls happen on note-open and calendar-year fetch.
+The sync service runs when online and handles both push and pull so remote
+changes reconcile even without note-open or calendar refresh.
 
 ```text
 queueSync() / queueIdleSync()
@@ -137,6 +139,9 @@ UnifiedSyncedNoteRepository.sync()
   |       update local meta (serverUpdatedAt, pendingOp=null)
   |
   +--> syncEncryptedImages()
+  +--> fetchRemoteNotesSince(cursor)
+  |       applyRemoteUpdate() per note
+  |       advance sync cursor
   |
   v
 SyncStatus = Synced | Error | Offline
@@ -195,8 +200,8 @@ syncEncryptedImages() -> delete Storage object + mark deleted row
 ## Where this lives in code
 
 - Note sync/reconciliation: `src/storage/unifiedSyncedNoteRepository.ts`
-- Remote note API: `src/storage/unifiedSyncService.ts`
-- Sync scheduling: `src/services/syncService.ts`, `src/hooks/useSync.ts`
+- Remote note API: `src/storage/remoteNotesGateway.ts`
+- Sync scheduling: `src/domain/sync/syncService.ts`, `src/hooks/useSync.ts`
 - Image sync: `src/storage/unifiedImageSyncService.ts`
 - Image hydration: `src/storage/unifiedSyncedImageRepository.ts`
 - Calendar remote index cache: `src/storage/remoteNoteIndexStore.ts`

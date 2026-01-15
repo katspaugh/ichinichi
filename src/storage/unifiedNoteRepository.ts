@@ -1,40 +1,32 @@
 import type { Note } from "../types";
 import type { NoteRepository } from "./noteRepository";
-import { sanitizeHtml } from "../utils/sanitize";
 import type { NoteMetaRecord, NoteRecord } from "./unifiedDb";
 import {
-  decryptNoteContent,
-  encryptNoteContent,
-  getAllNoteRecords,
-  getNoteMeta,
-  getNoteRecord,
   setNoteAndMeta,
   deleteNoteAndMeta,
 } from "./unifiedNoteStore";
-
-export interface UnifiedNoteRepository extends NoteRepository {
-  getAllDatesForYear(year: number): Promise<string[]>;
-}
-
-export interface KeyringProvider {
-  activeKeyId: string;
-  getKey: (keyId: string) => CryptoKey | null;
-}
+import { createE2eeService } from "../services/e2eeService";
+import type { KeyringProvider } from "../domain/crypto/keyring";
+import {
+  getAllNoteEnvelopeStates,
+  getNoteEnvelopeState,
+} from "./unifiedNoteEnvelopeRepository";
 
 export function createUnifiedNoteRepository(
   keyring: KeyringProvider,
 ): UnifiedNoteRepository {
+  const e2ee = createE2eeService(keyring);
+
   return {
     async get(date: string): Promise<Note | null> {
       try {
-        const record = await getNoteRecord(date);
+        const state = await getNoteEnvelopeState(date);
+        const record = state.record;
         if (!record || record.version !== 1) {
           return null;
         }
-        const keyId = record.keyId ?? keyring.activeKeyId;
-        const key = keyring.getKey(keyId);
-        if (!key) return null;
-        const content = await decryptNoteContent(key, record);
+        const content = await e2ee.decryptNoteRecord(record);
+        if (!content) return null;
         return {
           date: record.date,
           content,
@@ -46,22 +38,18 @@ export function createUnifiedNoteRepository(
     },
 
     async save(date: string, content: string): Promise<void> {
-      const sanitizedContent = sanitizeHtml(content);
-      const existingMeta = await getNoteMeta(date);
-      const key = keyring.getKey(keyring.activeKeyId);
-      if (!key) {
+      const existingMeta = (await getNoteEnvelopeState(date)).meta;
+      const encrypted = await e2ee.encryptNoteContent(content);
+      if (!encrypted) {
         return;
       }
-      const { ciphertext, nonce } = await encryptNoteContent(
-        key,
-        sanitizedContent,
-      );
+      const { ciphertext, nonce, keyId } = encrypted;
       const updatedAt = new Date().toISOString();
 
       const record: NoteRecord = {
         version: 1,
         date,
-        keyId: keyring.activeKeyId,
+        keyId,
         ciphertext,
         nonce,
         updatedAt,
@@ -84,16 +72,23 @@ export function createUnifiedNoteRepository(
     },
 
     async getAllDates(): Promise<string[]> {
-      const records = await getAllNoteRecords();
-      return records.map((record) => record.date);
+      const states = await getAllNoteEnvelopeStates();
+      return states
+        .map((state) => state.record?.date)
+        .filter((date): date is string => Boolean(date));
     },
 
     async getAllDatesForYear(year: number): Promise<string[]> {
       const suffix = String(year);
-      const records = await getAllNoteRecords();
-      return records
-        .map((record) => record.date)
+      const states = await getAllNoteEnvelopeStates();
+      return states
+        .map((state) => state.record?.date)
+        .filter((date): date is string => Boolean(date))
         .filter((date) => date.endsWith(suffix));
     },
   };
+}
+
+export interface UnifiedNoteRepository extends NoteRepository {
+  getAllDatesForYear(year: number): Promise<string[]>;
 }
