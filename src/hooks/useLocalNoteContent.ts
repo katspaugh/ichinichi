@@ -58,23 +58,19 @@ const loadNoteActor = fromCallback(
     let cancelled = false;
 
     const load = async () => {
-      try {
-        const note = await input.repository.get(input.date);
-        const loadedContent = note?.content ?? "";
-        if (!cancelled) {
+      const result = await input.repository.get(input.date);
+      if (!cancelled) {
+        if (result.ok) {
           sendBack({
             type: "LOAD_SUCCESS",
             date: input.date,
-            content: loadedContent,
+            content: result.value?.content ?? "",
           });
-        }
-      } catch (error) {
-        if (!cancelled) {
+        } else {
           sendBack({
             type: "LOAD_ERROR",
             date: input.date,
-            error:
-              error instanceof Error ? error : new Error("Failed to load note"),
+            error: new Error(result.error.message),
           });
         }
       }
@@ -99,14 +95,13 @@ const saveNoteActor = fromCallback(
     let cancelled = false;
 
     const save = async () => {
-      try {
-        const isEmpty = isContentEmpty(input.content);
-        if (!isEmpty) {
-          await input.repository.save(input.date, input.content);
-        } else {
-          await input.repository.delete(input.date);
-        }
-        if (!cancelled) {
+      const isEmpty = isContentEmpty(input.content);
+      const result = isEmpty
+        ? await input.repository.delete(input.date)
+        : await input.repository.save(input.date, input.content);
+
+      if (!cancelled) {
+        if (result.ok) {
           sendBack({
             type: "SAVE_SUCCESS",
             snapshot: {
@@ -115,10 +110,8 @@ const saveNoteActor = fromCallback(
               isEmpty,
             },
           });
-        }
-      } catch (error) {
-        console.error("Failed to save note:", error);
-        if (!cancelled) {
+        } else {
+          console.error("Failed to save note:", result.error);
           sendBack({ type: "SAVE_FAILED" });
         }
       }
@@ -246,25 +239,17 @@ export const localNoteMachine = setup({
         content: context.content,
         isEmpty: isContentEmpty(context.content),
       };
-      if (!snapshot.isEmpty) {
-        void context.repository
-          .save(snapshot.date, snapshot.content)
-          .then(() => {
-            context.afterSave?.(snapshot);
-          })
-          .catch((error) => {
-            console.error("Failed to save note:", error);
-          });
-      } else {
-        void context.repository
-          .delete(snapshot.date)
-          .then(() => {
-            context.afterSave?.(snapshot);
-          })
-          .catch((error) => {
-            console.error("Failed to save note:", error);
-          });
-      }
+      const operation = snapshot.isEmpty
+        ? context.repository.delete(snapshot.date)
+        : context.repository.save(snapshot.date, snapshot.content);
+
+      void operation.then((result) => {
+        if (result.ok) {
+          context.afterSave?.(snapshot);
+        } else {
+          console.error("Failed to save note:", result.error);
+        }
+      });
     },
     updateAfterSave: assign((args: { event: LocalNoteEvent }) => {
       const { event } = args;

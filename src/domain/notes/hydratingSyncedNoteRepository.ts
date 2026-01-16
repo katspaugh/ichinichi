@@ -1,7 +1,7 @@
 import type { E2eeServiceFactory } from "../crypto/e2eeService";
 import type { KeyringProvider } from "../crypto/keyring";
-import type { SyncError } from "../errors";
-import type { Result } from "../result";
+import type { RepositoryError, SyncError } from "../errors";
+import { ok, err, type Result } from "../result";
 import { SyncStatus, type Note } from "../../types";
 import type { NoteRepository } from "../../storage/noteRepository";
 import type { NoteRecord } from "../../storage/unifiedDb";
@@ -11,10 +11,10 @@ export interface UnifiedSyncedNoteRepository extends NoteRepository {
   sync(): Promise<Result<SyncStatus, SyncError>>;
   getSyncStatus(): SyncStatus;
   onSyncStatusChange(callback: (status: SyncStatus) => void): () => void;
-  getAllDatesForYear(year: number): Promise<string[]>;
-  getAllLocalDates(): Promise<string[]>;
-  getAllLocalDatesForYear(year: number): Promise<string[]>;
-  refreshNote(date: string): Promise<Note | null>;
+  getAllDatesForYear(year: number): Promise<Result<string[], RepositoryError>>;
+  getAllLocalDates(): Promise<Result<string[], RepositoryError>>;
+  getAllLocalDatesForYear(year: number): Promise<Result<string[], RepositoryError>>;
+  refreshNote(date: string): Promise<Result<Note | null, RepositoryError>>;
   hasPendingOp(date: string): Promise<boolean>;
   refreshDates(year: number): Promise<void>;
   hasRemoteDateCached(date: string): Promise<boolean>;
@@ -45,64 +45,128 @@ export function createHydratingSyncedNoteRepository(
   const e2ee = e2eeFactory.create(keyring);
 
   return {
-    async get(date: string): Promise<Note | null> {
-      const envelope = await envelopeRepo.getEnvelope(date);
-      if (!envelope) return null;
-      const content = await e2ee.decryptNoteRecord(
-        envelopeToRecord(envelope),
-      );
-      if (!content) return null;
-      return {
-        date: envelope.date,
-        content,
-        updatedAt: envelope.updatedAt,
-      };
+    async get(date: string): Promise<Result<Note | null, RepositoryError>> {
+      try {
+        const envelope = await envelopeRepo.getEnvelope(date);
+        if (!envelope) return ok(null);
+        const content = await e2ee.decryptNoteRecord(
+          envelopeToRecord(envelope),
+        );
+        if (!content) {
+          return err({ type: "DecryptFailed", message: "Failed to decrypt note" });
+        }
+        return ok({
+          date: envelope.date,
+          content,
+          updatedAt: envelope.updatedAt,
+        });
+      } catch (error) {
+        return err({
+          type: "Unknown",
+          message: error instanceof Error ? error.message : "Failed to get note",
+        });
+      }
     },
 
-    async save(date: string, content: string): Promise<void> {
-      const encrypted = await e2ee.encryptNoteContent(content);
-      if (!encrypted) return;
-      await envelopeRepo.saveEnvelope({
-        date,
-        ciphertext: encrypted.ciphertext,
-        nonce: encrypted.nonce,
-        keyId: encrypted.keyId,
-        updatedAt: new Date().toISOString(),
-      });
+    async save(date: string, content: string): Promise<Result<void, RepositoryError>> {
+      try {
+        const encrypted = await e2ee.encryptNoteContent(content);
+        if (!encrypted) {
+          return err({ type: "EncryptFailed", message: "Failed to encrypt note" });
+        }
+        await envelopeRepo.saveEnvelope({
+          date,
+          ciphertext: encrypted.ciphertext,
+          nonce: encrypted.nonce,
+          keyId: encrypted.keyId,
+          updatedAt: new Date().toISOString(),
+        });
+        return ok(undefined);
+      } catch (error) {
+        return err({
+          type: "IO",
+          message: error instanceof Error ? error.message : "Failed to save note",
+        });
+      }
     },
 
-    async delete(date: string): Promise<void> {
-      await envelopeRepo.deleteEnvelope(date);
+    async delete(date: string): Promise<Result<void, RepositoryError>> {
+      try {
+        await envelopeRepo.deleteEnvelope(date);
+        return ok(undefined);
+      } catch (error) {
+        return err({
+          type: "IO",
+          message: error instanceof Error ? error.message : "Failed to delete note",
+        });
+      }
     },
 
-    async getAllDates(): Promise<string[]> {
-      return await envelopeRepo.getAllDates();
+    async getAllDates(): Promise<Result<string[], RepositoryError>> {
+      try {
+        return ok(await envelopeRepo.getAllDates());
+      } catch (error) {
+        return err({
+          type: "IO",
+          message: error instanceof Error ? error.message : "Failed to get all dates",
+        });
+      }
     },
 
-    async getAllDatesForYear(year: number): Promise<string[]> {
-      return await envelopeRepo.getAllDatesForYear(year);
+    async getAllDatesForYear(year: number): Promise<Result<string[], RepositoryError>> {
+      try {
+        return ok(await envelopeRepo.getAllDatesForYear(year));
+      } catch (error) {
+        return err({
+          type: "IO",
+          message: error instanceof Error ? error.message : "Failed to get dates for year",
+        });
+      }
     },
 
-    async getAllLocalDates(): Promise<string[]> {
-      return await envelopeRepo.getAllLocalDates();
+    async getAllLocalDates(): Promise<Result<string[], RepositoryError>> {
+      try {
+        return ok(await envelopeRepo.getAllLocalDates());
+      } catch (error) {
+        return err({
+          type: "IO",
+          message: error instanceof Error ? error.message : "Failed to get local dates",
+        });
+      }
     },
 
-    async getAllLocalDatesForYear(year: number): Promise<string[]> {
-      return await envelopeRepo.getAllLocalDatesForYear(year);
+    async getAllLocalDatesForYear(year: number): Promise<Result<string[], RepositoryError>> {
+      try {
+        return ok(await envelopeRepo.getAllLocalDatesForYear(year));
+      } catch (error) {
+        return err({
+          type: "IO",
+          message: error instanceof Error ? error.message : "Failed to get local dates for year",
+        });
+      }
     },
 
-    async refreshNote(date: string): Promise<Note | null> {
-      const envelope = await envelopeRepo.refreshEnvelope(date);
-      if (!envelope) return null;
-      const content = await e2ee.decryptNoteRecord(
-        envelopeToRecord(envelope),
-      );
-      if (!content) return null;
-      return {
-        date: envelope.date,
-        content,
-        updatedAt: envelope.updatedAt,
-      };
+    async refreshNote(date: string): Promise<Result<Note | null, RepositoryError>> {
+      try {
+        const envelope = await envelopeRepo.refreshEnvelope(date);
+        if (!envelope) return ok(null);
+        const content = await e2ee.decryptNoteRecord(
+          envelopeToRecord(envelope),
+        );
+        if (!content) {
+          return err({ type: "DecryptFailed", message: "Failed to decrypt note" });
+        }
+        return ok({
+          date: envelope.date,
+          content,
+          updatedAt: envelope.updatedAt,
+        });
+      } catch (error) {
+        return err({
+          type: "Unknown",
+          message: error instanceof Error ? error.message : "Failed to refresh note",
+        });
+      }
     },
 
     async hasPendingOp(date: string): Promise<boolean> {

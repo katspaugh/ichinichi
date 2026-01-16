@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect } from "react";
 import { useMachine } from "@xstate/react";
 import { assign, fromCallback, setup } from "xstate";
 import type { Session, User, AuthError } from "@supabase/supabase-js";
@@ -451,22 +451,11 @@ const authMachine = setup({
 
 export function useAuth(): UseAuthReturn {
   const online = useConnectivity();
-  const onlineRef = useRef(online);
   const [state, send] = useMachine(authMachine);
-
-  useEffect(() => {
-    onlineRef.current = online;
-  }, [online]);
 
   useEffect(() => {
     send({ type: "INPUTS_CHANGED", online });
   }, [send, online]);
-
-  useEffect(() => {
-    if (online && !onlineRef.current) {
-      send({ type: "INPUTS_CHANGED", online });
-    }
-  }, [online, send]);
 
   useEffect(() => {
     if (state.context.session && online && !state.context.isBusy) {

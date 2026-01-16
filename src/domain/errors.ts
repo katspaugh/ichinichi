@@ -21,3 +21,5 @@ export type VaultError =
   | { type: "KeyMissing"; message: string }
   | { type: "UnlockFailed"; message: string }
   | { type: "Unknown"; message: string };
+
+export type RepositoryError = StorageError | CryptoError;

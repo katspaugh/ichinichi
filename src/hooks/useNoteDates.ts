@@ -10,13 +10,16 @@ interface UseNoteDatesReturn {
   refreshNoteDates: (options?: { immediate?: boolean }) => void;
 }
 
+import type { RepositoryError } from "../domain/errors";
+import type { Result } from "../domain/result";
+
 interface YearDateRepository {
-  getAllDatesForYear: (year: number) => Promise<string[]>;
+  getAllDatesForYear: (year: number) => Promise<Result<string[], RepositoryError>>;
 }
 
 interface LocalDateRepository {
-  getAllLocalDates: () => Promise<string[]>;
-  getAllLocalDatesForYear: (year: number) => Promise<string[]>;
+  getAllLocalDates: () => Promise<Result<string[], RepositoryError>>;
+  getAllLocalDatesForYear: (year: number) => Promise<Result<string[], RepositoryError>>;
 }
 
 interface RefreshableDateRepository {
@@ -82,18 +85,16 @@ const refreshActor = fromCallback(
 
       let hasLocalSnapshot = false;
       if (supportsLocalDates(input.repository)) {
-        try {
-          const localDates = supportsYearDates(input.repository)
-            ? await input.repository.getAllLocalDatesForYear(input.year)
-            : await input.repository.getAllLocalDates();
+        const localResult = supportsYearDates(input.repository)
+          ? await input.repository.getAllLocalDatesForYear(input.year)
+          : await input.repository.getAllLocalDates();
+        if (localResult.ok) {
           hasLocalSnapshot = true;
           if (!cancelled) {
-            sendBack({ type: "DATES_UPDATED", dates: localDates });
+            sendBack({ type: "DATES_UPDATED", dates: localResult.value });
           }
-        } catch {
-          if (!cancelled) {
-            sendBack({ type: "DATES_CLEARED" });
-          }
+        } else if (!cancelled) {
+          sendBack({ type: "DATES_CLEARED" });
         }
       }
 
@@ -101,15 +102,14 @@ const refreshActor = fromCallback(
         await input.repository.refreshDates(input.year);
       }
 
-      try {
-        const dates = supportsYearDates(input.repository)
-          ? await input.repository.getAllDatesForYear(input.year)
-          : await input.repository.getAllDates();
-        if (!cancelled) {
-          sendBack({ type: "DATES_UPDATED", dates });
-        }
-      } catch {
-        if (!cancelled && !hasLocalSnapshot) {
+      const datesResult = supportsYearDates(input.repository)
+        ? await input.repository.getAllDatesForYear(input.year)
+        : await input.repository.getAllDates();
+
+      if (!cancelled) {
+        if (datesResult.ok) {
+          sendBack({ type: "DATES_UPDATED", dates: datesResult.value });
+        } else if (!hasLocalSnapshot) {
           sendBack({ type: "DATES_CLEARED" });
         }
       }

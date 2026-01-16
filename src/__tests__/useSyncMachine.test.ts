@@ -32,9 +32,12 @@ describe("localNoteMachine", () => {
     it("should set hasEdits to true when EDIT is received in ready state", () => {
       // Create the actor with a mock repository
       const mockRepository = {
-        get: jest.fn().mockResolvedValue({ content: "initial" }),
-        save: jest.fn().mockResolvedValue(undefined),
-        delete: jest.fn().mockResolvedValue(undefined),
+        get: jest
+          .fn()
+          .mockResolvedValue({ ok: true, value: { content: "initial" } }),
+        save: jest.fn().mockResolvedValue({ ok: true, value: undefined }),
+        delete: jest.fn().mockResolvedValue({ ok: true, value: undefined }),
+        getAllDates: jest.fn().mockResolvedValue({ ok: true, value: [] }),
       };
 
       const actor = createActor(localNoteMachine);
@@ -80,9 +83,12 @@ describe("localNoteMachine", () => {
 
     it("should NOT set hasEdits when EDIT content matches current content", () => {
       const mockRepository = {
-        get: jest.fn().mockResolvedValue({ content: "same" }),
-        save: jest.fn().mockResolvedValue(undefined),
-        delete: jest.fn().mockResolvedValue(undefined),
+        get: jest
+          .fn()
+          .mockResolvedValue({ ok: true, value: { content: "same" } }),
+        save: jest.fn().mockResolvedValue({ ok: true, value: undefined }),
+        delete: jest.fn().mockResolvedValue({ ok: true, value: undefined }),
+        getAllDates: jest.fn().mockResolvedValue({ ok: true, value: [] }),
       };
 
       const actor = createActor(localNoteMachine);
@@ -122,9 +128,10 @@ describe("localNoteMachine", () => {
       // This is a key scenario: hasEdits must remain true during save
       // so the "Saving..." indicator stays visible
       const mockRepository = {
-        get: jest.fn().mockResolvedValue({ content: "" }),
+        get: jest.fn().mockResolvedValue({ ok: true, value: { content: "" } }),
         save: jest.fn().mockImplementation(() => new Promise(() => {})), // Never resolves
-        delete: jest.fn().mockResolvedValue(undefined),
+        delete: jest.fn().mockResolvedValue({ ok: true, value: undefined }),
+        getAllDates: jest.fn().mockResolvedValue({ ok: true, value: [] }),
       };
 
       const actor = createActor(localNoteMachine);
@@ -169,9 +176,14 @@ describe("localNoteMachine", () => {
       });
 
       const mockRepository = {
-        get: jest.fn().mockResolvedValue({ content: "" }),
-        save: jest.fn().mockImplementation(() => savePromise),
-        delete: jest.fn().mockResolvedValue(undefined),
+        get: jest.fn().mockResolvedValue({ ok: true, value: { content: "" } }),
+        save: jest
+          .fn()
+          .mockImplementation(() =>
+            savePromise.then(() => ({ ok: true, value: undefined })),
+          ),
+        delete: jest.fn().mockResolvedValue({ ok: true, value: undefined }),
+        getAllDates: jest.fn().mockResolvedValue({ ok: true, value: [] }),
       };
 
       const actor = createActor(localNoteMachine);
@@ -236,9 +248,14 @@ describe("localNoteMachine", () => {
       });
 
       const mockRepository = {
-        get: jest.fn().mockResolvedValue({ content: "" }),
-        save: jest.fn().mockImplementation(() => savePromise),
-        delete: jest.fn().mockResolvedValue(undefined),
+        get: jest.fn().mockResolvedValue({ ok: true, value: { content: "" } }),
+        save: jest
+          .fn()
+          .mockImplementation(() =>
+            savePromise.then(() => ({ ok: true, value: undefined })),
+          ),
+        delete: jest.fn().mockResolvedValue({ ok: true, value: undefined }),
+        getAllDates: jest.fn().mockResolvedValue({ ok: true, value: [] }),
       };
 
       const actor = createActor(localNoteMachine);
@@ -395,6 +412,38 @@ describe("syncMachine", () => {
 
     expect(actor.getSnapshot().value).toEqual({ active: "offline" });
     expect(actor.getSnapshot().context.status).toBe(SyncStatus.Offline);
+
+    actor.stop();
+  });
+
+  it("should reset offline status when coming back online", () => {
+    const mockRepository = {
+      sync: jest.fn().mockResolvedValue({ ok: true, value: SyncStatus.Synced }),
+    };
+
+    const actor = createActor(syncMachine);
+    actor.start();
+
+    actor.send({
+      type: "INPUTS_CHANGED",
+      repository: mockRepository as any,
+      enabled: true,
+      online: false,
+    });
+
+    expect(actor.getSnapshot().value).toEqual({ active: "offline" });
+    expect(actor.getSnapshot().context.status).toBe(SyncStatus.Offline);
+
+    actor.send({
+      type: "INPUTS_CHANGED",
+      repository: mockRepository as any,
+      enabled: true,
+      online: true,
+    });
+
+    const snapshot = actor.getSnapshot();
+    expect(snapshot.value).toHaveProperty("active");
+    expect(snapshot.context.status).not.toBe(SyncStatus.Offline);
 
     actor.stop();
   });

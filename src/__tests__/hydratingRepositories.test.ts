@@ -45,16 +45,21 @@ describe("hydrating repositories", () => {
     const payload = new Uint8Array([10, 20, 30, 40]);
     const blob = new Blob([payload], { type: "image/png" });
 
-    const meta = await repository.upload(
+    const metaResult = await repository.upload(
       "04-01-2025",
       blob,
       "inline",
       "test.png",
     );
-    const stored = await repository.get(meta.id);
+    expect(metaResult.ok).toBe(true);
+    if (!metaResult.ok) return;
 
-    expect(stored).not.toBeNull();
-    const storedBytes = new Uint8Array(await blobToArrayBuffer(stored!));
+    const storedResult = await repository.get(metaResult.value.id);
+    expect(storedResult.ok).toBe(true);
+    if (!storedResult.ok) return;
+
+    expect(storedResult.value).not.toBeNull();
+    const storedBytes = new Uint8Array(await blobToArrayBuffer(storedResult.value!));
     expect(Array.from(storedBytes)).toEqual(Array.from(payload));
   });
 

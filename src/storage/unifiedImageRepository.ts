@@ -2,6 +2,8 @@ import type { NoteImage } from "../types";
 import type { ImageRepository } from "./imageRepository";
 import type { ImageMetaRecord } from "./unifiedDb";
 import type { KeyringProvider } from "../domain/crypto/keyring";
+import type { RepositoryError } from "../domain/errors";
+import { ok, err, type Result } from "../domain/result";
 import {
   deleteImageRecord,
   deleteImageRecords,
@@ -33,90 +35,41 @@ export function createUnifiedImageRepository(
       type: "background" | "inline",
       filename: string,
       options?: { width?: number; height?: number },
-    ): Promise<NoteImage> {
-      const imageId = generateUuid();
-      const encrypted = await e2ee.encryptImageBlob(file);
-      if (!encrypted) {
-        throw new Error("Image key unavailable");
-      }
-      const { record, sha256, size, keyId } = encrypted;
-
-      const meta: ImageMetaRecord = {
-        id: imageId,
-        noteDate,
-        type,
-        filename,
-        mimeType: file.type || "application/octet-stream",
-        width: options?.width ?? 0,
-        height: options?.height ?? 0,
-        size,
-        createdAt: new Date().toISOString(),
-        sha256,
-        keyId,
-        pendingOp: "upload",
-      };
-
-      await storeImageAndMeta(
-        {
-          ...record,
-          id: imageId,
-          keyId,
-        },
-        meta,
-      );
-
-      return {
-        id: imageId,
-        noteDate: meta.noteDate,
-        type: meta.type,
-        filename: meta.filename,
-        mimeType: meta.mimeType,
-        width: meta.width,
-        height: meta.height,
-        size: meta.size,
-        createdAt: meta.createdAt,
-      };
-    },
-
-    async get(imageId: string): Promise<Blob | null> {
+    ): Promise<Result<NoteImage, RepositoryError>> {
       try {
-        const state = await getImageEnvelopeState(imageId);
-        const record = state.record;
-        const meta = state.meta;
-        if (!record || !meta || record.version !== 1) {
-          return null;
+        const imageId = generateUuid();
+        const encrypted = await e2ee.encryptImageBlob(file);
+        if (!encrypted) {
+          return err({ type: "KeyMissing", message: "Image key unavailable" });
         }
-        return await e2ee.decryptImageRecord(record, meta.mimeType);
-      } catch {
-        return null;
-      }
-    },
+        const { record, sha256, size, keyId } = encrypted;
 
-    async getUrl(_imageId: string): Promise<string | null> {
-      void _imageId;
-      return null;
-    },
+        const meta: ImageMetaRecord = {
+          id: imageId,
+          noteDate,
+          type,
+          filename,
+          mimeType: file.type || "application/octet-stream",
+          width: options?.width ?? 0,
+          height: options?.height ?? 0,
+          size,
+          createdAt: new Date().toISOString(),
+          sha256,
+          keyId,
+          pendingOp: "upload",
+        };
 
-    async delete(imageId: string): Promise<void> {
-      const meta = (await getImageEnvelopeState(imageId)).meta;
-      if (meta) {
-        await setImageMeta({
-          ...meta,
-          pendingOp: "delete",
-        });
-        await deleteImageRecord(imageId);
-        return;
-      }
+        await storeImageAndMeta(
+          {
+            ...record,
+            id: imageId,
+            keyId,
+          },
+          meta,
+        );
 
-      await deleteImageRecords(imageId);
-    },
-
-    async getByNoteDate(noteDate: string): Promise<NoteImage[]> {
-      const metas = await getMetaByDate(noteDate);
-      return metas
-        .filter((meta) => meta.pendingOp !== "delete")
-        .map((meta) => ({
-          id: meta.id,
+        return ok({
+          id: imageId,
           noteDate: meta.noteDate,
           type: meta.type,
           filename: meta.filename,
@@ -125,26 +78,114 @@ export function createUnifiedImageRepository(
           height: meta.height,
           size: meta.size,
           createdAt: meta.createdAt,
-        }));
+        });
+      } catch (error) {
+        return err({
+          type: "IO",
+          message: error instanceof Error ? error.message : "Failed to upload image",
+        });
+      }
     },
 
-    async deleteByNoteDate(noteDate: string): Promise<void> {
-      const metas = await getMetaByDate(noteDate);
-
-      if (!metas.length) {
-        await deleteImagesByDate(noteDate);
-        return;
+    async get(imageId: string): Promise<Result<Blob | null, RepositoryError>> {
+      try {
+        const state = await getImageEnvelopeState(imageId);
+        const record = state.record;
+        const meta = state.meta;
+        if (!record || !meta || record.version !== 1) {
+          return ok(null);
+        }
+        const blob = await e2ee.decryptImageRecord(record, meta.mimeType);
+        if (!blob) {
+          return err({ type: "DecryptFailed", message: "Failed to decrypt image" });
+        }
+        return ok(blob);
+      } catch (error) {
+        return err({
+          type: "Unknown",
+          message: error instanceof Error ? error.message : "Failed to get image",
+        });
       }
+    },
 
-      await Promise.all(
-        metas.map(async (meta) => {
+    async getUrl(_imageId: string): Promise<Result<string | null, RepositoryError>> {
+      void _imageId;
+      return ok(null);
+    },
+
+    async delete(imageId: string): Promise<Result<void, RepositoryError>> {
+      try {
+        const meta = (await getImageEnvelopeState(imageId)).meta;
+        if (meta) {
           await setImageMeta({
             ...meta,
             pendingOp: "delete",
           });
-          await deleteImageRecord(meta.id);
-        }),
-      );
+          await deleteImageRecord(imageId);
+          return ok(undefined);
+        }
+
+        await deleteImageRecords(imageId);
+        return ok(undefined);
+      } catch (error) {
+        return err({
+          type: "IO",
+          message: error instanceof Error ? error.message : "Failed to delete image",
+        });
+      }
+    },
+
+    async getByNoteDate(noteDate: string): Promise<Result<NoteImage[], RepositoryError>> {
+      try {
+        const metas = await getMetaByDate(noteDate);
+        return ok(
+          metas
+            .filter((meta) => meta.pendingOp !== "delete")
+            .map((meta) => ({
+              id: meta.id,
+              noteDate: meta.noteDate,
+              type: meta.type,
+              filename: meta.filename,
+              mimeType: meta.mimeType,
+              width: meta.width,
+              height: meta.height,
+              size: meta.size,
+              createdAt: meta.createdAt,
+            }))
+        );
+      } catch (error) {
+        return err({
+          type: "IO",
+          message: error instanceof Error ? error.message : "Failed to get images by date",
+        });
+      }
+    },
+
+    async deleteByNoteDate(noteDate: string): Promise<Result<void, RepositoryError>> {
+      try {
+        const metas = await getMetaByDate(noteDate);
+
+        if (!metas.length) {
+          await deleteImagesByDate(noteDate);
+          return ok(undefined);
+        }
+
+        await Promise.all(
+          metas.map(async (meta) => {
+            await setImageMeta({
+              ...meta,
+              pendingOp: "delete",
+            });
+            await deleteImageRecord(meta.id);
+          }),
+        );
+        return ok(undefined);
+      } catch (error) {
+        return err({
+          type: "IO",
+          message: error instanceof Error ? error.message : "Failed to delete images by date",
+        });
+      }
     },
   };
 }

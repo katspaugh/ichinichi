@@ -1,6 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { NoteImage } from "../types";
 import type { ImageRepository } from "./imageRepository";
+import type { RepositoryError } from "../domain/errors";
+import { ok, err, type Result } from "../domain/result";
 
 const BUCKET_NAME = "note-images";
 const SIGNED_URL_EXPIRY = 60 * 60; // 1 hour in seconds
@@ -44,124 +46,8 @@ export function createCloudImageRepository(
   supabase: SupabaseClient,
   userId: string,
 ): ImageRepository {
-  return {
-    async upload(
-      noteDate: string,
-      file: Blob,
-      type: "background" | "inline",
-      filename: string,
-      options?: { width?: number; height?: number },
-    ): Promise<NoteImage> {
-      const imageId = generateUuid();
-      const ext = getExtension(file.type);
-      const storagePath = `${userId}/${imageId}.${ext}`;
-
-      // Upload to Supabase Storage
-      const { error: uploadError } = await supabase.storage
-        .from(BUCKET_NAME)
-        .upload(storagePath, file, {
-          contentType: file.type,
-          upsert: false,
-        });
-
-      if (uploadError) {
-        throw new Error(`Failed to upload image: ${uploadError.message}`);
-      }
-
-      // Create metadata entry
-      const meta: NoteImage = {
-        id: imageId,
-        noteDate,
-        type,
-        filename,
-        mimeType: file.type,
-        width: options?.width ?? 0,
-        height: options?.height ?? 0,
-        size: file.size,
-        createdAt: new Date().toISOString(),
-      };
-
-      const { error: metaError } = await supabase.from("note_images").insert({
-        id: meta.id,
-        user_id: userId,
-        note_date: meta.noteDate,
-        type: meta.type,
-        filename: meta.filename,
-        mime_type: meta.mimeType,
-        width: meta.width,
-        height: meta.height,
-        size: meta.size,
-        storage_path: storagePath,
-      });
-
-      if (metaError) {
-        // Clean up uploaded file on metadata insert failure
-        await supabase.storage.from(BUCKET_NAME).remove([storagePath]);
-        throw new Error(`Failed to save image metadata: ${metaError.message}`);
-      }
-
-      return meta;
-    },
-
-    async get(imageId: string): Promise<Blob | null> {
-      try {
-        // Get metadata to find storage path
-        const { data: meta, error: metaError } = await supabase
-          .from("note_images")
-          .select("storage_path, mime_type")
-          .eq("id", imageId)
-          .eq("user_id", userId)
-          .single();
-
-        if (metaError || !meta) {
-          return null;
-        }
-
-        // Download from storage
-        const { data, error: downloadError } = await supabase.storage
-          .from(BUCKET_NAME)
-          .download(meta.storage_path);
-
-        if (downloadError || !data) {
-          return null;
-        }
-
-        return data;
-      } catch {
-        return null;
-      }
-    },
-
-    async getUrl(imageId: string): Promise<string | null> {
-      try {
-        // Get metadata to find storage path
-        const { data: meta, error: metaError } = await supabase
-          .from("note_images")
-          .select("storage_path")
-          .eq("id", imageId)
-          .eq("user_id", userId)
-          .single();
-
-        if (metaError || !meta) {
-          return null;
-        }
-
-        // Create signed URL
-        const { data, error: urlError } = await supabase.storage
-          .from(BUCKET_NAME)
-          .createSignedUrl(meta.storage_path, SIGNED_URL_EXPIRY);
-
-        if (urlError || !data) {
-          return null;
-        }
-
-        return data.signedUrl;
-      } catch {
-        return null;
-      }
-    },
-
-    async delete(imageId: string): Promise<void> {
+  const deleteImageById = async (imageId: string): Promise<Result<void, RepositoryError>> => {
+    try {
       // Get metadata to find storage path
       const { data: meta, error: metaError } = await supabase
         .from("note_images")
@@ -171,7 +57,7 @@ export function createCloudImageRepository(
         .single();
 
       if (metaError || !meta) {
-        return; // Already deleted or doesn't exist
+        return ok(undefined); // Already deleted or doesn't exist
       }
 
       // Delete from storage
@@ -183,38 +69,201 @@ export function createCloudImageRepository(
         .delete()
         .eq("id", imageId)
         .eq("user_id", userId);
+
+      return ok(undefined);
+    } catch (error) {
+      return err({
+        type: "IO",
+        message: error instanceof Error ? error.message : "Failed to delete image",
+      });
+    }
+  };
+
+  return {
+    async upload(
+      noteDate: string,
+      file: Blob,
+      type: "background" | "inline",
+      filename: string,
+      options?: { width?: number; height?: number },
+    ): Promise<Result<NoteImage, RepositoryError>> {
+      try {
+        const imageId = generateUuid();
+        const ext = getExtension(file.type);
+        const storagePath = `${userId}/${imageId}.${ext}`;
+
+        // Upload to Supabase Storage
+        const { error: uploadError } = await supabase.storage
+          .from(BUCKET_NAME)
+          .upload(storagePath, file, {
+            contentType: file.type,
+            upsert: false,
+          });
+
+        if (uploadError) {
+          return err({
+            type: "IO",
+            message: `Failed to upload image: ${uploadError.message}`,
+          });
+        }
+
+        // Create metadata entry
+        const meta: NoteImage = {
+          id: imageId,
+          noteDate,
+          type,
+          filename,
+          mimeType: file.type,
+          width: options?.width ?? 0,
+          height: options?.height ?? 0,
+          size: file.size,
+          createdAt: new Date().toISOString(),
+        };
+
+        const { error: metaError } = await supabase.from("note_images").insert({
+          id: meta.id,
+          user_id: userId,
+          note_date: meta.noteDate,
+          type: meta.type,
+          filename: meta.filename,
+          mime_type: meta.mimeType,
+          width: meta.width,
+          height: meta.height,
+          size: meta.size,
+          storage_path: storagePath,
+        });
+
+        if (metaError) {
+          // Clean up uploaded file on metadata insert failure
+          await supabase.storage.from(BUCKET_NAME).remove([storagePath]);
+          return err({
+            type: "IO",
+            message: `Failed to save image metadata: ${metaError.message}`,
+          });
+        }
+
+        return ok(meta);
+      } catch (error) {
+        return err({
+          type: "IO",
+          message: error instanceof Error ? error.message : "Failed to upload image",
+        });
+      }
     },
 
-    async getByNoteDate(noteDate: string): Promise<NoteImage[]> {
-      const { data, error } = await supabase
-        .from("note_images")
-        .select("*")
-        .eq("user_id", userId)
-        .eq("note_date", noteDate);
+    async get(imageId: string): Promise<Result<Blob | null, RepositoryError>> {
+      try {
+        // Get metadata to find storage path
+        const { data: meta, error: metaError } = await supabase
+          .from("note_images")
+          .select("storage_path, mime_type")
+          .eq("id", imageId)
+          .eq("user_id", userId)
+          .single();
 
-      if (error || !data) {
-        return [];
+        if (metaError || !meta) {
+          return ok(null);
+        }
+
+        // Download from storage
+        const { data, error: downloadError } = await supabase.storage
+          .from(BUCKET_NAME)
+          .download(meta.storage_path);
+
+        if (downloadError || !data) {
+          return ok(null);
+        }
+
+        return ok(data);
+      } catch (error) {
+        return err({
+          type: "IO",
+          message: error instanceof Error ? error.message : "Failed to get image",
+        });
+      }
+    },
+
+    async getUrl(imageId: string): Promise<Result<string | null, RepositoryError>> {
+      try {
+        // Get metadata to find storage path
+        const { data: meta, error: metaError } = await supabase
+          .from("note_images")
+          .select("storage_path")
+          .eq("id", imageId)
+          .eq("user_id", userId)
+          .single();
+
+        if (metaError || !meta) {
+          return ok(null);
+        }
+
+        // Create signed URL
+        const { data, error: urlError } = await supabase.storage
+          .from(BUCKET_NAME)
+          .createSignedUrl(meta.storage_path, SIGNED_URL_EXPIRY);
+
+        if (urlError || !data) {
+          return ok(null);
+        }
+
+        return ok(data.signedUrl);
+      } catch (error) {
+        return err({
+          type: "IO",
+          message: error instanceof Error ? error.message : "Failed to get image URL",
+        });
+      }
+    },
+
+    delete: deleteImageById,
+
+    async getByNoteDate(noteDate: string): Promise<Result<NoteImage[], RepositoryError>> {
+      try {
+        const { data, error } = await supabase
+          .from("note_images")
+          .select("*")
+          .eq("user_id", userId)
+          .eq("note_date", noteDate);
+
+        if (error || !data) {
+          return ok([]);
+        }
+
+        return ok(data.map((row) => ({
+          id: row.id,
+          noteDate: row.note_date,
+          type: row.type,
+          filename: row.filename,
+          mimeType: row.mime_type,
+          width: row.width || 0,
+          height: row.height || 0,
+          size: row.size || 0,
+          createdAt: row.created_at,
+        })));
+      } catch (error) {
+        return err({
+          type: "IO",
+          message: error instanceof Error ? error.message : "Failed to get images by date",
+        });
+      }
+    },
+
+    async deleteByNoteDate(noteDate: string): Promise<Result<void, RepositoryError>> {
+      // Get all images for this note
+      const imagesResult = await this.getByNoteDate(noteDate);
+      if (!imagesResult.ok) {
+        return imagesResult;
       }
 
-      return data.map((row) => ({
-        id: row.id,
-        noteDate: row.note_date,
-        type: row.type,
-        filename: row.filename,
-        mimeType: row.mime_type,
-        width: row.width || 0,
-        height: row.height || 0,
-        size: row.size || 0,
-        createdAt: row.created_at,
-      }));
-    },
-
-    async deleteByNoteDate(noteDate: string): Promise<void> {
-      // Get all images for this note
-      const images = await this.getByNoteDate(noteDate);
-
       // Delete each image
-      await Promise.all(images.map((img) => this.delete(img.id)));
+      for (const img of imagesResult.value) {
+        const deleteResult = await deleteImageById(img.id);
+        if (!deleteResult.ok) {
+          return deleteResult;
+        }
+      }
+
+      return ok(undefined);
     },
   };
 }

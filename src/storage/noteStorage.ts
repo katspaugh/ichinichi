@@ -1,5 +1,7 @@
 import type { Note } from "../types";
 import type { NoteRepository } from "./noteRepository";
+import type { RepositoryError } from "../domain/errors";
+import { ok, err, type Result } from "../domain/result";
 import { sanitizeHtml } from "../utils/sanitize";
 import {
   base64ToBytes,
@@ -142,33 +144,61 @@ export function createEncryptedNoteRepository(
   vaultKey: CryptoKey,
 ): NoteRepository {
   return {
-    async get(date: string): Promise<Note | null> {
+    async get(date: string): Promise<Result<Note | null, RepositoryError>> {
       try {
         const payload = await getNotePayload(date);
-        if (!payload || payload.version !== 1) return null;
-        return decryptNotePayload(vaultKey, payload);
-      } catch {
-        return null;
+        if (!payload || payload.version !== 1) return ok(null);
+        const note = await decryptNotePayload(vaultKey, payload);
+        return ok(note);
+      } catch (error) {
+        return err({
+          type: "DecryptFailed",
+          message: error instanceof Error ? error.message : "Failed to decrypt note",
+        });
       }
     },
 
-    async save(date: string, content: string): Promise<void> {
-      const sanitizedContent = sanitizeHtml(content);
-      const note: Note = {
-        date,
-        content: sanitizedContent,
-        updatedAt: new Date().toISOString(),
-      };
-      const payload = await encryptNotePayload(vaultKey, note);
-      await setNotePayload(date, payload);
+    async save(date: string, content: string): Promise<Result<void, RepositoryError>> {
+      try {
+        const sanitizedContent = sanitizeHtml(content);
+        const note: Note = {
+          date,
+          content: sanitizedContent,
+          updatedAt: new Date().toISOString(),
+        };
+        const payload = await encryptNotePayload(vaultKey, note);
+        await setNotePayload(date, payload);
+        return ok(undefined);
+      } catch (error) {
+        return err({
+          type: "IO",
+          message: error instanceof Error ? error.message : "Failed to save note",
+        });
+      }
     },
 
-    async delete(date: string): Promise<void> {
-      await deleteNotePayload(date);
+    async delete(date: string): Promise<Result<void, RepositoryError>> {
+      try {
+        await deleteNotePayload(date);
+        return ok(undefined);
+      } catch (error) {
+        return err({
+          type: "IO",
+          message: error instanceof Error ? error.message : "Failed to delete note",
+        });
+      }
     },
 
-    async getAllDates(): Promise<string[]> {
-      return getAllNoteDates();
+    async getAllDates(): Promise<Result<string[], RepositoryError>> {
+      try {
+        const dates = await getAllNoteDates();
+        return ok(dates);
+      } catch (error) {
+        return err({
+          type: "IO",
+          message: error instanceof Error ? error.message : "Failed to get all dates",
+        });
+      }
     },
   };
 }

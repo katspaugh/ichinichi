@@ -353,10 +353,10 @@ export function useVault({
   }, [send, vaultService, user, password, localDek, localKeyring]);
 
   useEffect(() => {
-    if (password) {
+    if (password && state.context.isBusy) {
       onPasswordConsumed();
     }
-  }, [password, onPasswordConsumed]);
+  }, [password, onPasswordConsumed, state.context.isBusy]);
 
   const clearError = useCallback(() => {
     send({ type: "CLEAR_ERROR" });

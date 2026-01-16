@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { RefObject } from "react";
 import { useNoteRepositoryContext } from "../../contexts/noteRepositoryContext";
 import { compressImage } from "../../utils/imageCompression";
@@ -36,7 +36,7 @@ export function useInlineImageUpload({
 
       const compressed = await compressImage(file);
 
-      const meta = await imageRepository.upload(
+      const result = await imageRepository.upload(
         date,
         compressed.blob,
         "inline",
@@ -44,8 +44,12 @@ export function useInlineImageUpload({
         { width: compressed.width, height: compressed.height },
       );
 
+      if (!result.ok) {
+        throw new Error(result.error.message);
+      }
+
       return {
-        id: meta.id,
+        id: result.value.id,
         width: compressed.width,
         height: compressed.height,
         filename: file.name,
@@ -71,9 +75,8 @@ export function useInlineImageUrls({
   const dateRef = useRef<string | null>(null);
   const repoRef = useRef<typeof imageRepository>(null);
   const managerRef = useRef<ImageUrlManager | null>(null);
-  const ownerIdRef = useRef(
-    `note-editor-${Math.random().toString(36).slice(2)}`,
-  );
+  const ownerId = useId();
+  const ownerIdRef = useRef(`note-editor-${ownerId}`);
   const currentIdsRef = useRef<Set<string>>(new Set());
   const [metaVersion, setMetaVersion] = useState(0);
 
@@ -87,20 +90,19 @@ export function useInlineImageUrls({
     currentIdsRef.current = new Set();
 
     const loadMeta = async () => {
-      try {
-        const metas = await imageRepository.getByNoteDate(date);
+      const result = await imageRepository.getByNoteDate(date);
+      if (result.ok) {
         const map = new Map<string, { width: number; height: number }>();
-        metas.forEach((meta) => {
+        result.value.forEach((meta) => {
           if (meta.width > 0 && meta.height > 0) {
             map.set(meta.id, { width: meta.width, height: meta.height });
           }
         });
         metaCacheRef.current = map;
-      } catch {
+      } else {
         metaCacheRef.current = new Map();
-      } finally {
-        setMetaVersion((value) => value + 1);
       }
+      setMetaVersion((value) => value + 1);
     };
 
     void loadMeta();

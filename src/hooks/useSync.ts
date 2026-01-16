@@ -251,6 +251,21 @@ export const syncMachine = setup({
             })),
           },
           {
+            guard: ({ context, event }) =>
+              event.enabled &&
+              !!event.repository &&
+              event.online &&
+              !context.online,
+            target: "#initializing",
+            actions: assign(({ event }) => ({
+              repository: event.repository,
+              enabled: event.enabled,
+              online: event.online,
+              status: SyncStatus.Idle,
+              syncError: null,
+            })),
+          },
+          {
             // Stay in current child state, just update inputs
             actions: assign(({ event }) => ({
               repository: event.repository,

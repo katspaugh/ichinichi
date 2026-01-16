@@ -1,5 +1,7 @@
 import type { NoteImage } from "../types";
 import type { ImageRepository } from "./imageRepository";
+import type { RepositoryError } from "../domain/errors";
+import { ok, err, type Result } from "../domain/result";
 import { base64ToBytes, bytesToBase64, randomBytes } from "./cryptoUtils";
 
 const IMAGE_IV_BYTES = 12;
@@ -240,61 +242,96 @@ export function createEncryptedImageRepository(
       type: "background" | "inline",
       filename: string,
       options?: { width?: number; height?: number },
-    ): Promise<NoteImage> {
-      const imageId = generateUuid();
+    ): Promise<Result<NoteImage, RepositoryError>> {
+      try {
+        const imageId = generateUuid();
 
-      // Encrypt the image blob
-      const payload = await encryptImageBlob(vaultKey, file);
+        // Encrypt the image blob
+        const payload = await encryptImageBlob(vaultKey, file);
 
-      // Create metadata
-      const meta: NoteImage = {
-        id: imageId,
-        noteDate,
-        type,
-        filename,
-        mimeType: file.type,
-        width: options?.width ?? 0,
-        height: options?.height ?? 0,
-        size: file.size,
-        createdAt: new Date().toISOString(),
-      };
+        // Create metadata
+        const meta: NoteImage = {
+          id: imageId,
+          noteDate,
+          type,
+          filename,
+          mimeType: file.type,
+          width: options?.width ?? 0,
+          height: options?.height ?? 0,
+          size: file.size,
+          createdAt: new Date().toISOString(),
+        };
 
-      // Store encrypted blob and metadata
-      await storeImage(imageId, payload, meta);
+        // Store encrypted blob and metadata
+        await storeImage(imageId, payload, meta);
 
-      return meta;
+        return ok(meta);
+      } catch (error) {
+        return err({
+          type: "IO",
+          message: error instanceof Error ? error.message : "Failed to upload image",
+        });
+      }
     },
 
-    async get(imageId: string): Promise<Blob | null> {
+    async get(imageId: string): Promise<Result<Blob | null, RepositoryError>> {
       try {
         const payload = await getImagePayload(imageId);
         const meta = await getImageMeta(imageId);
 
         if (!payload || !meta || payload.version !== 1) {
-          return null;
+          return ok(null);
         }
 
-        return await decryptImagePayload(vaultKey, payload, meta.mimeType);
-      } catch {
-        return null;
+        const blob = await decryptImagePayload(vaultKey, payload, meta.mimeType);
+        return ok(blob);
+      } catch (error) {
+        return err({
+          type: "DecryptFailed",
+          message: error instanceof Error ? error.message : "Failed to decrypt image",
+        });
       }
     },
 
-    async getUrl(_imageId: string): Promise<string | null> {
+    async getUrl(_imageId: string): Promise<Result<string | null, RepositoryError>> {
       void _imageId;
-      return null;
+      return ok(null);
     },
 
-    async delete(imageId: string): Promise<void> {
-      await deleteImage(imageId);
+    async delete(imageId: string): Promise<Result<void, RepositoryError>> {
+      try {
+        await deleteImage(imageId);
+        return ok(undefined);
+      } catch (error) {
+        return err({
+          type: "IO",
+          message: error instanceof Error ? error.message : "Failed to delete image",
+        });
+      }
     },
 
-    async getByNoteDate(noteDate: string): Promise<NoteImage[]> {
-      return await getImageMetaByDate(noteDate);
+    async getByNoteDate(noteDate: string): Promise<Result<NoteImage[], RepositoryError>> {
+      try {
+        const metas = await getImageMetaByDate(noteDate);
+        return ok(metas);
+      } catch (error) {
+        return err({
+          type: "IO",
+          message: error instanceof Error ? error.message : "Failed to get images by date",
+        });
+      }
     },
 
-    async deleteByNoteDate(noteDate: string): Promise<void> {
-      await deleteImagesByDate(noteDate);
+    async deleteByNoteDate(noteDate: string): Promise<Result<void, RepositoryError>> {
+      try {
+        await deleteImagesByDate(noteDate);
+        return ok(undefined);
+      } catch (error) {
+        return err({
+          type: "IO",
+          message: error instanceof Error ? error.message : "Failed to delete images by date",
+        });
+      }
     },
   };
 }

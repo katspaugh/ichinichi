@@ -33,9 +33,12 @@ describe("unified storage", () => {
 
     await repository.save("01-01-2025", "hello");
 
-    const note = await repository.get("01-01-2025");
-    expect(note?.content).toBe("hello");
-    expect(note?.updatedAt).toBeTruthy();
+    const noteResult = await repository.get("01-01-2025");
+    expect(noteResult.ok).toBe(true);
+    if (noteResult.ok) {
+      expect(noteResult.value?.content).toBe("hello");
+      expect(noteResult.value?.updatedAt).toBeTruthy();
+    }
   });
 
   it("deletes notes and hides them from lists", async () => {
@@ -48,11 +51,17 @@ describe("unified storage", () => {
     await repository.save("02-01-2025", "bye");
     await repository.delete("02-01-2025");
 
-    const note = await repository.get("02-01-2025");
-    expect(note).toBeNull();
+    const noteResult = await repository.get("02-01-2025");
+    expect(noteResult.ok).toBe(true);
+    if (noteResult.ok) {
+      expect(noteResult.value).toBeNull();
+    }
 
-    const dates = await repository.getAllDates();
-    expect(dates).toEqual([]);
+    const datesResult = await repository.getAllDates();
+    expect(datesResult.ok).toBe(true);
+    if (datesResult.ok) {
+      expect(datesResult.value).toEqual([]);
+    }
   });
 
   it("stores and retrieves encrypted images", async () => {
@@ -64,21 +73,29 @@ describe("unified storage", () => {
     const payload = new Uint8Array([1, 2, 3, 4, 5]);
     const blob = new Blob([payload], { type: "image/png" });
 
-    const meta = await repository.upload(
+    const metaResult = await repository.upload(
       "03-01-2025",
       blob,
       "inline",
       "test.png",
     );
-    const stored = await repository.get(meta.id);
+    expect(metaResult.ok).toBe(true);
+    if (!metaResult.ok) return;
 
-    expect(stored).not.toBeNull();
-    const storedBytes = new Uint8Array(await blobToArrayBuffer(stored!));
+    const storedResult = await repository.get(metaResult.value.id);
+    expect(storedResult.ok).toBe(true);
+    if (!storedResult.ok) return;
+
+    expect(storedResult.value).not.toBeNull();
+    const storedBytes = new Uint8Array(await blobToArrayBuffer(storedResult.value!));
     expect(Array.from(storedBytes)).toEqual(Array.from(payload));
 
-    const byDate = await repository.getByNoteDate("03-01-2025");
-    expect(byDate).toHaveLength(1);
-    expect(byDate[0]?.id).toBe(meta.id);
+    const byDateResult = await repository.getByNoteDate("03-01-2025");
+    expect(byDateResult.ok).toBe(true);
+    if (byDateResult.ok) {
+      expect(byDateResult.value).toHaveLength(1);
+      expect(byDateResult.value[0]?.id).toBe(metaResult.value.id);
+    }
   });
 });
 

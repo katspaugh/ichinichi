@@ -402,6 +402,14 @@ export function useContentEditableEditor({
     const hasImages = el.querySelector("img") !== null;
     if (hasText || hasImages) {
       placeCaretAtEnd(el);
+
+      // Prime lastEditedBlockRef to the block containing the caret.
+      // This ensures that if the user presses Enter to create a new block,
+      // it will be detected as a block change (enabling timestamp insertion).
+      const lastChild = el.lastElementChild;
+      if (lastChild && (lastChild.tagName === "P" || lastChild.tagName === "DIV")) {
+        lastEditedBlockRef.current = lastChild;
+      }
     }
     hasAutoFocusedRef.current = true;
   }, [content, isEditable]);
@@ -411,10 +419,6 @@ export function useContentEditableEditor({
     const el = editorRef.current;
     if (!el) return;
 
-    // Check if we should insert a timestamp for this edit
-    insertTimestampHrIfNeeded();
-
-    // Track last user input time
     const now = Date.now();
     if (
       lastUserInputRef.current &&
@@ -423,6 +427,11 @@ export function useContentEditableEditor({
       // More than 10 minutes passed, allow inserting timestamp on next block change
       hasInsertedTimestampRef.current = false;
     }
+
+    // Check if we should insert a timestamp for this edit
+    insertTimestampHrIfNeeded();
+
+    // Track last user input time
     lastUserInputRef.current = now;
 
     updateEmptyState();

@@ -4,6 +4,8 @@ import { bytesToBase64 } from "./cryptoUtils";
 import type { ImageRepository } from "./imageRepository";
 import type { ImageMetaRecord, ImageRecord } from "./unifiedDb";
 import type { KeyringProvider } from "../domain/crypto/keyring";
+import type { RepositoryError } from "../domain/errors";
+import { ok, err, type Result } from "../domain/result";
 import {
   getImageMeta,
   setImageMeta,
@@ -190,25 +192,53 @@ export function createUnifiedSyncedImageRepository(
     upload: localRepo.upload,
     delete: localRepo.delete,
     deleteByNoteDate: localRepo.deleteByNoteDate,
-    async get(imageId: string): Promise<Blob | null> {
-      const local = await localRepo.get(imageId);
-      if (local) return local;
-      const hydrated = await ensureLocalImage(
-        supabase,
-        userId,
-        keyring,
-        imageId,
-      );
-      return hydrated ? await localRepo.get(imageId) : null;
+    async get(imageId: string): Promise<Result<Blob | null, RepositoryError>> {
+      const localResult = await localRepo.get(imageId);
+      if (!localResult.ok) {
+        return localResult;
+      }
+      if (localResult.value) {
+        return localResult;
+      }
+      try {
+        const hydrated = await ensureLocalImage(
+          supabase,
+          userId,
+          keyring,
+          imageId,
+        );
+        if (!hydrated) {
+          return ok(null);
+        }
+        return await localRepo.get(imageId);
+      } catch (error) {
+        return err({
+          type: "Unknown",
+          message: error instanceof Error ? error.message : "Failed to fetch remote image",
+        });
+      }
     },
-    async getUrl(imageId: string): Promise<string | null> {
+    async getUrl(imageId: string): Promise<Result<string | null, RepositoryError>> {
       void imageId;
-      return null;
+      return ok(null);
     },
-    async getByNoteDate(noteDate: string): Promise<NoteImage[]> {
-      const local = await localRepo.getByNoteDate(noteDate);
-      if (local.length) return local;
-      return await fetchRemoteMetasByDate(supabase, userId, keyring, noteDate);
+    async getByNoteDate(noteDate: string): Promise<Result<NoteImage[], RepositoryError>> {
+      const localResult = await localRepo.getByNoteDate(noteDate);
+      if (!localResult.ok) {
+        return localResult;
+      }
+      if (localResult.value.length) {
+        return localResult;
+      }
+      try {
+        const remoteMetas = await fetchRemoteMetasByDate(supabase, userId, keyring, noteDate);
+        return ok(remoteMetas);
+      } catch (error) {
+        return err({
+          type: "Unknown",
+          message: error instanceof Error ? error.message : "Failed to fetch remote images",
+        });
+      }
     },
   };
 }

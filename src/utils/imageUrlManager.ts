@@ -79,23 +79,23 @@ export class ImageUrlManager {
   }
 
   private async resolveUrl(imageId: string): Promise<UrlEntry | null> {
-    const remoteUrl = await this.repository.getUrl(imageId);
-    if (remoteUrl) {
+    const remoteUrlResult = await this.repository.getUrl(imageId);
+    if (remoteUrlResult.ok && remoteUrlResult.value) {
       return {
-        url: remoteUrl,
+        url: remoteUrlResult.value,
         kind: "remote",
         owners: new Set(),
         expiresAt: Date.now() + this.remoteTtlMs,
       };
     }
 
-    const blob = await this.repository.get(imageId);
-    if (!blob) {
+    const blobResult = await this.repository.get(imageId);
+    if (!blobResult.ok || !blobResult.value) {
       return null;
     }
 
     return {
-      url: URL.createObjectURL(blob),
+      url: URL.createObjectURL(blobResult.value),
       kind: "blob",
       owners: new Set(),
     };
