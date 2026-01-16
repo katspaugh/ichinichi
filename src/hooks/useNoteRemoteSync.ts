@@ -85,6 +85,8 @@ interface RemoteSyncContext {
   isLocalReady: boolean;
   remoteCacheResult: { date: string; hasRemote: boolean } | null;
   pendingRemoteContent: string | null;
+  /** Tracks whether we've already refreshed for the current date (prevents re-refresh on every edit) */
+  hasRefreshedForDate: string | null;
 }
 
 const remoteCacheCheck = fromCallback(
@@ -213,6 +215,9 @@ const remoteSyncMachine = setup({
       return { pendingRemoteContent: event.content };
     }),
     clearPendingRemoteContent: assign({ pendingRemoteContent: null }),
+    markRefreshed: assign(({ context }: { context: RemoteSyncContext }) => ({
+      hasRefreshedForDate: context.date,
+    })),
   },
   guards: {
     shouldCheckRemoteCache: ({ context }: { context: RemoteSyncContext }) =>
@@ -227,7 +232,8 @@ const remoteSyncMachine = setup({
       !!context.repository &&
       context.online &&
       context.isLocalReady &&
-      context.localContent !== "",
+      context.localContent !== "" &&
+      context.hasRefreshedForDate !== context.date,
   },
 }).createMachine({
   id: "noteRemoteSync",
@@ -241,6 +247,7 @@ const remoteSyncMachine = setup({
     isLocalReady: false,
     remoteCacheResult: null,
     pendingRemoteContent: null,
+    hasRefreshedForDate: null,
   },
   on: {
     INPUTS_CHANGED: {
@@ -292,6 +299,7 @@ const remoteSyncMachine = setup({
       },
     },
     refreshing: {
+      entry: "markRefreshed",
       invoke: {
         id: "remoteRefresh",
         src: "remoteRefresh",

@@ -1,3 +1,5 @@
+import { useCallback } from "react";
+import type { DragEvent } from "react";
 import { formatDateDisplay } from "../../utils/date";
 import { canEditNote } from "../../utils/noteRules";
 import { NoteEditorView } from "./NoteEditorView";
@@ -5,6 +7,7 @@ import { useContentEditableEditor } from "./useContentEditableEditor";
 import { useSavingIndicator } from "./useSavingIndicator";
 import { useInlineImageUpload, useInlineImageUrls } from "./useInlineImages";
 import { useImageDragState } from "./useImageDragState";
+import { useDropIndicator } from "./useDropIndicator";
 
 interface NoteEditorProps {
   date: string;
@@ -81,6 +84,29 @@ export function NoteEditor({
     onDropComplete: endImageDrag,
   });
 
+  const { indicatorPosition, updateIndicator, clearIndicator } =
+    useDropIndicator({
+      editorRef,
+      isEditable,
+      isDraggingImage,
+    });
+
+  const handleDragOverWithIndicator = useCallback(
+    (event: DragEvent<HTMLDivElement>) => {
+      handleDragOver(event);
+      updateIndicator(event);
+    },
+    [handleDragOver, updateIndicator],
+  );
+
+  const handleDropWithIndicator = useCallback(
+    (event: DragEvent<HTMLDivElement>) => {
+      clearIndicator();
+      handleDrop(event);
+    },
+    [clearIndicator, handleDrop],
+  );
+
   useInlineImageUrls({
     date,
     content,
@@ -97,11 +123,12 @@ export function NoteEditor({
       editorRef={editorRef}
       onInput={handleInput}
       onPaste={handlePaste}
-      onDrop={handleDrop}
-      onDragOver={handleDragOver}
+      onDrop={handleDropWithIndicator}
+      onDragOver={handleDragOverWithIndicator}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
       isDraggingImage={isDraggingImage}
+      dropIndicatorPosition={indicatorPosition}
     />
   );
 }

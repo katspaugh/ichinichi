@@ -18,6 +18,16 @@
   opacity: 1;
 }
 
+.dropIndicator {
+  position: fixed;
+  height: 2px;
+  background-color: var(--color-link, #3b82f6);
+  pointer-events: none;
+  z-index: 41;
+  transform: translateY(-1px);
+  box-shadow: 0 0 4px var(--color-link, #3b82f6);
+}
+
 .header {
   display: flex;
   align-items: center;

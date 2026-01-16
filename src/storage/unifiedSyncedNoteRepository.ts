@@ -225,10 +225,26 @@ export function createUnifiedSyncedNoteEnvelopeRepository(
         });
 
         if (pushed.ok) {
-          await setNoteAndMeta(toLocalRecord(pushed.value), {
-            ...toLocalMeta(pushed.value, now),
-            lastSyncedAt: now,
-          });
+          // Re-read current meta to check if new edits happened during sync
+          const currentMeta = (await getNoteEnvelopeState(record.date)).meta;
+          const newEditsOccurred =
+            currentMeta && currentMeta.revision > meta.revision;
+
+          if (newEditsOccurred) {
+            // New edits happened during sync - only update server metadata,
+            // keep local content and pendingOp for next sync
+            await setNoteMeta({
+              ...currentMeta,
+              remoteId: pushed.value.id,
+              serverUpdatedAt: pushed.value.serverUpdatedAt,
+            });
+          } else {
+            // No new edits - safe to overwrite with pushed content
+            await setNoteAndMeta(toLocalRecord(pushed.value), {
+              ...toLocalMeta(pushed.value, now),
+              lastSyncedAt: now,
+            });
+          }
         } else if (pushed.error.type === "Conflict") {
           const remoteResult = await gateway.fetchNoteByDate(record.date);
           const remote = unwrapOrThrow(remoteResult);
@@ -304,7 +320,10 @@ export function createUnifiedSyncedNoteEnvelopeRepository(
     }
     // Skip if we just completed a refresh recently
     const lastCompleted = refreshDatesLastCompleted.get(year);
-    if (lastCompleted && Date.now() - lastCompleted < REFRESH_DATES_COOLDOWN_MS) {
+    if (
+      lastCompleted &&
+      Date.now() - lastCompleted < REFRESH_DATES_COOLDOWN_MS
+    ) {
       return;
     }
     const promise = (async () => {
@@ -523,10 +542,34 @@ export function createUnifiedSyncedNoteEnvelopeRepository(
       if (meta.pendingOp === "upsert") {
         const pushed = await pushLocal(localRecord, meta);
         if (pushed) {
-          const record = toLocalRecord(pushed);
-          const metaRecord = toLocalMeta(pushed, clock.now().toISOString());
-          await setNoteAndMeta(record, metaRecord);
-          return toNoteEnvelope(record, metaRecord);
+          const now = clock.now().toISOString();
+          // Re-read current state to check if new edits happened during push
+          const currentState = await getNoteEnvelopeState(date);
+          const currentMeta = currentState.meta;
+          const currentRecord = currentState.record;
+          const newEditsOccurred =
+            currentMeta && currentMeta.revision > meta.revision;
+
+          if (newEditsOccurred && currentRecord) {
+            // New edits happened during push - only update server metadata,
+            // keep local content and pendingOp for next sync
+            await setNoteMeta({
+              ...currentMeta,
+              remoteId: pushed.id,
+              serverUpdatedAt: pushed.serverUpdatedAt,
+            });
+            return toNoteEnvelope(currentRecord, {
+              ...currentMeta,
+              remoteId: pushed.id,
+              serverUpdatedAt: pushed.serverUpdatedAt,
+            });
+          } else {
+            // No new edits - safe to overwrite with pushed content
+            const record = toLocalRecord(pushed);
+            const metaRecord = toLocalMeta(pushed, now);
+            await setNoteAndMeta(record, metaRecord);
+            return toNoteEnvelope(record, metaRecord);
+          }
         }
         return toNoteEnvelope(localRecord, meta);
       }
@@ -575,9 +618,9 @@ export function createUnifiedSyncedNoteEnvelopeRepository(
       return snapshot.envelope;
     },
     async refreshEnvelope(date: string): Promise<NoteEnvelope | null> {
-    if (!connectivity.isOnline()) {
-      return null;
-    }
+      if (!connectivity.isOnline()) {
+        return null;
+      }
       const snapshot = await getLocalSnapshot(date);
       try {
         return await reconcileRemote(date, snapshot.record, snapshot.meta);

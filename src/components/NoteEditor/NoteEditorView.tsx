@@ -8,6 +8,7 @@ import type {
 } from "react";
 import { NoteEditorHeader } from "./NoteEditorHeader";
 import { NoteEditorContent } from "./NoteEditorContent";
+import type { DropIndicatorPosition } from "./useDropIndicator";
 import styles from "./NoteEditor.module.css";
 
 interface NoteEditorViewProps {
@@ -24,6 +25,7 @@ interface NoteEditorViewProps {
   onClick?: (event: MouseEvent<HTMLDivElement>) => void;
   onKeyDown?: (event: KeyboardEvent<HTMLDivElement>) => void;
   isDraggingImage?: boolean;
+  dropIndicatorPosition?: DropIndicatorPosition | null;
 }
 
 export function NoteEditorView({
@@ -40,11 +42,23 @@ export function NoteEditorView({
   onClick,
   onKeyDown,
   isDraggingImage = false,
+  dropIndicatorPosition,
 }: NoteEditorViewProps) {
   return (
     <div className={styles.editor}>
       {isDraggingImage && (
         <div className={styles.dragOverlay} aria-hidden="true"></div>
+      )}
+      {dropIndicatorPosition && (
+        <div
+          className={styles.dropIndicator}
+          style={{
+            top: dropIndicatorPosition.top,
+            left: dropIndicatorPosition.left,
+            width: dropIndicatorPosition.width,
+          }}
+          aria-hidden="true"
+        />
       )}
       <NoteEditorHeader
         formattedDate={formattedDate}

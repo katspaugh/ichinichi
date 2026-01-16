@@ -29,6 +29,7 @@
   .toast {
     flex-direction: column;
     align-items: flex-start;
+    width: min(92vw, 360px);
   }
 
   .actions {

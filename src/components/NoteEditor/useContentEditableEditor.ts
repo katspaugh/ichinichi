@@ -27,9 +27,9 @@ interface ContentEditableOptions {
   onDropComplete?: () => void;
 }
 
-function setCaretFromPoint(x: number, y: number) {
+function setCaretFromPoint(x: number, y: number): boolean {
   const selection = window.getSelection();
-  if (!selection) return;
+  if (!selection) return false;
 
   let range: Range | null = null;
   if (document.caretRangeFromPoint) {
@@ -51,7 +51,9 @@ function setCaretFromPoint(x: number, y: number) {
   if (range) {
     selection.removeAllRanges();
     selection.addRange(range);
+    return true;
   }
+  return false;
 }
 
 function insertNodeAtCursor(node: Node) {
@@ -74,6 +76,38 @@ function placeCaretAtEnd(element: HTMLElement) {
   range.collapse(false);
   selection.removeAllRanges();
   selection.addRange(range);
+}
+
+/**
+ * Get the bottom Y coordinate of the actual content in the editor.
+ */
+function getContentBottom(editorEl: HTMLElement): number {
+  const children = Array.from(editorEl.childNodes);
+  let maxBottom = editorEl.getBoundingClientRect().top;
+
+  for (let i = children.length - 1; i >= 0; i--) {
+    const child = children[i];
+
+    // Skip trailing BR elements and empty text nodes
+    if (child.nodeName === "BR") continue;
+    if (child.nodeType === Node.TEXT_NODE && !child.textContent?.trim())
+      continue;
+
+    if (child.nodeType === Node.ELEMENT_NODE) {
+      const childRect = (child as HTMLElement).getBoundingClientRect();
+      maxBottom = Math.max(maxBottom, childRect.bottom);
+      break;
+    } else if (child.nodeType === Node.TEXT_NODE) {
+      // For text nodes, create a range to get its bounding rect
+      const range = document.createRange();
+      range.selectNodeContents(child);
+      const rect = range.getBoundingClientRect();
+      maxBottom = Math.max(maxBottom, rect.bottom);
+      break;
+    }
+  }
+
+  return maxBottom;
 }
 
 function formatTimestampLabel(timestamp: string): string {
@@ -167,7 +201,15 @@ export function useContentEditableEditor({
       currentBlock = el;
     }
 
-    // If we're in a different block than last time (or first edit)
+    // On first edit of this session, just track the block without inserting timestamp.
+    // This prevents inserting a timestamp when the user is editing an existing block
+    // (e.g., appending text to an existing paragraph).
+    if (lastEditedBlockRef.current === null) {
+      lastEditedBlockRef.current = currentBlock;
+      return;
+    }
+
+    // If we're in a different block than last time
     if (currentBlock && currentBlock !== lastEditedBlockRef.current) {
       const now = Date.now();
       const lastEdit = getLastEditTimestamp(el);
@@ -177,17 +219,27 @@ export function useContentEditableEditor({
         !hasInsertedTimestampRef.current &&
         (lastEdit === null || now - lastEdit > ADDITION_WINDOW_MS)
       ) {
-        const timestamp = new Date(now).toISOString();
-        const hr = createTimestampHr(timestamp);
+        // Check if this block already has a timestamp HR immediately before it
+        // (i.e., we're editing an existing timestamped block, not creating new content)
+        const prevSibling =
+          currentBlock === el ? el.firstChild : currentBlock.previousSibling;
+        const hasPrecedingTimestamp =
+          prevSibling instanceof HTMLHRElement &&
+          prevSibling.hasAttribute(TIMESTAMP_ATTR);
 
-        if (currentBlock === el) {
-          el.insertBefore(hr, el.firstChild);
-        } else {
-          // Insert before the current block element
-          currentBlock.parentNode?.insertBefore(hr, currentBlock);
+        if (!hasPrecedingTimestamp) {
+          const timestamp = new Date(now).toISOString();
+          const hr = createTimestampHr(timestamp);
+
+          if (currentBlock === el) {
+            el.insertBefore(hr, el.firstChild);
+          } else {
+            // Insert before the current block element
+            currentBlock.parentNode?.insertBefore(hr, currentBlock);
+          }
+
+          lastUserInputRef.current = now;
         }
-
-        lastUserInputRef.current = now;
         hasInsertedTimestampRef.current = true;
       }
 
@@ -451,7 +503,21 @@ export function useContentEditableEditor({
       if (!file.type.startsWith("image/")) return;
 
       event.preventDefault();
-      setCaretFromPoint(event.clientX, event.clientY);
+
+      const el = editorRef.current;
+      if (!el) return;
+
+      // Check if drop is below the content - if so, place caret at end
+      const contentBottom = getContentBottom(el);
+      if (event.clientY > contentBottom) {
+        placeCaretAtEnd(el);
+      } else {
+        // Try to set caret from drop point, fall back to end of editor
+        const caretSet = setCaretFromPoint(event.clientX, event.clientY);
+        if (!caretSet) {
+          placeCaretAtEnd(el);
+        }
+      }
 
       const placeholder = document.createElement("img");
       placeholder.setAttribute("data-image-id", "uploading");
