@@ -88,6 +88,66 @@ src/
   types/             shared types
 ```
 
+## XState Rules
+
+When writing or modifying XState machines, follow these rules to avoid runtime errors:
+
+1. **Ban dot-path targets → use #id targets.**
+
+   ```typescript
+   // BAD: Error-prone string paths
+   target: ".active.ready"
+   target: ".disabled"
+
+   // GOOD: Use explicit state IDs
+   states: {
+     disabled: { id: "disabled", ... },
+     active: {
+       states: {
+         ready: { id: "ready", ... }
+       }
+     }
+   }
+   target: "#disabled"
+   target: "#ready"
+   ```
+
+2. **Ban sendTo("id") → use actor references via system.get().**
+
+   ```typescript
+   // BAD: Throws if actor doesn't exist
+   actions: sendTo("syncResources", { type: "SYNC_NOW" });
+
+   // GOOD: Safe actor reference lookup
+   actions: enqueueActions(({ system }) => {
+     const actor = system.get("syncResources");
+     if (actor) {
+       actor.send({ type: "SYNC_NOW" });
+     }
+   });
+   ```
+
+3. **Prefer inline actions/guards; use setup() maps only when you need reuse.**
+
+   ```typescript
+   // BAD: String reference, error-prone, no type checking
+   guard: "isOnline",
+   actions: ["updateInputs", "setStatusIdle"],
+
+   // GOOD: Inline with full type inference
+   guard: ({ context }) => context.online,
+   actions: assign(({ event }) => ({
+     repository: event.repository,
+     status: SyncStatus.Idle,
+   })),
+   ```
+
+These patterns ensure:
+
+- Compile-time checking where possible
+- Runtime safety for actor communication
+- Better type inference throughout
+
 ## Reference Docs
 
 - `docs/app-spec.md` for full business logic and flows.

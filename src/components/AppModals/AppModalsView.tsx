@@ -54,6 +54,7 @@ interface AppModalsViewProps {
     shouldRenderNoteEditor: boolean;
     isClosing: boolean;
     hasEdits: boolean;
+    isSaving: boolean;
     isDecrypting: boolean;
     isContentReady: boolean;
     isOfflineStub: boolean;
@@ -127,6 +128,7 @@ export function AppModalsView({
         shouldRenderNoteEditor={noteModal.shouldRenderNoteEditor}
         isClosing={noteModal.isClosing}
         hasEdits={noteModal.hasEdits}
+        isSaving={noteModal.isSaving}
         isDecrypting={noteModal.isDecrypting}
         isContentReady={noteModal.isContentReady}
         isOfflineStub={noteModal.isOfflineStub}

@@ -10,6 +10,7 @@ interface NoteModalProps {
   shouldRenderNoteEditor: boolean;
   isClosing: boolean;
   hasEdits: boolean;
+  isSaving: boolean;
   isDecrypting: boolean;
   isContentReady: boolean;
   isOfflineStub: boolean;
@@ -28,6 +29,7 @@ export function NoteModal({
   shouldRenderNoteEditor,
   isClosing,
   hasEdits,
+  isSaving,
   isDecrypting,
   isContentReady,
   isOfflineStub,
@@ -49,6 +51,7 @@ export function NoteModal({
               onChange={onChange}
               isClosing={isClosing}
               hasEdits={hasEdits}
+              isSaving={isSaving}
               isDecrypting={isDecrypting}
               isContentReady={isContentReady}
               isOfflineStub={isOfflineStub}

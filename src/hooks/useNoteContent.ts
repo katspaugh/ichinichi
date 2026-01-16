@@ -14,6 +14,8 @@ export interface UseNoteContentReturn {
   setContent: (content: string) => void;
   isDecrypting: boolean;
   hasEdits: boolean;
+  /** True when the note is being saved (dirty or saving state) */
+  isSaving: boolean;
   isContentReady: boolean;
   isOfflineStub: boolean;
 }
@@ -256,6 +258,7 @@ export function useNoteContent(
     setContent: local.setContent,
     isDecrypting: local.isLoading,
     hasEdits: local.hasEdits,
+    isSaving: local.isSaving,
     isContentReady: local.isReady,
     isOfflineStub,
   };

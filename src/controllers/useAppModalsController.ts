@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { isContentEmpty } from "../utils/sanitize";
 import { AppMode } from "../hooks/useAppMode";
 import { useModalTransition } from "../hooks/useModalTransition";
@@ -10,6 +10,45 @@ import { useAppModeContext } from "../contexts/appModeContext";
 import { useNoteRepositoryContext } from "../contexts/noteRepositoryContext";
 import { useUrlStateContext } from "../contexts/urlStateContext";
 import { useVaultUiState } from "../hooks/useVaultUiState";
+
+/**
+ * Returns true only after the input has been true for at least `delayMs`.
+ * Returns false immediately when input becomes false.
+ */
+function useDelayedTrue(value: boolean, delayMs: number): boolean {
+  const [delayedValue, setDelayedValue] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (value) {
+      // Start timer to show after delay
+      timerRef.current = setTimeout(() => {
+        setDelayedValue(true);
+      }, delayMs);
+
+      return () => {
+        if (timerRef.current) {
+          clearTimeout(timerRef.current);
+          timerRef.current = null;
+        }
+      };
+    } else {
+      // Clear any pending timer when value becomes false
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+      // Reset delayed value via timeout to satisfy lint rule
+      const resetTimer = setTimeout(() => {
+        setDelayedValue(false);
+      }, 0);
+      return () => clearTimeout(resetTimer);
+    }
+  }, [value, delayMs]);
+
+  // Return false immediately when value is false (don't wait for state update)
+  return value ? delayedValue : false;
+}
 
 export function useAppModalsController() {
   const {
@@ -44,6 +83,7 @@ export function useAppModalsController() {
     isContentReady,
     isOfflineStub,
     hasEdits,
+    isSaving,
     noteDates,
     triggerSync,
   } = useNoteRepositoryContext();
@@ -62,7 +102,9 @@ export function useAppModalsController() {
   const handleCloseComplete = useCallback(() => {
     const hasLocalNote = noteDates.size > 0 || !isContentEmpty(content);
     const shouldPromptModeChoice = mode === AppMode.Local && hasLocalNote;
-    if (mode === AppMode.Cloud && hasEdits) {
+    // In cloud mode, always trigger immediate sync on close to push any pending ops
+    // (the note may have been saved locally but not yet synced to cloud)
+    if (mode === AppMode.Cloud) {
       triggerSync({ immediate: true });
     }
     navigateBackToCalendar();
@@ -71,7 +113,6 @@ export function useAppModalsController() {
     }
   }, [
     content,
-    hasEdits,
     mode,
     navigateBackToCalendar,
     noteDates.size,
@@ -132,10 +173,13 @@ export function useAppModalsController() {
     };
   }, [mode, isVaultUnlocked, triggerSync]);
 
-  const isSigningIn =
+  const isSigningInRaw =
     mode === AppMode.Cloud &&
     auth.authState === AuthState.SignedIn &&
     (!cloudVault.isReady || cloudVault.isBusy);
+  // Delay showing "Signing in..." to avoid flash on page reload
+  // when session is restored quickly
+  const isSigningIn = useDelayedTrue(isSigningInRaw, 300);
   const vaultUiState = useVaultUiState({
     showIntro,
     isModeChoiceOpen,
@@ -209,6 +253,7 @@ export function useAppModalsController() {
       shouldRenderNoteEditor,
       isClosing,
       hasEdits,
+      isSaving,
       isDecrypting,
       isContentReady,
       isOfflineStub,

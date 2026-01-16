@@ -12,6 +12,8 @@ interface NoteEditorProps {
   onChange: (content: string) => void;
   isClosing: boolean;
   hasEdits: boolean;
+  /** True when the note is being saved (dirty or saving state) */
+  isSaving: boolean;
   isDecrypting?: boolean;
   isContentReady: boolean;
   isOfflineStub?: boolean;
@@ -23,6 +25,7 @@ export function NoteEditor({
   onChange,
   isClosing,
   hasEdits,
+  isSaving,
   isDecrypting = false,
   isContentReady,
   isOfflineStub = false,
@@ -30,10 +33,15 @@ export function NoteEditor({
   const canEdit = canEditNote(date);
   const isEditable = canEdit && !isDecrypting && isContentReady;
   const formattedDate = formatDateDisplay(date);
-  const { showSaving, scheduleSavingIndicator } =
-    useSavingIndicator(isEditable);
+  const { showSaving, scheduleSavingIndicator } = useSavingIndicator(
+    isEditable,
+    isSaving,
+  );
 
-  const shouldShowSaving = isEditable && hasEdits && (showSaving || isClosing);
+  // Show "Saving..." when:
+  // - The useSavingIndicator hook says to show it (handles idle timer + minimum display), OR
+  // - We're closing the modal and still have unsaved changes (hasEdits or isSaving)
+  const shouldShowSaving = showSaving || (isClosing && (isSaving || hasEdits));
   const statusText = isDecrypting
     ? "Decrypting..."
     : shouldShowSaving
@@ -44,9 +52,9 @@ export function NoteEditor({
       ? "Loading..."
       : isOfflineStub
         ? "This note can't be loaded while offline. Go online to view it."
-      : isEditable
-        ? "Write your note for today..."
-        : "No note for this day";
+        : isEditable
+          ? "Write your note for today..."
+          : "No note for this day";
 
   const { isDraggingImage, endImageDrag } = useImageDragState();
 

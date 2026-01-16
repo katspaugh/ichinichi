@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AppMode } from "./useAppMode";
 import { migrateLegacyData } from "../storage/unifiedMigration";
 
@@ -24,10 +24,14 @@ export function useUnifiedMigration({
 }: UseUnifiedMigrationOptions): UseUnifiedMigrationReturn {
   const [isMigrating, setIsMigrating] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  // Use a ref to track migration state to avoid including isMigrating in deps
+  // which would cause the effect to re-run when isMigrating changes
+  const isMigratingRef = useRef(false);
 
   useEffect(() => {
-    if (!targetKey || isMigrating) return;
+    if (!targetKey || isMigratingRef.current) return;
     let cancelled = false;
+    isMigratingRef.current = true;
 
     const runMigration = async () => {
       setIsMigrating(true);
@@ -53,6 +57,7 @@ export function useUnifiedMigration({
         }
         console.error("Unified migration error:", caught);
       } finally {
+        isMigratingRef.current = false;
         if (!cancelled) {
           setIsMigrating(false);
         }
@@ -64,7 +69,7 @@ export function useUnifiedMigration({
     return () => {
       cancelled = true;
     };
-  }, [targetKey, localKey, cloudKey, mode, triggerSync, isMigrating]);
+  }, [targetKey, localKey, cloudKey, mode, triggerSync]);
 
   return { isMigrating, error };
 }

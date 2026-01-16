@@ -200,7 +200,7 @@ const noteDatesMachine = setup({
     INPUTS_CHANGED: [
       {
         guard: "inputsChanged",
-        target: "refreshing",
+        target: ".refreshing",
         actions: ["applyInputs", "clearPendingRefresh"],
       },
       {

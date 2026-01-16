@@ -10,5 +10,9 @@ module.exports = {
       },
     ],
   },
+  moduleNameMapper: {
+    "\\.module\\.css$": "identity-obj-proxy",
+    "\\.css$": "<rootDir>/src/__tests__/__mocks__/styleMock.js",
+  },
   setupFiles: ["<rootDir>/jest.setup.cjs"],
 };

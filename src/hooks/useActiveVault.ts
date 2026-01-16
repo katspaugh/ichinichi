@@ -72,6 +72,7 @@ interface ActiveVaultContext {
   localKeyring: Map<string, CryptoKey>;
   localKeyId: string | null;
   restoredCloudVaultKey: CryptoKey | null;
+  hasCachedCloudKeys: boolean;
 }
 
 const localKeyringLoader = fromCallback(
@@ -220,6 +221,7 @@ const activeVaultMachine = setup({
       }
       return { restoredCloudVaultKey: event.vaultKey };
     }),
+    markCloudKeysCached: assign({ hasCachedCloudKeys: true }),
   },
   guards: {
     shouldRestoreCloudKey: ({ context }: { context: ActiveVaultContext }) =>
@@ -228,9 +230,11 @@ const activeVaultMachine = setup({
       !context.vaultKey &&
       context.mode === AppMode.Cloud,
     shouldLoadLocalKeyring: ({ context }: { context: ActiveVaultContext }) =>
-      !!context.vaultKey,
+      !!context.vaultKey && !context.localKeyId,
     shouldCacheCloudKeys: ({ context }: { context: ActiveVaultContext }) =>
-      !!context.vaultKey && context.cloudKeyring.size > 0,
+      !!context.vaultKey &&
+      context.cloudKeyring.size > 0 &&
+      !context.hasCachedCloudKeys,
   },
 }).createMachine({
   id: "activeVault",
@@ -245,11 +249,12 @@ const activeVaultMachine = setup({
     localKeyring: new Map(),
     localKeyId: null,
     restoredCloudVaultKey: null,
+    hasCachedCloudKeys: false,
   },
   on: {
     INPUTS_CHANGED: {
       actions: "applyInputs",
-      target: "evaluate",
+      target: ".evaluate",
     },
   },
   states: {
@@ -315,6 +320,7 @@ const activeVaultMachine = setup({
       on: {
         CLOUD_KEY_CACHED: {
           target: "idle",
+          actions: "markCloudKeysCached",
         },
         INPUTS_CHANGED: {
           target: "evaluate",

@@ -15,13 +15,15 @@ export interface UseLocalNoteContentReturn {
   setContent: (content: string) => void;
   isLoading: boolean;
   hasEdits: boolean;
+  /** True when the note is being saved (dirty or saving state) */
+  isSaving: boolean;
   isReady: boolean;
   error: Error | null;
   /** Allows external code to update content (e.g., from remote sync) */
   applyRemoteUpdate: (content: string) => void;
 }
 
-type LocalNoteEvent =
+export type LocalNoteEvent =
   | {
       type: "INPUTS_CHANGED";
       date: string | null;
@@ -130,7 +132,7 @@ const saveNoteActor = fromCallback(
   },
 );
 
-const localNoteMachine = setup({
+export const localNoteMachine = setup({
   types: {
     context: {} as LocalNoteContext,
     events: {} as LocalNoteEvent,
@@ -499,12 +501,14 @@ export function useLocalNoteContent(
     stateValue === "dirty" ||
     stateValue === "saving" ||
     stateValue === "error";
+  const isSaving = stateValue === "dirty" || stateValue === "saving";
 
   return {
     content: state.context.content,
     setContent,
     isLoading: stateValue === "loading",
     hasEdits: state.context.hasEdits,
+    isSaving,
     isReady,
     error: state.context.error,
     applyRemoteUpdate,

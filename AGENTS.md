@@ -4,6 +4,18 @@
 
 DailyNote is a minimalist daily notes app with a year-at-a-glance calendar. It is local-first with optional cloud sync. Notes are encrypted client-side and stored in IndexedDB. Only today's note is editable; past notes are read-only; future dates are disabled.
 
+## Development Workflow
+
+### Bug Fixing Process
+
+When fixing a bug, always follow this process:
+
+1. **Create a test reproducing the bug first** — Write a failing test that demonstrates the bug before making any code changes. This ensures you understand the bug and provides a regression test.
+2. **Fix the bug** — Make the minimal changes needed to fix the issue.
+3. **Verify the test passes** — Run the test to confirm the fix works.
+4. **Run all tests** — Ensure no regressions with `npm test`.
+5. **Run type check** — Verify no type errors with `npm run typecheck`.
+
 ## Core Rules
 
 - One note per day, keyed by date string DD-MM-YYYY.

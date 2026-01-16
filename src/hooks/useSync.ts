@@ -1,6 +1,6 @@
 import { useCallback, useEffect } from "react";
 import { useMachine } from "@xstate/react";
-import { assign, fromCallback, sendTo, setup } from "xstate";
+import { assign, fromCallback, sendTo, setup, type ActorRefFrom } from "xstate";
 import { SyncStatus } from "../types";
 import type { UnifiedSyncedNoteRepository } from "../domain/notes/hydratingSyncedNoteRepository";
 import type { PendingOpsSummary, SyncService } from "../domain/sync";
@@ -28,15 +28,20 @@ const initialPendingOps: PendingOpsSummary = {
   total: 0,
 };
 
-type SyncInputsChangedEvent = {
-  type: "INPUTS_CHANGED";
-  repository: UnifiedSyncedNoteRepository | null;
-  enabled: boolean;
-  online: boolean;
-};
+type SyncResourceEvent =
+  | { type: "REQUEST_SYNC"; immediate: boolean }
+  | { type: "REQUEST_IDLE_SYNC"; delayMs?: number }
+  | { type: "SYNC_NOW" };
+
+type PendingOpsPollerEvent = { type: "REFRESH" };
 
 type SyncMachineEvent =
-  | SyncInputsChangedEvent
+  | {
+      type: "INPUTS_CHANGED";
+      repository: UnifiedSyncedNoteRepository | null;
+      enabled: boolean;
+      online: boolean;
+    }
   | { type: "REQUEST_SYNC"; immediate?: boolean }
   | { type: "REQUEST_IDLE_SYNC"; delayMs?: number }
   | { type: "SYNC_REQUESTED"; intent: { immediate: boolean } }
@@ -45,13 +50,6 @@ type SyncMachineEvent =
   | { type: "SYNC_FAILED"; error: string }
   | { type: "PENDING_OPS_REFRESHED"; summary: PendingOpsSummary }
   | { type: "PENDING_OPS_FAILED" };
-
-type SyncResourceEvent =
-  | { type: "REQUEST_SYNC"; immediate: boolean }
-  | { type: "REQUEST_IDLE_SYNC"; delayMs?: number }
-  | { type: "SYNC_NOW" };
-
-type PendingOpsPollerEvent = { type: "REFRESH" };
 
 interface SyncMachineContext {
   repository: UnifiedSyncedNoteRepository | null;
@@ -63,67 +61,57 @@ interface SyncMachineContext {
   status: SyncStatus;
 }
 
-const syncResources = fromCallback(
-  ({
-    sendBack,
-    receive,
-    input,
-  }: {
-    sendBack: (event: SyncMachineEvent) => void;
-    receive: (listener: (event: SyncResourceEvent) => void) => void;
-    input: { repository: UnifiedSyncedNoteRepository };
-  }) => {
-    const syncService: SyncService = createSyncService(
-      input.repository,
-      pendingOpsSource,
-      {
-        onSyncStart: () => sendBack({ type: "SYNC_STARTED" }),
-        onSyncComplete: (status) => sendBack({ type: "SYNC_FINISHED", status }),
-        onSyncError: (error) =>
-          sendBack({
-            type: "SYNC_FAILED",
-            error: formatSyncError(error),
-          }),
+// Actor definitions - these need to be in setup() for invoke to work
+const syncResourcesActor = fromCallback<
+  SyncResourceEvent,
+  { repository: UnifiedSyncedNoteRepository }
+>(({ sendBack, receive, input }) => {
+  const syncService: SyncService = createSyncService(
+    input.repository,
+    pendingOpsSource,
+    {
+      onSyncStart: () => {
+        sendBack({ type: "SYNC_STARTED" });
       },
-    );
+      onSyncComplete: (status) => {
+        sendBack({ type: "SYNC_FINISHED", status });
+      },
+      onSyncError: (error) =>
+        sendBack({
+          type: "SYNC_FAILED",
+          error: formatSyncError(error),
+        }),
+    },
+  );
 
-    const intentScheduler = createSyncIntentScheduler((event) => {
-      if (event.type === "SYNC_REQUESTED") {
-        sendBack({ type: "SYNC_REQUESTED", intent: event.intent });
-      }
-    }, pendingOpsSource);
+  const intentScheduler = createSyncIntentScheduler((event) => {
+    if (event.type === "SYNC_REQUESTED") {
+      sendBack({ type: "SYNC_REQUESTED", intent: event.intent });
+    }
+  }, pendingOpsSource);
 
-    receive((event) => {
-      switch (event.type) {
-        case "REQUEST_SYNC":
-          intentScheduler.requestSync({ immediate: event.immediate });
-          break;
-        case "REQUEST_IDLE_SYNC":
-          intentScheduler.requestIdleSync({ delayMs: event.delayMs });
-          break;
-        case "SYNC_NOW":
-          void syncService.syncNow();
-          break;
-        default:
-          break;
-      }
-    });
+  receive((event) => {
+    switch (event.type) {
+      case "REQUEST_SYNC":
+        intentScheduler.requestSync({ immediate: event.immediate });
+        break;
+      case "REQUEST_IDLE_SYNC":
+        intentScheduler.requestIdleSync({ delayMs: event.delayMs });
+        break;
+      case "SYNC_NOW":
+        void syncService.syncNow();
+        break;
+    }
+  });
 
-    return () => {
-      syncService.dispose();
-      intentScheduler.dispose();
-    };
-  },
-);
+  return () => {
+    syncService.dispose();
+    intentScheduler.dispose();
+  };
+});
 
-const pendingOpsPoller = fromCallback(
-  ({
-    sendBack,
-    receive,
-  }: {
-    sendBack: (event: SyncMachineEvent) => void;
-    receive: (listener: (event: PendingOpsPollerEvent) => void) => void;
-  }) => {
+const pendingOpsPollerActor = fromCallback<PendingOpsPollerEvent>(
+  ({ sendBack, receive }) => {
     let disposed = false;
     const refresh = async () => {
       try {
@@ -157,109 +145,21 @@ const pendingOpsPoller = fromCallback(
   },
 );
 
-const syncMachine = setup({
+type SyncResourcesActorRef = ActorRefFrom<typeof syncResourcesActor>;
+type PendingOpsPollerActorRef = ActorRefFrom<typeof pendingOpsPollerActor>;
+
+// These type aliases are used for type inference with sendTo
+void (null as unknown as SyncResourcesActorRef);
+void (null as unknown as PendingOpsPollerActorRef);
+
+export const syncMachine = setup({
   types: {
     context: {} as SyncMachineContext,
     events: {} as SyncMachineEvent,
   },
   actors: {
-    syncResources,
-    pendingOpsPoller,
-  },
-  actions: {
-    updateInputs: assign((args: { event: SyncMachineEvent }) => {
-      const { event } = args;
-      if (event.type !== "INPUTS_CHANGED") {
-        return {};
-      }
-      return {
-        repository: event.repository,
-        enabled: event.enabled,
-        online: event.online,
-      };
-    }),
-    resetPendingOps: assign({ pendingOps: initialPendingOps }),
-    setPendingOps: assign((args: { event: SyncMachineEvent }) => {
-      const { event } = args;
-      return event.type === "PENDING_OPS_REFRESHED"
-        ? { pendingOps: event.summary }
-        : {};
-    }),
-    clearSyncError: assign({ syncError: null }),
-    setStatusIdle: assign({ status: SyncStatus.Idle }),
-    setStatusOffline: assign({ status: SyncStatus.Offline }),
-    setStatusSyncing: assign({ status: SyncStatus.Syncing }),
-    setStatusError: assign({ status: SyncStatus.Error }),
-    requestImmediateSync: sendTo("syncResources", {
-      type: "REQUEST_SYNC",
-      immediate: true,
-    }),
-    requestSync: sendTo(
-      "syncResources",
-      (args: { event: SyncMachineEvent }) => {
-        const { event } = args;
-        if (event.type !== "REQUEST_SYNC") {
-          return { type: "REQUEST_SYNC", immediate: false };
-        }
-        return { type: "REQUEST_SYNC", immediate: Boolean(event.immediate) };
-      },
-    ),
-    requestIdleSync: sendTo(
-      "syncResources",
-      (args: { event: SyncMachineEvent }) => {
-        const { event } = args;
-        if (event.type !== "REQUEST_IDLE_SYNC") {
-          return { type: "REQUEST_IDLE_SYNC" };
-        }
-        return { type: "REQUEST_IDLE_SYNC", delayMs: event.delayMs };
-      },
-    ),
-    dispatchSync: sendTo("syncResources", { type: "SYNC_NOW" }),
-    refreshPendingOps: sendTo("pendingOpsPoller", { type: "REFRESH" }),
-    applySyncFinished: assign(
-      (args: { event: SyncMachineEvent; context: SyncMachineContext }) => {
-        const { event, context } = args;
-        if (event.type !== "SYNC_FINISHED") {
-          return {};
-        }
-        const next: Partial<SyncMachineContext> = {
-          status: event.status,
-        };
-        if (event.status === SyncStatus.Synced) {
-          next.lastSynced = new Date();
-          next.syncError = null;
-        } else if (event.status !== SyncStatus.Error) {
-          next.syncError = null;
-        } else {
-          next.syncError = context.syncError;
-        }
-        return next;
-      },
-    ),
-    applySyncFailed: assign((args: { event: SyncMachineEvent }) => {
-      const { event } = args;
-      if (event.type !== "SYNC_FAILED") {
-        return {};
-      }
-      return {
-        status: SyncStatus.Error,
-        syncError: event.error,
-      };
-    }),
-  },
-  guards: {
-    shouldDisable: ({ event }: { event: SyncMachineEvent }) =>
-      event.type === "INPUTS_CHANGED" && (!event.enabled || !event.repository),
-    shouldGoOffline: ({ event }: { event: SyncMachineEvent }) =>
-      event.type === "INPUTS_CHANGED" &&
-      event.enabled &&
-      !!event.repository &&
-      !event.online,
-    isOnline: ({ context }: { context: SyncMachineContext }) => context.online,
-    isStatusOffline: ({ event }: { event: SyncMachineEvent }) =>
-      event.type === "SYNC_FINISHED" && event.status === SyncStatus.Offline,
-    isStatusError: ({ event }: { event: SyncMachineEvent }) =>
-      event.type === "SYNC_FINISHED" && event.status === SyncStatus.Error,
+    syncResources: syncResourcesActor,
+    pendingOpsPoller: pendingOpsPollerActor,
   },
 }).createMachine({
   id: "sync",
@@ -273,40 +173,50 @@ const syncMachine = setup({
     pendingOps: initialPendingOps,
     status: SyncStatus.Idle,
   },
-  on: {
-    INPUTS_CHANGED: [
-      {
-        guard: "shouldDisable",
-        target: "disabled",
-        actions: [
-          "updateInputs",
-          "resetPendingOps",
-          "clearSyncError",
-          "setStatusIdle",
+  states: {
+    disabled: {
+      id: "disabled",
+      on: {
+        INPUTS_CHANGED: [
+          {
+            guard: ({ event }) => !event.enabled || !event.repository,
+            actions: assign(({ event }) => ({
+              repository: event.repository,
+              enabled: event.enabled,
+              online: event.online,
+            })),
+          },
+          {
+            guard: ({ event }) =>
+              event.enabled && !!event.repository && !event.online,
+            target: "#offline",
+            actions: assign(({ event }) => ({
+              repository: event.repository,
+              enabled: event.enabled,
+              online: event.online,
+              status: SyncStatus.Offline,
+            })),
+          },
+          {
+            target: "#initializing",
+            actions: assign(({ event }) => ({
+              repository: event.repository,
+              enabled: event.enabled,
+              online: event.online,
+              status: SyncStatus.Idle,
+            })),
+          },
         ],
       },
-      {
-        guard: "shouldGoOffline",
-        target: "active.offline",
-        reenter: true,
-        actions: ["updateInputs", "setStatusOffline"],
-      },
-      {
-        target: "active.ready",
-        reenter: true,
-        actions: ["updateInputs", "setStatusIdle", "requestImmediateSync"],
-      },
-    ],
-  },
-  states: {
-    disabled: {},
+    },
     active: {
-      entry: "clearSyncError",
+      id: "active",
+      entry: assign({ syncError: null }),
       invoke: [
         {
           id: "syncResources",
           src: "syncResources",
-          input: ({ context }: { context: SyncMachineContext }) => ({
+          input: ({ context }) => ({
             repository: context.repository as UnifiedSyncedNoteRepository,
           }),
         },
@@ -316,56 +226,145 @@ const syncMachine = setup({
         },
       ],
       on: {
+        INPUTS_CHANGED: [
+          {
+            guard: ({ event }) => !event.enabled || !event.repository,
+            target: "#disabled",
+            actions: assign(({ event }) => ({
+              repository: event.repository,
+              enabled: event.enabled,
+              online: event.online,
+              pendingOps: initialPendingOps,
+              syncError: null,
+              status: SyncStatus.Idle,
+            })),
+          },
+          {
+            guard: ({ event }) =>
+              event.enabled && !!event.repository && !event.online,
+            target: "#offline",
+            actions: assign(({ event }) => ({
+              repository: event.repository,
+              enabled: event.enabled,
+              online: event.online,
+              status: SyncStatus.Offline,
+            })),
+          },
+          {
+            // Stay in current child state, just update inputs
+            actions: assign(({ event }) => ({
+              repository: event.repository,
+              enabled: event.enabled,
+              online: event.online,
+            })),
+          },
+        ],
         REQUEST_SYNC: {
-          actions: "requestSync",
+          actions: sendTo("syncResources", ({ event }) => ({
+            type: "REQUEST_SYNC" as const,
+            immediate: Boolean(event.immediate),
+          })),
         },
         REQUEST_IDLE_SYNC: {
-          actions: "requestIdleSync",
+          actions: [
+            sendTo("pendingOpsPoller", { type: "REFRESH" as const }),
+            sendTo("syncResources", ({ event }) => ({
+              type: "REQUEST_IDLE_SYNC" as const,
+              delayMs: event.delayMs,
+            })),
+          ],
         },
         SYNC_REQUESTED: {
-          guard: "isOnline",
-          actions: "dispatchSync",
+          guard: ({ context }) => context.online,
+          actions: sendTo("syncResources", { type: "SYNC_NOW" as const }),
         },
         SYNC_STARTED: {
-          target: ".syncing",
-          actions: "setStatusSyncing",
+          target: "#syncing",
+          actions: assign({ status: SyncStatus.Syncing }),
         },
         SYNC_FINISHED: [
           {
-            guard: "isStatusOffline",
-            target: ".offline",
-            actions: ["applySyncFinished", "refreshPendingOps"],
+            guard: ({ event }) => event.status === SyncStatus.Offline,
+            target: "#offline",
+            actions: [
+              assign(({ event, context }) => ({
+                status: event.status,
+                syncError: null,
+                lastSynced:
+                  event.status === SyncStatus.Synced
+                    ? new Date()
+                    : context.lastSynced,
+              })),
+              sendTo("pendingOpsPoller", { type: "REFRESH" as const }),
+            ],
           },
           {
-            guard: "isStatusError",
-            target: ".error",
-            actions: ["applySyncFinished", "refreshPendingOps"],
+            guard: ({ event }) => event.status === SyncStatus.Error,
+            target: "#error",
+            actions: [
+              assign(({ event, context }) => ({
+                status: event.status,
+                lastSynced:
+                  event.status === SyncStatus.Synced
+                    ? new Date()
+                    : context.lastSynced,
+              })),
+              sendTo("pendingOpsPoller", { type: "REFRESH" as const }),
+            ],
           },
           {
-            target: ".ready",
-            actions: ["applySyncFinished", "refreshPendingOps"],
+            target: "#ready",
+            actions: [
+              assign(({ event }) => ({
+                status: event.status,
+                syncError: null,
+                lastSynced:
+                  event.status === SyncStatus.Synced ? new Date() : null,
+              })),
+              sendTo("pendingOpsPoller", { type: "REFRESH" as const }),
+            ],
           },
         ],
         SYNC_FAILED: {
-          target: ".error",
-          actions: ["applySyncFailed", "refreshPendingOps"],
+          target: "#error",
+          actions: [
+            assign(({ event }) => ({
+              status: SyncStatus.Error,
+              syncError: event.error,
+            })),
+            sendTo("pendingOpsPoller", { type: "REFRESH" as const }),
+          ],
         },
         PENDING_OPS_REFRESHED: {
-          actions: "setPendingOps",
+          actions: assign(({ event }) => ({ pendingOps: event.summary })),
         },
         PENDING_OPS_FAILED: {
-          actions: "resetPendingOps",
+          actions: assign({ pendingOps: initialPendingOps }),
         },
       },
-      initial: "ready",
+      initial: "initializing",
       states: {
-        offline: {
-          entry: "setStatusOffline",
+        initializing: {
+          id: "initializing",
+          entry: sendTo("syncResources", {
+            type: "REQUEST_SYNC" as const,
+            immediate: true,
+          }),
+          always: { target: "#ready" },
         },
-        ready: {},
-        syncing: {},
+        offline: {
+          id: "offline",
+          entry: assign({ status: SyncStatus.Offline }),
+        },
+        ready: {
+          id: "ready",
+        },
+        syncing: {
+          id: "syncing",
+        },
         error: {
-          entry: "setStatusError",
+          id: "error",
+          entry: assign({ status: SyncStatus.Error }),
         },
       },
     },

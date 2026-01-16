@@ -56,7 +56,7 @@ interface VaultUiContext {
   value: VaultUiState;
 }
 
-const vaultUiMachine = setup({
+export const vaultUiMachine = setup({
   types: {
     context: {} as VaultUiContext,
     events: {} as VaultUiEvent,
@@ -92,7 +92,20 @@ export function useVaultUiState(inputs: VaultUiInputs): VaultUiState {
 
   useEffect(() => {
     send({ type: "SYNC", payload: inputs });
-  }, [send, inputs]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Spread individual properties to avoid infinite loop from object reference changes
+  }, [
+    send,
+    inputs.showIntro,
+    inputs.isModeChoiceOpen,
+    inputs.mode,
+    inputs.authState,
+    inputs.isSigningIn,
+    inputs.isVaultReady,
+    inputs.isVaultLocked,
+    inputs.vaultError,
+    inputs.localVaultReady,
+    inputs.localRequiresPassword,
+  ]);
 
   return state.context.value;
 }

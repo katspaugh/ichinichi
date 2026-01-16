@@ -99,6 +99,8 @@ export interface UseNoteRepositoryReturn {
   content: string;
   setContent: (content: string) => void;
   hasEdits: boolean;
+  /** True when the note is being saved (dirty or saving state) */
+  isSaving: boolean;
   hasNote: (date: string) => boolean;
   noteDates: Set<string>;
   refreshNoteDates: (options?: { immediate?: boolean }) => void;
@@ -408,6 +410,7 @@ export function useNoteRepository({
     setContent,
     isDecrypting,
     hasEdits,
+    isSaving,
     isContentReady,
     isOfflineStub,
   } = useNoteContent(date, repository, hasNote, handleAfterSave);
@@ -425,6 +428,7 @@ export function useNoteRepository({
     content,
     setContent,
     hasEdits,
+    isSaving,
     hasNote,
     noteDates,
     refreshNoteDates,
