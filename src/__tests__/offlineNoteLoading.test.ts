@@ -612,6 +612,26 @@ describe("offline note loading", () => {
       expect(result.current.isOfflineStub).toBe(false);
     });
 
+    it("does not show offline stub for deleted note while online", async () => {
+      const { repository } = await setupLocalRepository();
+      const testDate = "05-01-2025";
+
+      await repository.save(testDate, "Temporary content");
+      await repository.delete(testDate);
+
+      mockOnline = true;
+      const hasNoteForDate = jest.fn().mockReturnValue(true);
+
+      const { result } = renderHook(() =>
+        useNoteContent(testDate, repository, hasNoteForDate),
+      );
+
+      await waitFor(() => expect(result.current.isContentReady).toBe(true));
+
+      expect(result.current.content).toBe("");
+      expect(result.current.isOfflineStub).toBe(false);
+    });
+
     it("handles opening note that exists in hasNoteForDate but not in IDB", async () => {
       const { repository } = await setupCloudRepository();
       const testDate = "05-01-2025";

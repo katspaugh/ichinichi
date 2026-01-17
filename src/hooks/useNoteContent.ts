@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import type { NoteRepository } from "../storage/noteRepository";
+import { useConnectivity } from "./useConnectivity";
 import { useLocalNoteContent } from "./useLocalNoteContent";
 import { useNoteRemoteSync } from "./useNoteRemoteSync";
 
@@ -221,6 +222,8 @@ export function useNoteContent(
   hasNoteForDate?: (date: string) => boolean,
   onAfterSave?: (snapshot: SaveSnapshot) => void,
 ): UseNoteContentReturn {
+  const online = useConnectivity();
+
   // Local storage operations (no network awareness)
   const local = useLocalNoteContent(date, repository, onAfterSave);
 
@@ -250,6 +253,7 @@ export function useNoteContent(
     local.isReady &&
     local.content === "" &&
     !local.hasEdits &&
+    !online &&
     ((date !== null && hasNoteForDate?.(date) === true) ||
       remote.isKnownRemoteOnly);
 
