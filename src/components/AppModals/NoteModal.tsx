@@ -1,5 +1,6 @@
 import { Modal } from "../Modal";
 import { NavigationArrow } from "../NavigationArrow";
+import { ErrorBoundary } from "../ErrorBoundary";
 import { NoteEditor } from "../NoteEditor";
 import styles from "./NoteModal.module.css";
 
@@ -45,17 +46,23 @@ export function NoteModal({
       {date && shouldRenderNoteEditor && (
         <div className={styles.modalWrapper}>
           <div className={styles.editorWrapper}>
-            <NoteEditor
-              date={date}
-              content={isContentReady ? content : ""}
-              onChange={onChange}
-              isClosing={isClosing}
-              hasEdits={hasEdits}
-              isSaving={isSaving}
-              isDecrypting={isDecrypting}
-              isContentReady={isContentReady}
-              isOfflineStub={isOfflineStub}
-            />
+            <ErrorBoundary
+              title="Note editor crashed"
+              description="You can reopen the note or continue from the calendar."
+              resetLabel="Reload editor"
+            >
+              <NoteEditor
+                date={date}
+                content={isContentReady ? content : ""}
+                onChange={onChange}
+                isClosing={isClosing}
+                hasEdits={hasEdits}
+                isSaving={isSaving}
+                isDecrypting={isDecrypting}
+                isContentReady={isContentReady}
+                isOfflineStub={isOfflineStub}
+              />
+            </ErrorBoundary>
           </div>
 
           <div className={styles.nav}>

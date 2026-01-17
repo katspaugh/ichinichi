@@ -1,4 +1,5 @@
 import { Button } from "../Button";
+import { ErrorBoundary } from "../ErrorBoundary";
 import { SyncIndicator } from "../SyncIndicator";
 import type { SyncStatus } from "../../types";
 import type { PendingOpsSummary } from "../../domain/sync";
@@ -48,11 +49,18 @@ export function CalendarHeader({
       <div className={styles.headerSpacer} aria-hidden="true" />
       <div className={styles.headerActions}>
         {syncStatus && (
-          <SyncIndicator
-            status={syncStatus}
-            pendingOps={pendingOps}
-            errorMessage={syncError ?? undefined}
-          />
+          <ErrorBoundary
+            title="Sync status unavailable"
+            description="Sync will resume automatically once ready."
+            resetLabel="Retry"
+            className={styles.syncErrorBoundary}
+          >
+            <SyncIndicator
+              status={syncStatus}
+              pendingOps={pendingOps}
+              errorMessage={syncError ?? undefined}
+            />
+          </ErrorBoundary>
         )}
         {onSignIn && (
           <button className={styles.auth} onClick={onSignIn}>

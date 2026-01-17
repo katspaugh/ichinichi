@@ -100,6 +100,10 @@
   right: 0;
 }
 
+.syncErrorBoundary {
+  padding: var(--spacing-xs) var(--spacing-sm);
+}
+
 .auth {
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);

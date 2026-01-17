@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { Calendar } from "./components/Calendar";
 import { AppModals } from "./components/AppModals";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { UpdatePrompt } from "./components/UpdatePrompt";
 import { AuthState } from "./hooks/useAuth";
 import { AppMode } from "./hooks/useAppMode";
@@ -44,7 +45,13 @@ function App() {
       <AppModeProvider value={appMode}>
         <ActiveVaultProvider value={activeVault}>
           <NoteRepositoryProvider value={notes}>
-            <>
+            <ErrorBoundary
+              fullScreen
+              title="DailyNote ran into a problem"
+              description="Refresh the app to continue, or try again to recover."
+              resetLabel="Reload app"
+              onReset={() => window.location.reload()}
+            >
               {/* Calendar is always rendered as background */}
               <Calendar
                 year={year}
@@ -81,7 +88,7 @@ function App() {
                   onDismiss={dismissUpdate}
                 />
               )}
-            </>
+            </ErrorBoundary>
           </NoteRepositoryProvider>
         </ActiveVaultProvider>
       </AppModeProvider>
