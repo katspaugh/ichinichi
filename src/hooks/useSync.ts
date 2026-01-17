@@ -1,6 +1,12 @@
 import { useCallback, useEffect } from "react";
 import { useMachine } from "@xstate/react";
-import { assign, fromCallback, sendTo, setup, type ActorRefFrom } from "xstate";
+import {
+  assign,
+  enqueueActions,
+  fromCallback,
+  setup,
+  type ActorRefFrom,
+} from "xstate";
 import { SyncStatus } from "../types";
 import type { UnifiedSyncedNoteRepository } from "../domain/notes/hydratingSyncedNoteRepository";
 import type { PendingOpsSummary, SyncService } from "../domain/sync";
@@ -293,7 +299,6 @@ export const syncMachine = setup({
             })),
           },
           {
-            // Stay in current child state, just update inputs
             actions: assign(({ event }) => ({
               repository: event.repository,
               enabled: event.enabled,
@@ -302,23 +307,37 @@ export const syncMachine = setup({
           },
         ],
         REQUEST_SYNC: {
-          actions: sendTo("syncResources", ({ event }) => ({
-            type: "REQUEST_SYNC" as const,
-            immediate: Boolean(event.immediate),
-          })),
+          actions: enqueueActions(({ event, system }) => {
+            const actor = system.get("syncResources");
+            if (actor) {
+              actor.send({
+                type: "REQUEST_SYNC",
+                immediate: Boolean(event.immediate),
+              });
+            }
+          }),
         },
         REQUEST_IDLE_SYNC: {
-          actions: [
-            sendTo("pendingOpsPoller", { type: "REFRESH" as const }),
-            sendTo("syncResources", ({ event }) => ({
-              type: "REQUEST_IDLE_SYNC" as const,
-              delayMs: event.delayMs,
-            })),
-          ],
+          actions: enqueueActions(({ event, system }) => {
+            const poller = system.get("pendingOpsPoller");
+            if (poller) {
+              poller.send({ type: "REFRESH" });
+            }
+            const actor = system.get("syncResources");
+            if (actor) {
+              actor.send({ type: "REQUEST_IDLE_SYNC", delayMs: event.delayMs });
+            }
+          }),
         },
         SYNC_REQUESTED: {
           guard: ({ context }) => context.online,
-          actions: sendTo("syncResources", { type: "SYNC_NOW" as const }),
+          actions: enqueueActions(({ enqueue, system }) => {
+            enqueue.assign({ status: SyncStatus.Syncing });
+            const actor = system.get("syncResources");
+            if (actor) {
+              actor.send({ type: "SYNC_NOW" });
+            }
+          }),
         },
         SYNC_STARTED: {
           target: "#syncing",
@@ -337,7 +356,12 @@ export const syncMachine = setup({
                     ? new Date()
                     : context.lastSynced,
               })),
-              sendTo("pendingOpsPoller", { type: "REFRESH" as const }),
+              enqueueActions(({ system }) => {
+                const poller = system.get("pendingOpsPoller");
+                if (poller) {
+                  poller.send({ type: "REFRESH" });
+                }
+              }),
             ],
           },
           {
@@ -351,7 +375,12 @@ export const syncMachine = setup({
                     ? new Date()
                     : context.lastSynced,
               })),
-              sendTo("pendingOpsPoller", { type: "REFRESH" as const }),
+              enqueueActions(({ system }) => {
+                const poller = system.get("pendingOpsPoller");
+                if (poller) {
+                  poller.send({ type: "REFRESH" });
+                }
+              }),
             ],
           },
           {
@@ -363,7 +392,12 @@ export const syncMachine = setup({
                 lastSynced:
                   event.status === SyncStatus.Synced ? new Date() : null,
               })),
-              sendTo("pendingOpsPoller", { type: "REFRESH" as const }),
+              enqueueActions(({ system }) => {
+                const poller = system.get("pendingOpsPoller");
+                if (poller) {
+                  poller.send({ type: "REFRESH" });
+                }
+              }),
             ],
           },
         ],
@@ -374,9 +408,15 @@ export const syncMachine = setup({
               status: SyncStatus.Error,
               syncError: event.error,
             })),
-            sendTo("pendingOpsPoller", { type: "REFRESH" as const }),
+            enqueueActions(({ system }) => {
+              const poller = system.get("pendingOpsPoller");
+              if (poller) {
+                poller.send({ type: "REFRESH" });
+              }
+            }),
           ],
         },
+
         PENDING_OPS_REFRESHED: {
           actions: assign(({ event }) => ({ pendingOps: event.summary })),
         },
@@ -388,9 +428,11 @@ export const syncMachine = setup({
       states: {
         initializing: {
           id: "initializing",
-          entry: sendTo("syncResources", {
-            type: "REQUEST_SYNC" as const,
-            immediate: true,
+          entry: enqueueActions(({ system }) => {
+            const actor = system.get("syncResources");
+            if (actor) {
+              actor.send({ type: "REQUEST_SYNC", immediate: true });
+            }
           }),
           always: { target: "#ready" },
         },

@@ -232,6 +232,7 @@ export function useNoteRepository({
   const repository = useMemo<
     NoteRepository | UnifiedSyncedNoteRepository | null
   >(() => {
+    void repositoryVersion;
     if (!vaultKey || !activeKeyId) return null;
     const keyProvider = {
       activeKeyId,
@@ -244,17 +245,10 @@ export function useNoteRepository({
       keyProvider,
       syncedFactories,
     });
-  }, [
-    mode,
-    userId,
-    vaultKey,
-    activeKeyId,
-    keyring,
-    syncedFactories,
-    repositoryVersion,
-  ]);
+  }, [mode, userId, vaultKey, activeKeyId, keyring, syncedFactories]);
 
   const imageRepository = useMemo<ImageRepository | null>(() => {
+    void repositoryVersion;
     if (!vaultKey || !activeKeyId) return null;
     const keyProvider = {
       activeKeyId,
@@ -266,15 +260,7 @@ export function useNoteRepository({
       keyProvider,
       syncedFactories,
     });
-  }, [
-    vaultKey,
-    activeKeyId,
-    mode,
-    userId,
-    keyring,
-    syncedFactories,
-    repositoryVersion,
-  ]);
+  }, [vaultKey, activeKeyId, mode, userId, keyring, syncedFactories]);
 
   const syncedRepo =
     mode === AppMode.Cloud && userId

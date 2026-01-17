@@ -1,3 +1,4 @@
+import { assign, setup } from "xstate";
 import { SyncStatus } from "../../types";
 
 export type SyncPhase = "disabled" | "offline" | "ready" | "syncing" | "error";
@@ -30,65 +31,162 @@ export const initialSyncMachineState: SyncMachineState = {
   intent: null,
 };
 
-function finishSync(status: SyncStatus): SyncMachineState {
-  if (status === SyncStatus.Offline) {
-    return { phase: "offline", status, intent: null };
-  }
-  if (status === SyncStatus.Error) {
-    return { phase: "error", status, intent: null };
-  }
-  if (status === SyncStatus.Syncing) {
-    return { phase: "syncing", status, intent: null };
-  }
-  return { phase: "ready", status, intent: null };
-}
-
-export function syncMachineReducer(
-  state: SyncMachineState,
-  event: SyncMachineEvent,
-): SyncMachineState {
-  switch (event.type) {
-    case "INPUTS_CHANGED": {
-      const { enabled, online } = event.inputs;
-      if (!enabled) {
-        return {
-          phase: "disabled",
-          status: SyncStatus.Idle,
-          intent: null,
-        };
-      }
-      if (!online) {
-        return {
-          phase: "offline",
-          status: SyncStatus.Offline,
-          intent: null,
-        };
-      }
-      if (state.phase === "disabled" || state.phase === "offline") {
-        return {
-          phase: "ready",
-          status: SyncStatus.Idle,
-          intent: { immediate: true },
-        };
-      }
-      return state;
-    }
-    case "SYNC_REQUESTED":
-      if (state.phase === "disabled" || state.phase === "offline") {
-        return state;
-      }
-      if (state.phase === "syncing") {
-        return state;
-      }
-      return { ...state, intent: event.intent };
-    case "SYNC_DISPATCHED":
-      if (!state.intent) return state;
-      return { ...state, intent: null };
-    case "SYNC_STARTED":
-      return { phase: "syncing", status: SyncStatus.Syncing, intent: null };
-    case "SYNC_FINISHED":
-      return finishSync(event.status);
-    default:
-      return state;
-  }
-}
+export const syncStateMachine = setup({
+  types: {
+    context: {} as SyncMachineState,
+    events: {} as SyncMachineEvent,
+  },
+}).createMachine({
+  id: "syncState",
+  initial: "disabled",
+  context: initialSyncMachineState,
+  states: {
+    disabled: {
+      id: "disabled",
+      entry: assign({
+        phase: "disabled",
+        status: SyncStatus.Idle,
+        intent: null,
+      }),
+      on: {
+        INPUTS_CHANGED: [
+          {
+            guard: ({ event }) => event.inputs.enabled && event.inputs.online,
+            target: "#ready",
+            actions: assign({
+              phase: "ready",
+              status: SyncStatus.Idle,
+              intent: { immediate: true },
+            }),
+          },
+          {
+            guard: ({ event }) => event.inputs.enabled && !event.inputs.online,
+            target: "#offline",
+            actions: assign({
+              phase: "offline",
+              status: SyncStatus.Offline,
+              intent: null,
+            }),
+          },
+        ],
+      },
+    },
+    offline: {
+      id: "offline",
+      entry: assign({
+        phase: "offline",
+        status: SyncStatus.Offline,
+        intent: null,
+      }),
+      on: {
+        INPUTS_CHANGED: [
+          {
+            guard: ({ event }) => !event.inputs.enabled,
+            target: "#disabled",
+          },
+          {
+            guard: ({ event }) => event.inputs.enabled && event.inputs.online,
+            target: "#ready",
+            actions: assign({
+              phase: "ready",
+              status: SyncStatus.Idle,
+              intent: { immediate: true },
+            }),
+          },
+        ],
+      },
+    },
+    ready: {
+      id: "ready",
+      entry: assign({ phase: "ready" }),
+      on: {
+        INPUTS_CHANGED: [
+          {
+            guard: ({ event }) => !event.inputs.enabled,
+            target: "#disabled",
+          },
+          {
+            guard: ({ event }) => !event.inputs.online,
+            target: "#offline",
+          },
+        ],
+        SYNC_REQUESTED: {
+          actions: assign(({ event }) => ({ intent: event.intent })),
+        },
+        SYNC_DISPATCHED: {
+          actions: assign({ intent: null }),
+        },
+        SYNC_STARTED: {
+          target: "#syncing",
+        },
+        SYNC_FINISHED: {
+          target: "#ready",
+          actions: assign(({ event }) => ({
+            status: event.status,
+            intent: null,
+          })),
+        },
+      },
+    },
+    syncing: {
+      id: "syncing",
+      entry: assign({
+        phase: "syncing",
+        status: SyncStatus.Syncing,
+        intent: null,
+      }),
+      on: {
+        SYNC_REQUESTED: {
+          actions: assign({ intent: null }),
+        },
+        SYNC_FINISHED: [
+          {
+            guard: ({ event }) => event.status === SyncStatus.Offline,
+            target: "#offline",
+            actions: assign({
+              status: SyncStatus.Offline,
+              intent: null,
+            }),
+          },
+          {
+            guard: ({ event }) => event.status === SyncStatus.Error,
+            target: "#error",
+            actions: assign({ status: SyncStatus.Error, intent: null }),
+          },
+          {
+            target: "#ready",
+            actions: assign(({ event }) => ({
+              status: event.status,
+              intent: null,
+            })),
+          },
+        ],
+      },
+    },
+    error: {
+      id: "error",
+      entry: assign({ phase: "error", status: SyncStatus.Error, intent: null }),
+      on: {
+        INPUTS_CHANGED: [
+          {
+            guard: ({ event }) => !event.inputs.enabled,
+            target: "#disabled",
+          },
+          {
+            guard: ({ event }) => !event.inputs.online,
+            target: "#offline",
+          },
+          {
+            guard: ({ event }) => event.inputs.enabled && event.inputs.online,
+            target: "#ready",
+            actions: assign({
+              phase: "ready",
+              status: SyncStatus.Idle,
+              intent: { immediate: true },
+            }),
+          },
+        ],
+      },
+    },
+  },
+});
