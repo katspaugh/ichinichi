@@ -11,6 +11,7 @@ import {
 } from "../domain/sync";
 import { useConnectivity } from "./useConnectivity";
 import { pendingOpsSource } from "../storage/pendingOpsSource";
+import { createCancellableOperation } from "../utils/asyncHelpers";
 import { formatSyncError } from "../utils/syncError";
 
 interface UseSyncReturn {
@@ -90,6 +91,31 @@ const syncResourcesActor = fromCallback<
     }
   }, pendingOpsSource);
 
+  let currentSync: { cancel: () => void } | null = null;
+
+  const runSyncNow = () => {
+    if (currentSync) {
+      currentSync.cancel();
+    }
+    const operation = createCancellableOperation(
+      (signal) => {
+        if (signal.aborted) {
+          return Promise.resolve();
+        }
+        return syncService.syncNow();
+      },
+      {
+        timeoutMs: 30000,
+      },
+    );
+    currentSync = { cancel: operation.cancel };
+    void operation.promise.finally(() => {
+      if (currentSync?.cancel === operation.cancel) {
+        currentSync = null;
+      }
+    });
+  };
+
   receive((event) => {
     switch (event.type) {
       case "REQUEST_SYNC":
@@ -99,12 +125,13 @@ const syncResourcesActor = fromCallback<
         intentScheduler.requestIdleSync({ delayMs: event.delayMs });
         break;
       case "SYNC_NOW":
-        void syncService.syncNow();
+        runSyncNow();
         break;
     }
   });
 
   return () => {
+    currentSync?.cancel();
     syncService.dispose();
     intentScheduler.dispose();
   };

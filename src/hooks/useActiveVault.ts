@@ -7,6 +7,7 @@ import { useLocalVault } from "./useLocalVault";
 import { useVault } from "./useVault";
 import { AppMode } from "./useAppMode";
 import { createVaultService } from "../domain/vault";
+import { createCancellableOperation } from "../utils/asyncHelpers";
 import { computeKeyId } from "../storage/keyId";
 import {
   listLocalKeyIds,
@@ -83,36 +84,45 @@ const localKeyringLoader = fromCallback(
     sendBack: (event: ActiveVaultEvent) => void;
     input: { localKey: CryptoKey };
   }) => {
-    let cancelled = false;
+    const { promise, cancel, signal } = createCancellableOperation(
+      async (abortSignal) => {
+        const keyId = await computeKeyId(input.localKey);
+        if (abortSignal.aborted) return null;
 
-    const load = async () => {
-      const keyId = await computeKeyId(input.localKey);
-      if (cancelled) return;
+        const entries = new Map<string, CryptoKey>();
+        entries.set(keyId, input.localKey);
 
-      const entries = new Map<string, CryptoKey>();
-      entries.set(keyId, input.localKey);
-
-      const extraKeys = listLocalKeyIds().filter((id) => id !== keyId);
-      for (const id of extraKeys) {
-        try {
-          const restored = await restoreLocalWrappedKey(id, input.localKey);
-          if (restored) {
-            entries.set(id, restored);
+        const extraKeys = listLocalKeyIds().filter((id) => id !== keyId);
+        for (const id of extraKeys) {
+          if (abortSignal.aborted) {
+            return null;
           }
-        } catch {
-          // Ignore corrupted entries.
+          try {
+            const restored = await restoreLocalWrappedKey(id, input.localKey);
+            if (restored) {
+              entries.set(id, restored);
+            }
+          } catch {
+            // Ignore corrupted entries.
+          }
         }
-      }
 
-      if (!cancelled) {
-        sendBack({ type: "LOCAL_KEYRING_LOADED", keyId, keyring: entries });
-      }
-    };
+        return { keyId, keyring: entries };
+      },
+      { timeoutMs: 30000 },
+    );
 
-    void load();
+    void promise.then((result) => {
+      if (!result || signal.aborted) return;
+      sendBack({
+        type: "LOCAL_KEYRING_LOADED",
+        keyId: result.keyId,
+        keyring: result.keyring,
+      });
+    });
 
     return () => {
-      cancelled = true;
+      cancel();
     };
   },
 );
@@ -125,19 +135,18 @@ const cloudKeyRestorer = fromCallback(
     sendBack: (event: ActiveVaultEvent) => void;
     input: { vaultService: ReturnType<typeof createVaultService> };
   }) => {
-    let cancelled = false;
+    const { promise, cancel, signal } = createCancellableOperation(
+      () => input.vaultService.tryDeviceUnlockCloudKey(),
+      { timeoutMs: 30000 },
+    );
 
-    const restore = async () => {
-      const result = await input.vaultService.tryDeviceUnlockCloudKey();
-      if (!cancelled && result) {
-        sendBack({ type: "CLOUD_KEY_RESTORED", vaultKey: result.vaultKey });
-      }
-    };
-
-    void restore();
+    void promise.then((result) => {
+      if (!result || signal.aborted) return;
+      sendBack({ type: "CLOUD_KEY_RESTORED", vaultKey: result.vaultKey });
+    });
 
     return () => {
-      cancelled = true;
+      cancel();
     };
   },
 );
@@ -154,26 +163,29 @@ const cloudKeyCacher = fromCallback(
       localKeyId: string | null;
     };
   }) => {
-    let cancelled = false;
-
-    const cache = async () => {
-      for (const [keyId, key] of input.cloudKeyring.entries()) {
-        if (keyId === input.localKeyId) continue;
-        try {
-          await storeLocalWrappedKey(keyId, key, input.localKey);
-        } catch (error) {
-          console.warn("Failed to cache cloud key locally:", error);
+    const { promise, cancel, signal } = createCancellableOperation(
+      async (abortSignal) => {
+        for (const [keyId, key] of input.cloudKeyring.entries()) {
+          if (abortSignal.aborted) return false;
+          if (keyId === input.localKeyId) continue;
+          try {
+            await storeLocalWrappedKey(keyId, key, input.localKey);
+          } catch (error) {
+            console.warn("Failed to cache cloud key locally:", error);
+          }
         }
-      }
-      if (!cancelled) {
-        sendBack({ type: "CLOUD_KEY_CACHED" });
-      }
-    };
+        return true;
+      },
+      { timeoutMs: 30000 },
+    );
 
-    void cache();
+    void promise.then((didCache) => {
+      if (!didCache || signal.aborted) return;
+      sendBack({ type: "CLOUD_KEY_CACHED" });
+    });
 
     return () => {
-      cancelled = true;
+      cancel();
     };
   },
 );
