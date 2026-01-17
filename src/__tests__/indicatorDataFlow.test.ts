@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { createActor } from "xstate";
 import { renderHook, act } from "@testing-library/react";
-import { syncMachine } from "../hooks/useSync";
+import { syncMachine } from "../hooks/useSyncMachine";
 import { localNoteMachine } from "../hooks/useLocalNoteContent";
 import { useSavingIndicator } from "../components/NoteEditor/useSavingIndicator";
 import { SyncStatus } from "../types";

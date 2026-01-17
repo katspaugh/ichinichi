@@ -314,7 +314,7 @@ describe("localNoteMachine", () => {
   });
 });
 
-import { syncMachine } from "../hooks/useSync";
+import { syncMachine } from "../hooks/useSyncMachine";
 import { SyncStatus } from "../types";
 import { createActor as createXstateActor } from "xstate";
 
