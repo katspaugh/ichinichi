@@ -137,7 +137,7 @@ const passwordUnlockActor = fromCallback(
   },
 );
 
-const vaultMachine = setup({
+export const vaultMachine = setup({
   types: {
     context: {} as VaultContext,
     events: {} as VaultEvent,
@@ -251,9 +251,18 @@ const vaultMachine = setup({
       invoke: {
         id: "deviceUnlock",
         src: "deviceUnlock",
-        input: ({ context }: { context: VaultContext }) => ({
-          vaultService: context.vaultService as VaultService,
-        }),
+        input: ({ context }: { context: VaultContext }) => {
+          if (!context.vaultService) {
+            return {
+              vaultService: {
+                tryDeviceUnlockCloudKey: async () => null,
+              } as VaultService,
+            };
+          }
+          return {
+            vaultService: context.vaultService,
+          };
+        },
       },
       on: {
         DEVICE_UNLOCKED: {
