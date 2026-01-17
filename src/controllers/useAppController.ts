@@ -3,7 +3,6 @@ import { useAuth } from "../hooks/useAuth";
 import { useAppMode } from "../hooks/useAppMode";
 import { useActiveVault } from "../hooks/useActiveVault";
 import { useNoteRepository } from "../hooks/useNoteRepository";
-import { supabase } from "../lib/supabase";
 
 export function useAppController() {
   const auth = useAuth();
@@ -17,12 +16,10 @@ export function useAppController() {
     auth,
     mode: appMode.mode,
     setMode: appMode.setMode,
-    supabaseClient: supabase,
   });
   const notes = useNoteRepository({
     mode: appMode.mode,
     authUser: auth.user,
-    supabaseClient: supabase,
     vaultKey: activeVault.vaultKey,
     keyring: activeVault.keyring,
     activeKeyId: activeVault.activeKeyId,

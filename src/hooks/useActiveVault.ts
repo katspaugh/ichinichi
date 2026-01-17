@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useMachine } from "@xstate/react";
 import { assign, fromCallback, setup } from "xstate";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import type { UseAuthReturn } from "./useAuth";
+import type { VaultService } from "../domain/vault";
 import { useLocalVault } from "./useLocalVault";
 import { useVault } from "./useVault";
 import { AppMode } from "./useAppMode";
-import { createVaultService } from "../domain/vault";
+import { useServiceContext } from "../contexts/serviceContext";
 import { createCancellableOperation } from "../utils/asyncHelpers";
 import { computeKeyId } from "../storage/keyId";
 import {
@@ -19,7 +19,6 @@ interface UseActiveVaultProps {
   auth: UseAuthReturn;
   mode: AppMode;
   setMode: (mode: AppMode) => void;
-  supabaseClient: SupabaseClient;
 }
 
 export interface UseActiveVaultReturn {
@@ -47,7 +46,7 @@ export interface UseActiveVaultReturn {
 type ActiveVaultEvent =
   | {
       type: "INPUTS_CHANGED";
-      vaultService: ReturnType<typeof createVaultService>;
+      vaultService: VaultService;
       mode: AppMode;
       authUserId: string | null;
       vaultKey: CryptoKey | null;
@@ -64,7 +63,7 @@ type ActiveVaultEvent =
   | { type: "CLOUD_KEY_RESTORED"; vaultKey: CryptoKey };
 
 interface ActiveVaultContext {
-  vaultService: ReturnType<typeof createVaultService> | null;
+  vaultService: VaultService | null;
   mode: AppMode;
   authUserId: string | null;
   vaultKey: CryptoKey | null;
@@ -133,7 +132,7 @@ const cloudKeyRestorer = fromCallback(
     input,
   }: {
     sendBack: (event: ActiveVaultEvent) => void;
-    input: { vaultService: ReturnType<typeof createVaultService> };
+    input: { vaultService: VaultService };
   }) => {
     const { promise, cancel, signal } = createCancellableOperation(
       () => input.vaultService.tryDeviceUnlockCloudKey(),
@@ -284,9 +283,7 @@ const activeVaultMachine = setup({
         id: "cloudKeyRestorer",
         src: "cloudKeyRestorer",
         input: ({ context }: { context: ActiveVaultContext }) => ({
-          vaultService: context.vaultService as ReturnType<
-            typeof createVaultService
-          >,
+          vaultService: context.vaultService as VaultService,
         }),
       },
       on: {
@@ -347,12 +344,8 @@ export function useActiveVault({
   auth,
   mode,
   setMode,
-  supabaseClient,
 }: UseActiveVaultProps): UseActiveVaultReturn {
-  const vaultService = useMemo(
-    () => createVaultService(supabaseClient),
-    [supabaseClient],
-  );
+  const { vaultService } = useServiceContext();
   const localVault = useLocalVault({ vaultService });
   const [authPassword, setAuthPassword] = useState<string | null>(null);
   const [localPassword, setLocalPassword] = useState<string | null>(null);

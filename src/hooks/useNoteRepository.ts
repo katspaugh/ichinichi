@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMachine } from "@xstate/react";
 import { assign, fromCallback, setup } from "xstate";
-import type { SupabaseClient, User } from "@supabase/supabase-js";
+import type { User } from "@supabase/supabase-js";
 import { useNoteContent } from "./useNoteContent";
 import { useNoteDates } from "./useNoteDates";
 import { useSync } from "./useSync";
@@ -10,7 +10,6 @@ import {
   createImageRepository,
   type SyncedRepositoryFactories,
 } from "../domain/notes/repositoryFactory";
-import type { E2eeServiceFactory } from "../domain/crypto/e2eeService";
 import type { UnifiedSyncedNoteRepository } from "../domain/notes/hydratingSyncedNoteRepository";
 import type { NoteRepository } from "../storage/noteRepository";
 import type { ImageRepository } from "../storage/imageRepository";
@@ -22,12 +21,11 @@ import { createUnifiedSyncedImageRepository } from "../storage/unifiedSyncedImag
 import { createUnifiedSyncedNoteEnvelopeRepository } from "../storage/unifiedSyncedNoteRepository";
 import { runtimeClock, runtimeConnectivity } from "../storage/runtimeAdapters";
 import { syncStateStore } from "../storage/syncStateStore";
-import { createE2eeService } from "../services/e2eeService";
+import { useServiceContext } from "../contexts/serviceContext";
 
 interface UseNoteRepositoryProps {
   mode: AppMode;
   authUser: User | null;
-  supabaseClient: SupabaseClient;
   vaultKey: CryptoKey | null;
   keyring: Map<string, CryptoKey>;
   activeKeyId: string | null;
@@ -193,33 +191,27 @@ const noteRepositoryMachine = setup({
 export function useNoteRepository({
   mode,
   authUser,
-  supabaseClient,
   vaultKey,
   keyring,
   activeKeyId,
   date,
   year,
 }: UseNoteRepositoryProps): UseNoteRepositoryReturn {
+  const { supabase, e2eeFactory } = useServiceContext();
   const userId = authUser?.id ?? null;
   const [repositoryVersion, setRepositoryVersion] = useState(0);
   const invalidateRepository = useCallback(() => {
     setRepositoryVersion((current) => current + 1);
   }, []);
 
-  const e2eeFactory = useMemo<E2eeServiceFactory>(
-    () => ({
-      create: createE2eeService,
-    }),
-    [],
-  );
   const syncedFactories = useMemo<SyncedRepositoryFactories>(
     () => ({
       createSyncedNoteRepository: ({ userId, keyProvider }) => {
-        const gateway = createRemoteNotesGateway(supabaseClient, userId);
+        const gateway = createRemoteNotesGateway(supabase, userId);
         const envelopeRepo = createUnifiedSyncedNoteEnvelopeRepository(
           gateway,
           keyProvider.activeKeyId,
-          () => syncEncryptedImages(supabaseClient, userId),
+          () => syncEncryptedImages(supabase, userId),
           runtimeConnectivity,
           runtimeClock,
           syncStateStore,
@@ -231,16 +223,15 @@ export function useNoteRepository({
         );
       },
       createSyncedImageRepository: ({ userId, keyProvider }) =>
-        createUnifiedSyncedImageRepository(supabaseClient, userId, keyProvider),
+        createUnifiedSyncedImageRepository(supabase, userId, keyProvider),
       e2eeFactory,
     }),
-    [e2eeFactory, supabaseClient],
+    [e2eeFactory, supabase],
   );
 
   const repository = useMemo<
     NoteRepository | UnifiedSyncedNoteRepository | null
   >(() => {
-    void repositoryVersion;
     if (!vaultKey || !activeKeyId) return null;
     const keyProvider = {
       activeKeyId,
@@ -264,7 +255,6 @@ export function useNoteRepository({
   ]);
 
   const imageRepository = useMemo<ImageRepository | null>(() => {
-    void repositoryVersion;
     if (!vaultKey || !activeKeyId) return null;
     const keyProvider = {
       activeKeyId,

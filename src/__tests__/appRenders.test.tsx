@@ -1,5 +1,7 @@
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import App from "../App";
+import { ServiceProvider } from "../contexts/ServiceProvider";
+import { supabase } from "../lib/supabase";
 
 // Mock Supabase client
 jest.mock("../lib/supabase", () => ({
@@ -107,14 +109,22 @@ describe("App initial render", () => {
   });
 
   it("renders without crashing", async () => {
-    const { container } = render(<App />);
+    const { container } = render(
+      <ServiceProvider supabaseClient={supabase}>
+        <App />
+      </ServiceProvider>,
+    );
 
     // App should render something
     expect(container.firstChild).not.toBeNull();
   });
 
   it("renders the current year", async () => {
-    render(<App />);
+    render(
+      <ServiceProvider supabaseClient={supabase}>
+        <App />
+      </ServiceProvider>,
+    );
 
     const currentYear = new Date().getFullYear().toString();
 
@@ -127,7 +137,11 @@ describe("App initial render", () => {
   });
 
   it("renders month names in the calendar", async () => {
-    render(<App />);
+    render(
+      <ServiceProvider supabaseClient={supabase}>
+        <App />
+      </ServiceProvider>,
+    );
 
     await waitFor(
       () => {
@@ -160,7 +174,11 @@ describe("App initial render", () => {
   });
 
   it("clicking on today's cell opens an editable editor", async () => {
-    render(<App />);
+    render(
+      <ServiceProvider supabaseClient={supabase}>
+        <App />
+      </ServiceProvider>,
+    );
 
     // First, dismiss the intro modal by clicking "Start writing"
     await waitFor(
