@@ -1,9 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 import { createActor } from "xstate";
+import { SyncStatus } from "../types";
 import {
   localNoteMachine,
   type LocalNoteEvent,
 } from "../hooks/useLocalNoteContent";
+import { syncMachine } from "../hooks/useSyncMachine";
+import { pendingOpsSource } from "../storage/pendingOpsSource";
 
 /**
  * These tests verify the XState machines used in the note editing flow.
@@ -314,10 +317,6 @@ describe("localNoteMachine", () => {
   });
 });
 
-import { syncMachine } from "../hooks/useSyncMachine";
-import { SyncStatus } from "../types";
-import { createActor as createXstateActor } from "xstate";
-
 /**
  * Tests for the sync machine to verify "Syncing..." indicator behavior.
  *
@@ -327,7 +326,23 @@ import { createActor as createXstateActor } from "xstate";
  * 1. When sync starts, status should be SyncStatus.Syncing
  * 2. SyncIndicator shows "Syncing..." when status === SyncStatus.Syncing
  */
+
+async function flushPromises(): Promise<void> {
+  for (let i = 0; i < 10; i += 1) {
+    await Promise.resolve();
+  }
+}
+
 describe("syncMachine", () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+    jest.restoreAllMocks();
+  });
+
   it("should start in disabled state with Idle status", () => {
     const actor = createActor(syncMachine);
     actor.start();
@@ -552,6 +567,41 @@ describe("syncMachine", () => {
   });
 
   describe("actor spawning and initial sync", () => {
+    it("starts sync after idle save when pending ops exist", async () => {
+      const mockRepository = {
+        sync: jest
+          .fn()
+          .mockResolvedValue({ ok: true, value: SyncStatus.Synced }),
+      };
+      const pendingOpsSourceMock = jest
+        .spyOn(pendingOpsSource, "getSummary")
+        .mockResolvedValue({ notes: 1, images: 0, total: 1 });
+      jest.spyOn(pendingOpsSource, "hasPending").mockResolvedValue(true);
+
+      const actor = createActor(syncMachine);
+      actor.start();
+
+      actor.send({
+        type: "INPUTS_CHANGED",
+        repository: mockRepository as any,
+        enabled: true,
+        online: true,
+      });
+
+      actor.send({ type: "REQUEST_IDLE_SYNC" });
+
+      jest.advanceTimersByTime(4000);
+      await flushPromises();
+
+      const snapshot = actor.getSnapshot();
+      expect(snapshot.context.status).toBe(SyncStatus.Synced);
+      expect(snapshot.context.pendingOps.total).toBe(1);
+      expect(pendingOpsSourceMock).toHaveBeenCalled();
+      expect(mockRepository.sync).toHaveBeenCalled();
+
+      actor.stop();
+    });
+
     it("should spawn syncResources actor when entering active state", async () => {
       // This test verifies that when entering the active state, the syncResources
       // actor is spawned and can receive events
@@ -629,6 +679,7 @@ describe("syncMachine", () => {
     });
 
     it("should trigger sync flow on initial enter with real actors", async () => {
+      jest.useRealTimers();
       // This test verifies that when actors are spawned and REQUEST_SYNC is sent,
       // the full flow from REQUEST_SYNC → SYNC_REQUESTED → SYNC_NOW → SYNC_STARTED works
 
@@ -718,6 +769,7 @@ describe("syncMachine", () => {
     });
 
     it("should verify REQUEST_SYNC triggers SYNC_REQUESTED", async () => {
+      jest.useRealTimers();
       // Manually test if sending REQUEST_SYNC to the machine in ready state
       // triggers the SYNC_REQUESTED flow
 
