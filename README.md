@@ -18,7 +18,7 @@ A minimalist daily notes application built with React and TypeScript. Write one 
 
 ## Demo
 
-Visit the live demo: [Add your deployment URL here]
+Visit the live demo: [Demo](dailynote.xyz)
 
 ## Tech Stack
 
