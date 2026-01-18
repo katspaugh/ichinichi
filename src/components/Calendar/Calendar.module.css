@@ -84,9 +84,15 @@
   -webkit-mask-position: center;
 }
 
-.headerCommit {
+.headerLeft {
   position: absolute;
   left: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.headerLeft .auth {
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-xs);

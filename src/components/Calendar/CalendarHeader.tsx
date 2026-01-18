@@ -1,6 +1,7 @@
 import { Button } from "../Button";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { SyncIndicator } from "../SyncIndicator";
+import { ThemeToggle } from "../ThemeToggle";
 import type { SyncStatus } from "../../types";
 import type { PendingOpsSummary } from "../../domain/sync";
 import { getMonthName } from "../../utils/date";
@@ -37,15 +38,18 @@ export function CalendarHeader({
 }: CalendarHeaderProps) {
   return (
     <div className={styles.header}>
-      <a
-        className={[styles.auth, styles.headerCommit].filter(Boolean).join(" ")}
-        href={commitUrl}
-        target="_blank"
-        rel="noreferrer"
-      >
-        <span className={styles.footerIcon} aria-hidden="true" />
-        {commitHash}
-      </a>
+      <div className={styles.headerLeft}>
+        <a
+          className={styles.auth}
+          href={commitUrl}
+          target="_blank"
+          rel="noreferrer"
+        >
+          <span className={styles.footerIcon} aria-hidden="true" />
+          {commitHash}
+        </a>
+        <ThemeToggle />
+      </div>
       <div className={styles.headerSpacer} aria-hidden="true" />
       <div className={styles.headerActions}>
         {syncStatus && (
