@@ -1,8 +1,9 @@
 .toast {
+  --toast-translate-x: -50%;
   position: fixed;
   bottom: var(--spacing-lg);
   left: 50%;
-  transform: translateX(-50%);
+  transform: translateX(var(--toast-translate-x));
   display: flex;
   align-items: center;
   gap: var(--spacing-md);
@@ -28,23 +29,24 @@
 @media (max-width: 768px) {
   .toast {
     flex-direction: column;
-    align-items: flex-start;
+    align-items: center;
+    text-align: center;
     width: min(92vw, 360px);
   }
 
   .actions {
     width: 100%;
-    justify-content: flex-end;
+    justify-content: center;
   }
 }
 
 @keyframes slideUp {
   from {
     opacity: 0;
-    transform: translateX(-50%) translateY(20px);
+    transform: translateX(var(--toast-translate-x)) translateY(20px);
   }
   to {
     opacity: 1;
-    transform: translateX(-50%) translateY(0);
+    transform: translateX(var(--toast-translate-x)) translateY(0);
   }
 }
