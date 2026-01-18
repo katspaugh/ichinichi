@@ -1,20 +1,39 @@
 # DailyNote
 
-A minimalist daily notes application built with React and TypeScript. Write one note per day and view your entire year at a glance.
+A minimalist daily notes application designed to help you build and maintain a consistent writing habit. With end-to-end encryption and a focus on great UX, it's the perfect tool for personal reflection and daily journaling.
 
 <img width="1051" height="881" alt="Image" src="https://github.com/user-attachments/assets/edc0b6d1-dc11-4760-9457-d438140182e6" />
 
+## Why DailyNote?
+
+### 📝 **Minimalist Design for Consistency**
+
+- **One Note Per Day**: No complexity, no distractions—just write
+- **Read-Only Past**: Protect your streak by preventing edits to previous days
+- **Future Dates Disabled**: Focus on today, not tomorrow
+- **Empty Note Auto-Delete**: If you write nothing, nothing is saved—keeping your calendar clean
+
+### 🔐 **True End-to-End Encryption**
+
+- **Client-Side Encryption**: Your notes are encrypted before they leave your device
+- **Zero-Knowledge Architecture**: We can't read your notes, even if we wanted to
+- **AES-GCM Encryption**: Industry-standard cryptographic protection
+- **Device & Cloud Keys**: Multi-key support ensures your data is always secure
+
+### 🎯 **Exceptional User Experience**
+
+- **Instant Start**: Write immediately—no account required
+- **Year-at-a-Glance**: Visual calendar shows your writing streak at a glance
+- **Seamless Sync**: Works offline, syncs when online
+- **Responsive Design**: Beautiful on desktop, tablet, and mobile
+- **Keyboard Navigation**: Escape to close, arrows to navigate
+
 ## Features
 
-- **One Note Per Day**: Keep it simple with a single note for each day
-- **Year View Calendar**: See your entire year in a beautiful, responsive calendar grid
-- **Visual Indicators**: Days with notes show a small dot indicator
-- **Read-Only Past**: View past notes but can only edit today's note
 - **Local-First**: Notes live locally by default with optional cloud sync
-- **End-to-End Encrypted Sync**: Notes are encrypted before they leave your device
-- **Fully Responsive**: Works beautifully on desktop, tablet, and mobile
+- **Visual Indicators**: Days with notes show a small dot indicator
 - **URL-Based Navigation**: Shareable URLs with year and date parameters
-- **Keyboard Shortcuts**: Press Escape to close the note editor
+- **Auto-Save**: Your work is saved automatically as you type
 
 ## Demo
 
@@ -155,6 +174,21 @@ This is a standard Vite + React app and can be deployed to:
 - Use the left/right arrow buttons to move between years
 - Click the year button to jump back to the current year
 
+## How It Helps Your Streak
+
+### Built for Consistency
+
+- **No Overwhelm**: One note per day means no decision fatigue
+- **Protected Past**: Can't edit yesterday's note, so you focus on today
+- **Visual Progress**: See your writing streak grow throughout the year
+- **Frictionless**: Start writing in seconds, no setup required
+
+### Privacy First
+
+- **Your Thoughts, Your Business**: E2EE means your reflections stay private
+- **Local by Default**: Your data lives on your device until you choose otherwise
+- **Optional Sync**: Use it locally forever, or sync when you're ready
+
 ## User Flow
 
 1. Open the app and start writing immediately (local mode by default).
@@ -183,24 +217,40 @@ src/
 └── styles/                     # CSS modules and themes
 ```
 
-## Encryption and Data Storage
+## Security & Privacy
+
+### End-to-End Encryption (E2EE)
+
+Your notes are encrypted with **AES-GCM** before they ever leave your device. This means:
+
+- **Zero-Knowledge**: We can't read your notes, even if we wanted to
+- **Client-Side Only**: Encryption happens in your browser, not on our servers
+- **Industry Standard**: Using the same cryptographic primitives as major messaging apps
+
+### Key Management
+
+- **Local Mode**: Device-bound keys auto-unlock seamlessly
+- **Cloud Mode**: Password-derived keys with secure key wrapping
+- **Multi-Key Support**: Notes work across devices without re-encryption
+
+### Data Storage
 
 For a deeper explanation of the key hierarchy and unlock flow, see `docs/key-derivation.md`.
 For the data flow across local storage and cloud sync, see `docs/data-flow.md`.
 
-### Local mode (default)
+#### Local mode (default)
 
 - A device-bound vault key is created on first load without prompting.
 - Notes are encrypted with AES-GCM and stored in IndexedDB.
 - The vault can auto-unlock using a non-exportable device key stored in IndexedDB.
 
-### Cloud mode (optional)
+#### Cloud mode (optional)
 
 - When you sign in, a password-derived key wraps the same vault key.
 - Notes are encrypted client-side before syncing to Supabase.
 - A local encrypted cache is kept for offline use and conflict resolution.
 
-### Data durability
+#### Data durability
 
 - Clearing browser data deletes local notes and local keys.
 - Cloud sync acts as a backup once you sign in.
@@ -232,9 +282,10 @@ npm run lint
 
 ### Architecture Principles
 
-- **Minimalism**: Only essential features, no bloat
-- **Local-First**: All data stays in your browser
-- **Type Safety**: Full TypeScript coverage
+- **Minimalism**: Only essential features, no bloat—designed for daily use
+- **Privacy First**: End-to-end encryption by default, not an afterthought
+- **Local-First**: All data stays in your browser until you choose otherwise
+- **Type Safety**: Full TypeScript coverage for reliability
 - **Responsive**: Mobile-first design approach
 - **Accessibility**: Semantic HTML and keyboard navigation
 
