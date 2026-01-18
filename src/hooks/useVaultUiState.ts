@@ -39,6 +39,7 @@ function deriveUiState(inputs: VaultUiInputs): VaultUiState {
   if (
     inputs.mode === AppMode.Cloud &&
     (inputs.authState === AuthState.SignedOut ||
+      inputs.authState === AuthState.Loading ||
       inputs.authState === AuthState.AwaitingConfirmation ||
       inputs.isSigningIn)
   ) {
