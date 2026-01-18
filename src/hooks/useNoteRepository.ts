@@ -105,6 +105,7 @@ export function useNoteRepository({
     NoteRepository | UnifiedSyncedNoteRepository | null
   >(() => {
     if (!vaultKey || !activeKeyId) return null;
+    void repositoryVersion;
     const keyProvider = {
       activeKeyId,
       getKey: (keyId: string) => keyring.get(keyId) ?? null,
@@ -128,6 +129,7 @@ export function useNoteRepository({
 
   const imageRepository = useMemo<ImageRepository | null>(() => {
     if (!vaultKey || !activeKeyId) return null;
+    void repositoryVersion;
     const keyProvider = {
       activeKeyId,
       getKey: (keyId: string) => keyring.get(keyId) ?? null,

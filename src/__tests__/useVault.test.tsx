@@ -51,6 +51,9 @@ describe("vaultMachine", () => {
   });
 
   it("stores an error message on password unlock failure", async () => {
+    const consoleError = jest
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
     const vaultService: VaultService = {
       tryDeviceUnlockCloudKey: jest.fn().mockResolvedValue(null),
       unlockCloudVault: jest.fn().mockRejectedValue(new Error("fail")),
@@ -84,5 +87,6 @@ describe("vaultMachine", () => {
 
     await waitFor(() => expect(actor.getSnapshot().context.error).toBeTruthy());
     actor.stop();
+    consoleError.mockRestore();
   });
 });

@@ -115,6 +115,8 @@ describe("App initial render", () => {
       </ServiceProvider>,
     );
 
+    await waitFor(() => expect(supabase.auth.getSession).toHaveBeenCalled());
+
     // App should render something
     expect(container.firstChild).not.toBeNull();
   });
