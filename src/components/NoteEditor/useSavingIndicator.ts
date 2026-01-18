@@ -17,6 +17,7 @@ export function useSavingIndicator(isEditable: boolean, isSaving: boolean) {
 
   // Idle time before showing the indicator (ms)
   const IDLE_DELAY = 2000;
+  const MIN_DISPLAY_DELAY = 800;
 
   const clearTimers = useCallback(() => {
     if (idleTimerRef.current !== null) {
@@ -53,7 +54,7 @@ export function useSavingIndicator(isEditable: boolean, isSaving: boolean) {
       // Saving completed - hide after a brief moment so user can see it
       minDisplayTimerRef.current = window.setTimeout(() => {
         setShowSaving(false);
-      }, 300);
+      }, MIN_DISPLAY_DELAY);
     }
   }, [isSaving, showSaving]);
 

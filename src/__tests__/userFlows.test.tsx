@@ -24,6 +24,7 @@ import { closeVaultDb } from "../storage/vault";
 
 // Increase timeout for integration tests
 jest.setTimeout(60000);
+const SAVE_IDLE_DELAY_MS = 2000;
 
 // ============================================================================
 // Supabase Mock
@@ -340,9 +341,9 @@ describe("Local Mode User Flow", () => {
     await typeInEditor(testContent);
     expect(editor.innerHTML).toContain(testContent);
 
-    // Wait for debounced save
+    // Wait for idle save
     await act(async () => {
-      await new Promise((r) => setTimeout(r, 800));
+      await new Promise((r) => setTimeout(r, SAVE_IDLE_DELAY_MS + 100));
     });
 
     // Close modal with Escape
@@ -368,7 +369,7 @@ describe("Local Mode User Flow", () => {
     fireEvent.input(editorForUpdate);
 
     await act(async () => {
-      await new Promise((r) => setTimeout(r, 600));
+      await new Promise((r) => setTimeout(r, SAVE_IDLE_DELAY_MS + 100));
     });
 
     await closeNoteModal();

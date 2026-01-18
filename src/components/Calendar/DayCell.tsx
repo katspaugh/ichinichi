@@ -6,10 +6,18 @@ interface DayCellProps {
   date?: Date;
   state: DayCellState;
   hasNote: boolean;
+  selected?: boolean;
   onClick?: () => void;
 }
 
-export function DayCell({ day, date, state, hasNote, onClick }: DayCellProps) {
+export function DayCell({
+  day,
+  date,
+  state,
+  hasNote,
+  selected = false,
+  onClick,
+}: DayCellProps) {
   if (day === null) {
     return <div className={`${styles.dayCell} ${styles.empty}`} />;
   }
@@ -28,6 +36,7 @@ export function DayCell({ day, date, state, hasNote, onClick }: DayCellProps) {
         styles.dayCell,
         styles[state],
         isClickable && styles.clickable,
+        selected && styles.selected,
       ]
         .filter(Boolean)
         .join(" ")}
@@ -35,6 +44,7 @@ export function DayCell({ day, date, state, hasNote, onClick }: DayCellProps) {
       role={isClickable ? "button" : undefined}
       tabIndex={isClickable ? 0 : undefined}
       aria-label={isClickable ? ariaLabel : undefined}
+      aria-selected={selected ? "true" : undefined}
       onKeyDown={
         isClickable
           ? (e) => {

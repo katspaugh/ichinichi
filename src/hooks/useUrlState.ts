@@ -39,6 +39,7 @@ export function useUrlState({ authState, mode }: UseUrlStateProps) {
         date: null,
         year: new Date().getFullYear(),
         month: null,
+        monthDate: null,
       };
     }
     const resolved = resolveUrlState(window.location.search);
@@ -48,6 +49,7 @@ export function useUrlState({ authState, mode }: UseUrlStateProps) {
         date: null,
         year: resolved.state.year,
         month: null,
+        monthDate: null,
       };
     }
     return resolved.state;
@@ -72,6 +74,7 @@ export function useUrlState({ authState, mode }: UseUrlStateProps) {
         date: null,
         year: state.year,
         month: state.month,
+        monthDate: null,
       };
     }
     return state;
@@ -134,7 +137,13 @@ export function useUrlState({ authState, mode }: UseUrlStateProps) {
       }
       const parsed = parseDate(date);
       const year = parsed?.getFullYear() ?? new Date().getFullYear();
-      const nextState = { view: ViewType.Note, date, year, month: null };
+      const nextState = {
+        view: ViewType.Note,
+        date,
+        year,
+        month: null,
+        monthDate: null,
+      };
       window.history.pushState({}, "", serializeUrlState(nextState));
       setState(nextState);
     }
@@ -154,6 +163,7 @@ export function useUrlState({ authState, mode }: UseUrlStateProps) {
         date: null,
         year: targetYear,
         month: null,
+        monthDate: null,
       };
       window.history.pushState({}, "", serializeUrlState(nextState));
       setState(nextState);
@@ -170,6 +180,7 @@ export function useUrlState({ authState, mode }: UseUrlStateProps) {
       date: null,
       year: last?.year ?? fallbackYear,
       month: last?.month ?? null,
+      monthDate: null,
     };
     window.history.pushState({}, "", serializeUrlState(nextState));
     setState(nextState);
@@ -182,6 +193,7 @@ export function useUrlState({ authState, mode }: UseUrlStateProps) {
       date: null,
       year,
       month: null,
+      monthDate: null,
     };
     window.history.pushState({}, "", serializeUrlState(nextState));
     setState(nextState);
@@ -189,7 +201,34 @@ export function useUrlState({ authState, mode }: UseUrlStateProps) {
 
   const navigateToMonth = useCallback((year: number, month: number) => {
     if (typeof window === "undefined") return;
-    const nextState = { view: ViewType.Calendar, date: null, year, month };
+    const nextState = {
+      view: ViewType.Calendar,
+      date: null,
+      year,
+      month,
+      monthDate: null,
+    };
+    window.history.pushState({}, "", serializeUrlState(nextState));
+    setState(nextState);
+  }, []);
+
+  // Navigate to a date within month view (updates URL with both month and date)
+  const navigateToMonthDate = useCallback((date: string) => {
+    if (typeof window === "undefined") return;
+    if (isFuture(date)) return;
+
+    const parsed = parseDate(date);
+    if (!parsed) return;
+
+    const year = parsed.getFullYear();
+    const month = parsed.getMonth();
+    const nextState = {
+      view: ViewType.Calendar,
+      date: null,
+      year,
+      month,
+      monthDate: date,
+    };
     window.history.pushState({}, "", serializeUrlState(nextState));
     setState(nextState);
   }, []);
@@ -204,6 +243,7 @@ export function useUrlState({ authState, mode }: UseUrlStateProps) {
     navigateBackToCalendar,
     navigateToYear,
     navigateToMonth,
+    navigateToMonthDate,
   };
 }
 

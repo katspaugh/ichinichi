@@ -11,7 +11,13 @@ export function useAppController() {
     authState: auth.authState,
     mode: appMode.mode,
   });
-  const { date, year } = urlState;
+  const { date, year, monthDate } = urlState;
+
+  // The active date for note loading is:
+  // - date (when viewing a note modal via ?date=)
+  // - monthDate (when in month view with a selected date via ?month=...&date=)
+  const activeNoteDate = date ?? monthDate;
+
   const activeVault = useActiveVault({
     auth,
     mode: appMode.mode,
@@ -23,7 +29,7 @@ export function useAppController() {
     vaultKey: activeVault.vaultKey,
     keyring: activeVault.keyring,
     activeKeyId: activeVault.activeKeyId,
-    date,
+    date: activeNoteDate,
     year,
   });
 

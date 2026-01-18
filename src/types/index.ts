@@ -76,6 +76,7 @@ export interface UrlState {
   date: string | null;
   year: number;
   month: number | null; // null = year view, 0-11 = month view
+  monthDate: string | null; // Selected date within month view (desktop split layout)
 }
 
 export const DayCellState = {

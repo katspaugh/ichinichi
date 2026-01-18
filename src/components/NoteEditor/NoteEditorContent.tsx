@@ -34,7 +34,10 @@ export function NoteEditorContent({
   return (
     <div
       ref={editorRef}
-      className={[styles.content, !isEditable ? styles.contentReadonly : ""]
+      className={[
+        styles.content,
+        isEditable ? styles.contentEditable : styles.contentReadonly,
+      ]
         .filter(Boolean)
         .join(" ")}
       data-placeholder={placeholderText}

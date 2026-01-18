@@ -1,8 +1,6 @@
 .editor {
   display: flex;
   flex-direction: column;
-  height: 100%;
-  min-height: 0;
 }
 
 .dragOverlay {
@@ -108,19 +106,8 @@
   user-select: text;
 }
 
-.content::-webkit-scrollbar {
-  width: 6px;
-}
-
-.content::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.content::-webkit-scrollbar-thumb {
-  background-color: var(--color-border);
-  border-radius: 999px;
-  border: 1px solid transparent;
-  background-clip: content-box;
+.contentEditable {
+  padding-bottom: min(30vh, 12rem);
 }
 
 .content[data-empty="true"]:before {

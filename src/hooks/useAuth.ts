@@ -148,7 +148,7 @@ const signInActor = fromCallback(
 
     const run = async () => {
       try {
-        const { error } = await supabase.auth.signInWithPassword({
+        const { data, error } = await supabase.auth.signInWithPassword({
           email: input.email,
           password: input.password,
         });
@@ -156,7 +156,7 @@ const signInActor = fromCallback(
           sendBack({ type: "AUTH_ERROR", message: formatAuthError(error) });
         }
         if (!cancelled && !error) {
-          sendBack({ type: "SESSION_VALIDATED", session: null });
+          sendBack({ type: "SESSION_CHANGED", session: data.session ?? null });
         }
       } catch (error) {
         if (!cancelled) {
@@ -203,6 +203,10 @@ const signUpActor = fromCallback(
             sendBack({ type: "SESSION_CHANGED", session: null });
           } else {
             sendBack({ type: "SET_CONFIRMATION_EMAIL", email: null });
+            sendBack({
+              type: "SESSION_CHANGED",
+              session: data.session ?? null,
+            });
           }
         }
       } catch (error) {
@@ -233,12 +237,10 @@ const signOutActor = fromCallback(
         const { error } = await supabase.auth.signOut({ scope: "local" });
         if (isSessionMissingError(error)) {
           await supabase.auth.getUser();
-          if (!cancelled) {
-            sendBack({ type: "SESSION_CHANGED", session: null });
-          }
         }
       } finally {
         if (!cancelled) {
+          sendBack({ type: "SESSION_CHANGED", session: null });
           sendBack({ type: "SIGN_OUT" });
         }
       }
@@ -346,6 +348,7 @@ const authMachine = setup({
     bootstrapping: {
       on: {
         SESSION_CHANGED: {
+          actions: ["applySession", "markHasLoggedIn"],
           target: "idle",
         },
       },
@@ -397,7 +400,7 @@ const authMachine = setup({
         },
         SESSION_CHANGED: {
           target: "idle",
-          actions: "clearBusy",
+          actions: ["applySession", "markHasLoggedIn", "clearBusy"],
         },
         AUTH_ERROR: {
           target: "idle",
@@ -422,7 +425,7 @@ const authMachine = setup({
         },
         SESSION_CHANGED: {
           target: "idle",
-          actions: "clearBusy",
+          actions: ["applySession", "markHasLoggedIn", "clearBusy"],
         },
         AUTH_ERROR: {
           target: "idle",
@@ -442,7 +445,7 @@ const authMachine = setup({
         },
         SESSION_CHANGED: {
           target: "idle",
-          actions: "clearBusy",
+          actions: ["applySession", "markHasLoggedIn", "clearBusy"],
         },
       },
     },

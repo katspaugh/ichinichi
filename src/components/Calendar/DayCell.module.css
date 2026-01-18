@@ -38,6 +38,22 @@
   background-color: var(--color-today-hover);
 }
 
+.selected {
+  background-color: var(--color-primary);
+  color: #fff;
+  opacity: 1;
+  font-weight: var(--font-weight-semibold);
+}
+
+.selected.today {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.selected .indicator {
+  background-color: rgba(255, 255, 255, 0.9);
+}
+
 .future {
   cursor: default;
 }

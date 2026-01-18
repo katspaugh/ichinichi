@@ -186,6 +186,14 @@
     justify-content: flex-start;
   }
 
+  .headerLeft {
+    position: static;
+    order: -1;
+    flex: 0 0 auto;
+    margin-right: auto;
+    width: auto;
+  }
+
   .yearControls {
     width: 100%;
     justify-content: center;
@@ -197,6 +205,7 @@
     width: auto;
     justify-content: flex-start;
     order: -1;
+    margin-left: auto;
   }
 
   .headerCommit {
@@ -208,4 +217,22 @@
     display: block;
     order: -1;
   }
+
+  .headerLeft .auth {
+    display: none;
+  }
+}
+
+/* Month view with split layout */
+.calendar[data-month-view="true"] {
+  max-width: 1600px;
+  height: 100vh;
+  min-height: 800px;
+  overflow: hidden;
+}
+
+.calendar[data-month-view="true"] .grid {
+  grid-template-columns: 1fr;
+  max-width: none;
+  flex: none;
 }

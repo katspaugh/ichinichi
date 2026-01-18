@@ -13,7 +13,8 @@ export function resolveUrlState(search: string): ResolvedUrlState {
   const today = getTodayString();
   const currentYear = new Date().getFullYear();
 
-  if (params.has(URL_PARAMS.DATE)) {
+  // Check if there's a month param first (combined month+date takes priority)
+  if (!params.has(URL_PARAMS.MONTH) && params.has(URL_PARAMS.DATE)) {
     const dateParam = params.get(URL_PARAMS.DATE) ?? "";
     const parsed = parseDate(dateParam);
     if (parsed && !isFuture(dateParam)) {
@@ -23,6 +24,7 @@ export function resolveUrlState(search: string): ResolvedUrlState {
           date: dateParam,
           year: parsed.getFullYear(),
           month: null,
+          monthDate: null,
         },
         canonicalSearch: `?${URL_PARAMS.DATE}=${dateParam}`,
         needsRedirect: false,
@@ -35,6 +37,7 @@ export function resolveUrlState(search: string): ResolvedUrlState {
         date: today,
         year: currentYear,
         month: null,
+        monthDate: null,
       },
       canonicalSearch: `?${URL_PARAMS.DATE}=${today}`,
       needsRedirect: true,
@@ -48,9 +51,34 @@ export function resolveUrlState(search: string): ResolvedUrlState {
       const year = parseInt(match[1], 10);
       const month = parseInt(match[2], 10) - 1; // 0-indexed
       if (month >= 0 && month <= 11) {
+        // Check if there's also a date param for split view
+        let monthDate: string | null = null;
+        if (params.has(URL_PARAMS.DATE)) {
+          const dateParam = params.get(URL_PARAMS.DATE) ?? "";
+          const parsedDate = parseDate(dateParam);
+          // Validate date is in the selected month and not in the future
+          if (
+            parsedDate &&
+            !isFuture(dateParam) &&
+            parsedDate.getFullYear() === year &&
+            parsedDate.getMonth() === month
+          ) {
+            monthDate = dateParam;
+          }
+        }
+        const monthStr = `${year}-${String(month + 1).padStart(2, "0")}`;
+        const canonicalSearch = monthDate
+          ? `?${URL_PARAMS.MONTH}=${monthStr}&${URL_PARAMS.DATE}=${monthDate}`
+          : `?${URL_PARAMS.MONTH}=${monthStr}`;
         return {
-          state: { view: ViewType.Calendar, date: null, year, month },
-          canonicalSearch: `?${URL_PARAMS.MONTH}=${year}-${String(month + 1).padStart(2, "0")}`,
+          state: {
+            view: ViewType.Calendar,
+            date: null,
+            year,
+            month,
+            monthDate,
+          },
+          canonicalSearch,
           needsRedirect: false,
         };
       }
@@ -62,7 +90,13 @@ export function resolveUrlState(search: string): ResolvedUrlState {
     const yearParam = params.get(URL_PARAMS.YEAR);
     const year = parseInt(yearParam ?? "", 10) || currentYear;
     return {
-      state: { view: ViewType.Calendar, date: null, year, month: null },
+      state: {
+        view: ViewType.Calendar,
+        date: null,
+        year,
+        month: null,
+        monthDate: null,
+      },
       canonicalSearch: `?${URL_PARAMS.YEAR}=${year}`,
       needsRedirect: false,
     };
@@ -74,6 +108,7 @@ export function resolveUrlState(search: string): ResolvedUrlState {
       date: null,
       year: currentYear,
       month: null,
+      monthDate: null,
     },
     canonicalSearch: "/",
     needsRedirect: false,
@@ -84,7 +119,12 @@ export function serializeUrlState(state: UrlState): string {
   if (state.view === ViewType.Calendar) {
     if (state.month !== null) {
       const monthStr = String(state.month + 1).padStart(2, "0");
-      return `?${URL_PARAMS.MONTH}=${state.year}-${monthStr}`;
+      const base = `?${URL_PARAMS.MONTH}=${state.year}-${monthStr}`;
+      // Include date in URL if monthDate is set (split view with selected note)
+      if (state.monthDate) {
+        return `${base}&${URL_PARAMS.DATE}=${state.monthDate}`;
+      }
+      return base;
     }
     return `?${URL_PARAMS.YEAR}=${state.year}`;
   }

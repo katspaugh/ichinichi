@@ -6,6 +6,8 @@ import { localNoteMachine } from "../hooks/useLocalNoteContent";
 import { useSavingIndicator } from "../components/NoteEditor/useSavingIndicator";
 import { SyncStatus } from "../types";
 
+const MIN_SAVING_DISPLAY_MS = 800;
+
 /**
  * Integration tests for status indicators data flow.
  *
@@ -224,22 +226,22 @@ describe("Saving status data flow", () => {
 
 describe("NoteEditor isSaving prop flow", () => {
   /**
-   * The NoteEditor component uses useSavingIndicator hook which now:
-   * 1. Takes both isEditable and isSaving as inputs
-   * 2. Shows indicator after 400ms idle when isSaving is true
-   * 3. Keeps showing for minimum 800ms even if save completes faster
+ * The NoteEditor component uses useSavingIndicator hook which now:
+ * 1. Takes both isEditable and isSaving as inputs
+ * 2. Shows indicator after 2000ms idle when isSaving is true
+ * 3. Keeps showing for minimum 800ms even if save completes faster
    *
    * The NoteEditor logic:
    * const shouldShowSaving = showSaving || (isClosing && isSaving);
    */
   it("should document the fixed timing for Saving indicator", () => {
     // Timeline of events (after fix):
-    // T=0: User types (EDIT event) -> isSaving=true, idle timer starts (400ms)
-    // T=400ms: Idle timer fires, isSaving still true -> showSaving=true
+    // T=0: User types (EDIT event) -> isSaving=true, idle timer starts (2000ms)
+    // T=2000ms: Idle timer fires, isSaving still true -> showSaving=true
     // T=500ms: Save completes -> isSaving=false, but min display timer ensures visibility
-    // T=1200ms: Min display time elapsed -> showSaving=false
+    // T=2300ms: Min display time elapsed -> showSaving=false
     //
-    // Result: "Saving..." appears at 400ms and stays visible until 1200ms
+    // Result: "Saving..." appears at 2000ms and stays visible until 2300ms
 
     expect(true).toBe(true);
   });
@@ -339,9 +341,14 @@ describe("useSavingIndicator hook", () => {
     // Should still show briefly
     expect(result.current.showSaving).toBe(true);
 
-    // After brief delay (300ms)
+    // After minimum display time
     act(() => {
-      jest.advanceTimersByTime(400);
+      jest.advanceTimersByTime(MIN_SAVING_DISPLAY_MS - 100);
+    });
+    expect(result.current.showSaving).toBe(true);
+
+    act(() => {
+      jest.advanceTimersByTime(200);
     });
 
     // Now it should be hidden

@@ -19,6 +19,7 @@ interface MonthGridProps {
   onDayClick?: (date: string) => void;
   onMonthClick?: (year: number, month: number) => void;
   showMonthView?: boolean;
+  selectedDate?: string | null;
   onWeekStartChange?: () => void;
   now?: Date;
 }
@@ -30,6 +31,7 @@ export function MonthGrid({
   onDayClick,
   onMonthClick,
   showMonthView = false,
+  selectedDate = null,
   onWeekStartChange,
   now,
 }: MonthGridProps) {
@@ -132,6 +134,7 @@ export function MonthGrid({
               date={cell.date}
               state={state}
               hasNote={hasNote(dateStr)}
+              selected={selectedDate === dateStr}
               onClick={onDayClick ? () => onDayClick(dateStr) : undefined}
             />
           );

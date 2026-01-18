@@ -8,6 +8,8 @@ import {
 import { syncMachine } from "../hooks/useSyncMachine";
 import { pendingOpsSource } from "../storage/pendingOpsSource";
 
+const SAVE_IDLE_DELAY_MS = 2000;
+
 /**
  * These tests verify the XState machines used in the note editing flow.
  *
@@ -23,7 +25,7 @@ import { pendingOpsSource } from "../storage/pendingOpsSource";
  * TIMING BUG IDENTIFIED:
  * The "Saving..." indicator shows when: isEditable && hasEdits && (showSaving || isClosing)
  * - showSaving becomes true after 2000ms of idle
- * - But save completes after ~400-500ms
+ * - But save completes after ~2s
  * - By the time showSaving=true, hasEdits is already false
  *
  * This test documents the timing requirements:
@@ -161,8 +163,10 @@ describe("localNoteMachine", () => {
       expect(actor.getSnapshot().value).toBe("dirty");
       expect(actor.getSnapshot().context.hasEdits).toBe(true);
 
-      // Wait for the 400ms debounce to transition to saving
-      await new Promise((resolve) => setTimeout(resolve, 450));
+      // Wait for the idle delay to transition to saving
+      await new Promise((resolve) =>
+        setTimeout(resolve, SAVE_IDLE_DELAY_MS + 50),
+      );
 
       // Should now be in saving state
       expect(actor.getSnapshot().value).toBe("saving");
@@ -210,8 +214,10 @@ describe("localNoteMachine", () => {
         content: "new content",
       });
 
-      // Wait for debounce
-      await new Promise((resolve) => setTimeout(resolve, 450));
+      // Wait for idle delay
+      await new Promise((resolve) =>
+        setTimeout(resolve, SAVE_IDLE_DELAY_MS + 50),
+      );
       expect(actor.getSnapshot().value).toBe("saving");
       expect(actor.getSnapshot().context.hasEdits).toBe(true);
 
@@ -230,6 +236,56 @@ describe("localNoteMachine", () => {
       expect(actor.getSnapshot().context.hasEdits).toBe(false);
 
       actor.stop();
+    });
+  });
+
+  describe("idle save delay", () => {
+    it("should wait for idle delay before saving and reset on continued edits", () => {
+      jest.useFakeTimers();
+      const mockRepository = {
+        get: jest.fn().mockResolvedValue({ ok: true, value: { content: "" } }),
+        save: jest.fn().mockImplementation(() => new Promise(() => {})),
+        delete: jest.fn().mockResolvedValue({ ok: true, value: undefined }),
+        getAllDates: jest.fn().mockResolvedValue({ ok: true, value: [] }),
+      };
+
+      const actor = createActor(localNoteMachine);
+      actor.start();
+
+      actor.send({
+        type: "INPUTS_CHANGED",
+        date: "16-01-2026",
+        repository: mockRepository as any,
+      });
+      actor.send({
+        type: "LOAD_SUCCESS",
+        date: "16-01-2026",
+        content: "",
+      });
+
+      actor.send({
+        type: "EDIT",
+        content: "draft",
+      });
+
+      expect(actor.getSnapshot().value).toBe("dirty");
+
+      jest.advanceTimersByTime(SAVE_IDLE_DELAY_MS - 100);
+      expect(actor.getSnapshot().value).toBe("dirty");
+
+      actor.send({
+        type: "EDIT",
+        content: "draft with more text",
+      });
+
+      jest.advanceTimersByTime(SAVE_IDLE_DELAY_MS - 100);
+      expect(actor.getSnapshot().value).toBe("dirty");
+
+      jest.advanceTimersByTime(150);
+      expect(actor.getSnapshot().value).toBe("saving");
+
+      actor.stop();
+      jest.useRealTimers();
     });
   });
 
@@ -293,7 +349,9 @@ describe("localNoteMachine", () => {
       expect(isDirtyOrSaving).toBe(true);
 
       // Wait for transition to saving (but save won't complete because promise is pending)
-      await new Promise((resolve) => setTimeout(resolve, 450));
+      await new Promise((resolve) =>
+        setTimeout(resolve, SAVE_IDLE_DELAY_MS + 50),
+      );
 
       const stateWhileSaving = actor.getSnapshot().value;
       expect(stateWhileSaving).toBe("saving");

@@ -10,6 +10,8 @@ interface SaveSnapshot {
   isEmpty: boolean;
 }
 
+const SAVE_IDLE_DELAY_MS = 2000;
+
 export interface UseLocalNoteContentReturn {
   content: string;
   setContent: (content: string) => void;
@@ -354,7 +356,7 @@ export const localNoteMachine = setup({
     },
     dirty: {
       after: {
-        400: { target: "saving" },
+        [SAVE_IDLE_DELAY_MS]: { target: "saving" },
       },
       on: {
         EDIT: {
