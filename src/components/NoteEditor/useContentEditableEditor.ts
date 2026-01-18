@@ -531,21 +531,28 @@ export function useContentEditableEditor({
       const placeholder = document.createElement("img");
       placeholder.setAttribute("data-image-id", "uploading");
       placeholder.setAttribute("alt", "Uploading...");
+      const previewUrl = URL.createObjectURL(file);
+      placeholder.setAttribute("src", previewUrl);
       insertNodeAtCursor(placeholder);
       handleInput();
 
       dropHandler(file)
         .then(({ id, width, height, filename }) => {
-          placeholder.setAttribute("data-image-id", id);
-          placeholder.setAttribute("alt", filename);
-          placeholder.setAttribute("width", String(width));
-          placeholder.setAttribute("height", String(height));
+          const finalImage = document.createElement("img");
+          finalImage.setAttribute("data-image-id", id);
+          finalImage.setAttribute("alt", filename);
+          finalImage.setAttribute("width", String(width));
+          finalImage.setAttribute("height", String(height));
+          if (placeholder.isConnected) {
+            placeholder.replaceWith(finalImage);
+          }
         })
         .catch((error) => {
           console.error("Failed to upload dropped image:", error);
           placeholder.remove();
         })
         .finally(() => {
+          URL.revokeObjectURL(previewUrl);
           onDropCompleteRef.current?.();
           updateEmptyState();
           handleInput();
