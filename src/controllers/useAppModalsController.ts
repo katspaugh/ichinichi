@@ -202,7 +202,6 @@ export function useAppModalsController() {
       void handleSignOut();
       return;
     }
-    auth.backToSignIn();
     setMode(AppMode.Local);
   }, [auth, handleSignOut, setMode]);
 
@@ -229,13 +228,10 @@ export function useAppModalsController() {
     cloudAuthModal: {
       isOpen: vaultUiState === "cloudAuth",
       isSigningIn,
-      authState: auth.authState,
-      confirmationEmail: auth.confirmationEmail,
       isBusy: auth.isBusy,
       error: auth.error,
       localPassword,
       onDismiss: handleCloudAuthDismiss,
-      onBackToSignIn: auth.backToSignIn,
       onSignIn: handleSignIn,
       onSignUp: handleSignUp,
     },

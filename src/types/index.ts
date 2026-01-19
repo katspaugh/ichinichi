@@ -59,7 +59,6 @@ export const AuthState = {
   Loading: "loading",
   SignedOut: "signed_out",
   SignedIn: "signed_in",
-  AwaitingConfirmation: "awaiting_confirmation",
 } as const;
 
 export type AuthState = (typeof AuthState)[keyof typeof AuthState];

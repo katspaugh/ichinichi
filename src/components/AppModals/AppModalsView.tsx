@@ -4,7 +4,6 @@ import { LocalVaultModal } from "./LocalVaultModal";
 import { CloudAuthModal } from "./CloudAuthModal";
 import { VaultErrorModal } from "./VaultErrorModal";
 import { NoteModal } from "./NoteModal";
-import type { AuthState } from "../../types";
 import type { AppMode } from "../../hooks/useAppMode";
 
 interface AppModalsViewProps {
@@ -30,13 +29,10 @@ interface AppModalsViewProps {
   cloudAuthModal: {
     isOpen: boolean;
     isSigningIn: boolean;
-    authState: AuthState;
-    confirmationEmail: string | null;
     isBusy: boolean;
     error: string | null;
     localPassword: string | null;
     onDismiss: () => void;
-    onBackToSignIn: () => void;
     onSignIn: (email: string, password: string) => Promise<void>;
     onSignUp: (email: string, password: string) => Promise<void>;
   };
@@ -102,13 +98,10 @@ export function AppModalsView({
       <CloudAuthModal
         isOpen={cloudAuthModal.isOpen}
         isSigningIn={cloudAuthModal.isSigningIn}
-        authState={cloudAuthModal.authState}
-        confirmationEmail={cloudAuthModal.confirmationEmail}
         isBusy={cloudAuthModal.isBusy}
         error={cloudAuthModal.error}
         localPassword={cloudAuthModal.localPassword}
         onDismiss={cloudAuthModal.onDismiss}
-        onBackToSignIn={cloudAuthModal.onBackToSignIn}
         onSignIn={cloudAuthModal.onSignIn}
         onSignUp={cloudAuthModal.onSignUp}
       />

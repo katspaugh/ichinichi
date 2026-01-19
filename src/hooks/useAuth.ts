@@ -15,7 +15,6 @@ export interface UseAuthReturn {
   authState: AuthState;
   error: string | null;
   isBusy: boolean;
-  confirmationEmail: string | null;
   signUp: (
     email: string,
     password: string,
@@ -26,7 +25,6 @@ export interface UseAuthReturn {
   ) => Promise<{ success: boolean; password?: string }>;
   signOut: () => Promise<void>;
   clearError: () => void;
-  backToSignIn: () => void;
 }
 
 function formatAuthError(error: AuthError): string {
@@ -57,16 +55,13 @@ type AuthEvent =
   | { type: "SIGN_UP"; email: string; password: string }
   | { type: "SIGN_OUT" }
   | { type: "AUTH_ERROR"; message: string }
-  | { type: "CLEAR_ERROR" }
-  | { type: "BACK_TO_SIGN_IN" }
-  | { type: "SET_CONFIRMATION_EMAIL"; email: string | null };
+  | { type: "CLEAR_ERROR" };
 
 interface AuthContext {
   session: Session | null;
   authState: AuthState;
   error: string | null;
   isBusy: boolean;
-  confirmationEmail: string | null;
   online: boolean;
 }
 
@@ -198,16 +193,10 @@ const signUpActor = fromCallback(
           return;
         }
         if (!cancelled) {
-          if (data.user && !data.session) {
-            sendBack({ type: "SET_CONFIRMATION_EMAIL", email: input.email });
-            sendBack({ type: "SESSION_CHANGED", session: null });
-          } else {
-            sendBack({ type: "SET_CONFIRMATION_EMAIL", email: null });
-            sendBack({
-              type: "SESSION_CHANGED",
-              session: data.session ?? null,
-            });
-          }
+          sendBack({
+            type: "SESSION_CHANGED",
+            session: data.session ?? null,
+          });
         }
       } catch (error) {
         if (!cancelled) {
@@ -297,16 +286,6 @@ const authMachine = setup({
       }
       return { error: event.message };
     }),
-    setAwaitingConfirmation: assign({
-      authState: AuthState.AwaitingConfirmation,
-    }),
-    setConfirmationEmail: assign((args: { event: AuthEvent }) => {
-      const { event } = args;
-      if (event.type !== "SET_CONFIRMATION_EMAIL") {
-        return {};
-      }
-      return { confirmationEmail: event.email };
-    }),
     markHasLoggedIn: () => {
       if (typeof window === "undefined") return;
       localStorage.setItem(AUTH_HAS_LOGGED_IN_KEY, "1");
@@ -320,7 +299,6 @@ const authMachine = setup({
     authState: AuthState.Loading,
     error: null,
     isBusy: false,
-    confirmationEmail: null,
     online: connectivity.getOnline(),
   },
   invoke: {
@@ -339,9 +317,6 @@ const authMachine = setup({
     },
     AUTH_ERROR: {
       actions: ["setErrorMessage", "clearBusy"],
-    },
-    SET_CONFIRMATION_EMAIL: {
-      actions: "setConfirmationEmail",
     },
   },
   states: {
@@ -366,13 +341,6 @@ const authMachine = setup({
         SIGN_OUT: {
           target: "signingOut",
           actions: ["clearError", "setBusy"],
-        },
-        BACK_TO_SIGN_IN: {
-          actions: [
-            "setConfirmationEmail",
-            "clearError",
-            "setAwaitingConfirmation",
-          ],
         },
         SESSION_CHANGED: {
           actions: "applySession",
@@ -420,9 +388,6 @@ const authMachine = setup({
         },
       },
       on: {
-        SET_CONFIRMATION_EMAIL: {
-          actions: ["setConfirmationEmail", "setAwaitingConfirmation"],
-        },
         SESSION_CHANGED: {
           target: "idle",
           actions: ["applySession", "markHasLoggedIn", "clearBusy"],
@@ -490,21 +455,15 @@ export function useAuth(): UseAuthReturn {
     send({ type: "CLEAR_ERROR" });
   }, [send]);
 
-  const backToSignIn = useCallback(() => {
-    send({ type: "BACK_TO_SIGN_IN" });
-  }, [send]);
-
   return {
     session: state.context.session,
     user: state.context.session?.user ?? null,
     authState: state.context.authState,
     error: state.context.error,
     isBusy: state.context.isBusy,
-    confirmationEmail: state.context.confirmationEmail,
     signUp,
     signIn,
     signOut,
     clearError,
-    backToSignIn,
   };
 }
