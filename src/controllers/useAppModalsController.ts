@@ -65,6 +65,7 @@ export function useAppModalsController() {
     auth,
     localVault,
     cloudVault,
+    authPassword,
     isVaultReady,
     isVaultLocked,
     isVaultUnlocked,
@@ -182,6 +183,7 @@ export function useAppModalsController() {
   // when session is restored quickly
   const isSigningIn = useDelayedTrue(isSigningInRaw, 300);
   const isVaultBusy = mode === AppMode.Cloud ? cloudVault.isBusy : localVault.isBusy;
+  const hasPasswordPending = mode === AppMode.Cloud && !!authPassword;
   const vaultUiState = useVaultUiState({
     showIntro,
     isModeChoiceOpen,
@@ -191,6 +193,7 @@ export function useAppModalsController() {
     isVaultReady,
     isVaultLocked,
     isVaultBusy,
+    hasPasswordPending,
     vaultError,
     localVaultReady: localVault.isReady,
     localRequiresPassword: localVault.requiresPassword,
