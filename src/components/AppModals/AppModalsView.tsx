@@ -29,12 +29,14 @@ interface AppModalsViewProps {
   cloudAuthModal: {
     isOpen: boolean;
     isSigningIn: boolean;
+    isVaultLocked: boolean;
     isBusy: boolean;
     error: string | null;
     localPassword: string | null;
     onDismiss: () => void;
     onSignIn: (email: string, password: string) => Promise<void>;
     onSignUp: (email: string, password: string) => Promise<void>;
+    onVaultUnlock: (password: string) => void;
   };
   vaultErrorModal: {
     isOpen: boolean;
@@ -98,12 +100,14 @@ export function AppModalsView({
       <CloudAuthModal
         isOpen={cloudAuthModal.isOpen}
         isSigningIn={cloudAuthModal.isSigningIn}
+        isVaultLocked={cloudAuthModal.isVaultLocked}
         isBusy={cloudAuthModal.isBusy}
         error={cloudAuthModal.error}
         localPassword={cloudAuthModal.localPassword}
         onDismiss={cloudAuthModal.onDismiss}
         onSignIn={cloudAuthModal.onSignIn}
         onSignUp={cloudAuthModal.onSignUp}
+        onVaultUnlock={cloudAuthModal.onVaultUnlock}
       />
 
       <VaultErrorModal

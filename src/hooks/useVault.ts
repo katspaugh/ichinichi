@@ -361,11 +361,12 @@ export function useVault({
     });
   }, [send, vaultService, user, password, localDek, localKeyring]);
 
+  // Only consume password when actually doing password-based unlock (not device unlock)
   useEffect(() => {
-    if (password && state.context.isBusy) {
+    if (password && state.matches('unlocking')) {
       onPasswordConsumed();
     }
-  }, [password, onPasswordConsumed, state.context.isBusy]);
+  }, [password, onPasswordConsumed, state]);
 
   const clearError = useCallback(() => {
     send({ type: "CLEAR_ERROR" });

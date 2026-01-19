@@ -36,13 +36,23 @@ function deriveUiState(inputs: VaultUiInputs): VaultUiState {
   ) {
     return "localVault";
   }
-  if (
-    inputs.mode === AppMode.Cloud &&
-    (inputs.authState === AuthState.SignedOut ||
+  if (inputs.mode === AppMode.Cloud) {
+    // Show auth modal when not signed in or still signing in
+    if (
+      inputs.authState === AuthState.SignedOut ||
       inputs.authState === AuthState.Loading ||
-      inputs.isSigningIn)
-  ) {
-    return "cloudAuth";
+      inputs.isSigningIn
+    ) {
+      return "cloudAuth";
+    }
+    // Show vault unlock when signed in but vault is locked
+    if (
+      inputs.authState === AuthState.SignedIn &&
+      inputs.isVaultLocked &&
+      inputs.isVaultReady
+    ) {
+      return "cloudAuth";
+    }
   }
   if (inputs.vaultError && inputs.isVaultReady) {
     return "vaultError";

@@ -73,6 +73,7 @@ export function useAppModalsController() {
     handleSignIn,
     handleSignUp,
     handleSignOut,
+    handleCloudVaultUnlock,
     clearVaultError,
     localPassword,
   } = useActiveVaultContext();
@@ -228,12 +229,14 @@ export function useAppModalsController() {
     cloudAuthModal: {
       isOpen: vaultUiState === "cloudAuth",
       isSigningIn,
-      isBusy: auth.isBusy,
-      error: auth.error,
+      isVaultLocked: auth.authState === AuthState.SignedIn && isVaultLocked,
+      isBusy: auth.isBusy || cloudVault.isBusy,
+      error: auth.error || cloudVault.error,
       localPassword,
       onDismiss: handleCloudAuthDismiss,
       onSignIn: handleSignIn,
       onSignUp: handleSignUp,
+      onVaultUnlock: handleCloudVaultUnlock,
     },
     vaultErrorModal: {
       isOpen: vaultUiState === "vaultError",

@@ -30,6 +30,7 @@ export interface UseActiveVaultReturn {
   handleSignIn: (email: string, password: string) => Promise<void>;
   handleSignUp: (email: string, password: string) => Promise<void>;
   handleSignOut: () => Promise<void>;
+  handleCloudVaultUnlock: (password: string) => void;
   clearVaultError: () => void;
   setLocalPassword: (password: string | null) => void;
 }
@@ -153,6 +154,10 @@ export function useActiveVault({
     setAuthPassword(null);
   }, [auth, setMode]);
 
+  const handleCloudVaultUnlock = useCallback((password: string) => {
+    setAuthPassword(password);
+  }, []);
+
   const clearVaultError = useCallback(() => {
     if (mode === AppMode.Cloud) {
       cloudVault.clearError();
@@ -179,6 +184,7 @@ export function useActiveVault({
     handleSignIn,
     handleSignUp,
     handleSignOut,
+    handleCloudVaultUnlock,
     clearVaultError,
     setLocalPassword,
   };
