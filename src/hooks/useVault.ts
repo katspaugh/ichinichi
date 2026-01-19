@@ -243,6 +243,7 @@ export const vaultMachine = setup({
         INPUTS_CHANGED: {
           guard: "hasUser",
           target: "deviceUnlocking",
+          actions: "applyInputs",
         },
       },
     },
@@ -276,20 +277,28 @@ export const vaultMachine = setup({
         INPUTS_CHANGED: {
           guard: "noUser",
           target: "signedOut",
+          actions: "applyInputs",
         },
       },
     },
     locked: {
       entry: "setReady",
+      // Auto-transition to unlocking if password is available in context
+      always: {
+        guard: ({ context }) => !!context.password,
+        target: "unlocking",
+      },
       on: {
         INPUTS_CHANGED: [
           {
             guard: "noUser",
             target: "signedOut",
+            actions: "applyInputs",
           },
           {
             guard: "hasPassword",
             target: "unlocking",
+            actions: "applyInputs",
           },
         ],
       },
@@ -319,6 +328,7 @@ export const vaultMachine = setup({
         INPUTS_CHANGED: {
           guard: "noUser",
           target: "signedOut",
+          actions: "applyInputs",
         },
       },
     },
@@ -329,10 +339,12 @@ export const vaultMachine = setup({
           {
             guard: "noUser",
             target: "signedOut",
+            actions: "applyInputs",
           },
           {
             guard: "hasPassword",
             target: "unlocking",
+            actions: "applyInputs",
           },
         ],
       },

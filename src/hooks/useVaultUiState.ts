@@ -20,6 +20,7 @@ interface VaultUiInputs {
   isSigningIn: boolean;
   isVaultReady: boolean;
   isVaultLocked: boolean;
+  isVaultBusy: boolean;
   vaultError: string | null;
   localVaultReady: boolean;
   localRequiresPassword: boolean;
@@ -45,11 +46,12 @@ function deriveUiState(inputs: VaultUiInputs): VaultUiState {
     ) {
       return "cloudAuth";
     }
-    // Show vault unlock when signed in but vault is locked
+    // Show vault unlock when signed in but vault is locked (and not currently unlocking)
     if (
       inputs.authState === AuthState.SignedIn &&
       inputs.isVaultLocked &&
-      inputs.isVaultReady
+      inputs.isVaultReady &&
+      !inputs.isVaultBusy
     ) {
       return "cloudAuth";
     }
@@ -112,6 +114,7 @@ export function useVaultUiState(inputs: VaultUiInputs): VaultUiState {
     inputs.isSigningIn,
     inputs.isVaultReady,
     inputs.isVaultLocked,
+    inputs.isVaultBusy,
     inputs.vaultError,
     inputs.localVaultReady,
     inputs.localRequiresPassword,

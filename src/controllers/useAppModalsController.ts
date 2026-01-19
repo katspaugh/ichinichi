@@ -181,6 +181,7 @@ export function useAppModalsController() {
   // Delay showing "Signing in..." to avoid flash on page reload
   // when session is restored quickly
   const isSigningIn = useDelayedTrue(isSigningInRaw, 300);
+  const isVaultBusy = mode === AppMode.Cloud ? cloudVault.isBusy : localVault.isBusy;
   const vaultUiState = useVaultUiState({
     showIntro,
     isModeChoiceOpen,
@@ -189,6 +190,7 @@ export function useAppModalsController() {
     isSigningIn,
     isVaultReady,
     isVaultLocked,
+    isVaultBusy,
     vaultError,
     localVaultReady: localVault.isReady,
     localRequiresPassword: localVault.requiresPassword,
