@@ -13,6 +13,10 @@
     "typecheck": "tsc -b --pretty false",
     "preview": "vite preview",
     "test": "jest",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:seed": "playwright test tests/seed-notes.spec.ts --project=chromium --headed",
     "prepare": "husky install",
     "deploy": "yarn build && wrangler pages deploy"
   },
@@ -25,6 +29,8 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@playwright/mcp": "^0.0.56",
+    "@playwright/test": "^1.57.0",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.1.0",
     "@types/dompurify": "^3.2.0",
@@ -35,6 +41,7 @@
     "@vitejs/plugin-react": "^5.1.1",
     "@xstate/react": "^5.0.0",
     "cheerio": "^1.0.0",
+    "dotenv": "^17.2.3",
     "eslint": "^9.39.1",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
@@ -54,5 +61,8 @@
     "vite-plugin-sri": "^0.0.2",
     "wrangler": "^4.54.0"
   },
-  "packageManager": "yarn@4.12.0"
+  "packageManager": "yarn@4.12.0",
+  "resolutions": {
+    "playwright": "1.57.0"
+  }
 }
