@@ -16,7 +16,7 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
-    "test:e2e:seed": "playwright test tests/seed-notes.spec.ts --project=chromium --headed",
+    "test:e2e:seed": "playwright test tests/seed-cloud-notes.spec.ts --project=chromium --headed",
     "prepare": "husky install",
     "deploy": "yarn build && wrangler pages deploy"
   },

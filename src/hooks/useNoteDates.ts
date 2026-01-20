@@ -8,6 +8,7 @@ interface UseNoteDatesReturn {
   hasNote: (date: string) => boolean;
   noteDates: Set<string>;
   refreshNoteDates: (options?: { immediate?: boolean }) => void;
+  applyNoteChange: (date: string, isEmpty: boolean) => void;
 }
 
 import type { RepositoryError } from "../domain/errors";
@@ -64,7 +65,8 @@ type NoteDatesEvent =
   | { type: "DATES_UPDATED"; dates: string[] }
   | { type: "DATES_CLEARED" }
   | { type: "MARK_PENDING_REFRESH" }
-  | { type: "CLEAR_PENDING_REFRESH" };
+  | { type: "CLEAR_PENDING_REFRESH" }
+  | { type: "APPLY_NOTE_CHANGE"; date: string; isEmpty: boolean };
 
 const refreshActor = fromCallback(
   ({
@@ -155,6 +157,19 @@ const noteDatesMachine = setup({
       return { noteDates: new Set(event.dates) };
     }),
     clearNoteDates: assign({ noteDates: new Set() }),
+    applyNoteChange: assign((args: { event: NoteDatesEvent; context: NoteDatesContext }) => {
+      const { event, context } = args;
+      if (event.type !== "APPLY_NOTE_CHANGE") {
+        return {};
+      }
+      const nextDates = new Set(context.noteDates);
+      if (event.isEmpty) {
+        nextDates.delete(event.date);
+      } else {
+        nextDates.add(event.date);
+      }
+      return { noteDates: nextDates };
+    }),
     markPendingRefresh: assign({ pendingRefresh: true }),
     clearPendingRefresh: assign({ pendingRefresh: false }),
     maybeRefreshOnOnline: (args: {
@@ -207,6 +222,9 @@ const noteDatesMachine = setup({
         actions: ["applyInputs", "maybeRefreshOnOnline"],
       },
     ],
+    APPLY_NOTE_CHANGE: {
+      actions: "applyNoteChange",
+    },
   },
   states: {
     idle: {
@@ -309,6 +327,13 @@ export function useNoteDates(
     [send],
   );
 
+  const applyNoteChange = useCallback(
+    (date: string, isEmpty: boolean) => {
+      send({ type: "APPLY_NOTE_CHANGE", date, isEmpty });
+    },
+    [send],
+  );
+
   const hasNote = useCallback(
     (checkDate: string): boolean => state.context.noteDates.has(checkDate),
     [state.context.noteDates],
@@ -318,5 +343,6 @@ export function useNoteDates(
     hasNote,
     noteDates: state.context.noteDates,
     refreshNoteDates,
+    applyNoteChange,
   };
 }

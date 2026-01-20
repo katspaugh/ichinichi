@@ -158,7 +158,7 @@ export function useNoteRepository({
     mode === AppMode.Cloud && !!userId && !!vaultKey && !!activeKeyId;
   const { syncStatus, syncError, triggerSync, queueIdleSync, pendingOps } =
     useSync(syncedRepo, { enabled: syncEnabled });
-  const { hasNote, noteDates, refreshNoteDates } = useNoteDates(
+  const { hasNote, noteDates, refreshNoteDates, applyNoteChange } = useNoteDates(
     repository,
     year,
   );
@@ -174,8 +174,12 @@ export function useNoteRepository({
   const timerRef = useRef<number | null>(null);
 
   useEffect(() => {
-    send({ type: "UPDATE_INPUTS", hasNote, refreshNoteDates, queueIdleSync });
-  }, [send, hasNote, refreshNoteDates, queueIdleSync]);
+    send({
+      type: "UPDATE_INPUTS",
+      applyNoteChange,
+      queueIdleSync,
+    });
+  }, [send, applyNoteChange, queueIdleSync]);
 
   useEffect(() => {
     if (state.context.timerId !== null) {

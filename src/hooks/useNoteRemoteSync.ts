@@ -232,7 +232,6 @@ const remoteSyncMachine = setup({
       !!context.repository &&
       context.online &&
       context.isLocalReady &&
-      context.localContent !== "" &&
       context.hasRefreshedForDate !== context.date,
   },
 }).createMachine({

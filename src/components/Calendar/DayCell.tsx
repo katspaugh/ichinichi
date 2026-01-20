@@ -1,4 +1,5 @@
 import { DayCellState } from "../../types";
+import { isPastEditAllowed } from "../../utils/noteRules";
 import styles from "./DayCell.module.css";
 
 interface DayCellProps {
@@ -23,7 +24,8 @@ export function DayCell({
   }
 
   const isClickable =
-    state === DayCellState.Today || (state === DayCellState.Past && hasNote);
+    state === DayCellState.Today ||
+    (state === DayCellState.Past && (hasNote || isPastEditAllowed()));
 
   // Create accessible label with full date
   const ariaLabel = date

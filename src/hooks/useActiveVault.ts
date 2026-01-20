@@ -46,17 +46,12 @@ export function useActiveVault({
   const [localPassword, setLocalPassword] = useState<string | null>(null);
   const [state, send] = useVaultMachine();
 
-  const handlePasswordConsumed = useCallback(() => {
-    setAuthPassword(null);
-  }, []);
-
   const cloudVault = useVault({
     vaultService,
     user: mode === AppMode.Cloud ? auth.user : null,
     password: authPassword,
     localDek: localVault.vaultKey,
     localKeyring: state.context.localKeyring,
-    onPasswordConsumed: handlePasswordConsumed,
   });
 
   useEffect(() => {

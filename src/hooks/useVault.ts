@@ -21,7 +21,6 @@ interface UseVaultProps {
   password: string | null;
   localDek: CryptoKey | null;
   localKeyring: Map<string, CryptoKey>;
-  onPasswordConsumed: () => void;
 }
 
 type VaultEvent =
@@ -52,6 +51,7 @@ interface VaultContext {
   vaultKey: CryptoKey | null;
   keyring: Map<string, CryptoKey>;
   primaryKeyId: string | null;
+  lastFailedPassword: string | null;
   isReady: boolean;
   isBusy: boolean;
   error: string | null;
@@ -147,23 +147,26 @@ export const vaultMachine = setup({
     passwordUnlock: passwordUnlockActor,
   },
   actions: {
-    applyInputs: assign((args: { event: VaultEvent }) => {
-      const { event } = args;
+    applyInputs: assign((args: { event: VaultEvent; context: VaultContext }) => {
+      const { event, context } = args;
       if (event.type !== "INPUTS_CHANGED") {
         return {};
       }
+      const passwordChanged = event.password !== context.password;
       return {
         vaultService: event.vaultService,
         userId: event.user?.id ?? null,
         password: event.password,
         localDek: event.localDek,
         localKeyring: event.localKeyring,
+        lastFailedPassword: passwordChanged ? null : context.lastFailedPassword,
       };
     }),
     resetVault: assign({
       vaultKey: null,
       keyring: new Map(),
       primaryKeyId: null,
+      lastFailedPassword: null,
       isReady: true,
       isBusy: false,
       error: null,
@@ -190,16 +193,18 @@ export const vaultMachine = setup({
         vaultKey: event.vaultKey,
         keyring: event.keyring,
         primaryKeyId: event.primaryKeyId,
+        lastFailedPassword: null,
         isBusy: false,
         isReady: true,
         error: null,
       };
     }),
-    setErrorMessage: assign({
+    setErrorMessage: assign((args: { context: VaultContext }) => ({
       isBusy: false,
       isReady: true,
       error: "Unable to unlock. Check your password and try again.",
-    }),
+      lastFailedPassword: args.context.password,
+    })),
     setReady: assign({ isReady: true, isBusy: false }),
     setBusy: assign({ isBusy: true, isReady: false }),
     clearError: assign({ error: null }),
@@ -209,8 +214,10 @@ export const vaultMachine = setup({
       event.type === "INPUTS_CHANGED" && !!event.user,
     noUser: ({ event }: { event: VaultEvent }) =>
       event.type === "INPUTS_CHANGED" && !event.user,
-    hasPassword: ({ event }: { event: VaultEvent }) =>
-      event.type === "INPUTS_CHANGED" && !!event.password,
+    hasPassword: ({ event, context }: { event: VaultEvent; context: VaultContext }) =>
+      event.type === "INPUTS_CHANGED" &&
+      !!event.password &&
+      event.password !== context.lastFailedPassword,
   },
 }).createMachine({
   id: "vault",
@@ -224,6 +231,7 @@ export const vaultMachine = setup({
     vaultKey: null,
     keyring: new Map(),
     primaryKeyId: null,
+    lastFailedPassword: null,
     isReady: false,
     isBusy: false,
     error: null,
@@ -285,7 +293,8 @@ export const vaultMachine = setup({
       entry: "setReady",
       // Auto-transition to unlocking if password is available in context
       always: {
-        guard: ({ context }) => !!context.password,
+        guard: ({ context }) =>
+          !!context.password && context.password !== context.lastFailedPassword,
         target: "unlocking",
       },
       on: {
@@ -341,11 +350,6 @@ export const vaultMachine = setup({
             target: "signedOut",
             actions: "applyInputs",
           },
-          {
-            guard: "hasPassword",
-            target: "unlocking",
-            actions: "applyInputs",
-          },
         ],
       },
     },
@@ -358,7 +362,6 @@ export function useVault({
   password,
   localDek,
   localKeyring,
-  onPasswordConsumed,
 }: UseVaultProps): UseVaultReturn {
   const [state, send] = useMachine(vaultMachine);
 
@@ -372,13 +375,6 @@ export function useVault({
       localKeyring,
     });
   }, [send, vaultService, user, password, localDek, localKeyring]);
-
-  // Only consume password when actually doing password-based unlock (not device unlock)
-  useEffect(() => {
-    if (password && state.matches('unlocking')) {
-      onPasswordConsumed();
-    }
-  }, [password, onPasswordConsumed, state]);
 
   const clearError = useCallback(() => {
     send({ type: "CLEAR_ERROR" });

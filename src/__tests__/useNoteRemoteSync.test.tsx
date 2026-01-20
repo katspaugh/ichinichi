@@ -85,4 +85,23 @@ describe("useNoteRemoteSync", () => {
 
     await waitFor(() => expect(result.current.isKnownRemoteOnly).toBe(true));
   });
+
+  it("refreshes remote notes even when local content is empty", async () => {
+    const repository = createRepository();
+    const onRemoteUpdate = jest.fn();
+
+    renderHook(() =>
+      useNoteRemoteSync("10-01-2026", repository, {
+        onRemoteUpdate,
+        localContent: "",
+        hasLocalEdits: false,
+        isLocalReady: true,
+      }),
+    );
+
+    await waitFor(() =>
+      expect(repository.refreshNote).toHaveBeenCalledWith("10-01-2026"),
+    );
+    await waitFor(() => expect(onRemoteUpdate).toHaveBeenCalled());
+  });
 });

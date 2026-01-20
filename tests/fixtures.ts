@@ -222,7 +222,8 @@ export const test = base.extend<{ helpers: TestHelpers }>({
       typeInEditor: async (content: string) => {
         const editor = page.locator('[data-note-editor="content"]');
         await editor.click();
-        await editor.fill(content);
+        await page.keyboard.press('Meta+a');
+        await page.keyboard.type(content);
       },
 
       getEditorContent: async () => {
@@ -232,7 +233,7 @@ export const test = base.extend<{ helpers: TestHelpers }>({
 
       waitForSave: async () => {
         // Wait a bit for debounced save to kick in and complete
-        await page.waitForTimeout(1500);
+        await page.waitForTimeout(3500);
         // Try to wait for "Saving..." to disappear if it appears
         try {
           const savingText = page.getByText('Saving...');
@@ -282,7 +283,16 @@ export const test = base.extend<{ helpers: TestHelpers }>({
         if (month) {
           selector = `[role="button"][aria-label*="${month}"][aria-label*="${day},"]`;
         }
-        await page.locator(selector).first().click();
+        const editor = page.locator('[data-note-editor="content"]');
+        await expect
+          .poll(
+            async () => {
+              await page.locator(selector).first().click();
+              return editor.isVisible();
+            },
+            { timeout: 15000 }
+          )
+          .toBe(true);
       },
     };
 

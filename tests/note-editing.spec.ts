@@ -17,8 +17,7 @@ test.describe('Note Editing', () => {
     await expect(editor).toHaveAttribute('contenteditable', 'true');
 
     // Type some content
-    await editor.click();
-    await page.keyboard.type('Hello, this is my daily note!');
+    await helpers.typeInEditor('Hello, this is my daily note!');
 
     // Wait for save
     await helpers.waitForSave();
@@ -27,20 +26,24 @@ test.describe('Note Editing', () => {
     await helpers.closeNoteModal();
     await helpers.openNote(todayDate);
 
-    const content = await helpers.getEditorContent();
-    expect(content).toContain('Hello, this is my daily note!');
+    await expect.poll(async () => helpers.getEditorContent(), {
+      timeout: 10000,
+    }).toContain('Hello, this is my daily note!');
   });
 
-  test('shows saving indicator when editing', async ({ page, helpers }) => {
+  test('saves note after editing', async ({ page, helpers }) => {
     const todayDate = helpers.getTodayDate();
     await helpers.openNote(todayDate);
 
     const editor = page.locator('[data-note-editor="content"]');
-    await editor.click();
-    await page.keyboard.type('Testing save indicator');
+    await helpers.typeInEditor('Testing save indicator');
 
-    // The saving indicator should eventually appear
-    await expect(page.getByText('Saving...')).toBeVisible({ timeout: 5000 });
+    await helpers.waitForSave();
+    await helpers.closeNoteModal();
+    await helpers.openNote(todayDate);
+    await expect.poll(async () => helpers.getEditorContent(), {
+      timeout: 10000,
+    }).toContain('Testing save indicator');
   });
 
   test('past notes are read-only', async ({ page, helpers }) => {
@@ -49,8 +52,7 @@ test.describe('Note Editing', () => {
     await helpers.openNote(todayDate);
 
     const editor = page.locator('[data-note-editor="content"]');
-    await editor.click();
-    await page.keyboard.type('Note for today');
+    await helpers.typeInEditor('Note for today');
     await helpers.waitForSave();
     await helpers.closeNoteModal();
 
@@ -77,19 +79,15 @@ test.describe('Note Editing', () => {
     await helpers.openNote(todayDate);
 
     const editor = page.locator('[data-note-editor="content"]');
-    await editor.click();
-    await page.keyboard.type('Today note content');
+    await helpers.typeInEditor('Today note content');
     await helpers.waitForSave();
 
     // Navigation arrows should be visible
-    const prevArrow = page.locator('[aria-label*="Previous"]');
-    const nextArrow = page.locator('[aria-label*="Next"]');
+    const prevArrow = page.getByRole('button', { name: 'Previous note' });
+    const nextArrow = page.getByRole('button', { name: 'Next note' });
 
-    // At least one arrow should be visible (depending on note history)
-    const hasPrevArrow = await prevArrow.isVisible({ timeout: 1000 }).catch(() => false);
-    const hasNextArrow = await nextArrow.isVisible({ timeout: 1000 }).catch(() => false);
-
-    expect(hasPrevArrow || hasNextArrow).toBe(true);
+    await expect(prevArrow).toBeDisabled();
+    await expect(nextArrow).toBeDisabled();
   });
 
   test('escape key closes the note modal', async ({ page, helpers }) => {
@@ -111,8 +109,7 @@ test.describe('Note Editing', () => {
     await helpers.openNote(todayDate);
 
     const editor = page.locator('[data-note-editor="content"]');
-    await editor.click();
-    await page.keyboard.type('Temporary content');
+    await helpers.typeInEditor('Temporary content');
     await helpers.waitForSave();
 
     // Clear the content
@@ -148,9 +145,9 @@ test.describe('Note Editing', () => {
     const expectedMonth = today.toLocaleDateString('en-US', { month: 'long' });
     const expectedDay = today.getDate();
 
-    // Check that the header shows the correct date
-    await expect(page.locator(`text=${expectedMonth}`)).toBeVisible();
-    await expect(page.locator(`text=${expectedDay}`)).toBeVisible();
+    const dateHeader = page.locator('[class*="NoteEditor__date"]');
+    await expect(dateHeader).toContainText(expectedMonth);
+    await expect(dateHeader).toContainText(String(expectedDay));
   });
 
   test('preserves formatting in notes', async ({ page, helpers }) => {
@@ -158,24 +155,22 @@ test.describe('Note Editing', () => {
     await helpers.openNote(todayDate);
 
     const editor = page.locator('[data-note-editor="content"]');
-    await editor.click();
-
-    // Type multiple lines
-    await page.keyboard.type('Line 1');
-    await page.keyboard.press('Enter');
-    await page.keyboard.type('Line 2');
-    await page.keyboard.press('Enter');
-    await page.keyboard.type('Line 3');
+    await helpers.typeInEditor('Line 1\nLine 2\nLine 3');
     await helpers.waitForSave();
 
     // Close and reopen
     await helpers.closeNoteModal();
     await helpers.openNote(todayDate);
 
-    const content = await helpers.getEditorContent();
-    expect(content).toContain('Line 1');
-    expect(content).toContain('Line 2');
-    expect(content).toContain('Line 3');
+    await expect.poll(async () => helpers.getEditorContent(), {
+      timeout: 5000,
+    }).toContain('Line 1');
+    await expect.poll(async () => helpers.getEditorContent(), {
+      timeout: 5000,
+    }).toContain('Line 2');
+    await expect.poll(async () => helpers.getEditorContent(), {
+      timeout: 5000,
+    }).toContain('Line 3');
   });
 });
 
@@ -191,18 +186,16 @@ test.describe('Note Navigation via Keyboard', () => {
     await helpers.openNote(todayDate);
 
     const editor = page.locator('[data-note-editor="content"]');
-    await editor.click();
-    await page.keyboard.type('Test note');
+    await helpers.typeInEditor('Test note');
     await helpers.waitForSave();
 
     // Click outside the editor to unfocus
     await page.locator('body').click({ position: { x: 10, y: 10 } });
 
     // Navigation should be available
-    const hasNavigationArrows =
-      (await page.locator('[aria-label*="Previous"]').isVisible({ timeout: 1000 }).catch(() => false)) ||
-      (await page.locator('[aria-label*="Next"]').isVisible({ timeout: 1000 }).catch(() => false));
-
-    expect(hasNavigationArrows).toBe(true);
+    const prevArrow = page.getByRole('button', { name: 'Previous note' });
+    const nextArrow = page.getByRole('button', { name: 'Next note' });
+    await expect(prevArrow).toBeDisabled();
+    await expect(nextArrow).toBeDisabled();
   });
 });

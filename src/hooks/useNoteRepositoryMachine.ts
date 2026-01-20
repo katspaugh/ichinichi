@@ -4,16 +4,14 @@ import { assign, fromCallback, setup } from "xstate";
 export type NoteRepositoryEvent =
   | {
       type: "UPDATE_INPUTS";
-      hasNote: (date: string) => boolean;
-      refreshNoteDates: (options?: { immediate?: boolean }) => void;
+      applyNoteChange: (date: string, isEmpty: boolean) => void;
       queueIdleSync: () => void;
     }
   | { type: "AFTER_SAVE"; date: string; isEmpty: boolean }
   | { type: "CLEAR_TIMER" };
 
 interface NoteRepositoryContext {
-  hasNote: (date: string) => boolean;
-  refreshNoteDates: (options?: { immediate?: boolean }) => void;
+  applyNoteChange: (date: string, isEmpty: boolean) => void;
   queueIdleSync: () => void;
   timerId: number | null;
 }
@@ -26,24 +24,13 @@ const afterSaveActor = fromCallback(
     sendBack: (event: NoteRepositoryEvent) => void;
     input: {
       snapshot: { date: string; isEmpty: boolean };
-      hasNote: (date: string) => boolean;
-      refreshNoteDates: (options?: { immediate?: boolean }) => void;
+      applyNoteChange: (date: string, isEmpty: boolean) => void;
     };
   }) => {
-    const { snapshot, hasNote, refreshNoteDates } = input;
-    const shouldRefresh = snapshot.isEmpty || !hasNote(snapshot.date);
-    if (!shouldRefresh) {
-      sendBack({ type: "CLEAR_TIMER" });
-      return () => {};
-    }
-    const timer = window.setTimeout(() => {
-      refreshNoteDates();
-      sendBack({ type: "CLEAR_TIMER" });
-    }, 500);
-
-    return () => {
-      window.clearTimeout(timer);
-    };
+    const { snapshot, applyNoteChange } = input;
+    applyNoteChange(snapshot.date, snapshot.isEmpty);
+    sendBack({ type: "CLEAR_TIMER" });
+    return () => {};
   },
 );
 
@@ -62,8 +49,7 @@ const noteRepositoryMachine = setup({
         return {};
       }
       return {
-        hasNote: event.hasNote,
-        refreshNoteDates: event.refreshNoteDates,
+        applyNoteChange: event.applyNoteChange,
         queueIdleSync: event.queueIdleSync,
       };
     }),
@@ -73,8 +59,7 @@ const noteRepositoryMachine = setup({
   id: "noteRepository",
   initial: "idle",
   context: {
-    hasNote: () => false,
-    refreshNoteDates: () => {},
+    applyNoteChange: () => {},
     queueIdleSync: () => {},
     timerId: null,
   },
@@ -108,14 +93,12 @@ const noteRepositoryMachine = setup({
           if (event.type !== "AFTER_SAVE") {
             return {
               snapshot: { date: "", isEmpty: false },
-              hasNote: context.hasNote,
-              refreshNoteDates: context.refreshNoteDates,
+              applyNoteChange: context.applyNoteChange,
             };
           }
           return {
             snapshot: { date: event.date, isEmpty: event.isEmpty },
-            hasNote: context.hasNote,
-            refreshNoteDates: context.refreshNoteDates,
+            applyNoteChange: context.applyNoteChange,
           };
         },
       },

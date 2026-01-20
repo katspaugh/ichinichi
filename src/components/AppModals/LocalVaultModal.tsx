@@ -18,6 +18,10 @@ export function LocalVaultModal({
   onUnlock,
   onSwitchToCloud,
 }: LocalVaultModalProps) {
+  if (hasVault) {
+    return null;
+  }
+
   return (
     <Modal isOpen={isOpen} onClose={() => {}} isDismissable={false}>
       <VaultUnlock

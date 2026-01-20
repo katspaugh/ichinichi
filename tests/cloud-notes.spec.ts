@@ -1,12 +1,14 @@
 /**
  * Tests using pre-seeded cloud data in Supabase
- * These notes were seeded: Jan 1, 5, 10, 15 of 2026
+ * These notes were seeded: Jan 1, 5, 10, 15 of last year
  */
 
 import { test, expect } from './fixtures';
 
 const TEST_EMAIL = process.env.TEST_USER_EMAIL || '';
 const TEST_PASSWORD = process.env.TEST_USER_PASSWORD || '';
+const SEED_YEAR = new Date().getFullYear() - 1;
+const SEED_MONTH_NAME = 'January';
 
 test.describe('Cloud Notes', () => {
   test.beforeEach(async ({ page, helpers }) => {
@@ -14,7 +16,7 @@ test.describe('Cloud Notes', () => {
 
     await helpers.clearStorageAndReload();
     await helpers.dismissIntroModal();
-    await helpers.setupLocalVault();
+    await helpers.setupLocalVault(TEST_PASSWORD);
 
     // Sign in
     const signInButton = page.getByRole('button', { name: /Sign in/i });
@@ -46,10 +48,9 @@ test.describe('Cloud Notes', () => {
     await expect(page.getByText('Synced')).toBeVisible({ timeout: 10000 });
   });
 
-  test('shows note indicators for seeded dates', async ({ page }) => {
-    // Navigate to 2026
-    await page.goto('/?year=2026');
-    await page.waitForTimeout(1000);
+  test('shows note indicators for seeded dates', async ({ page, helpers }) => {
+    // Navigate to seeded year
+    await helpers.navigateToYear(SEED_YEAR);
 
     // Check for note indicators on seeded dates
     const cellsWithNotes = page.locator('[aria-label*="has note"]');
@@ -59,14 +60,9 @@ test.describe('Cloud Notes', () => {
     expect(count).toBeGreaterThanOrEqual(4);
   });
 
-  test('can open and view a seeded note', async ({ page }) => {
-    // Navigate to 2026
-    await page.goto('/?year=2026');
-    await page.waitForTimeout(1000);
-
-    // Click on January 1 (seeded note)
-    const jan1Cell = page.locator('[role="button"][aria-label*="January 1,"]');
-    await jan1Cell.click();
+  test('can open and view a seeded note', async ({ page, helpers }) => {
+    await helpers.navigateToYear(SEED_YEAR);
+    await helpers.clickDay(1, SEED_MONTH_NAME);
 
     // Editor should appear with content
     const editor = page.locator('[data-note-editor="content"]');
@@ -75,17 +71,12 @@ test.describe('Cloud Notes', () => {
     // Should have content (not empty)
     const content = await editor.innerText();
     expect(content.length).toBeGreaterThan(0);
-    expect(content).toContain('2026');
+    expect(content).toContain(String(SEED_YEAR));
   });
 
-  test('seeded notes are read-only (past dates)', async ({ page }) => {
-    // Navigate to 2026
-    await page.goto('/?year=2026');
-    await page.waitForTimeout(1000);
-
-    // Click on January 1 (past date with seeded note)
-    const jan1Cell = page.locator('[role="button"][aria-label*="January 1,"]');
-    await jan1Cell.click();
+  test('seeded notes are read-only (past dates)', async ({ page, helpers }) => {
+    await helpers.navigateToYear(SEED_YEAR);
+    await helpers.clickDay(1, SEED_MONTH_NAME);
 
     // Editor should appear
     const editor = page.locator('[data-note-editor="content"]');
@@ -96,21 +87,16 @@ test.describe('Cloud Notes', () => {
     expect(isEditable).toBe('false');
   });
 
-  test('can navigate between seeded notes', async ({ page }) => {
-    // Navigate to 2026
-    await page.goto('/?year=2026');
-    await page.waitForTimeout(1000);
-
-    // Click on January 5 (seeded note in the middle)
-    const jan5Cell = page.locator('[role="button"][aria-label*="January 5,"]');
-    await jan5Cell.click();
+  test('can navigate between seeded notes', async ({ page, helpers }) => {
+    await helpers.navigateToYear(SEED_YEAR);
+    await helpers.clickDay(5, SEED_MONTH_NAME);
 
     const editor = page.locator('[data-note-editor="content"]');
     await expect(editor).toBeVisible({ timeout: 10000 });
 
     // Should have navigation arrows
-    const prevArrow = page.locator('[aria-label*="Previous"]');
-    const nextArrow = page.locator('[aria-label*="Next"]');
+    const prevArrow = page.getByRole('button', { name: 'Previous note' });
+    const nextArrow = page.getByRole('button', { name: 'Next note' });
 
     // Jan 5 should have both prev (Jan 1) and next (Jan 10)
     await expect(prevArrow).toBeVisible();

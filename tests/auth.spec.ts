@@ -55,25 +55,15 @@ test.describe('Cloud Authentication', () => {
     // Wait for auth form
     await expect(page.locator('#auth-email')).toBeVisible({ timeout: 5000 });
 
-    // Look for toggle button - could be "Already have an account? Sign in" or "Create an account"
-    const alreadyHaveButton = page.getByRole('button', { name: /Already have an account/i });
-    const createAccountButton = page.getByRole('button', { name: /Create an account/i });
+    const toggleButton = page
+      .locator('p')
+      .filter({ hasText: /account/i })
+      .getByRole('button');
 
-    const hasAlreadyHave = await alreadyHaveButton.isVisible({ timeout: 1000 }).catch(() => false);
-    const hasCreateAccount = await createAccountButton.isVisible({ timeout: 1000 }).catch(() => false);
-
-    expect(hasAlreadyHave || hasCreateAccount).toBe(true);
-
-    // Click whichever is visible
-    if (hasAlreadyHave) {
-      await alreadyHaveButton.click();
-      // After clicking, should see Create an account
-      await expect(createAccountButton).toBeVisible({ timeout: 3000 });
-    } else if (hasCreateAccount) {
-      await createAccountButton.click();
-      // After clicking, should see Already have an account
-      await expect(alreadyHaveButton).toBeVisible({ timeout: 3000 });
-    }
+    await expect(toggleButton).toBeVisible({ timeout: 3000 });
+    const initialLabel = (await toggleButton.textContent())?.trim();
+    await toggleButton.click();
+    await expect(toggleButton).not.toHaveText(initialLabel ?? '');
 
     // Auth form should still be visible
     await expect(page.locator('#auth-email')).toBeVisible();
@@ -118,9 +108,13 @@ test.describe('Cloud Authentication', () => {
     await expect(page.locator('#auth-email')).toBeVisible({ timeout: 5000 });
 
     // Switch to sign in mode if needed
-    const signInToggle = page.getByRole('button', { name: /Already have an account/i });
-    if (await signInToggle.isVisible({ timeout: 1000 }).catch(() => false)) {
-      await signInToggle.click();
+    const createAccountButton = page.getByRole('button', { name: /Create an account/i });
+    if (await createAccountButton.isVisible({ timeout: 1000 }).catch(() => false)) {
+      const toggleToSignIn = page
+        .locator('p')
+        .filter({ hasText: /account/i })
+        .getByRole('button', { name: /sign in/i });
+      await toggleToSignIn.click();
     }
 
     // Fill credentials
@@ -160,9 +154,13 @@ test.describe('Cloud Authentication', () => {
     await expect(page.locator('#auth-email')).toBeVisible({ timeout: 5000 });
 
     // Switch to sign in mode if needed
-    const signInToggle = page.getByRole('button', { name: /Already have an account/i });
-    if (await signInToggle.isVisible({ timeout: 1000 }).catch(() => false)) {
-      await signInToggle.click();
+    const createAccountButton = page.getByRole('button', { name: /Create an account/i });
+    if (await createAccountButton.isVisible({ timeout: 1000 }).catch(() => false)) {
+      const toggleToSignIn = page
+        .locator('p')
+        .filter({ hasText: /account/i })
+        .getByRole('button', { name: /sign in/i });
+      await toggleToSignIn.click();
     }
 
     await page.locator('#auth-email').fill(TEST_EMAIL);
@@ -202,9 +200,13 @@ test.describe('Cloud Authentication', () => {
     await expect(page.locator('#auth-email')).toBeVisible({ timeout: 5000 });
 
     // Switch to sign in mode if needed
-    const signInToggle = page.getByRole('button', { name: /Already have an account/i });
-    if (await signInToggle.isVisible({ timeout: 1000 }).catch(() => false)) {
-      await signInToggle.click();
+    const createAccountButton = page.getByRole('button', { name: /Create an account/i });
+    if (await createAccountButton.isVisible({ timeout: 1000 }).catch(() => false)) {
+      const toggleToSignIn = page
+        .locator('p')
+        .filter({ hasText: /account/i })
+        .getByRole('button', { name: /sign in/i });
+      await toggleToSignIn.click();
     }
 
     await page.locator('#auth-email').fill(TEST_EMAIL);
@@ -255,9 +257,13 @@ test.describe('Sync Status', () => {
 
     await expect(page.locator('#auth-email')).toBeVisible({ timeout: 5000 });
 
-    const signInToggle = page.getByRole('button', { name: /Already have an account/i });
-    if (await signInToggle.isVisible({ timeout: 1000 }).catch(() => false)) {
-      await signInToggle.click();
+    const createAccountButton = page.getByRole('button', { name: /Create an account/i });
+    if (await createAccountButton.isVisible({ timeout: 1000 }).catch(() => false)) {
+      const toggleToSignIn = page
+        .locator('p')
+        .filter({ hasText: /account/i })
+        .getByRole('button', { name: /sign in/i });
+      await toggleToSignIn.click();
     }
 
     await page.locator('#auth-email').fill(TEST_EMAIL);
