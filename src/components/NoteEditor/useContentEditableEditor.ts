@@ -201,11 +201,22 @@ export function useContentEditableEditor({
       currentBlock = el;
     }
 
-    // On first edit of this session, just track the block without inserting timestamp.
-    // This prevents inserting a timestamp when the user is editing an existing block
-    // (e.g., appending text to an existing paragraph).
+    // On first edit of this session, check if we need an initial timestamp.
+    // Insert at the beginning if it's been >10min since last edit (or no prior edits).
     if (lastEditedBlockRef.current === null) {
       lastEditedBlockRef.current = currentBlock;
+
+      const now = Date.now();
+      const lastEdit = getLastEditTimestamp(el);
+
+      // Insert initial timestamp if >10min since last edit or no prior timestamps
+      if (lastEdit === null || now - lastEdit > ADDITION_WINDOW_MS) {
+        const timestamp = new Date(now).toISOString();
+        const hr = createTimestampHr(timestamp);
+        el.insertBefore(hr, el.firstChild);
+        lastUserInputRef.current = now;
+        hasInsertedTimestampRef.current = true;
+      }
       return;
     }
 
@@ -234,6 +245,28 @@ export function useContentEditableEditor({
           if (currentBlock === el) {
             el.insertBefore(hr, el.firstChild);
           } else {
+            // Wrap any preceding inline content in a div before inserting hr
+            const nodesToWrap: Node[] = [];
+            let node = currentBlock.previousSibling;
+            while (node) {
+              if (
+                node instanceof HTMLHRElement ||
+                (node instanceof HTMLElement &&
+                  (node.tagName === "DIV" || node.tagName === "P"))
+              ) {
+                break;
+              }
+              nodesToWrap.unshift(node);
+              node = node.previousSibling;
+            }
+            if (nodesToWrap.length > 0) {
+              const wrapper = document.createElement("div");
+              nodesToWrap[0].parentNode?.insertBefore(wrapper, nodesToWrap[0]);
+              for (const n of nodesToWrap) {
+                wrapper.appendChild(n);
+              }
+            }
+
             // Insert before the current block element
             currentBlock.parentNode?.insertBefore(hr, currentBlock);
           }

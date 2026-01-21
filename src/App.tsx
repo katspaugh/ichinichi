@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import { Calendar } from "./components/Calendar";
 import { MonthView } from "./components/Calendar/MonthView";
 import { AppModals } from "./components/AppModals";
@@ -64,6 +64,20 @@ function App() {
     appMode.mode === AppMode.Cloud && auth.authState === AuthState.SignedIn
       ? activeVault.handleSignOut
       : undefined;
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const root = document.documentElement;
+    root.dataset.vaultUnlocked = String(activeVault.isVaultUnlocked);
+    root.dataset.vaultLocked = String(activeVault.isVaultLocked);
+    root.dataset.vaultReady = String(activeVault.isVaultReady);
+    root.dataset.vaultHasPassword = String(!!activeVault.authPassword);
+  }, [
+    activeVault.isVaultUnlocked,
+    activeVault.isVaultLocked,
+    activeVault.isVaultReady,
+    activeVault.authPassword,
+  ]);
 
   return (
     <UrlStateProvider value={urlState}>
