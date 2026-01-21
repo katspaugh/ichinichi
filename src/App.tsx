@@ -97,6 +97,7 @@ function App() {
                   year={year}
                   month={month}
                   monthDate={monthDate}
+                  noteDates={notes.noteDates}
                   hasNote={notes.hasNote}
                   onDayClick={
                     activeVault.isVaultUnlocked ? navigateToMonthDate : () => {}
