@@ -12,6 +12,7 @@ import {
   markHrWeatherPending,
   updatePendingHrWeather,
   shouldShowLocationPrompt,
+  hasPendingWeatherHrs,
 } from "../../services/weatherLabel";
 
 const TIMESTAMP_ATTR = "data-timestamp";
@@ -482,10 +483,11 @@ export function useContentEditableEditor({
     processManualHrs();
 
     // Apply text transforms (HR insertion, linkify) with cursor preservation
-    const transformResult = applyTextTransforms(el);
+    applyTextTransforms(el);
 
     // Check if we need to show location prompt or update weather
-    if (transformResult.needsWeatherUpdate && !hasCheckedLocationRef.current) {
+    // This checks for any pending HRs, whether from typing --- or auto-inserted timestamps
+    if (hasPendingWeatherHrs(el) && !hasCheckedLocationRef.current) {
       hasCheckedLocationRef.current = true;
 
       // Check async if we should show location prompt

@@ -90,6 +90,13 @@ export function isHrWeatherPending(hr: HTMLHRElement): boolean {
 }
 
 /**
+ * Check if there are any HRs with pending weather updates.
+ */
+export function hasPendingWeatherHrs(editor: HTMLElement): boolean {
+  return editor.querySelector(`hr[${WEATHER_PENDING_ATTR}]`) !== null;
+}
+
+/**
  * Fetch weather and update all pending HRs in the editor.
  * Returns true if weather was fetched and applied.
  */
