@@ -47,6 +47,44 @@ function getWeatherIcon(code: number): string {
   return WEATHER_ICONS[code] ?? "🌡️";
 }
 
+// US timezones
+const US_TIMEZONES = [
+  "America/New_York",
+  "America/Chicago",
+  "America/Denver",
+  "America/Los_Angeles",
+  "America/Phoenix",
+  "America/Anchorage",
+  "America/Honolulu",
+  "America/Detroit",
+  "America/Indianapolis",
+  "America/Boise",
+  "America/Juneau",
+  "America/Adak",
+];
+
+/**
+ * Check if user is in the US based on locale or timezone.
+ */
+function isInAmerica(): boolean {
+  // Check locale
+  if (navigator.language === "en-US") {
+    return true;
+  }
+
+  // Check timezone
+  try {
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (timezone && US_TIMEZONES.includes(timezone)) {
+      return true;
+    }
+  } catch {
+    // Intl API not available
+  }
+
+  return false;
+}
+
 /**
  * Fetch city name from coordinates using OpenStreetMap Nominatim.
  */
@@ -100,9 +138,8 @@ class WeatherService {
     }
 
     try {
-      // Use Fahrenheit for en-US locale, Celsius otherwise
-      const useFahrenheit = navigator.language === "en-US";
-      const tempUnit = useFahrenheit ? "&temperature_unit=fahrenheit" : "";
+      // Use Fahrenheit for US users, Celsius otherwise
+      const tempUnit = isInAmerica() ? "&temperature_unit=fahrenheit" : "";
 
       const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code${tempUnit}`;
 
@@ -175,8 +212,7 @@ export const weatherService = new WeatherService();
  * Format temperature with unit based on locale.
  */
 export function formatTemperature(temperature: number): string {
-  const useFahrenheit = navigator.language === "en-US";
-  const unit = useFahrenheit ? "F" : "C";
+  const unit = isInAmerica() ? "F" : "C";
   return `${temperature}°${unit}`;
 }
 
