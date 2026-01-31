@@ -652,21 +652,9 @@ export function useContentEditableEditor({
     const el = editorRef.current;
     if (!el || !el.isConnected) return;
 
-    const updated = await updatePendingHrWeather(el);
-    if (updated && el.isConnected) {
-      // Trigger save with updated labels - but only if editor still exists and has content
-      const hasText = (el.textContent ?? "").trim().length > 0;
-      const hasImages = el.querySelector("img") !== null;
-      // Only save if there's actual content - never save empty from async
-      if (hasText || hasImages) {
-        const html = el.innerHTML;
-        if (html !== lastContentRef.current) {
-          lastContentRef.current = html;
-          isLocalEditRef.current = true;
-          onChangeRef.current(html);
-        }
-      }
-    }
+    // Just update the DOM - don't trigger saves from async callbacks
+    // The next user interaction will save the content with weather labels
+    await updatePendingHrWeather(el);
   }, []);
 
   return {
