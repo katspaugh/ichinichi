@@ -1,6 +1,6 @@
 .calendar {
   padding: var(--spacing-xl);
-  max-width: 1400px;
+  max-width: 1600px;
   margin: 0 auto;
   height: 100vh;
   min-height: 800px;
@@ -225,7 +225,6 @@
 
 /* Month view with split layout */
 .calendar[data-month-view="true"] {
-  max-width: 1600px;
   height: 100vh;
   min-height: 800px;
   overflow: hidden;
