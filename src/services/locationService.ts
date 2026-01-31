@@ -112,19 +112,10 @@ class LocationService {
   }
 
   /**
-   * Detect country from navigator.language for friendly prompt.
+   * Detect country from navigator.language or timezone for friendly prompt.
    * Returns country name or null if detection fails.
    */
   detectCountry(): string | null {
-    const locale = navigator.language;
-    if (!locale || !locale.includes("-")) {
-      return null;
-    }
-
-    // Extract country code from locale (e.g., "en-US" -> "US")
-    const parts = locale.split("-");
-    const countryCode = parts[parts.length - 1].toUpperCase();
-
     // Map common country codes to names
     const COUNTRY_NAMES: Record<string, string> = {
       US: "the United States",
@@ -177,7 +168,100 @@ class LocationService {
       PE: "Peru",
     };
 
-    return COUNTRY_NAMES[countryCode] ?? null;
+    // Try navigator.language first (e.g., "en-US" -> "US")
+    const locale = navigator.language;
+    if (locale?.includes("-")) {
+      const parts = locale.split("-");
+      const countryCode = parts[parts.length - 1].toUpperCase();
+      if (COUNTRY_NAMES[countryCode]) {
+        return COUNTRY_NAMES[countryCode];
+      }
+    }
+
+    // Fall back to timezone detection
+    try {
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      if (!timezone) return null;
+
+      // Map timezone cities/regions to country codes
+      const TIMEZONE_TO_COUNTRY: Record<string, string> = {
+        // Americas
+        "America/New_York": "US",
+        "America/Chicago": "US",
+        "America/Denver": "US",
+        "America/Los_Angeles": "US",
+        "America/Phoenix": "US",
+        "America/Anchorage": "US",
+        "America/Honolulu": "US",
+        "America/Toronto": "CA",
+        "America/Vancouver": "CA",
+        "America/Montreal": "CA",
+        "America/Mexico_City": "MX",
+        "America/Sao_Paulo": "BR",
+        "America/Buenos_Aires": "AR",
+        "America/Santiago": "CL",
+        "America/Bogota": "CO",
+        "America/Lima": "PE",
+        // Europe
+        "Europe/London": "GB",
+        "Europe/Paris": "FR",
+        "Europe/Berlin": "DE",
+        "Europe/Madrid": "ES",
+        "Europe/Rome": "IT",
+        "Europe/Amsterdam": "NL",
+        "Europe/Brussels": "BE",
+        "Europe/Zurich": "CH",
+        "Europe/Vienna": "AT",
+        "Europe/Stockholm": "SE",
+        "Europe/Oslo": "NO",
+        "Europe/Copenhagen": "DK",
+        "Europe/Helsinki": "FI",
+        "Europe/Warsaw": "PL",
+        "Europe/Lisbon": "PT",
+        "Europe/Dublin": "IE",
+        "Europe/Prague": "CZ",
+        "Europe/Budapest": "HU",
+        "Europe/Bucharest": "RO",
+        "Europe/Athens": "GR",
+        "Europe/Istanbul": "TR",
+        "Europe/Moscow": "RU",
+        "Europe/Kiev": "UA",
+        // Asia
+        "Asia/Tokyo": "JP",
+        "Asia/Shanghai": "CN",
+        "Asia/Hong_Kong": "HK",
+        "Asia/Singapore": "SG",
+        "Asia/Seoul": "KR",
+        "Asia/Taipei": "TW",
+        "Asia/Bangkok": "TH",
+        "Asia/Jakarta": "ID",
+        "Asia/Manila": "PH",
+        "Asia/Ho_Chi_Minh": "VN",
+        "Asia/Kuala_Lumpur": "MY",
+        "Asia/Kolkata": "IN",
+        "Asia/Dubai": "AE",
+        "Asia/Jerusalem": "IL",
+        // Oceania
+        "Australia/Sydney": "AU",
+        "Australia/Melbourne": "AU",
+        "Australia/Brisbane": "AU",
+        "Australia/Perth": "AU",
+        "Pacific/Auckland": "NZ",
+        // Africa
+        "Africa/Johannesburg": "ZA",
+        "Africa/Cairo": "EG",
+        "Africa/Lagos": "NG",
+      };
+
+      const countryCode = TIMEZONE_TO_COUNTRY[timezone];
+      if (countryCode) {
+        return COUNTRY_NAMES[countryCode] ?? null;
+      }
+    } catch {
+      // Intl API not available
+    }
+
+    return null;
   }
 
   /**
