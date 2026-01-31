@@ -10,8 +10,8 @@ import { applyTextTransforms } from "../../services/editorTextTransforms";
 import {
   getTimestampLabel,
   hasWeatherlessHrs,
+  hasWeather,
   updatePendingHrWeather,
-  shouldShowLocationPrompt,
 } from "../../services/weatherLabel";
 
 const TIMESTAMP_ATTR = "data-timestamp";
@@ -31,7 +31,7 @@ interface ContentEditableOptions {
     filename: string;
   }>;
   onDropComplete?: () => void;
-  onRequestLocationPrompt?: () => void;
+  onWeatherClick?: (hr: HTMLHRElement) => void;
 }
 
 function setCaretFromPoint(x: number, y: number): boolean {
@@ -157,7 +157,7 @@ export function useContentEditableEditor({
   onUserInput,
   onImageDrop,
   onDropComplete,
-  onRequestLocationPrompt,
+  onWeatherClick,
 }: ContentEditableOptions) {
   const editorRef = useRef<HTMLDivElement>(null);
   const lastContentRef = useRef("");
@@ -167,12 +167,11 @@ export function useContentEditableEditor({
   const onUserInputRef = useRef(onUserInput);
   const onImageDropRef = useRef(onImageDrop);
   const onDropCompleteRef = useRef(onDropComplete);
-  const onRequestLocationPromptRef = useRef(onRequestLocationPrompt);
+  const onWeatherClickRef = useRef(onWeatherClick);
   const lastUserInputRef = useRef<number | null>(null);
   const lastEditedBlockRef = useRef<Element | null>(null);
   const hasInsertedTimestampRef = useRef(false);
   const hasAutoFocusedRef = useRef(false);
-  const hasCheckedLocationRef = useRef(false);
 
   const insertTimestampHrIfNeeded = useCallback(() => {
     const el = editorRef.current;
@@ -391,14 +390,8 @@ export function useContentEditableEditor({
     onUserInputRef.current = onUserInput;
     onImageDropRef.current = onImageDrop;
     onDropCompleteRef.current = onDropComplete;
-    onRequestLocationPromptRef.current = onRequestLocationPrompt;
-  }, [
-    onChange,
-    onUserInput,
-    onImageDrop,
-    onDropComplete,
-    onRequestLocationPrompt,
-  ]);
+    onWeatherClickRef.current = onWeatherClick;
+  }, [onChange, onUserInput, onImageDrop, onDropComplete, onWeatherClick]);
 
   useEffect(() => {
     const el = editorRef.current;
@@ -450,15 +443,18 @@ export function useContentEditableEditor({
     if (hasText || hasImages) {
       placeCaretAtEnd(el);
 
-      // Prime lastEditedBlockRef to the block containing the caret.
+      // Prime lastEditedBlockRef to the last block element.
       // This ensures that if the user presses Enter to create a new block,
       // it will be detected as a block change (enabling timestamp insertion).
-      const lastChild = el.lastElementChild;
-      if (
-        lastChild &&
-        (lastChild.tagName === "P" || lastChild.tagName === "DIV")
-      ) {
-        lastEditedBlockRef.current = lastChild;
+      // Look for the last P or DIV, not just the last child (which might be an HR).
+      const blocks = el.querySelectorAll("p, div");
+      const lastBlock = blocks[blocks.length - 1];
+      if (lastBlock) {
+        lastEditedBlockRef.current = lastBlock;
+      } else {
+        // No blocks found, use the editor itself as fallback
+        // This prevents the first-edit path from inserting at the beginning
+        lastEditedBlockRef.current = el;
       }
     }
     hasAutoFocusedRef.current = true;
@@ -492,19 +488,9 @@ export function useContentEditableEditor({
     // Apply text transforms (HR insertion, linkify) with cursor preservation
     applyTextTransforms(el);
 
+    // Update pending HRs with weather using IP location (no prompt needed)
     if (hasWeatherlessHrs(el)) {
-      if (!hasCheckedLocationRef.current) {
-        hasCheckedLocationRef.current = true;
-        shouldShowLocationPrompt().then((shouldShow) => {
-          if (shouldShow) {
-            onRequestLocationPromptRef.current?.();
-          } else {
-            updatePendingHrWeather(el);
-          }
-        });
-      } else {
-        void updatePendingHrWeather(el);
-      }
+      void updatePendingHrWeather(el);
     }
 
     const hasText = (el.textContent ?? "").trim().length > 0;
@@ -636,10 +622,22 @@ export function useContentEditableEditor({
 
   const handleClick = useCallback((event: MouseEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement;
+
+    // Handle anchor clicks
     const anchor = target.closest("a");
     if (anchor && anchor.href) {
       event.preventDefault();
       window.open(anchor.href, "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    // Handle HR weather clicks - offer precise location
+    if (target.tagName === "HR") {
+      const hr = target as HTMLHRElement;
+      if (hasWeather(hr)) {
+        event.preventDefault();
+        onWeatherClickRef.current?.(hr);
+      }
     }
   }, []);
 
@@ -652,16 +650,6 @@ export function useContentEditableEditor({
     hotkeyHandleKeyDown(event.nativeEvent);
   }, []);
 
-  // Called after location permission is granted to update pending HRs with weather
-  const updateWeather = useCallback(async () => {
-    const el = editorRef.current;
-    if (!el || !el.isConnected || !isEditableRef.current) return;
-
-    // Just update the DOM - don't trigger saves from async callbacks
-    // The next user interaction will save the content with weather labels
-    await updatePendingHrWeather(el);
-  }, []);
-
   return {
     editorRef,
     handleInput,
@@ -670,6 +658,5 @@ export function useContentEditableEditor({
     handleDragOver,
     handleClick,
     handleKeyDown,
-    updateWeather,
   };
 }

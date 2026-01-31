@@ -1,11 +1,8 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { Modal } from "../Modal";
 import { VaultPanel } from "../VaultPanel";
 import { Button } from "../Button";
-import {
-  locationService,
-  type IpLocation,
-} from "../../services/locationService";
+import { locationService } from "../../services/locationService";
 import styles from "../VaultPanel/VaultPanel.module.css";
 
 interface LocationPromptProps {
@@ -20,27 +17,10 @@ function LocationPromptContent({
 }: {
   onComplete: (granted: boolean) => void;
 }) {
-  const [isLoading, setIsLoading] = useState(true);
   const [isRequesting, setIsRequesting] = useState(false);
-  const [ipLocation, setIpLocation] = useState<IpLocation | null>(null);
-
-  // Fetch IP location on mount
-  useEffect(() => {
-    let cancelled = false;
-    locationService.getIpLocation().then((location) => {
-      if (cancelled) return;
-      setIpLocation(location);
-      setIsLoading(false);
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const handleConfirm = useCallback(async () => {
     setIsRequesting(true);
-    locationService.setPromptShown();
 
     // Request precise geolocation
     const position = await locationService.getCurrentPosition();
@@ -49,37 +29,14 @@ function LocationPromptContent({
   }, [onComplete]);
 
   const handleDeny = useCallback(() => {
-    locationService.setPromptShown();
     onComplete(false);
   }, [onComplete]);
 
-  // Show loading state while fetching IP location
-  if (isLoading) {
-    return (
-      <VaultPanel title="Add weather to notes?" helper="Detecting location...">
-        <div className={styles.choices}>
-          <Button
-            className={styles.actionButton}
-            variant="ghost"
-            onClick={handleDeny}
-          >
-            Cancel
-          </Button>
-        </div>
-      </VaultPanel>
-    );
-  }
-
-  const locationText = ipLocation
-    ? `${ipLocation.city}, ${ipLocation.country}`
-    : null;
-
-  const helperText = locationText
-    ? `Looks like you're in ${locationText}. Is that right?`
-    : "Share your location to add weather to your notes.";
-
   return (
-    <VaultPanel title="Add weather to notes?" helper={helperText}>
+    <VaultPanel
+      title="Get precise location?"
+      helper="Use GPS for more accurate weather data."
+    >
       <div className={styles.choices}>
         <Button
           className={styles.actionButton}
@@ -87,11 +44,7 @@ function LocationPromptContent({
           onClick={handleConfirm}
           disabled={isRequesting}
         >
-          {isRequesting
-            ? "Getting location..."
-            : locationText
-              ? "Yes, add weather"
-              : "Allow location"}
+          {isRequesting ? "Getting location..." : "Allow location"}
         </Button>
         <Button
           className={styles.actionButton}
@@ -99,7 +52,7 @@ function LocationPromptContent({
           onClick={handleDeny}
           disabled={isRequesting}
         >
-          No thanks
+          Keep using IP location
         </Button>
       </div>
     </VaultPanel>
@@ -108,7 +61,6 @@ function LocationPromptContent({
 
 export function LocationPrompt({ isOpen, onComplete }: LocationPromptProps) {
   const handleDeny = useCallback(() => {
-    locationService.setPromptShown();
     onComplete(false);
   }, [onComplete]);
 

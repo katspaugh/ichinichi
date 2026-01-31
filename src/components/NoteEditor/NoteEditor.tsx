@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { DragEvent } from "react";
 import { formatDateDisplay } from "../../utils/date";
 import { canEditNote } from "../../utils/noteRules";
@@ -9,7 +9,7 @@ import { useInlineImageUpload, useInlineImageUrls } from "./useInlineImages";
 import { useImageDragState } from "./useImageDragState";
 import { useDropIndicator } from "./useDropIndicator";
 import { LocationPrompt } from "../LocationPrompt/LocationPrompt";
-import { prefetchWeather } from "../../services/weatherLabel";
+import { updateHrWithPreciseLocation } from "../../services/weatherLabel";
 
 interface NoteEditorProps {
   date: string;
@@ -63,13 +63,15 @@ export function NoteEditor({
 
   const { isDraggingImage, endImageDrag } = useImageDragState();
   const [showLocationPrompt, setShowLocationPrompt] = useState(false);
+  const clickedHrRef = useRef<HTMLHRElement | null>(null);
 
   const { onImageDrop } = useInlineImageUpload({
     date,
     isEditable,
   });
 
-  const handleRequestLocationPrompt = useCallback(() => {
+  const handleWeatherClick = useCallback((hr: HTMLHRElement) => {
+    clickedHrRef.current = hr;
     setShowLocationPrompt(true);
   }, []);
 
@@ -81,7 +83,6 @@ export function NoteEditor({
     handleDragOver,
     handleClick,
     handleKeyDown,
-    updateWeather,
   } = useContentEditableEditor({
     content,
     isEditable,
@@ -90,19 +91,24 @@ export function NoteEditor({
     onUserInput: scheduleSavingIndicator,
     onImageDrop,
     onDropComplete: endImageDrag,
-    onRequestLocationPrompt: handleRequestLocationPrompt,
+    onWeatherClick: handleWeatherClick,
   });
 
   const handleLocationPromptComplete = useCallback(
     async (granted: boolean) => {
       setShowLocationPrompt(false);
-      if (granted) {
-        // Prefetch weather data and update pending HRs
-        await prefetchWeather();
-        await updateWeather();
+      if (granted && clickedHrRef.current) {
+        // Update the clicked HR with precise location
+        await updateHrWithPreciseLocation(clickedHrRef.current);
+        // Save content directly without triggering full input processing
+        // (which would insert a new timestamp HR)
+        if (editorRef.current) {
+          onChange(editorRef.current.innerHTML);
+        }
       }
+      clickedHrRef.current = null;
     },
-    [updateWeather],
+    [editorRef, onChange],
   );
 
   const { indicatorPosition, updateIndicator, clearIndicator } =

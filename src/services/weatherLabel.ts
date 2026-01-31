@@ -48,7 +48,7 @@ export function applyWeatherToHr(
 }
 
 /**
- * Fetch weather and update all pending HRs in the editor.
+ * Fetch weather using IP location and update all pending HRs in the editor.
  * Returns true if weather was fetched and applied.
  */
 export async function updatePendingHrWeather(
@@ -65,16 +65,16 @@ export async function updatePendingHrWeather(
     return false;
   }
 
-  // Try to get location
-  const position = await locationService.getCurrentPosition();
-  if (!position) {
+  // Use IP location (no user prompt needed)
+  const ipLocation = await locationService.getIpLocation();
+  if (!ipLocation || (ipLocation.lat === 0 && ipLocation.lon === 0)) {
     return false;
   }
 
   // Fetch weather
   const weather = await weatherService.getCurrentWeather(
-    position.lat,
-    position.lon,
+    ipLocation.lat,
+    ipLocation.lon,
   );
   if (!weather) {
     return false;
@@ -89,20 +89,41 @@ export async function updatePendingHrWeather(
 }
 
 /**
- * Check if we should show the location prompt.
- * This is called when the first HR is being inserted.
+ * Update weather for a specific HR using precise GPS location.
+ * Called when user clicks on weather label and confirms.
  */
-export async function shouldShowLocationPrompt(): Promise<boolean> {
-  return locationService.shouldShowPrompt();
+export async function updateHrWithPreciseLocation(
+  hr: HTMLHRElement,
+): Promise<boolean> {
+  // Get precise GPS location
+  const position = await locationService.getCurrentPosition();
+  if (!position) {
+    return false;
+  }
+
+  // Clear cache to get fresh weather with precise coordinates
+  weatherService.clearCache();
+
+  // Fetch weather with precise coordinates
+  const weather = await weatherService.getCurrentWeather(
+    position.lat,
+    position.lon,
+  );
+  if (!weather) {
+    return false;
+  }
+
+  if (!hr.isConnected) {
+    return false;
+  }
+
+  applyWeatherToHr(hr, weather);
+  return true;
 }
 
 /**
- * Try to prefetch weather data.
- * Called after location permission is granted.
+ * Check if an HR element has weather data.
  */
-export async function prefetchWeather(): Promise<void> {
-  const position = await locationService.getCurrentPosition();
-  if (position) {
-    await weatherService.getCurrentWeather(position.lat, position.lon);
-  }
+export function hasWeather(hr: HTMLHRElement): boolean {
+  return hr.hasAttribute(WEATHER_ATTR);
 }

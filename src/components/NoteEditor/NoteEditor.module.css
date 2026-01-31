@@ -246,6 +246,10 @@
   content: attr(data-label) " · " attr(data-weather);
 }
 
+.content hr[data-timestamp][data-weather] {
+  cursor: pointer;
+}
+
 .content img {
   max-width: 100%;
   height: auto;
