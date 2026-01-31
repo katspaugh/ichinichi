@@ -2,7 +2,11 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { getTodayString, isFuture, parseDate } from "../utils/date";
 import { AuthState, ViewType } from "../types";
 import { AppMode } from "../utils/appMode";
-import { resolveUrlState, serializeUrlState } from "../utils/urlState";
+import {
+  resolveUrlState,
+  serializeUrlState,
+  setViewPreference,
+} from "../utils/urlState";
 import { AUTH_HAS_LOGGED_IN_KEY, INTRO_SEEN_KEY } from "../utils/constants";
 
 function shouldShowIntro(search: string): boolean {
@@ -165,6 +169,7 @@ export function useUrlState({ authState, mode }: UseUrlStateProps) {
         month: null,
         monthDate: null,
       };
+      setViewPreference("year");
       window.history.pushState({}, "", serializeUrlState(nextState));
       setState(nextState);
     },
@@ -195,6 +200,7 @@ export function useUrlState({ authState, mode }: UseUrlStateProps) {
       month: null,
       monthDate: null,
     };
+    setViewPreference("year");
     window.history.pushState({}, "", serializeUrlState(nextState));
     setState(nextState);
   }, []);
@@ -208,6 +214,7 @@ export function useUrlState({ authState, mode }: UseUrlStateProps) {
       month,
       monthDate: null,
     };
+    setViewPreference("month");
     window.history.pushState({}, "", serializeUrlState(nextState));
     setState(nextState);
   }, []);

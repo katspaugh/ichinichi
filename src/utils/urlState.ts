@@ -1,6 +1,19 @@
 import { ViewType, type UrlState } from "../types";
-import { URL_PARAMS } from "./constants";
+import { URL_PARAMS, VIEW_PREFERENCE_KEY } from "./constants";
 import { getTodayString, isFuture, parseDate } from "./date";
+
+export type ViewPreference = "year" | "month";
+
+export function getViewPreference(): ViewPreference {
+  if (typeof window === "undefined") return "year";
+  const pref = localStorage.getItem(VIEW_PREFERENCE_KEY);
+  return pref === "month" ? "month" : "year";
+}
+
+export function setViewPreference(preference: ViewPreference): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(VIEW_PREFERENCE_KEY, preference);
+}
 
 interface ResolvedUrlState {
   state: UrlState;
@@ -99,6 +112,24 @@ export function resolveUrlState(search: string): ResolvedUrlState {
       },
       canonicalSearch: `?${URL_PARAMS.YEAR}=${year}`,
       needsRedirect: false,
+    };
+  }
+
+  // No URL params - check view preference
+  const preference = getViewPreference();
+  if (preference === "month") {
+    const currentMonth = new Date().getMonth();
+    const monthStr = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}`;
+    return {
+      state: {
+        view: ViewType.Calendar,
+        date: null,
+        year: currentYear,
+        month: currentMonth,
+        monthDate: null,
+      },
+      canonicalSearch: `?${URL_PARAMS.MONTH}=${monthStr}`,
+      needsRedirect: true,
     };
   }
 
