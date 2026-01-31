@@ -5,45 +5,80 @@
 
 export interface WeatherData {
   temperature: number;
-  condition: string;
+  icon: string;
+  city: string;
   timestamp: number;
 }
 
-// WMO Weather interpretation codes to human-readable conditions
+// WMO Weather interpretation codes to emoji icons
 // https://open-meteo.com/en/docs
-const WEATHER_CODES: Record<number, string> = {
-  0: "Clear",
-  1: "Mostly Clear",
-  2: "Partly Cloudy",
-  3: "Overcast",
-  45: "Foggy",
-  48: "Foggy",
-  51: "Light Drizzle",
-  53: "Drizzle",
-  55: "Heavy Drizzle",
-  56: "Freezing Drizzle",
-  57: "Freezing Drizzle",
-  61: "Light Rain",
-  63: "Rain",
-  65: "Heavy Rain",
-  66: "Freezing Rain",
-  67: "Freezing Rain",
-  71: "Light Snow",
-  73: "Snow",
-  75: "Heavy Snow",
-  77: "Snow Grains",
-  80: "Light Showers",
-  81: "Showers",
-  82: "Heavy Showers",
-  85: "Snow Showers",
-  86: "Snow Showers",
-  95: "Thunderstorm",
-  96: "Thunderstorm",
-  99: "Thunderstorm",
+const WEATHER_ICONS: Record<number, string> = {
+  0: "☀️", // Clear sky
+  1: "🌤️", // Mainly clear
+  2: "⛅", // Partly cloudy
+  3: "☁️", // Overcast
+  45: "🌫️", // Fog
+  48: "🌫️", // Depositing rime fog
+  51: "🌧️", // Light drizzle
+  53: "🌧️", // Moderate drizzle
+  55: "🌧️", // Dense drizzle
+  56: "🌧️", // Light freezing drizzle
+  57: "🌧️", // Dense freezing drizzle
+  61: "🌧️", // Slight rain
+  63: "🌧️", // Moderate rain
+  65: "🌧️", // Heavy rain
+  66: "🌧️", // Light freezing rain
+  67: "🌧️", // Heavy freezing rain
+  71: "🌨️", // Slight snow
+  73: "🌨️", // Moderate snow
+  75: "❄️", // Heavy snow
+  77: "🌨️", // Snow grains
+  80: "🌦️", // Slight rain showers
+  81: "🌦️", // Moderate rain showers
+  82: "🌧️", // Violent rain showers
+  85: "🌨️", // Slight snow showers
+  86: "🌨️", // Heavy snow showers
+  95: "⛈️", // Thunderstorm
+  96: "⛈️", // Thunderstorm with slight hail
+  99: "⛈️", // Thunderstorm with heavy hail
 };
 
-function getWeatherCondition(code: number): string {
-  return WEATHER_CODES[code] ?? "Unknown";
+function getWeatherIcon(code: number): string {
+  return WEATHER_ICONS[code] ?? "🌡️";
+}
+
+/**
+ * Fetch city name from coordinates using OpenStreetMap Nominatim.
+ */
+async function fetchCityName(lat: number, lon: number): Promise<string> {
+  try {
+    const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&zoom=10`;
+    const response = await fetch(url, {
+      signal: AbortSignal.timeout(5000),
+      headers: {
+        "User-Agent": "DailyNote/1.0", // Required by Nominatim
+      },
+    });
+
+    if (!response.ok) {
+      return "";
+    }
+
+    const data = await response.json();
+    // Try to get city, town, village, or municipality
+    const address = data.address || {};
+    const city =
+      address.city ||
+      address.town ||
+      address.village ||
+      address.municipality ||
+      address.county ||
+      "";
+
+    return city;
+  } catch {
+    return "";
+  }
 }
 
 class WeatherService {
@@ -69,18 +104,20 @@ class WeatherService {
       const useFahrenheit = navigator.language === "en-US";
       const tempUnit = useFahrenheit ? "&temperature_unit=fahrenheit" : "";
 
-      const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code${tempUnit}`;
+      const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code${tempUnit}`;
 
-      const response = await fetch(url, {
-        signal: AbortSignal.timeout(5000), // 5 second timeout
-      });
+      // Fetch weather and city name in parallel
+      const [weatherResponse, city] = await Promise.all([
+        fetch(weatherUrl, { signal: AbortSignal.timeout(5000) }),
+        fetchCityName(lat, lon),
+      ]);
 
-      if (!response.ok) {
-        console.warn("Weather API returned error:", response.status);
+      if (!weatherResponse.ok) {
+        console.warn("Weather API returned error:", weatherResponse.status);
         return null;
       }
 
-      const data = await response.json();
+      const data = await weatherResponse.json();
 
       if (!data.current) {
         console.warn("Weather API response missing current data");
@@ -89,7 +126,8 @@ class WeatherService {
 
       const weatherData: WeatherData = {
         temperature: Math.round(data.current.temperature_2m),
-        condition: getWeatherCondition(data.current.weather_code),
+        icon: getWeatherIcon(data.current.weather_code),
+        city,
         timestamp: Date.now(),
       };
 
@@ -144,8 +182,12 @@ export function formatTemperature(temperature: number): string {
 
 /**
  * Format weather data for display in HR labels.
- * Returns format like "72°F Sunny" or "22°C Clear"
+ * Returns format like "Berlin, 72°F ☀️" or "22°C ☀️" (if no city)
  */
 export function formatWeatherLabel(weather: WeatherData): string {
-  return `${formatTemperature(weather.temperature)} ${weather.condition}`;
+  const temp = formatTemperature(weather.temperature);
+  if (weather.city) {
+    return `${weather.city}, ${temp} ${weather.icon}`;
+  }
+  return `${temp} ${weather.icon}`;
 }
