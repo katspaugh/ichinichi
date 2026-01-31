@@ -3,6 +3,8 @@
  * Provides weather data with 10-minute caching.
  */
 
+import { locationService } from "./locationService";
+
 export interface WeatherData {
   temperature: number;
   icon: string;
@@ -64,15 +66,21 @@ const US_TIMEZONES = [
 ];
 
 /**
- * Check if user is in the US based on locale or timezone.
+ * Check if user is in the US based on IP location, locale, or timezone.
  */
 function isInAmerica(): boolean {
-  // Check locale
+  // Check cached IP location first (most accurate)
+  const ipLocation = locationService.getCachedIpLocation();
+  if (ipLocation?.country === "United States") {
+    return true;
+  }
+
+  // Fall back to locale
   if (navigator.language === "en-US") {
     return true;
   }
 
-  // Check timezone
+  // Fall back to timezone
   try {
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     if (timezone && US_TIMEZONES.includes(timezone)) {

@@ -234,6 +234,14 @@ class LocationService {
   }
 
   /**
+   * Get cached IP location without fetching.
+   * Used for temperature unit detection.
+   */
+  getCachedIpLocation(): IpLocation | null {
+    return this.cachedIpLocation;
+  }
+
+  /**
    * Get precise position via browser geolocation.
    * Requires user permission, more accurate than IP.
    */
