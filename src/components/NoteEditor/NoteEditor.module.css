@@ -231,6 +231,9 @@
   color: var(--color-text-secondary);
   white-space: nowrap;
   font-weight: 500;
+  max-width: calc(100% - 16px);
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .content img {

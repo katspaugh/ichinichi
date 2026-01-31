@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import type { DragEvent } from "react";
 import { formatDateDisplay } from "../../utils/date";
 import { canEditNote } from "../../utils/noteRules";
@@ -8,6 +8,8 @@ import { useSavingIndicator } from "./useSavingIndicator";
 import { useInlineImageUpload, useInlineImageUrls } from "./useInlineImages";
 import { useImageDragState } from "./useImageDragState";
 import { useDropIndicator } from "./useDropIndicator";
+import { LocationPrompt } from "../LocationPrompt/LocationPrompt";
+import { prefetchWeather } from "../../services/weatherLabel";
 
 interface NoteEditorProps {
   date: string;
@@ -60,11 +62,16 @@ export function NoteEditor({
           : "No note for this day";
 
   const { isDraggingImage, endImageDrag } = useImageDragState();
+  const [showLocationPrompt, setShowLocationPrompt] = useState(false);
 
   const { onImageDrop } = useInlineImageUpload({
     date,
     isEditable,
   });
+
+  const handleRequestLocationPrompt = useCallback(() => {
+    setShowLocationPrompt(true);
+  }, []);
 
   const {
     editorRef,
@@ -74,6 +81,7 @@ export function NoteEditor({
     handleDragOver,
     handleClick,
     handleKeyDown,
+    updateWeather,
   } = useContentEditableEditor({
     content,
     isEditable,
@@ -82,7 +90,20 @@ export function NoteEditor({
     onUserInput: scheduleSavingIndicator,
     onImageDrop,
     onDropComplete: endImageDrag,
+    onRequestLocationPrompt: handleRequestLocationPrompt,
   });
+
+  const handleLocationPromptComplete = useCallback(
+    async (granted: boolean) => {
+      setShowLocationPrompt(false);
+      if (granted) {
+        // Prefetch weather data and update pending HRs
+        await prefetchWeather();
+        await updateWeather();
+      }
+    },
+    [updateWeather],
+  );
 
   const { indicatorPosition, updateIndicator, clearIndicator } =
     useDropIndicator({
@@ -114,21 +135,27 @@ export function NoteEditor({
   });
 
   return (
-    <NoteEditorView
-      formattedDate={formattedDate}
-      isEditable={isEditable}
-      showReadonlyBadge={!canEdit}
-      statusText={statusText}
-      placeholderText={placeholderText}
-      editorRef={editorRef}
-      onInput={handleInput}
-      onPaste={handlePaste}
-      onDrop={handleDropWithIndicator}
-      onDragOver={handleDragOverWithIndicator}
-      onClick={handleClick}
-      onKeyDown={handleKeyDown}
-      isDraggingImage={isDraggingImage}
-      dropIndicatorPosition={indicatorPosition}
-    />
+    <>
+      <NoteEditorView
+        formattedDate={formattedDate}
+        isEditable={isEditable}
+        showReadonlyBadge={!canEdit}
+        statusText={statusText}
+        placeholderText={placeholderText}
+        editorRef={editorRef}
+        onInput={handleInput}
+        onPaste={handlePaste}
+        onDrop={handleDropWithIndicator}
+        onDragOver={handleDragOverWithIndicator}
+        onClick={handleClick}
+        onKeyDown={handleKeyDown}
+        isDraggingImage={isDraggingImage}
+        dropIndicatorPosition={indicatorPosition}
+      />
+      <LocationPrompt
+        isOpen={showLocationPrompt}
+        onComplete={handleLocationPromptComplete}
+      />
+    </>
   );
 }
