@@ -496,19 +496,8 @@ export function useContentEditableEditor({
           onRequestLocationPromptRef.current?.();
         } else {
           // Try to update pending HRs with weather
-          updatePendingHrWeather(el).then((updated) => {
-            if (updated) {
-              // Trigger save with updated labels
-              const hasText = (el.textContent ?? "").trim().length > 0;
-              const hasImages = el.querySelector("img") !== null;
-              const html = hasText || hasImages ? el.innerHTML : "";
-              if (html !== lastContentRef.current) {
-                lastContentRef.current = html;
-                isLocalEditRef.current = true;
-                onChangeRef.current(html);
-              }
-            }
-          });
+          // Don't trigger saves from async - just update DOM, next user input will save
+          updatePendingHrWeather(el);
         }
       });
     }
@@ -661,18 +650,21 @@ export function useContentEditableEditor({
   // Called after location permission is granted to update pending HRs with weather
   const updateWeather = useCallback(async () => {
     const el = editorRef.current;
-    if (!el) return;
+    if (!el || !el.isConnected) return;
 
     const updated = await updatePendingHrWeather(el);
-    if (updated) {
-      // Trigger save with updated labels
+    if (updated && el.isConnected) {
+      // Trigger save with updated labels - but only if editor still exists and has content
       const hasText = (el.textContent ?? "").trim().length > 0;
       const hasImages = el.querySelector("img") !== null;
-      const html = hasText || hasImages ? el.innerHTML : "";
-      if (html !== lastContentRef.current) {
-        lastContentRef.current = html;
-        isLocalEditRef.current = true;
-        onChangeRef.current(html);
+      // Only save if there's actual content - never save empty from async
+      if (hasText || hasImages) {
+        const html = el.innerHTML;
+        if (html !== lastContentRef.current) {
+          lastContentRef.current = html;
+          isLocalEditRef.current = true;
+          onChangeRef.current(html);
+        }
       }
     }
   }, []);
