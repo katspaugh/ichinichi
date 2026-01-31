@@ -80,4 +80,18 @@ describe("NoteEditor timestamp HR insertion", () => {
       laterTime.toISOString(),
     );
   });
+
+  it("does not mark editor empty when only HR remains", async () => {
+    const { getByTestId } = render(
+      <EditorHarness content='<hr data-timestamp="2026-01-16T10:00:00.000Z">' />,
+    );
+
+    const editor = getByTestId("editor") as HTMLDivElement;
+
+    await waitFor(() => {
+      expect(editor.querySelector("hr")).not.toBeNull();
+    });
+
+    expect(editor.getAttribute("data-empty")).toBeNull();
+  });
 });

@@ -5,25 +5,17 @@
 
 import { locationService } from "./locationService";
 import {
-  weatherService,
   formatWeatherLabel,
+  weatherService,
   type WeatherData,
 } from "./weatherService";
 
-const WEATHER_PENDING_ATTR = "data-weather-pending";
-
-export interface TimestampLabelResult {
-  label: string;
-  needsWeatherUpdate: boolean;
-}
+const WEATHER_ATTR = "data-weather";
 
 /**
- * Format a timestamp label, optionally with weather data.
+ * Format a timestamp label (time only).
  */
-export function formatTimestampLabelWithWeather(
-  timestamp: string,
-  weather: WeatherData | null
-): string {
+export function formatTimestampLabel(timestamp: string): string {
   const parsed = new Date(timestamp);
   if (Number.isNaN(parsed.getTime())) return "";
 
@@ -31,69 +23,28 @@ export function formatTimestampLabelWithWeather(
     hour: "numeric",
     minute: "2-digit",
   });
-
-  if (!weather) {
-    return time;
-  }
-
-  return `${time} · ${formatWeatherLabel(weather)}`;
+  return time;
 }
 
 /**
  * Get a timestamp label, using cached weather if available.
  * Returns whether weather needs to be fetched asynchronously.
  */
-export function getTimestampLabel(timestamp: string): TimestampLabelResult {
-  const cachedWeather = weatherService.getCachedWeather();
-
-  if (cachedWeather) {
-    return {
-      label: formatTimestampLabelWithWeather(timestamp, cachedWeather),
-      needsWeatherUpdate: false,
-    };
-  }
-
-  // Return time-only label, mark as needing weather update
-  return {
-    label: formatTimestampLabelWithWeather(timestamp, null),
-    needsWeatherUpdate: true,
-  };
+export function getTimestampLabel(timestamp: string): string {
+  return formatTimestampLabel(timestamp);
 }
 
-/**
- * Apply weather to an HR element.
- */
+export function hasWeatherlessHrs(editor: HTMLElement): boolean {
+  return (
+    editor.querySelector(`hr[data-timestamp]:not([${WEATHER_ATTR}])`) !== null
+  );
+}
+
 export function applyWeatherToHr(
   hr: HTMLHRElement,
-  weather: WeatherData
+  weather: WeatherData,
 ): void {
-  const timestamp = hr.getAttribute("data-timestamp");
-  if (!timestamp) return;
-
-  const label = formatTimestampLabelWithWeather(timestamp, weather);
-  hr.setAttribute("data-label", label);
-  hr.removeAttribute(WEATHER_PENDING_ATTR);
-}
-
-/**
- * Mark an HR as needing weather update.
- */
-export function markHrWeatherPending(hr: HTMLHRElement): void {
-  hr.setAttribute(WEATHER_PENDING_ATTR, "true");
-}
-
-/**
- * Check if an HR needs weather update.
- */
-export function isHrWeatherPending(hr: HTMLHRElement): boolean {
-  return hr.hasAttribute(WEATHER_PENDING_ATTR);
-}
-
-/**
- * Check if there are any HRs with pending weather updates.
- */
-export function hasPendingWeatherHrs(editor: HTMLElement): boolean {
-  return editor.querySelector(`hr[${WEATHER_PENDING_ATTR}]`) !== null;
+  hr.setAttribute(WEATHER_ATTR, formatWeatherLabel(weather));
 }
 
 /**
@@ -101,12 +52,15 @@ export function hasPendingWeatherHrs(editor: HTMLElement): boolean {
  * Returns true if weather was fetched and applied.
  */
 export async function updatePendingHrWeather(
-  editor: HTMLElement
+  editor: HTMLElement,
 ): Promise<boolean> {
-  const pendingHrs = editor.querySelectorAll<HTMLHRElement>(
-    `hr[${WEATHER_PENDING_ATTR}]`
-  );
+  if (!editor.isConnected) {
+    return false;
+  }
 
+  const pendingHrs = editor.querySelectorAll<HTMLHRElement>(
+    `hr[data-timestamp]:not([${WEATHER_ATTR}])`,
+  );
   if (pendingHrs.length === 0) {
     return false;
   }
@@ -114,23 +68,22 @@ export async function updatePendingHrWeather(
   // Try to get location
   const position = await locationService.getCurrentPosition();
   if (!position) {
-    // Clear pending state - we can't get weather without location
-    pendingHrs.forEach((hr) => hr.removeAttribute(WEATHER_PENDING_ATTR));
     return false;
   }
 
   // Fetch weather
   const weather = await weatherService.getCurrentWeather(
     position.lat,
-    position.lon
+    position.lon,
   );
   if (!weather) {
-    // Clear pending state - weather fetch failed
-    pendingHrs.forEach((hr) => hr.removeAttribute(WEATHER_PENDING_ATTR));
     return false;
   }
 
-  // Apply weather to all pending HRs
+  if (!editor.isConnected) {
+    return false;
+  }
+
   pendingHrs.forEach((hr) => applyWeatherToHr(hr, weather));
   return true;
 }

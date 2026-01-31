@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { useNoteRemoteSync } from "../hooks/useNoteRemoteSync";
 import type { NoteRepository } from "../storage/noteRepository";
+import { ok } from "../domain/result";
 
 let mockOnline = true;
 const getMockOnline = () => mockOnline;
@@ -12,7 +13,12 @@ jest.mock("../hooks/useConnectivity", () => ({
 interface RefreshableRepository extends NoteRepository {
   refreshNote: (
     date: string,
-  ) => Promise<{ date: string; content: string | null } | null>;
+  ) => Promise<
+    | { ok: true; value: { date: string; content: string | null } | null }
+    | { ok: false; error: Error }
+    | { date: string; content: string | null }
+    | null
+  >;
   hasRemoteDateCached: (date: string) => Promise<boolean>;
   hasPendingOp: (date: string) => Promise<boolean>;
 }
@@ -23,10 +29,12 @@ function createRepository(): RefreshableRepository {
     save: jest.fn(),
     delete: jest.fn(),
     getAllDates: jest.fn(),
-    refreshNote: jest.fn().mockResolvedValue({
-      date: "10-01-2026",
-      content: "remote-content",
-    }),
+    refreshNote: jest.fn().mockResolvedValue(
+      ok({
+        date: "10-01-2026",
+        content: "remote-content",
+      }),
+    ),
     hasRemoteDateCached: jest.fn().mockResolvedValue(true),
     hasPendingOp: jest.fn().mockResolvedValue(false),
   };
@@ -68,6 +76,35 @@ describe("useNoteRemoteSync", () => {
       expect(repository.refreshNote).toHaveBeenCalledWith("11-01-2026"),
     );
     await waitFor(() => expect(onRemoteUpdate).toHaveBeenCalled());
+  });
+
+  it("retries refresh when repository instance changes", async () => {
+    const repository = createRepository();
+    const nextRepository = createRepository();
+    const onRemoteUpdate = jest.fn();
+
+    const { rerender } = renderHook(
+      ({ repo }) =>
+        useNoteRemoteSync("10-01-2026", repo, {
+          onRemoteUpdate,
+          localContent: "local",
+          hasLocalEdits: false,
+          isLocalReady: true,
+        }),
+      {
+        initialProps: { repo: repository },
+      },
+    );
+
+    await waitFor(() =>
+      expect(repository.refreshNote).toHaveBeenCalledWith("10-01-2026"),
+    );
+
+    rerender({ repo: nextRepository });
+
+    await waitFor(() =>
+      expect(nextRepository.refreshNote).toHaveBeenCalledWith("10-01-2026"),
+    );
   });
 
   it("exposes known remote-only notes when offline", async () => {

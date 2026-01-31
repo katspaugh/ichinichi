@@ -22,7 +22,6 @@ describe("unifiedSyncedNoteRepository", () => {
 
   it("retries remote conflict by rebasing local revisions", async () => {
     let pushCount = 0;
-
     const gateway: RemoteNotesGateway = {
       fetchNoteByDate: jest.fn().mockResolvedValue({
         ok: true,
@@ -145,5 +144,152 @@ describe("unifiedSyncedNoteRepository", () => {
     ]);
 
     expect(gateway.fetchNoteDates).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps newer local edits when remote has higher revision after local reset", async () => {
+    const gateway: RemoteNotesGateway = {
+      fetchNoteByDate: jest.fn().mockResolvedValue({
+        ok: true,
+        value: {
+          id: "remote-1",
+          date: "10-01-2026",
+          ciphertext: "remote",
+          nonce: "nonce-remote",
+          keyId: "key-1",
+          revision: 5,
+          updatedAt: "2026-01-10T10:00:00.000Z",
+          serverUpdatedAt: "2026-01-10T10:00:00.000Z",
+          deleted: false,
+        },
+      }),
+      fetchNoteDates: jest.fn().mockResolvedValue({ ok: true, value: [] }),
+      fetchNotesSince: jest.fn().mockResolvedValue({ ok: true, value: [] }),
+      pushNote: jest.fn().mockResolvedValue({
+        ok: true,
+        value: {
+          id: "remote-1",
+          date: "10-01-2026",
+          ciphertext: "local",
+          nonce: "nonce-local",
+          keyId: "key-1",
+          revision: 6,
+          updatedAt: "2026-01-10T12:00:00.000Z",
+          serverUpdatedAt: "2026-01-10T12:00:00.000Z",
+          deleted: false,
+        },
+      }),
+      deleteNote: jest.fn().mockResolvedValue({ ok: true, value: undefined }),
+    };
+    const connectivity: Connectivity = { isOnline: () => true };
+    const clock: Clock = { now: () => new Date("2026-01-10T12:00:00.000Z") };
+    const syncStateStore: SyncStateStore = {
+      getState: jest.fn().mockResolvedValue({
+        ok: true,
+        value: { id: "state", cursor: null },
+      }),
+      setState: jest.fn().mockResolvedValue({ ok: true, value: undefined }),
+    };
+
+    const repository = createUnifiedSyncedNoteEnvelopeRepository(
+      gateway,
+      "key-1",
+      async () => undefined,
+      connectivity,
+      clock,
+      syncStateStore,
+    );
+
+    await repository.saveEnvelope({
+      date: "10-01-2026",
+      ciphertext: "local",
+      nonce: "nonce-local",
+      keyId: "key-1",
+      updatedAt: "2026-01-10T12:00:00.000Z",
+    });
+
+    await repository.refreshEnvelope("10-01-2026");
+
+    const envelope = await repository.getEnvelope("10-01-2026");
+    expect(envelope?.ciphertext).toBe("local");
+    expect(gateway.pushNote).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves re-created notes after delete even if remote revision is higher", async () => {
+    let pushCount = 0;
+    const remoteNote = {
+      id: "remote-1",
+      date: "10-01-2026",
+      ciphertext: "remote-old",
+      nonce: "nonce-remote",
+      keyId: "key-1",
+      revision: 5,
+      updatedAt: "2026-01-10T10:00:00.000Z",
+      serverUpdatedAt: "2026-01-10T10:00:00.000Z",
+      deleted: false,
+    };
+
+    const gateway: RemoteNotesGateway = {
+      fetchNoteByDate: jest.fn().mockResolvedValue({
+        ok: true,
+        value: remoteNote,
+      }),
+      fetchNoteDates: jest.fn().mockResolvedValue({ ok: true, value: [] }),
+      fetchNotesSince: jest.fn().mockResolvedValue({ ok: true, value: [] }),
+      pushNote: jest.fn().mockImplementation(async () => {
+        pushCount += 1;
+        if (pushCount === 1) {
+          return {
+            ok: false,
+            error: { type: "Conflict", message: "conflict" },
+          };
+        }
+        return {
+          ok: true,
+          value: {
+            ...remoteNote,
+            ciphertext: "local-new",
+            nonce: "nonce-local",
+            revision: 6,
+            updatedAt: "2026-01-10T12:00:00.000Z",
+            serverUpdatedAt: "2026-01-10T12:00:00.000Z",
+          },
+        };
+      }),
+      deleteNote: jest.fn().mockResolvedValue({ ok: true, value: undefined }),
+    };
+    const connectivity: Connectivity = { isOnline: () => true };
+    const clock: Clock = { now: () => new Date("2026-01-10T12:00:00.000Z") };
+    const syncStateStore: SyncStateStore = {
+      getState: jest.fn().mockResolvedValue({
+        ok: true,
+        value: { id: "state", cursor: null },
+      }),
+      setState: jest.fn().mockResolvedValue({ ok: true, value: undefined }),
+    };
+
+    const repository = createUnifiedSyncedNoteEnvelopeRepository(
+      gateway,
+      "key-1",
+      async () => undefined,
+      connectivity,
+      clock,
+      syncStateStore,
+    );
+
+    await repository.refreshEnvelope("10-01-2026");
+    await repository.deleteEnvelope("10-01-2026");
+    await repository.saveEnvelope({
+      date: "10-01-2026",
+      ciphertext: "local-new",
+      nonce: "nonce-local",
+      keyId: "key-1",
+      updatedAt: "2026-01-10T12:00:00.000Z",
+    });
+
+    await repository.refreshEnvelope("10-01-2026");
+
+    const envelope = await repository.getEnvelope("10-01-2026");
+    expect(envelope?.ciphertext).toBe("local-new");
+    expect(pushCount).toBe(2);
   });
 });

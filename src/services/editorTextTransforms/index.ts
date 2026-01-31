@@ -17,7 +17,6 @@ export type { CursorPosition } from "./cursor";
 export interface TransformOutput {
   hrTransformed: boolean;
   linkifyTransformed: boolean;
-  needsWeatherUpdate: boolean;
 }
 
 /**
@@ -28,7 +27,6 @@ export function applyTextTransforms(editor: HTMLElement): TransformOutput {
   const output: TransformOutput = {
     hrTransformed: false,
     linkifyTransformed: false,
-    needsWeatherUpdate: false,
   };
 
   let lastResult: TransformResult | null = null;
@@ -41,9 +39,6 @@ export function applyTextTransforms(editor: HTMLElement): TransformOutput {
         lastResult = result;
         if (transform.name === "hr") {
           output.hrTransformed = true;
-          if (result.needsWeatherUpdate) {
-            output.needsWeatherUpdate = true;
-          }
         } else if (transform.name === "linkify") {
           output.linkifyTransformed = true;
         }

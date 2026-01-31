@@ -10,10 +10,7 @@ import {
   selectNodeAndExecCommand,
   selectRangeAndExecCommand,
 } from "./dom";
-import {
-  getTimestampLabel,
-  markHrWeatherPending,
-} from "../weatherLabel";
+import { getTimestampLabel } from "../weatherLabel";
 
 const TIMESTAMP_ATTR = "data-timestamp";
 const TIMESTAMP_LABEL_ATTR = "data-label";
@@ -26,7 +23,6 @@ export interface TransformResult {
   transformed: boolean;
   cursorPlacement?: "after-element" | "restore";
   targetSelector?: string;
-  needsWeatherUpdate?: boolean;
 }
 
 export interface TextTransform {
@@ -36,25 +32,21 @@ export interface TextTransform {
   transform: (editor: HTMLElement) => TransformResult;
 }
 
-function addTimestampToHr(hr: HTMLHRElement): { needsWeatherUpdate: boolean } {
+function addTimestampToHr(hr: HTMLHRElement): void {
   const timestamp = new Date().toISOString();
   hr.setAttribute(TIMESTAMP_ATTR, timestamp);
 
-  const { label, needsWeatherUpdate } = getTimestampLabel(timestamp);
+  const label = getTimestampLabel(timestamp);
   if (label) {
     hr.setAttribute(TIMESTAMP_LABEL_ATTR, label);
   }
-  if (needsWeatherUpdate) {
-    markHrWeatherPending(hr);
-  }
 
   hr.setAttribute("contenteditable", "false");
-  return { needsWeatherUpdate };
 }
 
-function findAndTimestampNewHr(editor: HTMLElement): { needsWeatherUpdate: boolean } {
+function findAndTimestampNewHr(editor: HTMLElement): void {
   const selection = window.getSelection();
-  if (!selection || selection.rangeCount === 0) return { needsWeatherUpdate: false };
+  if (!selection || selection.rangeCount === 0) return;
 
   const currentRange = selection.getRangeAt(0);
   let searchNode: Node | null = currentRange.startContainer;
@@ -65,7 +57,8 @@ function findAndTimestampNewHr(editor: HTMLElement): { needsWeatherUpdate: boole
       let sibling = element.previousSibling;
       while (sibling) {
         if (sibling.nodeName === "HR") {
-          return addTimestampToHr(sibling as HTMLHRElement);
+          addTimestampToHr(sibling as HTMLHRElement);
+          return;
         }
         sibling = sibling.previousSibling;
       }
@@ -76,10 +69,9 @@ function findAndTimestampNewHr(editor: HTMLElement): { needsWeatherUpdate: boole
   // Fallback: find the last HR without timestamp
   const hrs = editor.querySelectorAll(`hr:not([${TIMESTAMP_ATTR}])`);
   if (hrs.length > 0) {
-    return addTimestampToHr(hrs[hrs.length - 1] as HTMLHRElement);
+    addTimestampToHr(hrs[hrs.length - 1] as HTMLHRElement);
+    return;
   }
-
-  return { needsWeatherUpdate: false };
 }
 
 /**
@@ -102,14 +94,9 @@ export const hrTransform: TextTransform = {
     }
 
     let lastInsertedElement: Element | null = null;
-    let needsWeatherUpdate = false;
-
     for (const textNode of nodes) {
       selectNodeAndExecCommand(textNode, "insertHorizontalRule");
-      const result = findAndTimestampNewHr(editor);
-      if (result.needsWeatherUpdate) {
-        needsWeatherUpdate = true;
-      }
+      findAndTimestampNewHr(editor);
 
       // Ensure there's a newline after the HR
       const hrs = editor.querySelectorAll<HTMLHRElement>(
@@ -149,7 +136,6 @@ export const hrTransform: TextTransform = {
     return {
       transformed: true,
       cursorPlacement: "restore", // We already placed the cursor above
-      needsWeatherUpdate,
     };
   },
 };

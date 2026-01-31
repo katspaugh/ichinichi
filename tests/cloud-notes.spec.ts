@@ -46,6 +46,7 @@ test.describe('Cloud Notes', () => {
 
     // Should be synced
     await expect(page.getByText('Synced')).toBeVisible({ timeout: 10000 });
+    await helpers.waitForVaultUnlocked();
   });
 
   test('shows note indicators for seeded dates', async ({ page, helpers }) => {

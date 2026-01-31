@@ -9,10 +9,9 @@ import { handleKeyDown as hotkeyHandleKeyDown } from "../../services/editorHotke
 import { applyTextTransforms } from "../../services/editorTextTransforms";
 import {
   getTimestampLabel,
-  markHrWeatherPending,
+  hasWeatherlessHrs,
   updatePendingHrWeather,
   shouldShowLocationPrompt,
-  hasPendingWeatherHrs,
 } from "../../services/weatherLabel";
 
 const TIMESTAMP_ATTR = "data-timestamp";
@@ -118,20 +117,21 @@ function getContentBottom(editorEl: HTMLElement): number {
   return maxBottom;
 }
 
-function createTimestampHr(timestamp: string): { hr: HTMLHRElement; needsWeatherUpdate: boolean } {
+function createTimestampHr(timestamp: string): { hr: HTMLHRElement } {
   const hr = document.createElement("hr");
   hr.setAttribute(TIMESTAMP_ATTR, timestamp);
 
-  const { label, needsWeatherUpdate } = getTimestampLabel(timestamp);
+  const label = getTimestampLabel(timestamp);
   if (label) {
     hr.setAttribute(TIMESTAMP_LABEL_ATTR, label);
   }
-  if (needsWeatherUpdate) {
-    markHrWeatherPending(hr);
-  }
 
   hr.setAttribute("contenteditable", "false");
-  return { hr, needsWeatherUpdate };
+  return { hr };
+}
+
+function serializeEditorContent(editor: HTMLElement): string {
+  return editor.innerHTML;
 }
 
 function getLastEditTimestamp(element: HTMLElement): number | null {
@@ -297,7 +297,7 @@ export function useContentEditableEditor({
       const timestamp = hr.getAttribute(TIMESTAMP_ATTR);
       if (!timestamp) continue;
 
-      const { label } = getTimestampLabel(timestamp);
+      const label = getTimestampLabel(timestamp);
       if (label) {
         if (hr.getAttribute(TIMESTAMP_LABEL_ATTR) !== label) {
           hr.setAttribute(TIMESTAMP_LABEL_ATTR, label);
@@ -313,7 +313,8 @@ export function useContentEditableEditor({
     if (!el) return;
     const hasText = (el.textContent ?? "").trim().length > 0;
     const hasImages = el.querySelector("img") !== null;
-    if (!hasText && !hasImages) {
+    const hasHr = el.querySelector("hr") !== null;
+    if (!hasText && !hasImages && !hasHr) {
       el.setAttribute("data-empty", "true");
     } else {
       el.removeAttribute("data-empty");
@@ -333,12 +334,9 @@ export function useContentEditableEditor({
       // Add timestamp
       const timestamp = new Date().toISOString();
       hr.setAttribute(TIMESTAMP_ATTR, timestamp);
-      const { label, needsWeatherUpdate } = getTimestampLabel(timestamp);
+      const label = getTimestampLabel(timestamp);
       if (label) {
         hr.setAttribute(TIMESTAMP_LABEL_ATTR, label);
-      }
-      if (needsWeatherUpdate) {
-        markHrWeatherPending(hr);
       }
       hr.setAttribute("contenteditable", "false");
 
@@ -394,7 +392,13 @@ export function useContentEditableEditor({
     onImageDropRef.current = onImageDrop;
     onDropCompleteRef.current = onDropComplete;
     onRequestLocationPromptRef.current = onRequestLocationPrompt;
-  }, [onChange, onUserInput, onImageDrop, onDropComplete, onRequestLocationPrompt]);
+  }, [
+    onChange,
+    onUserInput,
+    onImageDrop,
+    onDropComplete,
+    onRequestLocationPrompt,
+  ]);
 
   useEffect(() => {
     const el = editorRef.current;
@@ -450,7 +454,10 @@ export function useContentEditableEditor({
       // This ensures that if the user presses Enter to create a new block,
       // it will be detected as a block change (enabling timestamp insertion).
       const lastChild = el.lastElementChild;
-      if (lastChild && (lastChild.tagName === "P" || lastChild.tagName === "DIV")) {
+      if (
+        lastChild &&
+        (lastChild.tagName === "P" || lastChild.tagName === "DIV")
+      ) {
         lastEditedBlockRef.current = lastChild;
       }
     }
@@ -485,26 +492,24 @@ export function useContentEditableEditor({
     // Apply text transforms (HR insertion, linkify) with cursor preservation
     applyTextTransforms(el);
 
-    // Check if we need to show location prompt or update weather
-    // This checks for any pending HRs, whether from typing --- or auto-inserted timestamps
-    if (hasPendingWeatherHrs(el) && !hasCheckedLocationRef.current) {
-      hasCheckedLocationRef.current = true;
-
-      // Check async if we should show location prompt
-      shouldShowLocationPrompt().then((shouldShow) => {
-        if (shouldShow) {
-          onRequestLocationPromptRef.current?.();
-        } else {
-          // Try to update pending HRs with weather
-          // Don't trigger saves from async - just update DOM, next user input will save
-          updatePendingHrWeather(el);
-        }
-      });
+    if (hasWeatherlessHrs(el)) {
+      if (!hasCheckedLocationRef.current) {
+        hasCheckedLocationRef.current = true;
+        shouldShowLocationPrompt().then((shouldShow) => {
+          if (shouldShow) {
+            onRequestLocationPromptRef.current?.();
+          } else {
+            updatePendingHrWeather(el);
+          }
+        });
+      } else {
+        void updatePendingHrWeather(el);
+      }
     }
 
     const hasText = (el.textContent ?? "").trim().length > 0;
     const hasImages = el.querySelector("img") !== null;
-    const html = hasText || hasImages ? el.innerHTML : "";
+    const html = hasText || hasImages ? serializeEditorContent(el) : "";
     if (html === lastContentRef.current) {
       return;
     }
@@ -650,7 +655,7 @@ export function useContentEditableEditor({
   // Called after location permission is granted to update pending HRs with weather
   const updateWeather = useCallback(async () => {
     const el = editorRef.current;
-    if (!el || !el.isConnected) return;
+    if (!el || !el.isConnected || !isEditableRef.current) return;
 
     // Just update the DOM - don't trigger saves from async callbacks
     // The next user interaction will save the content with weather labels

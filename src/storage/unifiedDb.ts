@@ -1,5 +1,5 @@
 export const UNIFIED_DB_NAME = "dailynotes-unified";
-export const UNIFIED_DB_VERSION = 3;
+export const UNIFIED_DB_VERSION = 4;
 
 export const NOTES_STORE = "notes";
 export const NOTE_META_STORE = "note_meta";
@@ -101,7 +101,6 @@ function openUnifiedDbOnce(): Promise<IDBDatabase> {
         });
         store.createIndex("year", "year", { unique: false });
       }
-
     };
 
     request.onsuccess = () => {

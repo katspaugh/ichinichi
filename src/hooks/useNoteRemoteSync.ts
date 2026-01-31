@@ -3,10 +3,14 @@ import { useMachine } from "@xstate/react";
 import { assign, fromCallback, setup } from "xstate";
 import type { Note } from "../types";
 import type { NoteRepository } from "../storage/noteRepository";
+import type { RepositoryError } from "../domain/errors";
+import type { Result } from "../domain/result";
 import { useConnectivity } from "./useConnectivity";
 
+type NoteRefreshResult = Result<Note | null, RepositoryError> | Note | null;
+
 interface RefreshableNoteRepository {
-  refreshNote: (date: string) => Promise<Note | null>;
+  refreshNote: (date: string) => Promise<NoteRefreshResult>;
 }
 
 interface RemoteIndexRepository {
@@ -41,6 +45,14 @@ function hasPendingOps(
     "hasPendingOp" in repository &&
     typeof repository.hasPendingOp === "function"
   );
+}
+
+function unwrapRefreshResult(result: NoteRefreshResult): Note | null {
+  if (!result) return null;
+  if (typeof result === "object" && "ok" in result) {
+    return result.ok ? result.value : null;
+  }
+  return result;
 }
 
 export interface UseNoteRemoteSyncReturn {
@@ -147,8 +159,10 @@ const remoteRefresh = fromCallback(
         if (!canRefresh(input.repository)) {
           return;
         }
-        const remoteNote = await input.repository.refreshNote(input.date);
-        if (!remoteNote || cancelled) return;
+        const remoteResult = await input.repository.refreshNote(input.date);
+        if (cancelled) return;
+        const remoteNote = unwrapRefreshResult(remoteResult);
+        if (!remoteNote) return;
 
         if (hasPendingOps(input.repository)) {
           const hasPending = await input.repository.hasPendingOp(input.date);
@@ -184,11 +198,16 @@ const remoteSyncMachine = setup({
     remoteRefresh,
   },
   actions: {
-    applyInputs: assign((args: { event: RemoteSyncEvent }) => {
-      const { event } = args;
+    applyInputs: assign(
+      (args: { event: RemoteSyncEvent; context: RemoteSyncContext }) => {
+        const { event, context } = args;
       if (event.type !== "INPUTS_CHANGED") {
         return {};
       }
+      const repositoryChanged = event.repository !== context.repository;
+      const dateChanged = event.date !== context.date;
+      const shouldResetRefresh =
+        repositoryChanged || dateChanged || !event.repository || !event.date;
       return {
         date: event.date,
         repository: event.repository,
@@ -196,6 +215,11 @@ const remoteSyncMachine = setup({
         localContent: event.localContent,
         hasLocalEdits: event.hasLocalEdits,
         isLocalReady: event.isLocalReady,
+        hasRefreshedForDate: shouldResetRefresh
+          ? null
+          : context.hasRefreshedForDate,
+        remoteCacheResult:
+          repositoryChanged || dateChanged ? null : context.remoteCacheResult,
       };
     }),
     applyRemoteCache: assign((args: { event: RemoteSyncEvent }) => {
@@ -230,6 +254,7 @@ const remoteSyncMachine = setup({
     shouldRefresh: ({ context }: { context: RemoteSyncContext }) =>
       !!context.date &&
       !!context.repository &&
+      canRefresh(context.repository) &&
       context.online &&
       context.isLocalReady &&
       context.hasRefreshedForDate !== context.date,

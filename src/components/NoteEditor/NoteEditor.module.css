@@ -95,6 +95,7 @@
   outline: none;
   min-height: 100%;
   padding-top: 0;
+  position: relative;
 }
 
 .content > :first-child {
@@ -110,10 +111,15 @@
   padding-bottom: min(30vh, 12rem);
 }
 
-.content[data-empty="true"]:before {
+.content[data-empty="true"]::before {
   content: attr(data-placeholder);
   color: var(--color-text-muted);
   pointer-events: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: block;
 }
 
 .content[contenteditable="false"] {
@@ -234,6 +240,10 @@
   max-width: calc(100% - 16px);
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.content hr[data-timestamp][data-label][data-weather]::before {
+  content: attr(data-label) " · " attr(data-weather);
 }
 
 .content img {

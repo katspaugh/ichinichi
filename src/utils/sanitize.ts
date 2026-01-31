@@ -33,6 +33,7 @@ const SANITIZE_CONFIG = {
     "data-image-id",
     "data-timestamp",
     "data-label",
+    "data-weather",
     "alt",
     "width",
     "height",

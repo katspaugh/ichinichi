@@ -66,6 +66,11 @@ export interface TestHelpers {
   signIn: (email: string, password: string) => Promise<void>;
 
   /**
+   * Wait until the vault is unlocked in the app shell
+   */
+  waitForVaultUnlocked: () => Promise<void>;
+
+  /**
    * Sign out from cloud
    */
   signOut: () => Promise<void>;
@@ -85,6 +90,7 @@ export const test = base.extend<{ helpers: TestHelpers }>({
   helpers: async ({ page }, use) => {
     const helpers: TestHelpers = {
       clearStorageAndReload: async () => {
+        await page.context().clearCookies();
         // First navigate to the app
         await page.goto('/');
 
@@ -264,6 +270,16 @@ export const test = base.extend<{ helpers: TestHelpers }>({
           },
           { timeout: 30000 }
         );
+      },
+
+      waitForVaultUnlocked: async () => {
+        await expect.poll(async () => {
+          return page.evaluate(
+            () => document.documentElement.dataset.vaultUnlocked ?? "false"
+          );
+        }, {
+          timeout: 15000,
+        }).toBe("true");
       },
 
       signOut: async () => {

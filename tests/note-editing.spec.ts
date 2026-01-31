@@ -31,11 +31,10 @@ test.describe('Note Editing', () => {
     }).toContain('Hello, this is my daily note!');
   });
 
-  test('saves note after editing', async ({ page, helpers }) => {
+  test('saves note after editing', async ({ helpers }) => {
     const todayDate = helpers.getTodayDate();
     await helpers.openNote(todayDate);
 
-    const editor = page.locator('[data-note-editor="content"]');
     await helpers.typeInEditor('Testing save indicator');
 
     await helpers.waitForSave();
@@ -78,7 +77,6 @@ test.describe('Note Editing', () => {
     const todayDate = helpers.getTodayDate();
     await helpers.openNote(todayDate);
 
-    const editor = page.locator('[data-note-editor="content"]');
     await helpers.typeInEditor('Today note content');
     await helpers.waitForSave();
 
@@ -150,11 +148,10 @@ test.describe('Note Editing', () => {
     await expect(dateHeader).toContainText(String(expectedDay));
   });
 
-  test('preserves formatting in notes', async ({ page, helpers }) => {
+  test('preserves formatting in notes', async ({ helpers }) => {
     const todayDate = helpers.getTodayDate();
     await helpers.openNote(todayDate);
 
-    const editor = page.locator('[data-note-editor="content"]');
     await helpers.typeInEditor('Line 1\nLine 2\nLine 3');
     await helpers.waitForSave();
 
@@ -185,7 +182,6 @@ test.describe('Note Navigation via Keyboard', () => {
     const todayDate = helpers.getTodayDate();
     await helpers.openNote(todayDate);
 
-    const editor = page.locator('[data-note-editor="content"]');
     await helpers.typeInEditor('Test note');
     await helpers.waitForSave();
 

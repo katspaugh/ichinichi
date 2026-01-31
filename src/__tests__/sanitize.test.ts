@@ -82,6 +82,12 @@ describe("sanitizeHtml", () => {
       );
     });
 
+    it("allows data-weather attribute", () => {
+      expect(sanitizeHtml('<hr data-weather="Boston, 72 F">')).toBe(
+        '<hr data-weather="Boston, 72 F">',
+      );
+    });
+
     it("allows alt, width, height on img", () => {
       expect(
         sanitizeHtml('<img alt="test" width="100" height="100">'),

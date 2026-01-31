@@ -66,9 +66,7 @@ describe("NoteEditor image drop preview", () => {
     }>();
     const onImageDrop = jest.fn(() => deferred.promise);
 
-    const { getByTestId } = render(
-      <EditorHarness onImageDrop={onImageDrop} />,
-    );
+    const { getByTestId } = render(<EditorHarness onImageDrop={onImageDrop} />);
     const editor = getByTestId("editor") as HTMLDivElement;
     editor.getBoundingClientRect = jest.fn(
       () =>

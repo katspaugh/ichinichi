@@ -114,13 +114,20 @@ async function resolveConflict(
   const { gateway, activeKeyId, localRecord, localMeta, remote } = ctx;
   const localRevision = localMeta.revision;
   const remoteRevision = remote.revision;
+  const localUpdatedAt = new Date(localRecord.updatedAt).getTime();
+  const remoteUpdatedAt = new Date(remote.updatedAt).getTime();
+  const hasRemoteLink =
+    localMeta.remoteId != null || localMeta.serverUpdatedAt != null;
+  const isFreshLocal = !hasRemoteLink;
+  const hasUnsyncedEdits = localMeta.pendingOp === "upsert";
 
   // Determine winner: higher revision wins, tie-break by timestamp
   const localWins =
     localRevision > remoteRevision ||
     (localRevision === remoteRevision &&
-      new Date(localRecord.updatedAt).getTime() >=
-        new Date(remote.updatedAt).getTime());
+      localUpdatedAt >= remoteUpdatedAt) ||
+    (isFreshLocal && localUpdatedAt >= remoteUpdatedAt) ||
+    (hasUnsyncedEdits && localUpdatedAt >= remoteUpdatedAt);
 
   if (!localWins) {
     return remote;
@@ -588,6 +595,22 @@ export function createUnifiedSyncedNoteEnvelopeRepository(
 
     // Skip conflict resolution if local is already synced with this remote version
     if (meta.serverUpdatedAt === remote.serverUpdatedAt && !meta.pendingOp) {
+      return toNoteEnvelope(localRecord, meta);
+    }
+
+    if (meta.pendingOp === "upsert") {
+      const pushed = await pushLocal(localRecord, meta);
+      if (pushed?.deleted) {
+        await deleteNoteAndMeta(remote.date);
+        await deleteRemoteDate(remote.date);
+        return null;
+      }
+      if (pushed) {
+        const record = toLocalRecord(pushed);
+        const metaRecord = toLocalMeta(pushed, clock.now().toISOString());
+        await setNoteAndMeta(record, metaRecord);
+        return toNoteEnvelope(record, metaRecord);
+      }
       return toNoteEnvelope(localRecord, meta);
     }
 

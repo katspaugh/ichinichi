@@ -4,6 +4,7 @@ import type { SyncError } from "../errors";
 export interface SyncStateRecord {
   id: "state";
   cursor: string | null;
+  weatherCursor?: string | null;
 }
 
 export interface SyncStateStore {

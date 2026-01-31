@@ -49,6 +49,7 @@ test.describe('Seed Cloud Notes', () => {
     await page.getByRole('button', { name: /sign in/i }).first().click();
 
     await expect(page.getByText('Synced')).toBeVisible({ timeout: 10000 });
+    await helpers.waitForVaultUnlocked();
 
     await helpers.navigateToYear(SEED_YEAR);
 
