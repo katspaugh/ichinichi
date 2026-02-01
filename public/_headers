@@ -5,7 +5,7 @@
   X-XSS-Protection: 1; mode=block
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=(), interest-cohort=()
-  Content-Security-Policy: default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; img-src 'self' data: blob: https://*.supabase.co; style-src 'self'; script-src 'self' 'sha256-EEchCpfaIFFv+FyyC5ytEFBMOndXM+FUVbhQJO7MfPQ='; upgrade-insecure-requests
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.open-meteo.com https://nominatim.openstreetmap.org https://ipapi.co; img-src 'self' data: blob: https://*.supabase.co; style-src 'self'; script-src 'self' 'sha256-EEchCpfaIFFv+FyyC5ytEFBMOndXM+FUVbhQJO7MfPQ='; upgrade-insecure-requests
 
 # Cache static assets aggressively
 /assets/*
