@@ -66,7 +66,7 @@ const US_TIMEZONES = [
 ];
 
 /**
- * Check if user is in the US based on IP location, locale, or timezone.
+ * Check if user is in the US based on IP location or timezone.
  */
 function isInAmerica(): boolean {
   // Check cached IP location first (most accurate)
@@ -75,12 +75,7 @@ function isInAmerica(): boolean {
     return true;
   }
 
-  // Fall back to locale
-  if (navigator.language === "en-US") {
-    return true;
-  }
-
-  // Fall back to timezone
+  // Fall back to timezone (location-based)
   try {
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     if (timezone && US_TIMEZONES.includes(timezone)) {
@@ -133,7 +128,7 @@ class WeatherService {
 
   /**
    * Get current weather for a given location.
-   * Uses Fahrenheit for en-US locale, Celsius otherwise.
+   * Uses Fahrenheit for US locations, Celsius otherwise.
    */
   async getCurrentWeather(
     lat: number,
@@ -217,7 +212,7 @@ class WeatherService {
 export const weatherService = new WeatherService();
 
 /**
- * Format temperature with unit based on locale.
+ * Format temperature with unit based on location.
  */
 export function formatTemperature(temperature: number): string {
   const unit = isInAmerica() ? "F" : "C";
