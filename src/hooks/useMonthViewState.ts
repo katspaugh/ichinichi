@@ -74,6 +74,14 @@ export function useMonthViewState({
   // Get notes in the current month view
   const notesInMonth = getNotesInMonth(noteDates, year, month);
 
+  // Reset refs when leaving month view
+  useEffect(() => {
+    if (!enabled) {
+      prevMonthRef.current = null;
+      hasAutoSelectedRef.current = false;
+    }
+  }, [enabled]);
+
   // Handle auto-selection on month change
   useEffect(() => {
     // Skip if not in month view
