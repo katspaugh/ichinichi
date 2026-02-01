@@ -1,7 +1,10 @@
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { NoteEditor } from "../NoteEditor";
 import { MonthGrid } from "./MonthGrid";
 import styles from "./MonthViewLayout.module.css";
+
+const BLUR_INACTIVITY_MS = 2 * 60 * 1000; // 2 minutes
 
 interface MonthViewLayoutProps {
   // Month grid props
@@ -22,6 +25,47 @@ interface MonthViewLayoutProps {
   isOfflineStub: boolean;
 }
 
+function usePrivacyBlur() {
+  const [isBlurred, setIsBlurred] = useState(true);
+  const inactivityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const resetInactivityTimer = useCallback(() => {
+    if (inactivityTimerRef.current) {
+      clearTimeout(inactivityTimerRef.current);
+    }
+    inactivityTimerRef.current = setTimeout(() => {
+      setIsBlurred(true);
+    }, BLUR_INACTIVITY_MS);
+  }, []);
+
+  const handleActivity = useCallback(() => {
+    setIsBlurred(false);
+    resetInactivityTimer();
+  }, [resetInactivityTimer]);
+
+  // Set up click listener for unblurring
+  useEffect(() => {
+    const events = ["click", "touchstart"];
+    events.forEach((event) => {
+      window.addEventListener(event, handleActivity, { passive: true });
+    });
+
+    // Start the inactivity timer
+    resetInactivityTimer();
+
+    return () => {
+      events.forEach((event) => {
+        window.removeEventListener(event, handleActivity);
+      });
+      if (inactivityTimerRef.current) {
+        clearTimeout(inactivityTimerRef.current);
+      }
+    };
+  }, [handleActivity, resetInactivityTimer]);
+
+  return { isBlurred, resetBlur: useCallback(() => setIsBlurred(true), []) };
+}
+
 export function MonthViewLayout({
   year,
   month,
@@ -38,6 +82,17 @@ export function MonthViewLayout({
   isContentReady,
   isOfflineStub,
 }: MonthViewLayoutProps) {
+  const { isBlurred, resetBlur } = usePrivacyBlur();
+
+  // Reset blur when clicking a different day
+  const handleDayClick = useCallback(
+    (date: string) => {
+      resetBlur();
+      onDayClick(date);
+    },
+    [onDayClick, resetBlur],
+  );
+
   return (
     <div className={styles.layout}>
       <div className={styles.monthGridPane}>
@@ -45,7 +100,7 @@ export function MonthViewLayout({
           year={year}
           month={month}
           hasNote={hasNote}
-          onDayClick={onDayClick}
+          onDayClick={handleDayClick}
           showMonthView={true}
           selectedDate={selectedDate}
           onWeekStartChange={onWeekStartChange}
@@ -70,6 +125,7 @@ export function MonthViewLayout({
               isDecrypting={isDecrypting}
               isContentReady={isContentReady}
               isOfflineStub={isOfflineStub}
+              isBlurred={isBlurred}
             />
           </ErrorBoundary>
         ) : (

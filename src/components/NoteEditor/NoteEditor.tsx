@@ -22,6 +22,8 @@ interface NoteEditorProps {
   isDecrypting?: boolean;
   isContentReady: boolean;
   isOfflineStub?: boolean;
+  /** True when note content should be blurred for privacy */
+  isBlurred?: boolean;
 }
 
 export function NoteEditor({
@@ -34,6 +36,7 @@ export function NoteEditor({
   isDecrypting = false,
   isContentReady,
   isOfflineStub = false,
+  isBlurred = false,
 }: NoteEditorProps) {
   const canEdit = canEditNote(date);
   const isEditable = canEdit && !isDecrypting && isContentReady;
@@ -157,6 +160,7 @@ export function NoteEditor({
         onKeyDown={handleKeyDown}
         isDraggingImage={isDraggingImage}
         dropIndicatorPosition={indicatorPosition}
+        isBlurred={isBlurred}
       />
       <LocationPrompt
         isOpen={showLocationPrompt}

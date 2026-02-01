@@ -81,6 +81,13 @@
   flex-direction: column;
   position: relative;
   min-height: 0;
+  transition: filter 0.3s ease;
+}
+
+.body.blurred {
+  filter: blur(8px);
+  user-select: none;
+  pointer-events: none;
 }
 
 .content {

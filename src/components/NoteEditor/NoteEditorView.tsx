@@ -26,6 +26,7 @@ interface NoteEditorViewProps {
   onKeyDown?: (event: KeyboardEvent<HTMLDivElement>) => void;
   isDraggingImage?: boolean;
   dropIndicatorPosition?: DropIndicatorPosition | null;
+  isBlurred?: boolean;
 }
 
 export function NoteEditorView({
@@ -43,7 +44,10 @@ export function NoteEditorView({
   onKeyDown,
   isDraggingImage = false,
   dropIndicatorPosition,
+  isBlurred = false,
 }: NoteEditorViewProps) {
+  const bodyClassName = `${styles.body} ${isBlurred ? styles.blurred : ""}`;
+
   return (
     <div className={styles.editor}>
       {isDraggingImage && (
@@ -65,7 +69,7 @@ export function NoteEditorView({
         showReadonlyBadge={showReadonlyBadge}
         statusText={statusText}
       />
-      <div className={styles.body}>
+      <div className={bodyClassName}>
         <NoteEditorContent
           editorRef={editorRef}
           isEditable={isEditable}

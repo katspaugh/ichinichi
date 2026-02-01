@@ -67,12 +67,7 @@ export async function updatePendingHrWeather(
 
   // Use IP location (no user prompt needed)
   const ipLocation = await locationService.getIpLocation();
-  if (!ipLocation) {
-    console.warn("[weather] No location available");
-    return false;
-  }
-  if (ipLocation.lat === 0 && ipLocation.lon === 0) {
-    console.warn("[weather] Invalid coordinates (0,0)");
+  if (!ipLocation || (ipLocation.lat === 0 && ipLocation.lon === 0)) {
     return false;
   }
 
@@ -81,17 +76,10 @@ export async function updatePendingHrWeather(
     ipLocation.lat,
     ipLocation.lon,
   );
-  if (!weather) {
-    console.warn("[weather] Failed to fetch weather");
+  if (!weather || !editor.isConnected) {
     return false;
   }
 
-  if (!editor.isConnected) {
-    console.warn("[weather] Editor disconnected");
-    return false;
-  }
-
-  console.log("[weather] Applying weather to", pendingHrs.length, "HRs:", weather);
   pendingHrs.forEach((hr) => applyWeatherToHr(hr, weather));
   return true;
 }

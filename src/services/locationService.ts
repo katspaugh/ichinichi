@@ -250,7 +250,6 @@ function getLocationFromTimezone(): IpLocation | null {
   try {
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     if (!timezone) {
-      console.warn("[location] No timezone available");
       return null;
     }
 
@@ -265,7 +264,6 @@ function getLocationFromTimezone(): IpLocation | null {
       const coords = TIMEZONE_TO_COORDS[matchedTimezone];
       const countryCode = TIMEZONE_TO_COUNTRY[matchedTimezone];
       const country = countryCode ? COUNTRY_NAMES[countryCode] || "" : "";
-      console.log("[location] Using timezone fallback:", timezone, "->", coords.city);
       return {
         city: coords.city,
         country,
@@ -273,10 +271,8 @@ function getLocationFromTimezone(): IpLocation | null {
         lon: coords.lon,
       };
     }
-
-    console.warn("[location] Unknown timezone:", timezone);
-  } catch (e) {
-    console.warn("[location] Timezone detection failed:", e);
+  } catch {
+    // Intl API not available
   }
   return null;
 }
@@ -301,7 +297,6 @@ class LocationService {
       });
 
       if (!response.ok) {
-        console.warn("[location] IP API returned", response.status);
         // Fall back to timezone-based location
         const tzLocation = getLocationFromTimezone();
         if (tzLocation) {
@@ -314,7 +309,6 @@ class LocationService {
       const data = await response.json();
 
       if (!data.latitude || !data.longitude) {
-        console.warn("[location] IP API missing coords:", data);
         // Fall back to timezone-based location
         const tzLocation = getLocationFromTimezone();
         if (tzLocation) {
@@ -324,7 +318,6 @@ class LocationService {
         return null;
       }
 
-      console.log("[location] IP location:", data.city, data.latitude, data.longitude);
       this.cachedIpLocation = {
         city: data.city || "",
         country: data.country_name || "",
@@ -333,8 +326,7 @@ class LocationService {
       };
 
       return this.cachedIpLocation;
-    } catch (e) {
-      console.warn("[location] IP API error:", e);
+    } catch {
       // Fall back to timezone-based location on network error
       const tzLocation = getLocationFromTimezone();
       if (tzLocation) {
