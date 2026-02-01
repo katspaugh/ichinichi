@@ -118,13 +118,13 @@ export function useMonthViewState({
       return;
     }
 
-    hasAutoSelectedRef.current = true;
-
     // Auto-select logic
     if (isCurrentMonth) {
       // Current month: select today
+      hasAutoSelectedRef.current = true;
       navigateToMonthDate(todayStr);
     } else if (notesInMonth.length > 0) {
+      hasAutoSelectedRef.current = true;
       if (direction === "forward") {
         // Going forward in time: select first note in month
         navigateToMonthDate(notesInMonth[0]);
@@ -133,7 +133,8 @@ export function useMonthViewState({
         navigateToMonthDate(notesInMonth[notesInMonth.length - 1]);
       }
     }
-    // If no notes in month, don't auto-select anything
+    // If no notes in month, don't auto-select anything (and don't mark as auto-selected
+    // so we can retry when noteDates loads)
   }, [
     enabled,
     year,
