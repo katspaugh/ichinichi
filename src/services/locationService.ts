@@ -144,34 +144,92 @@ const TIMEZONE_TO_COUNTRY: Record<string, string> = {
   "Africa/Lagos": "NG",
 };
 
-/**
- * Detect country from navigator.language or timezone.
- * Used as fallback and cross-verification for IP detection.
- */
-function detectCountryFromLocale(): string | null {
-  // Try navigator.language first (e.g., "en-US" -> "US")
-  const locale = navigator.language;
-  if (locale?.includes("-")) {
-    const parts = locale.split("-");
-    const countryCode = parts[parts.length - 1].toUpperCase();
-    if (COUNTRY_NAMES[countryCode]) {
-      return COUNTRY_NAMES[countryCode];
-    }
-  }
+// Approximate coordinates for major timezones (fallback when IP detection fails)
+const TIMEZONE_TO_COORDS: Record<string, { lat: number; lon: number; city: string }> = {
+  "America/New_York": { lat: 40.71, lon: -74.01, city: "New York" },
+  "America/Chicago": { lat: 41.88, lon: -87.63, city: "Chicago" },
+  "America/Denver": { lat: 39.74, lon: -104.99, city: "Denver" },
+  "America/Los_Angeles": { lat: 34.05, lon: -118.24, city: "Los Angeles" },
+  "America/Phoenix": { lat: 33.45, lon: -112.07, city: "Phoenix" },
+  "America/Anchorage": { lat: 61.22, lon: -149.9, city: "Anchorage" },
+  "America/Honolulu": { lat: 21.31, lon: -157.86, city: "Honolulu" },
+  "America/Toronto": { lat: 43.65, lon: -79.38, city: "Toronto" },
+  "America/Vancouver": { lat: 49.28, lon: -123.12, city: "Vancouver" },
+  "America/Montreal": { lat: 45.5, lon: -73.57, city: "Montreal" },
+  "America/Mexico_City": { lat: 19.43, lon: -99.13, city: "Mexico City" },
+  "America/Sao_Paulo": { lat: -23.55, lon: -46.63, city: "São Paulo" },
+  "America/Buenos_Aires": { lat: -34.6, lon: -58.38, city: "Buenos Aires" },
+  "America/Santiago": { lat: -33.45, lon: -70.67, city: "Santiago" },
+  "America/Bogota": { lat: 4.71, lon: -74.07, city: "Bogotá" },
+  "America/Lima": { lat: -12.05, lon: -77.04, city: "Lima" },
+  "Europe/London": { lat: 51.51, lon: -0.13, city: "London" },
+  "Europe/Paris": { lat: 48.86, lon: 2.35, city: "Paris" },
+  "Europe/Berlin": { lat: 52.52, lon: 13.41, city: "Berlin" },
+  "Europe/Madrid": { lat: 40.42, lon: -3.7, city: "Madrid" },
+  "Europe/Rome": { lat: 41.9, lon: 12.5, city: "Rome" },
+  "Europe/Amsterdam": { lat: 52.37, lon: 4.9, city: "Amsterdam" },
+  "Europe/Brussels": { lat: 50.85, lon: 4.35, city: "Brussels" },
+  "Europe/Zurich": { lat: 47.37, lon: 8.54, city: "Zurich" },
+  "Europe/Vienna": { lat: 48.21, lon: 16.37, city: "Vienna" },
+  "Europe/Stockholm": { lat: 59.33, lon: 18.07, city: "Stockholm" },
+  "Europe/Oslo": { lat: 59.91, lon: 10.75, city: "Oslo" },
+  "Europe/Copenhagen": { lat: 55.68, lon: 12.57, city: "Copenhagen" },
+  "Europe/Helsinki": { lat: 60.17, lon: 24.94, city: "Helsinki" },
+  "Europe/Warsaw": { lat: 52.23, lon: 21.01, city: "Warsaw" },
+  "Europe/Lisbon": { lat: 38.72, lon: -9.14, city: "Lisbon" },
+  "Europe/Dublin": { lat: 53.35, lon: -6.26, city: "Dublin" },
+  "Europe/Prague": { lat: 50.08, lon: 14.44, city: "Prague" },
+  "Europe/Budapest": { lat: 47.5, lon: 19.04, city: "Budapest" },
+  "Europe/Bucharest": { lat: 44.43, lon: 26.1, city: "Bucharest" },
+  "Europe/Athens": { lat: 37.98, lon: 23.73, city: "Athens" },
+  "Europe/Istanbul": { lat: 41.01, lon: 28.98, city: "Istanbul" },
+  "Europe/Moscow": { lat: 55.76, lon: 37.62, city: "Moscow" },
+  "Europe/Kiev": { lat: 50.45, lon: 30.52, city: "Kyiv" },
+  "Asia/Tokyo": { lat: 35.68, lon: 139.69, city: "Tokyo" },
+  "Asia/Shanghai": { lat: 31.23, lon: 121.47, city: "Shanghai" },
+  "Asia/Hong_Kong": { lat: 22.32, lon: 114.17, city: "Hong Kong" },
+  "Asia/Singapore": { lat: 1.35, lon: 103.82, city: "Singapore" },
+  "Asia/Seoul": { lat: 37.57, lon: 126.98, city: "Seoul" },
+  "Asia/Taipei": { lat: 25.03, lon: 121.57, city: "Taipei" },
+  "Asia/Bangkok": { lat: 13.76, lon: 100.5, city: "Bangkok" },
+  "Asia/Jakarta": { lat: -6.21, lon: 106.85, city: "Jakarta" },
+  "Asia/Manila": { lat: 14.6, lon: 120.98, city: "Manila" },
+  "Asia/Ho_Chi_Minh": { lat: 10.82, lon: 106.63, city: "Ho Chi Minh City" },
+  "Asia/Kuala_Lumpur": { lat: 3.14, lon: 101.69, city: "Kuala Lumpur" },
+  "Asia/Kolkata": { lat: 22.57, lon: 88.36, city: "Kolkata" },
+  "Asia/Dubai": { lat: 25.2, lon: 55.27, city: "Dubai" },
+  "Asia/Jerusalem": { lat: 31.77, lon: 35.22, city: "Jerusalem" },
+  "Australia/Sydney": { lat: -33.87, lon: 151.21, city: "Sydney" },
+  "Australia/Melbourne": { lat: -37.81, lon: 144.96, city: "Melbourne" },
+  "Australia/Brisbane": { lat: -27.47, lon: 153.03, city: "Brisbane" },
+  "Australia/Perth": { lat: -31.95, lon: 115.86, city: "Perth" },
+  "Pacific/Auckland": { lat: -36.85, lon: 174.76, city: "Auckland" },
+  "Africa/Johannesburg": { lat: -26.2, lon: 28.04, city: "Johannesburg" },
+  "Africa/Cairo": { lat: 30.04, lon: 31.24, city: "Cairo" },
+  "Africa/Lagos": { lat: 6.52, lon: 3.38, city: "Lagos" },
+};
 
-  // Fall back to timezone detection
+/**
+ * Get approximate location from timezone.
+ * Used as fallback when IP detection fails on mobile or restricted networks.
+ */
+function getLocationFromTimezone(): IpLocation | null {
   try {
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    if (timezone) {
+    if (timezone && TIMEZONE_TO_COORDS[timezone]) {
+      const coords = TIMEZONE_TO_COORDS[timezone];
       const countryCode = TIMEZONE_TO_COUNTRY[timezone];
-      if (countryCode && COUNTRY_NAMES[countryCode]) {
-        return COUNTRY_NAMES[countryCode];
-      }
+      const country = countryCode ? COUNTRY_NAMES[countryCode] || "" : "";
+      return {
+        city: coords.city,
+        country,
+        lat: coords.lat,
+        lon: coords.lon,
+      };
     }
   } catch {
     // Intl API not available
   }
-
   return null;
 }
 
@@ -181,7 +239,7 @@ class LocationService {
 
   /**
    * Get location from IP address using ipapi.co.
-   * Falls back to locale/timezone detection if IP fails.
+   * Falls back to timezone-based detection if IP fails.
    * Cross-verifies IP country with locale detection.
    */
   async getIpLocation(): Promise<IpLocation | null> {
@@ -189,27 +247,29 @@ class LocationService {
       return this.cachedIpLocation;
     }
 
-    const localeCountry = detectCountryFromLocale();
-
     try {
       const response = await fetch("https://ipapi.co/json/", {
         signal: AbortSignal.timeout(5000),
       });
 
       if (!response.ok) {
-        // Fall back to locale detection
-        if (localeCountry) {
-          return { city: "", country: localeCountry, lat: 0, lon: 0 };
+        // Fall back to timezone-based location
+        const tzLocation = getLocationFromTimezone();
+        if (tzLocation) {
+          this.cachedIpLocation = tzLocation;
+          return tzLocation;
         }
         return null;
       }
 
       const data = await response.json();
 
-      if (!data.city || !data.country_name) {
-        // Fall back to locale detection
-        if (localeCountry) {
-          return { city: "", country: localeCountry, lat: 0, lon: 0 };
+      if (!data.latitude || !data.longitude) {
+        // Fall back to timezone-based location
+        const tzLocation = getLocationFromTimezone();
+        if (tzLocation) {
+          this.cachedIpLocation = tzLocation;
+          return tzLocation;
         }
         return null;
       }
@@ -217,17 +277,19 @@ class LocationService {
       // Cross-verify: if locale country differs significantly, note it
       // but still use IP result as it's more accurate for current location
       this.cachedIpLocation = {
-        city: data.city,
-        country: data.country_name,
+        city: data.city || "",
+        country: data.country_name || "",
         lat: data.latitude,
         lon: data.longitude,
       };
 
       return this.cachedIpLocation;
     } catch {
-      // Fall back to locale detection on network error
-      if (localeCountry) {
-        return { city: "", country: localeCountry, lat: 0, lon: 0 };
+      // Fall back to timezone-based location on network error
+      const tzLocation = getLocationFromTimezone();
+      if (tzLocation) {
+        this.cachedIpLocation = tzLocation;
+        return tzLocation;
       }
       return null;
     }
