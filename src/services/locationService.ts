@@ -209,6 +209,39 @@ const TIMEZONE_TO_COORDS: Record<string, { lat: number; lon: number; city: strin
   "Africa/Lagos": { lat: 6.52, lon: 3.38, city: "Lagos" },
 };
 
+// Fallback timezone mappings for less common zones
+const TIMEZONE_FALLBACKS: Record<string, string> = {
+  // US regional variations -> major city
+  "America/Detroit": "America/New_York",
+  "America/Indiana/Indianapolis": "America/New_York",
+  "America/Indiana/Knox": "America/Chicago",
+  "America/Indiana/Marengo": "America/New_York",
+  "America/Indiana/Petersburg": "America/New_York",
+  "America/Indiana/Tell_City": "America/Chicago",
+  "America/Indiana/Vevay": "America/New_York",
+  "America/Indiana/Vincennes": "America/New_York",
+  "America/Indiana/Winamac": "America/New_York",
+  "America/Kentucky/Louisville": "America/New_York",
+  "America/Kentucky/Monticello": "America/New_York",
+  "America/North_Dakota/Beulah": "America/Chicago",
+  "America/North_Dakota/Center": "America/Chicago",
+  "America/North_Dakota/New_Salem": "America/Chicago",
+  "America/Boise": "America/Denver",
+  "America/Menominee": "America/Chicago",
+  // Canada variations
+  "America/Edmonton": "America/Denver",
+  "America/Winnipeg": "America/Chicago",
+  "America/Halifax": "America/New_York",
+  "America/St_Johns": "America/New_York",
+  "America/Regina": "America/Denver",
+  // Australia variations
+  "Australia/Adelaide": "Australia/Sydney",
+  "Australia/Darwin": "Australia/Brisbane",
+  "Australia/Hobart": "Australia/Sydney",
+  // Europe variations
+  "Europe/Kyiv": "Europe/Kiev",
+};
+
 /**
  * Get approximate location from timezone.
  * Used as fallback when IP detection fails on mobile or restricted networks.
@@ -216,10 +249,23 @@ const TIMEZONE_TO_COORDS: Record<string, { lat: number; lon: number; city: strin
 function getLocationFromTimezone(): IpLocation | null {
   try {
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    if (timezone && TIMEZONE_TO_COORDS[timezone]) {
-      const coords = TIMEZONE_TO_COORDS[timezone];
-      const countryCode = TIMEZONE_TO_COUNTRY[timezone];
+    if (!timezone) {
+      console.warn("[location] No timezone available");
+      return null;
+    }
+
+    // Try exact match first
+    let matchedTimezone = timezone;
+    if (!TIMEZONE_TO_COORDS[matchedTimezone]) {
+      // Try fallback mapping
+      matchedTimezone = TIMEZONE_FALLBACKS[timezone] || "";
+    }
+
+    if (matchedTimezone && TIMEZONE_TO_COORDS[matchedTimezone]) {
+      const coords = TIMEZONE_TO_COORDS[matchedTimezone];
+      const countryCode = TIMEZONE_TO_COUNTRY[matchedTimezone];
       const country = countryCode ? COUNTRY_NAMES[countryCode] || "" : "";
+      console.log("[location] Using timezone fallback:", timezone, "->", coords.city);
       return {
         city: coords.city,
         country,
@@ -227,8 +273,10 @@ function getLocationFromTimezone(): IpLocation | null {
         lon: coords.lon,
       };
     }
-  } catch {
-    // Intl API not available
+
+    console.warn("[location] Unknown timezone:", timezone);
+  } catch (e) {
+    console.warn("[location] Timezone detection failed:", e);
   }
   return null;
 }
@@ -253,6 +301,7 @@ class LocationService {
       });
 
       if (!response.ok) {
+        console.warn("[location] IP API returned", response.status);
         // Fall back to timezone-based location
         const tzLocation = getLocationFromTimezone();
         if (tzLocation) {
@@ -265,6 +314,7 @@ class LocationService {
       const data = await response.json();
 
       if (!data.latitude || !data.longitude) {
+        console.warn("[location] IP API missing coords:", data);
         // Fall back to timezone-based location
         const tzLocation = getLocationFromTimezone();
         if (tzLocation) {
@@ -274,8 +324,7 @@ class LocationService {
         return null;
       }
 
-      // Cross-verify: if locale country differs significantly, note it
-      // but still use IP result as it's more accurate for current location
+      console.log("[location] IP location:", data.city, data.latitude, data.longitude);
       this.cachedIpLocation = {
         city: data.city || "",
         country: data.country_name || "",
@@ -284,7 +333,8 @@ class LocationService {
       };
 
       return this.cachedIpLocation;
-    } catch {
+    } catch (e) {
+      console.warn("[location] IP API error:", e);
       // Fall back to timezone-based location on network error
       const tzLocation = getLocationFromTimezone();
       if (tzLocation) {
