@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback } from "react";
 import type { DragEvent } from "react";
 import { formatDateDisplay } from "../../utils/date";
 import { canEditNote } from "../../utils/noteRules";
@@ -9,7 +9,7 @@ import { useInlineImageUpload, useInlineImageUrls } from "./useInlineImages";
 import { useImageDragState } from "./useImageDragState";
 import { useDropIndicator } from "./useDropIndicator";
 import { LocationPrompt } from "../LocationPrompt/LocationPrompt";
-import { updateHrWithPreciseLocation } from "../../services/weatherLabel";
+import { useWeatherContext } from "../../contexts/weatherContext";
 
 interface NoteEditorProps {
   date: string;
@@ -65,18 +65,20 @@ export function NoteEditor({
           : "No note for this day";
 
   const { isDraggingImage, endImageDrag } = useImageDragState();
-  const [showLocationPrompt, setShowLocationPrompt] = useState(false);
-  const clickedHrRef = useRef<HTMLHRElement | null>(null);
+  const weather = useWeatherContext();
+  const { state: weatherState } = weather;
 
   const { onImageDrop } = useInlineImageUpload({
     date,
     isEditable,
   });
 
-  const handleWeatherClick = useCallback((hr: HTMLHRElement) => {
-    clickedHrRef.current = hr;
-    setShowLocationPrompt(true);
-  }, []);
+  const handleWeatherClick = useCallback(
+    (hr: HTMLHRElement) => {
+      weather.requestPreciseForHr(hr);
+    },
+    [weather],
+  );
 
   const {
     editorRef,
@@ -95,24 +97,25 @@ export function NoteEditor({
     onImageDrop,
     onDropComplete: endImageDrag,
     onWeatherClick: handleWeatherClick,
+    showWeather: weatherState.showWeather,
+    applyWeatherToEditor: weather.applyWeatherToEditor,
+    clearWeatherFromEditor: weather.clearWeatherFromEditor,
+    hasWeather: weather.hasWeather,
   });
 
-  const handleLocationPromptComplete = useCallback(
-    async (granted: boolean) => {
-      setShowLocationPrompt(false);
-      if (granted && clickedHrRef.current) {
-        // Update the clicked HR with precise location
-        await updateHrWithPreciseLocation(clickedHrRef.current);
-        // Save content directly without triggering full input processing
-        // (which would insert a new timestamp HR)
-        if (editorRef.current) {
-          onChange(editorRef.current.innerHTML);
-        }
-      }
-      clickedHrRef.current = null;
-    },
-    [editorRef, onChange],
-  );
+  const handleLocationConfirm = useCallback(async () => {
+    const applied = await weather.confirmPreciseForHr();
+    if (applied && editorRef.current) {
+      // Save content directly without triggering full input processing
+      // (which would insert a new timestamp HR)
+      onChange(editorRef.current.innerHTML);
+    }
+    return applied;
+  }, [editorRef, onChange, weather]);
+
+  const handleLocationDeny = useCallback(() => {
+    weather.dismissPrecisePrompt();
+  }, [weather]);
 
   const { indicatorPosition, updateIndicator, clearIndicator } =
     useDropIndicator({
@@ -163,8 +166,9 @@ export function NoteEditor({
         isBlurred={isBlurred}
       />
       <LocationPrompt
-        isOpen={showLocationPrompt}
-        onComplete={handleLocationPromptComplete}
+        isOpen={weatherState.isPromptOpen}
+        onConfirm={handleLocationConfirm}
+        onDeny={handleLocationDeny}
       />
     </>
   );
