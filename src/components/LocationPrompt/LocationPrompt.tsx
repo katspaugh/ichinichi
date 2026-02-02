@@ -2,35 +2,39 @@ import { useState, useCallback } from "react";
 import { Modal } from "../Modal";
 import { VaultPanel } from "../VaultPanel";
 import { Button } from "../Button";
-import { locationService } from "../../services/locationService";
 import styles from "../VaultPanel/VaultPanel.module.css";
 
 interface LocationPromptProps {
   isOpen: boolean;
-  onComplete: (granted: boolean) => void;
+  onConfirm: () => Promise<boolean>;
+  onDeny: () => void;
 }
 
 // Inner component that handles the location prompt logic
 // Separated so state resets when modal closes/opens
+interface LocationPromptContentProps {
+  onConfirm: () => Promise<boolean>;
+  onDeny: () => void;
+}
+
 function LocationPromptContent({
-  onComplete,
-}: {
-  onComplete: (granted: boolean) => void;
-}) {
+  onConfirm,
+  onDeny,
+}: LocationPromptContentProps) {
   const [isRequesting, setIsRequesting] = useState(false);
 
   const handleConfirm = useCallback(async () => {
     setIsRequesting(true);
-
-    // Request precise geolocation
-    const position = await locationService.getCurrentPosition();
-    setIsRequesting(false);
-    onComplete(position !== null);
-  }, [onComplete]);
+    try {
+      await onConfirm();
+    } finally {
+      setIsRequesting(false);
+    }
+  }, [onConfirm]);
 
   const handleDeny = useCallback(() => {
-    onComplete(false);
-  }, [onComplete]);
+    onDeny();
+  }, [onDeny]);
 
   return (
     <VaultPanel
@@ -52,21 +56,27 @@ function LocationPromptContent({
           onClick={handleDeny}
           disabled={isRequesting}
         >
-          Keep using IP location
+          Keep using approximate location
         </Button>
       </div>
     </VaultPanel>
   );
 }
 
-export function LocationPrompt({ isOpen, onComplete }: LocationPromptProps) {
+export function LocationPrompt({
+  isOpen,
+  onConfirm,
+  onDeny,
+}: LocationPromptProps) {
   const handleDeny = useCallback(() => {
-    onComplete(false);
-  }, [onComplete]);
+    onDeny();
+  }, [onDeny]);
 
   return (
     <Modal isOpen={isOpen} onClose={handleDeny}>
-      {isOpen && <LocationPromptContent onComplete={onComplete} />}
+      {isOpen && (
+        <LocationPromptContent onConfirm={onConfirm} onDeny={onDeny} />
+      )}
     </Modal>
   );
 }

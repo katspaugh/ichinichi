@@ -27,6 +27,7 @@ function EditorHarness({
     placeholderText: "",
     onChange: () => undefined,
     onImageDrop,
+    showWeather: false,
   });
 
   return (

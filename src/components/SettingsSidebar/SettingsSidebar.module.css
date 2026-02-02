@@ -1,0 +1,432 @@
+.root {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 40;
+}
+
+.root[data-open="true"] {
+  pointer-events: auto;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  background: var(--overlay-bg);
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.panel {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 280px;
+  background-color: var(--color-surface);
+  border-right: 1px solid var(--color-border);
+  color: var(--color-text);
+  display: flex;
+  flex-direction: column;
+  transform: translateX(-100%);
+  transition: transform 200ms ease;
+}
+
+.panel[data-open="true"] {
+  transform: translateX(0);
+}
+
+.header {
+  position: relative;
+  padding: 24px 24px 16px;
+}
+
+.title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.closeButton {
+  position: absolute;
+  right: 16px;
+  top: 16px;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: none;
+  background-color: var(--color-surface-hover);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.closeButton:hover {
+  color: var(--color-text);
+  background-color: var(--color-surface);
+}
+
+.closeIcon {
+  width: 18px;
+  height: 18px;
+}
+
+.body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 24px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.separator {
+  height: 1px;
+  width: 100%;
+  background-color: var(--color-border);
+}
+
+.userRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-top: 4px;
+}
+
+.avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 20px;
+  background-color: var(--color-surface-hover);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.avatarIcon {
+  width: 20px;
+  height: 20px;
+  color: var(--color-text-muted);
+}
+
+.userInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.userEmail {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.userStatus {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.actionButton {
+  height: 40px;
+  min-height: 40px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.actionButtonPrimary {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.actionButtonPrimary:hover {
+  background-color: rgba(37, 99, 235, 0.1);
+}
+
+.actionButtonDanger {
+  border-color: var(--color-sync-error);
+  color: var(--color-sync-error);
+}
+
+.actionButtonDanger:hover {
+  background-color: rgba(224, 123, 123, 0.1);
+}
+
+.actionIcon {
+  width: 16px;
+  height: 16px;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sectionLabel {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  font-weight: 600;
+  margin: 0;
+}
+
+.segmentedControl {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  padding: 4px;
+  background-color: var(--color-bg);
+  border-radius: 10px;
+}
+
+.segmentButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 30px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.segmentButton[data-active="true"] {
+  background-color: var(--color-surface);
+  color: var(--color-text);
+}
+
+.segmentButton:hover {
+  color: var(--color-text);
+}
+
+.segmentIcon {
+  width: 14px;
+  height: 14px;
+}
+
+.locationRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.locationField {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background-color: var(--color-bg);
+  border-radius: 10px;
+}
+
+.locationIcon {
+  width: 16px;
+  height: 16px;
+  color: var(--color-text-muted);
+}
+
+.locationText {
+  font-size: 14px;
+}
+
+.iconButton {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: none;
+  background-color: var(--color-bg);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-primary);
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+}
+
+.iconButton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.iconButton:hover:not(:disabled) {
+  background-color: var(--color-surface-hover);
+}
+
+.refreshIcon {
+  width: 16px;
+  height: 16px;
+}
+
+.refreshSpinning {
+  animation: spin 1s linear infinite;
+}
+
+.toggleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.rowLabel {
+  font-size: 14px;
+}
+
+.unitToggle {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  background-color: var(--color-bg);
+  border-radius: 8px;
+}
+
+.unitButton {
+  border: none;
+  background: transparent;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.unitButton[data-active="true"] {
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.unitButton:hover {
+  color: var(--color-text);
+}
+
+.switch {
+  width: 36px;
+  height: 20px;
+  border-radius: 999px;
+  border: none;
+  background-color: var(--color-border);
+  position: relative;
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+}
+
+.switch[data-checked="true"] {
+  background-color: var(--color-primary);
+}
+
+.switchThumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background-color: var(--color-surface);
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  transition: transform var(--transition-fast);
+}
+
+.switch[data-checked="true"] .switchThumb {
+  transform: translateX(16px);
+}
+
+.linksSection {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.linkRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  color: var(--color-text);
+  text-decoration: none;
+  font-size: 14px;
+  transition: color var(--transition-fast);
+  background: transparent;
+  border: none;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+
+.linkRow:hover {
+  color: var(--color-text);
+  background-color: var(--color-surface-hover);
+}
+
+.linkLeft {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.linkIcon,
+.linkChevron {
+  width: 16px;
+  height: 16px;
+  color: var(--color-text-muted);
+}
+
+.linkRow:hover .linkIcon,
+.linkRow:hover .linkChevron,
+.linkRow:hover .externalIcon {
+  color: var(--color-text);
+}
+
+.linkRight {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.hash {
+  font-family: var(--font-family-mono);
+}
+
+.externalIcon {
+  width: 14px;
+  height: 14px;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}

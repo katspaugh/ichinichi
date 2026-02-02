@@ -1,7 +1,7 @@
+import { Menu } from "lucide-react";
 import { Button } from "../Button";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { SyncIndicator } from "../SyncIndicator";
-import { ThemeToggle } from "../ThemeToggle";
 import type { SyncStatus } from "../../types";
 import type { PendingOpsSummary } from "../../domain/sync";
 import { getMonthName } from "../../utils/date";
@@ -10,72 +10,38 @@ import styles from "./Calendar.module.css";
 interface CalendarHeaderProps {
   year: number;
   month: number | null;
-  commitHash: string;
-  commitUrl: string;
   onYearChange: (year: number) => void;
   onMonthChange?: (year: number, month: number) => void;
   onReturnToYear?: () => void;
   syncStatus?: SyncStatus;
   syncError?: string | null;
   pendingOps?: PendingOpsSummary;
+  onMenuClick?: () => void;
   onSignIn?: () => void;
-  onSignOut?: () => void;
 }
 
 export function CalendarHeader({
   year,
   month,
-  commitHash,
-  commitUrl,
   onYearChange,
   onMonthChange,
   onReturnToYear,
   syncStatus,
   syncError,
   pendingOps,
+  onMenuClick,
   onSignIn,
-  onSignOut,
 }: CalendarHeaderProps) {
   return (
     <div className={styles.header}>
       <div className={styles.headerLeft}>
-        <a
-          className={styles.auth}
-          href={commitUrl}
-          target="_blank"
-          rel="noreferrer"
+        <button
+          className={styles.menuButton}
+          onClick={onMenuClick}
+          aria-label="Open settings"
         >
-          <span className={styles.footerIcon} aria-hidden="true" />
-          {commitHash}
-        </a>
-        <ThemeToggle />
-      </div>
-      <div className={styles.headerSpacer} aria-hidden="true" />
-      <div className={styles.headerActions}>
-        {syncStatus && (
-          <ErrorBoundary
-            title="Sync status unavailable"
-            description="Sync will resume automatically once ready."
-            resetLabel="Retry"
-            className={styles.syncErrorBoundary}
-          >
-            <SyncIndicator
-              status={syncStatus}
-              pendingOps={pendingOps}
-              errorMessage={syncError ?? undefined}
-            />
-          </ErrorBoundary>
-        )}
-        {onSignIn && (
-          <button className={styles.auth} onClick={onSignIn}>
-            Sign in to sync
-          </button>
-        )}
-        {onSignOut && (
-          <button className={styles.auth} onClick={onSignOut}>
-            Sign out
-          </button>
-        )}
+          <Menu className={styles.menuIcon} />
+        </button>
       </div>
       <div className={styles.yearControls}>
         {month == null ? (
@@ -128,6 +94,27 @@ export function CalendarHeader({
               →
             </Button>
           </>
+        )}
+      </div>
+      <div className={styles.headerActions}>
+        {syncStatus && (
+          <ErrorBoundary
+            title="Sync status unavailable"
+            description="Sync will resume automatically once ready."
+            resetLabel="Retry"
+            className={styles.syncErrorBoundary}
+          >
+            <SyncIndicator
+              status={syncStatus}
+              pendingOps={pendingOps}
+              errorMessage={syncError ?? undefined}
+            />
+          </ErrorBoundary>
+        )}
+        {onSignIn && (
+          <button className={styles.signInButton} onClick={onSignIn}>
+            Sign in
+          </button>
         )}
       </div>
     </div>

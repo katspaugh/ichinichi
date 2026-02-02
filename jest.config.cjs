@@ -11,6 +11,7 @@ module.exports = {
     ],
   },
   moduleNameMapper: {
+    "^@/(.*)$": "<rootDir>/src/$1",
     "\\.module\\.css$": "identity-obj-proxy",
     "\\.css$": "<rootDir>/src/__tests__/__mocks__/styleMock.js",
   },

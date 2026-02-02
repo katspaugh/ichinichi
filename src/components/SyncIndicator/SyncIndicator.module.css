@@ -5,24 +5,29 @@
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
   padding: var(--spacing-xs) var(--spacing-sm);
-  border-radius: var(--radius-sm);
-  background-color: var(--color-surface);
+  border-radius: var(--radius);
+  background-color: transparent;
+  border: 1px solid var(--color-border);
 }
 
 .synced {
   color: var(--color-sync-success);
+  border-color: var(--color-sync-success);
 }
 
 .error {
   color: var(--color-sync-error);
+  border-color: var(--color-sync-error);
 }
 
 .offline {
   color: var(--color-sync-offline);
+  border-color: var(--color-sync-offline);
 }
 
 .pending {
   color: var(--color-sync-pending);
+  border-color: var(--color-sync-pending);
 }
 
 .spinner {

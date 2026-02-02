@@ -69,20 +69,6 @@
   width: 100%;
 }
 
-.footerIcon {
-  width: 14px;
-  height: 14px;
-  display: inline-block;
-  background-color: currentColor;
-  mask-image: url("/github.svg");
-  mask-size: contain;
-  mask-repeat: no-repeat;
-  mask-position: center;
-  -webkit-mask-image: url("/github.svg");
-  -webkit-mask-size: contain;
-  -webkit-mask-repeat: no-repeat;
-  -webkit-mask-position: center;
-}
 
 .headerLeft {
   position: absolute;
@@ -92,10 +78,27 @@
   gap: var(--spacing-xs);
 }
 
-.headerLeft .auth {
-  display: inline-flex;
+.menuButton {
+  display: flex;
   align-items: center;
-  gap: var(--spacing-xs);
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  color: var(--color-text);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+}
+
+.menuButton:hover {
+  background-color: var(--color-surface);
+}
+
+.menuIcon {
+  width: 20px;
+  height: 20px;
 }
 
 .headerActions {
@@ -110,20 +113,22 @@
   padding: var(--spacing-xs) var(--spacing-sm);
 }
 
-.auth {
+.signInButton {
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
   background: transparent;
-  border: none;
+  border: 1px solid var(--color-border);
   cursor: pointer;
   padding: var(--spacing-xs) var(--spacing-sm);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius);
+  transition: all var(--transition-fast);
 }
 
-.auth:hover {
+.signInButton:hover {
   color: var(--color-text);
-  background-color: var(--color-surface);
+  border-color: var(--color-text-muted);
 }
+
 
 @media (max-width: 1200px) {
   .grid {
@@ -208,18 +213,9 @@
     margin-left: auto;
   }
 
-  .headerCommit {
-    position: static;
-    order: -1;
-  }
-
   .headerSpacer {
     display: block;
     order: -1;
-  }
-
-  .headerLeft .auth {
-    display: none;
   }
 }
 

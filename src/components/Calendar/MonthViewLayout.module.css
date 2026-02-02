@@ -50,7 +50,7 @@
 
   .editorPane {
     flex: 1;
-    max-width: 800px;
+    min-width: 0;
   }
 }
 

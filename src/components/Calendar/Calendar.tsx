@@ -16,9 +16,10 @@ interface CalendarProps {
   syncStatus?: SyncStatus;
   syncError?: string | null;
   pendingOps?: PendingOpsSummary;
+  onMenuClick?: () => void;
   onSignIn?: () => void;
-  onSignOut?: () => void;
   now?: Date;
+  weekStartVersion?: number;
 }
 
 export function Calendar({
@@ -32,14 +33,13 @@ export function Calendar({
   syncStatus,
   syncError,
   pendingOps,
+  onMenuClick,
   onSignIn,
-  onSignOut,
   now,
+  weekStartVersion,
 }: CalendarProps) {
   const hasAutoScrolledRef = useRef(false);
   const [, setWeekStartVersion] = useState(0);
-  const commitHash = __COMMIT_HASH__;
-  const commitUrl = `https://github.com/katspaugh/dailynote/commit/${commitHash}`;
   const handleWeekStartChange = useCallback(() => {
     setWeekStartVersion((value) => value + 1);
   }, []);
@@ -72,20 +72,21 @@ export function Calendar({
   }, [year]);
 
   return (
-    <div className={styles.calendar}>
+    <div
+      className={styles.calendar}
+      data-week-start-version={weekStartVersion}
+    >
       <CalendarHeader
         year={year}
         month={month}
-        commitHash={commitHash}
-        commitUrl={commitUrl}
         onYearChange={onYearChange}
         onMonthChange={onMonthChange}
         onReturnToYear={onReturnToYear}
         syncStatus={syncStatus}
         syncError={syncError}
         pendingOps={pendingOps}
+        onMenuClick={onMenuClick}
         onSignIn={onSignIn}
-        onSignOut={onSignOut}
       />
       <CalendarGrid
         year={year}

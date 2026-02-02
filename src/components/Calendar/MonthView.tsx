@@ -29,9 +29,10 @@ interface MonthViewProps {
   syncStatus?: SyncStatus;
   syncError?: string | null;
   pendingOps?: PendingOpsSummary;
+  onMenuClick?: () => void;
   onSignIn?: () => void;
-  onSignOut?: () => void;
   now?: Date;
+  weekStartVersion?: number;
 }
 
 export function MonthView({
@@ -54,13 +55,12 @@ export function MonthView({
   syncStatus,
   syncError,
   pendingOps,
+  onMenuClick,
   onSignIn,
-  onSignOut,
   now,
+  weekStartVersion,
 }: MonthViewProps) {
   const [, setWeekStartVersion] = useState(0);
-  const commitHash = __COMMIT_HASH__;
-  const commitUrl = `https://github.com/katspaugh/dailynote/commit/${commitHash}`;
 
   // Keyboard navigation for notes (arrow left/right)
   const { navigateToPrevious, navigateToNext } = useNoteNavigation({
@@ -81,20 +81,22 @@ export function MonthView({
   }, []);
 
   return (
-    <div className={styles.calendar} data-month-view="true">
+    <div
+      className={styles.calendar}
+      data-month-view="true"
+      data-week-start-version={weekStartVersion}
+    >
       <CalendarHeader
         year={year}
         month={month}
-        commitHash={commitHash}
-        commitUrl={commitUrl}
         onYearChange={onYearChange}
         onMonthChange={onMonthChange}
         onReturnToYear={onReturnToYear}
         syncStatus={syncStatus}
         syncError={syncError}
         pendingOps={pendingOps}
+        onMenuClick={onMenuClick}
         onSignIn={onSignIn}
-        onSignOut={onSignOut}
       />
       <MonthViewLayout
         year={year}

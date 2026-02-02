@@ -17,6 +17,7 @@ function EditorHarness({ content }: { content: string }) {
     isEditable: true,
     placeholderText: "",
     onChange: () => undefined,
+    showWeather: false,
   });
 
   return (

@@ -10,7 +10,7 @@ import {
   selectNodeAndExecCommand,
   selectRangeAndExecCommand,
 } from "./dom";
-import { getTimestampLabel } from "../weatherLabel";
+import { getTimestampLabel } from "../timestampLabel";
 
 const TIMESTAMP_ATTR = "data-timestamp";
 const TIMESTAMP_LABEL_ATTR = "data-label";

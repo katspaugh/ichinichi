@@ -1,6 +1,6 @@
 /**
  * Location service for geolocation access.
- * Uses IP detection first, then precise geolocation if user confirms.
+ * Uses timezone/locale heuristics first, then precise geolocation if user confirms.
  */
 
 import { LOCATION_PROMPT_SHOWN_KEY } from "../utils/constants";
@@ -10,7 +10,7 @@ export interface Coordinates {
   lon: number;
 }
 
-export interface IpLocation {
+export interface ApproxLocation {
   city: string;
   country: string;
   lat: number;
@@ -144,8 +144,11 @@ const TIMEZONE_TO_COUNTRY: Record<string, string> = {
   "Africa/Lagos": "NG",
 };
 
-// Approximate coordinates for major timezones (fallback when IP detection fails)
-const TIMEZONE_TO_COORDS: Record<string, { lat: number; lon: number; city: string }> = {
+// Approximate coordinates for major timezones (primary heuristic)
+const TIMEZONE_TO_COORDS: Record<
+  string,
+  { lat: number; lon: number; city: string }
+> = {
   "America/New_York": { lat: 40.71, lon: -74.01, city: "New York" },
   "America/Chicago": { lat: 41.88, lon: -87.63, city: "Chicago" },
   "America/Denver": { lat: 39.74, lon: -104.99, city: "Denver" },
@@ -242,11 +245,52 @@ const TIMEZONE_FALLBACKS: Record<string, string> = {
   "Europe/Kyiv": "Europe/Kiev",
 };
 
+const REGION_DEFAULT_CITY: Record<
+  string,
+  { city: string; lat: number; lon: number }
+> = {
+  US: { city: "New York", lat: 40.71, lon: -74.01 },
+  GB: { city: "London", lat: 51.51, lon: -0.13 },
+  CA: { city: "Toronto", lat: 43.65, lon: -79.38 },
+  AU: { city: "Sydney", lat: -33.87, lon: 151.21 },
+  NZ: { city: "Auckland", lat: -36.85, lon: 174.76 },
+  DE: { city: "Berlin", lat: 52.52, lon: 13.41 },
+  FR: { city: "Paris", lat: 48.86, lon: 2.35 },
+  ES: { city: "Madrid", lat: 40.42, lon: -3.7 },
+  IT: { city: "Rome", lat: 41.9, lon: 12.5 },
+  JP: { city: "Tokyo", lat: 35.68, lon: 139.69 },
+  CN: { city: "Shanghai", lat: 31.23, lon: 121.47 },
+  KR: { city: "Seoul", lat: 37.57, lon: 126.98 },
+  BR: { city: "São Paulo", lat: -23.55, lon: -46.63 },
+  MX: { city: "Mexico City", lat: 19.43, lon: -99.13 },
+  IN: { city: "Kolkata", lat: 22.57, lon: 88.36 },
+};
+
+function getLocaleRegion(): string | null {
+  if (typeof navigator !== "undefined" && navigator.language) {
+    try {
+      if (typeof Intl !== "undefined" && "Locale" in Intl) {
+        const locale = new Intl.Locale(navigator.language);
+        if (locale.region) {
+          return locale.region;
+        }
+      }
+      const parts = navigator.language.split("-");
+      if (parts.length > 1) {
+        return parts[1].toUpperCase();
+      }
+    } catch {
+      // Ignore locale parsing failures
+    }
+  }
+  return null;
+}
+
 /**
  * Get approximate location from timezone.
- * Used as fallback when IP detection fails on mobile or restricted networks.
+ * Primary heuristic for coarse location detection.
  */
-function getLocationFromTimezone(): IpLocation | null {
+function getLocationFromTimezone(): ApproxLocation | null {
   try {
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     if (!timezone) {
@@ -279,75 +323,41 @@ function getLocationFromTimezone(): IpLocation | null {
 
 class LocationService {
   private cachedPermissionState: LocationPermissionState | null = null;
-  private cachedIpLocation: IpLocation | null = null;
+  private cachedApproxLocation: ApproxLocation | null = null;
 
   /**
-   * Get location from IP address using ipapi.co.
-   * Falls back to timezone-based detection if IP fails.
-   * Cross-verifies IP country with locale detection.
+   * Get approximate location from timezone/locale heuristics.
    */
-  async getIpLocation(): Promise<IpLocation | null> {
-    if (this.cachedIpLocation) {
-      return this.cachedIpLocation;
+  async getApproxLocation(): Promise<ApproxLocation | null> {
+    if (this.cachedApproxLocation) {
+      return this.cachedApproxLocation;
     }
 
-    try {
-      const response = await fetch("https://ipapi.co/json/", {
-        signal: AbortSignal.timeout(5000),
-      });
+    const tzLocation = getLocationFromTimezone();
+    if (tzLocation) {
+      this.cachedApproxLocation = tzLocation;
+      return tzLocation;
+    }
 
-      if (!response.ok) {
-        // Fall back to timezone-based location
-        const tzLocation = getLocationFromTimezone();
-        if (tzLocation) {
-          this.cachedIpLocation = tzLocation;
-          return tzLocation;
-        }
-        return null;
-      }
-
-      const data = await response.json();
-
-      if (!data.latitude || !data.longitude) {
-        // Fall back to timezone-based location
-        const tzLocation = getLocationFromTimezone();
-        if (tzLocation) {
-          this.cachedIpLocation = tzLocation;
-          return tzLocation;
-        }
-        return null;
-      }
-
-      this.cachedIpLocation = {
-        city: data.city || "",
-        country: data.country_name || "",
-        lat: data.latitude,
-        lon: data.longitude,
+    const region = getLocaleRegion();
+    if (region && REGION_DEFAULT_CITY[region]) {
+      const fallback = REGION_DEFAULT_CITY[region];
+      const country = COUNTRY_NAMES[region] || "";
+      this.cachedApproxLocation = {
+        city: fallback.city,
+        country,
+        lat: fallback.lat,
+        lon: fallback.lon,
       };
-
-      return this.cachedIpLocation;
-    } catch {
-      // Fall back to timezone-based location on network error
-      const tzLocation = getLocationFromTimezone();
-      if (tzLocation) {
-        this.cachedIpLocation = tzLocation;
-        return tzLocation;
-      }
-      return null;
+      return this.cachedApproxLocation;
     }
-  }
 
-  /**
-   * Get cached IP location without fetching.
-   * Used for temperature unit detection.
-   */
-  getCachedIpLocation(): IpLocation | null {
-    return this.cachedIpLocation;
+    return null;
   }
 
   /**
    * Get precise position via browser geolocation.
-   * Requires user permission, more accurate than IP.
+   * Requires user permission, more accurate than timezone/locale heuristics.
    */
   async getCurrentPosition(): Promise<Coordinates | null> {
     if (!("geolocation" in navigator)) {

@@ -1,10 +1,13 @@
 import { defineConfig } from "vite";
 import { execSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { basename } from "node:path";
+import { fileURLToPath } from "node:url";
+import { basename, dirname, resolve } from "node:path";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 import { sriPlugin } from "./viteSriPlugin";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const commitHash = (() => {
   try {
@@ -53,6 +56,11 @@ export default defineConfig({
   },
   define: {
     __COMMIT_HASH__: JSON.stringify(commitHash),
+  },
+  resolve: {
+    alias: {
+      "@": resolve(__dirname, "./src"),
+    },
   },
   build: {
     // Optimize chunks for better caching
