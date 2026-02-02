@@ -100,3 +100,27 @@ export async function deleteNoteAndMeta(date: string): Promise<void> {
     tx.onerror = () => reject(tx.error);
   });
 }
+
+export async function clearNoteSyncMetadata(): Promise<void> {
+  const db = await openUnifiedDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(NOTE_META_STORE, "readwrite");
+    const store = tx.objectStore(NOTE_META_STORE);
+    const request = store.getAll();
+    request.onsuccess = () => {
+      const metas = request.result as NoteMetaRecord[];
+      metas.forEach((meta) => {
+        store.put({
+          ...meta,
+          remoteId: null,
+          serverUpdatedAt: null,
+          lastSyncedAt: null,
+          pendingOp: null,
+        });
+      });
+    };
+    request.onerror = () => reject(request.error);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}

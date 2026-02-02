@@ -5,6 +5,7 @@ import { useVault } from "./useVault";
 import { AppMode } from "./useAppMode";
 import { useServiceContext } from "../contexts/serviceContext";
 import { useVaultMachine } from "./useVaultMachine";
+import { handleCloudAccountSwitch } from "../storage/accountSwitch";
 
 interface UseActiveVaultProps {
   auth: UseAuthReturn;
@@ -75,6 +76,10 @@ export function useActiveVault({
     cloudVault.primaryKeyId,
     state.context.localKeyring,
   ]);
+
+  useEffect(() => {
+    void handleCloudAccountSwitch(auth.user?.id ?? null);
+  }, [auth.user?.id]);
 
   const mergedKeyring = useMemo(() => {
     const merged = new Map<string, CryptoKey>();

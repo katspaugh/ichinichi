@@ -122,3 +122,26 @@ export async function deleteImagesByDate(noteDate: string): Promise<void> {
     tx.onerror = () => reject(tx.error);
   });
 }
+
+export async function clearImageSyncMetadata(): Promise<void> {
+  const db = await openUnifiedDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IMAGE_META_STORE, "readwrite");
+    const store = tx.objectStore(IMAGE_META_STORE);
+    const request = store.getAll();
+    request.onsuccess = () => {
+      const metas = request.result as ImageMetaRecord[];
+      metas.forEach((meta) => {
+        store.put({
+          ...meta,
+          remotePath: null,
+          serverUpdatedAt: null,
+          pendingOp: null,
+        });
+      });
+    };
+    request.onerror = () => reject(request.error);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}

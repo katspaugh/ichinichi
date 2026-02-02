@@ -5,6 +5,7 @@ import { createHydratingNoteRepository } from "../domain/notes/hydratingNoteRepo
 import { createUnifiedSyncedNoteEnvelopeRepository } from "../storage/unifiedSyncedNoteRepository";
 import { createE2eeService } from "../services/e2eeService";
 import { closeUnifiedDb } from "../storage/unifiedDb";
+import { getAllAccountDbNames } from "../storage/accountStore";
 import { setRemoteDatesForYear } from "../storage/remoteNoteIndexStore";
 import type {
   RemoteNotesGateway,
@@ -25,12 +26,18 @@ jest.mock("../hooks/useConnectivity", () => ({
 
 async function deleteUnifiedDb(): Promise<void> {
   closeUnifiedDb();
-  await new Promise<void>((resolve, reject) => {
-    const request = indexedDB.deleteDatabase("dailynotes-unified");
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
-    request.onblocked = () => resolve();
-  });
+  const dbNames = getAllAccountDbNames();
+  await Promise.all(
+    dbNames.map(
+      (name) =>
+        new Promise<void>((resolve, reject) => {
+          const request = indexedDB.deleteDatabase(name);
+          request.onsuccess = () => resolve();
+          request.onerror = () => reject(request.error);
+          request.onblocked = () => resolve();
+        }),
+    ),
+  );
 }
 
 async function createVaultKey(): Promise<CryptoKey> {

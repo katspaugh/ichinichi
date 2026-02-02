@@ -1,4 +1,6 @@
-export const UNIFIED_DB_NAME = "dailynotes-unified";
+import { getActiveAccountDbName } from "./accountStore";
+
+export const LEGACY_DB_NAME = "dailynotes-unified";
 export const UNIFIED_DB_VERSION = 4;
 
 export const NOTES_STORE = "notes";
@@ -66,15 +68,16 @@ const IDB_TIMEOUT_MS = 3000;
 const IDB_MAX_RETRIES = 3;
 
 let cachedDb: IDBDatabase | null = null;
+let cachedDbName: string | null = null;
 let dbOpenPromise: Promise<IDBDatabase> | null = null;
 
-function openUnifiedDbOnce(): Promise<IDBDatabase> {
+function openUnifiedDbOnce(dbName: string): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const timeoutId = setTimeout(() => {
       reject(new Error("IndexedDB open timeout"));
     }, IDB_TIMEOUT_MS);
 
-    const request = indexedDB.open(UNIFIED_DB_NAME, UNIFIED_DB_VERSION);
+    const request = indexedDB.open(dbName, UNIFIED_DB_VERSION);
 
     request.onupgradeneeded = () => {
       const db = request.result;
@@ -114,11 +117,11 @@ function openUnifiedDbOnce(): Promise<IDBDatabase> {
   });
 }
 
-async function openUnifiedDbWithRetry(): Promise<IDBDatabase> {
+async function openUnifiedDbWithRetry(dbName: string): Promise<IDBDatabase> {
   let lastError: Error | null = null;
   for (let attempt = 0; attempt < IDB_MAX_RETRIES; attempt++) {
     try {
-      return await openUnifiedDbOnce();
+      return await openUnifiedDbOnce(dbName);
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
       if (attempt < IDB_MAX_RETRIES - 1) {
@@ -130,15 +133,18 @@ async function openUnifiedDbWithRetry(): Promise<IDBDatabase> {
 }
 
 export async function openUnifiedDb(): Promise<IDBDatabase> {
+  const dbName = getActiveAccountDbName();
+
   // Return cached connection if still open
   if (cachedDb) {
     try {
       // Test if connection is still valid by checking objectStoreNames
-      if (cachedDb.objectStoreNames.length > 0) {
+      if (cachedDb.objectStoreNames.length > 0 && cachedDbName === dbName) {
         return cachedDb;
       }
     } catch {
       cachedDb = null;
+      cachedDbName = null;
     }
   }
 
@@ -148,15 +154,23 @@ export async function openUnifiedDb(): Promise<IDBDatabase> {
   }
 
   // Open new connection
-  dbOpenPromise = openUnifiedDbWithRetry();
+  if (cachedDb && cachedDbName !== dbName) {
+    cachedDb.close();
+    cachedDb = null;
+    cachedDbName = null;
+  }
+  dbOpenPromise = openUnifiedDbWithRetry(dbName);
   try {
     cachedDb = await dbOpenPromise;
+    cachedDbName = dbName;
     // Handle connection close
     cachedDb.onclose = () => {
       cachedDb = null;
+      cachedDbName = null;
     };
     cachedDb.onerror = () => {
       cachedDb = null;
+      cachedDbName = null;
     };
     return cachedDb;
   } finally {
@@ -169,5 +183,6 @@ export function closeUnifiedDb(): void {
   if (cachedDb) {
     cachedDb.close();
     cachedDb = null;
+    cachedDbName = null;
   }
 }

@@ -19,7 +19,8 @@ import {
 import App from "../App";
 import { ServiceProvider } from "../contexts/ServiceProvider";
 import { supabase } from "../lib/supabase";
-import { closeUnifiedDb, UNIFIED_DB_NAME } from "../storage/unifiedDb";
+import { closeUnifiedDb } from "../storage/unifiedDb";
+import { getAllAccountDbNames } from "../storage/accountStore";
 import { closeVaultDb } from "../storage/vault";
 
 // Increase timeout for integration tests
@@ -170,7 +171,7 @@ async function cleanupDatabases(): Promise<void> {
 
   await new Promise((r) => setTimeout(r, 100));
 
-  const dbNames = [UNIFIED_DB_NAME, "dailynotes-vault"];
+  const dbNames = [...getAllAccountDbNames(), "dailynotes-vault"];
 
   await Promise.all(
     dbNames.map(

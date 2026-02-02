@@ -9,6 +9,7 @@ import {
   restoreLocalWrappedKey,
   storeLocalWrappedKey,
 } from "../storage/localKeyring";
+import { rememberCloudKeyIds } from "../storage/cloudKeyIdCache";
 
 export type ActiveVaultEvent =
   | {
@@ -127,18 +128,24 @@ const cloudKeyCacher = fromCallback(
       localKey: CryptoKey;
       cloudKeyring: Map<string, CryptoKey>;
       localKeyId: string | null;
+      userId: string | null;
     };
   }) => {
     const { promise, cancel, signal } = createCancellableOperation(
       async (abortSignal) => {
+        const cachedKeyIds: string[] = [];
         for (const [keyId, key] of input.cloudKeyring.entries()) {
           if (abortSignal.aborted) return false;
           if (keyId === input.localKeyId) continue;
           try {
             await storeLocalWrappedKey(keyId, key, input.localKey);
+            cachedKeyIds.push(keyId);
           } catch (error) {
             console.warn("Failed to cache cloud key locally:", error);
           }
+        }
+        if (input.userId && cachedKeyIds.length) {
+          rememberCloudKeyIds(input.userId, cachedKeyIds);
         }
         return true;
       },
@@ -291,6 +298,7 @@ const activeVaultMachine = setup({
           localKey: context.vaultKey as CryptoKey,
           cloudKeyring: context.cloudKeyring,
           localKeyId: context.localKeyId,
+          userId: context.authUserId,
         }),
       },
       on: {

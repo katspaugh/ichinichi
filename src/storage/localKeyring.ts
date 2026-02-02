@@ -76,3 +76,19 @@ export async function restoreLocalWrappedKey(
     ["encrypt", "decrypt"],
   );
 }
+
+export function removeLocalWrappedKeys(keyIds: string[]): void {
+  if (typeof window === "undefined") return;
+  if (!keyIds.length) return;
+  const store = loadKeyring();
+  let mutated = false;
+  for (const keyId of keyIds) {
+    if (keyId in store) {
+      delete store[keyId];
+      mutated = true;
+    }
+  }
+  if (mutated) {
+    saveKeyring(store);
+  }
+}

@@ -31,3 +31,7 @@ export async function setSyncState(state: SyncStateRecord): Promise<void> {
     tx.onerror = () => reject(tx.error);
   });
 }
+
+export async function clearSyncState(): Promise<void> {
+  await setSyncState({ id: STATE_ID, cursor: null });
+}

@@ -83,3 +83,13 @@ export async function setRemoteDatesForYear(
     tx.onerror = () => reject(tx.error);
   });
 }
+
+export async function clearRemoteNoteIndex(): Promise<void> {
+  const db = await openUnifiedDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(REMOTE_NOTE_INDEX_STORE, "readwrite");
+    tx.objectStore(REMOTE_NOTE_INDEX_STORE).clear();
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}

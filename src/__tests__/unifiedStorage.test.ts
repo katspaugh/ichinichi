@@ -1,15 +1,22 @@
 import { createUnifiedNoteRepository } from "../storage/unifiedNoteRepository";
 import { createUnifiedImageRepository } from "../storage/unifiedImageRepository";
 import { closeUnifiedDb } from "../storage/unifiedDb";
+import { getAllAccountDbNames } from "../storage/accountStore";
 
 async function deleteUnifiedDb(): Promise<void> {
   closeUnifiedDb();
-  await new Promise<void>((resolve, reject) => {
-    const request = indexedDB.deleteDatabase("dailynotes-unified");
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
-    request.onblocked = () => resolve();
-  });
+  const dbNames = getAllAccountDbNames();
+  await Promise.all(
+    dbNames.map(
+      (name) =>
+        new Promise<void>((resolve, reject) => {
+          const request = indexedDB.deleteDatabase(name);
+          request.onsuccess = () => resolve();
+          request.onerror = () => reject(request.error);
+          request.onblocked = () => resolve();
+        }),
+    ),
+  );
 }
 
 async function createVaultKey(): Promise<CryptoKey> {

@@ -57,3 +57,8 @@ export async function restoreCloudDek(
     return null;
   }
 }
+
+export function clearCloudDekCache(): void {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(CLOUD_DEK_CACHE_KEY);
+}
