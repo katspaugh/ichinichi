@@ -1,6 +1,6 @@
 {
-  "name": "DailyNote",
-  "short_name": "DailyNote",
+  "name": "Ichinichi",
+  "short_name": "Ichinichi",
   "description": "A minimalist daily note app. One note per day.",
   "start_url": "/",
   "scope": "/",

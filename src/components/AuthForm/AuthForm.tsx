@@ -23,7 +23,7 @@ export function AuthForm({
   const [password, setPassword] = useState(defaultPassword || "");
 
   const isSignIn = mode === "signin";
-  const title = isSignIn ? "Sign in to DailyNote" : "Create an account";
+  const title = isSignIn ? "Sign in to Ichinichi" : "Create an account";
   const buttonText = isSignIn ? "Sign in" : "Create account";
   const toggleText = isSignIn
     ? "Don't have an account?"

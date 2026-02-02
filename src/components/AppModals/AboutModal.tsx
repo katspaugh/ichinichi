@@ -13,7 +13,7 @@ export function AboutModal({ isOpen, onClose }: AboutModalProps) {
     <Modal isOpen={isOpen} onClose={onClose}>
       <div className={styles.container}>
         <div className={styles.card}>
-          <h2 className={styles.title}>About DailyNote</h2>
+          <h2 className={styles.title}>About Ichinichi</h2>
           <p className={styles.subtitle}>A calm place for one note per day.</p>
           <ul className={styles.list}>
             <li>Your notes are encrypted on this device before storage.</li>
@@ -22,7 +22,7 @@ export function AboutModal({ isOpen, onClose }: AboutModalProps) {
           </ul>
           <a
             className={styles.builder}
-            href="https://github.com/katspaugh/dailynote"
+            href="https://github.com/katspaugh/ichinichi"
             target="_blank"
             rel="noopener noreferrer"
           >

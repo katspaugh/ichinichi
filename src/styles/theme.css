@@ -1,26 +1,26 @@
 :root {
-  /* Color primitives - Light palette */
-  --palette-light-bg: #ffffff;
-  --palette-light-surface: #f5f5f5;
-  --palette-light-surface-hover: #ebebeb;
-  --palette-light-text: #1a1a1a;
-  --palette-light-text-muted: #666666;
-  --palette-light-border: #e0e0e0;
-  --palette-light-primary: #2563eb;
-  --palette-light-primary-hover: #1d4ed8;
-  --palette-light-today: #e8eef4;
-  --palette-light-today-hover: #dce5ed;
-  --palette-light-today-border: #7a9bb8;
-  --palette-light-note-indicator: #7a9bb8;
-  --palette-light-link: #4a7ab0;
-  --palette-light-sync-success: #2f6b45;
-  --palette-light-sync-error: #a13f3f;
-  --palette-light-sync-offline: #a36a2b;
-  --palette-light-sync-pending: #2b5b9a;
-  --palette-light-nav-arrow-bg: rgba(0, 0, 0, 0.06);
-  --palette-light-nav-arrow-bg-hover: rgba(0, 0, 0, 0.12);
-  --palette-light-nav-arrow-text: rgba(0, 0, 0, 0.5);
-  --palette-light-overlay-bg: rgba(255, 255, 255, 0.7);
+  /* Color primitives - Light palette (warm natural tones) */
+  --palette-light-bg: #F7F8F9;
+  --palette-light-surface: #FFFBF5;
+  --palette-light-surface-hover: #F5F0EB;
+  --palette-light-text: #3D3D3D;
+  --palette-light-text-muted: #AAAAAA;
+  --palette-light-border: #E8E4DF;
+  --palette-light-primary: #007AFF;
+  --palette-light-primary-hover: #0066DD;
+  --palette-light-today: #FFF8E8;
+  --palette-light-today-hover: #FFF0D4;
+  --palette-light-today-border: #E8C97A;
+  --palette-light-note-indicator: #D4A574;
+  --palette-light-link: #007AFF;
+  --palette-light-sync-success: #34C759;
+  --palette-light-sync-error: #FF3B30;
+  --palette-light-sync-offline: #FF9500;
+  --palette-light-sync-pending: #007AFF;
+  --palette-light-nav-arrow-bg: transparent;
+  --palette-light-nav-arrow-bg-hover: rgba(0, 0, 0, 0.04);
+  --palette-light-nav-arrow-text: #AAAAAA;
+  --palette-light-overlay-bg: rgba(250, 249, 246, 0.8);
 
   /* Color primitives - Dark palette */
   --palette-dark-bg: #0a0a0a;

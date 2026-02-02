@@ -1,8 +1,8 @@
-# DailyNote - Project Guide
+# Ichinichi - Project Guide
 
 ## Overview
 
-DailyNote is a minimalist daily notes app with a year-at-a-glance calendar. It is local-first with optional cloud sync. Notes are encrypted client-side and stored in IndexedDB. Only today's note is editable; past notes are read-only; future dates are disabled.
+Ichinichi is a minimalist daily notes app with a year-at-a-glance calendar. It is local-first with optional cloud sync. Notes are encrypted client-side and stored in IndexedDB. Only today's note is editable; past notes are read-only; future dates are disabled.
 
 ## Core Rules
 

@@ -1,6 +1,6 @@
-# DailyNote App Spec (Business Logic, Flows, Features)
+# Ichinichi App Spec (Business Logic, Flows, Features)
 
-This document specifies business logic, flows, and features of DailyNote.
+This document specifies business logic, flows, and features of Ichinichi.
 It is derived from the current codebase with file references.
 
 ## 1) Product Overview

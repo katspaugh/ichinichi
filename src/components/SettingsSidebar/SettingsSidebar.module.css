@@ -22,14 +22,14 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  left: 0;
-  width: 280px;
+  right: 0;
+  width: 320px;
   background-color: var(--color-surface);
-  border-right: 1px solid var(--color-border);
+  border-left: 1px solid var(--color-border);
   color: var(--color-text);
   display: flex;
   flex-direction: column;
-  transform: translateX(-100%);
+  transform: translateX(100%);
   transition: transform 200ms ease;
 }
 
@@ -87,7 +87,7 @@
 .separator {
   height: 1px;
   width: 100%;
-  background-color: var(--color-border);
+  background-color: var(--color-bg);
 }
 
 .userRow {
@@ -333,7 +333,7 @@
   height: 20px;
   border-radius: 999px;
   border: none;
-  background-color: var(--color-border);
+  background-color: var(--color-bg);
   position: relative;
   cursor: pointer;
   transition: background-color var(--transition-fast);

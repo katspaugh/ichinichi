@@ -1,0 +1,16 @@
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="32" height="32" rx="7" fill="#F5F0EB"/>
+
+  <!-- Mini note (rotated) -->
+  <g transform="translate(4, 6)">
+    <g transform="rotate(-6, 9, 9)">
+      <rect x="0" y="0" width="18" height="18" rx="3" fill="#FFFFFF"/>
+      <rect x="4" y="5" width="10" height="1.5" rx="0.75" fill="#A1A1AA"/>
+      <rect x="4" y="8.5" width="7" height="1" rx="0.5" fill="#D4D4D8"/>
+    </g>
+  </g>
+
+  <!-- Sun -->
+  <circle cx="23" cy="7" r="5" fill="#FCD34D"/>
+</svg>

@@ -17,7 +17,7 @@ export function PrivacyPolicyModal({
         <div className={styles.card}>
           <h2 className={styles.title}>Privacy Policy</h2>
           <p className={styles.subtitle}>
-            DailyNote stores your notes locally and encrypts them before
+            Ichinichi stores your notes locally and encrypts them before
             storage.
           </p>
           <ul className={styles.list}>

@@ -1,10 +1,10 @@
 {
-  "name": "dailynote",
+  "name": "ichinichi",
   "private": true,
   "version": "1.0.0",
   "description": "A minimalist daily note application - one note per day, forever",
   "author": "katspaugh",
-  "repository": "https://github.com/katspaugh/dailynote",
+  "repository": "https://github.com/katspaugh/ichinichi",
   "type": "module",
   "scripts": {
     "dev": "vite",

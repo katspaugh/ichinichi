@@ -1,7 +1,7 @@
 import { test as base, expect } from '@playwright/test';
 
 /**
- * Test fixtures and helpers for DailyNotes e2e tests
+ * Test fixtures and helpers for Ichinichi e2e tests
  */
 
 export interface TestHelpers {

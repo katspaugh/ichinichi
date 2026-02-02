@@ -11,10 +11,10 @@
 .header {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
   gap: var(--spacing-lg);
   margin-bottom: var(--spacing-xl);
-  position: relative;
+  padding: 0 var(--spacing-md);
 }
 
 .yearControls {
@@ -71,11 +71,59 @@
 
 
 .headerLeft {
-  position: absolute;
-  left: 0;
   display: flex;
   align-items: center;
-  gap: var(--spacing-xs);
+  gap: var(--spacing-md);
+}
+
+.appLogo {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.logoIcon {
+  width: 32px;
+  height: 32px;
+  background-color: #F5F0EB;
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+:root[data-theme="dark"] .logoIcon {
+  background-color: var(--color-surface);
+}
+
+.appName {
+  font-size: 16px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.navButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.navButton:hover {
+  background-color: var(--color-surface);
+  color: var(--color-text);
+}
+
+.navIcon {
+  width: 20px;
+  height: 20px;
 }
 
 .menuButton {
@@ -101,12 +149,10 @@
   height: 20px;
 }
 
-.headerActions {
+.headerRight {
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
-  position: absolute;
-  right: 0;
 }
 
 .syncErrorBoundary {
@@ -188,15 +234,15 @@
   .header {
     flex-wrap: wrap;
     gap: var(--spacing-md);
-    justify-content: flex-start;
   }
 
   .headerLeft {
-    position: static;
     order: -1;
     flex: 0 0 auto;
-    margin-right: auto;
-    width: auto;
+  }
+
+  .appName {
+    display: none;
   }
 
   .yearControls {
@@ -205,17 +251,13 @@
     order: 1;
   }
 
-  .headerActions {
-    position: static;
-    width: auto;
-    justify-content: flex-start;
+  .headerRight {
     order: -1;
     margin-left: auto;
   }
 
   .headerSpacer {
-    display: block;
-    order: -1;
+    display: none;
   }
 }
 

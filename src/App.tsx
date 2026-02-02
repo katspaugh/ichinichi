@@ -114,7 +114,7 @@ function App() {
             <WeatherProvider>
               <ErrorBoundary
                 fullScreen
-                title="DailyNote ran into a problem"
+                title="Ichinichi ran into a problem"
                 description="Refresh the app to continue, or try again to recover."
                 resetLabel="Reload app"
                 onReset={() => window.location.reload()}

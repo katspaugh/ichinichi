@@ -20,7 +20,7 @@ export function IntroModal({
     <Modal isOpen={isOpen} onClose={onDismiss}>
       <div className={styles.container}>
         <div className={styles.card}>
-          <h2 className={styles.title}>Welcome to DailyNote</h2>
+          <h2 className={styles.title}>Welcome to Ichinichi</h2>
           <p className={styles.helper}>
             A calm place for one note per day. No account required to start.
           </p>

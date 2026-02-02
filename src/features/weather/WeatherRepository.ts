@@ -54,7 +54,7 @@ async function fetchCityName(lat: number, lon: number): Promise<string> {
     const response = await fetch(url, {
       signal: AbortSignal.timeout(5000),
       headers: {
-        "User-Agent": "DailyNote/1.0",
+        "User-Agent": "Ichinichi/1.0",
       },
     });
 

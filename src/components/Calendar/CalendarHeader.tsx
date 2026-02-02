@@ -1,11 +1,38 @@
-import { Menu } from "lucide-react";
-import { Button } from "../Button";
+import { Menu, ChevronLeft, ChevronRight } from "lucide-react";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { SyncIndicator } from "../SyncIndicator";
 import type { SyncStatus } from "../../types";
 import type { PendingOpsSummary } from "../../domain/sync";
 import { getMonthName } from "../../utils/date";
 import styles from "./Calendar.module.css";
+
+function AppLogo() {
+  return (
+    <div className={styles.appLogo}>
+      <div className={styles.logoIcon}>
+        <svg width="24" height="22" viewBox="0 0 24 22" fill="none">
+          <g transform="translate(0, 4)">
+            <rect
+              x="0"
+              y="0"
+              width="18"
+              height="18"
+              rx="3"
+              fill="#FFFFFF"
+              transform="rotate(-6, 9, 9)"
+            />
+            <g transform="rotate(-6, 9, 9)">
+              <rect x="4" y="5" width="10" height="1.5" rx="0.75" fill="#A1A1AA" />
+              <rect x="4" y="8.5" width="8" height="1" rx="0.5" fill="#D4D4D8" />
+            </g>
+          </g>
+          <ellipse cx="19" cy="5" rx="5" ry="5" fill="#FCD34D" />
+        </svg>
+      </div>
+      <span className={styles.appName}>いちにち</span>
+    </div>
+  );
+}
 
 interface CalendarHeaderProps {
   year: number;
@@ -35,37 +62,31 @@ export function CalendarHeader({
   return (
     <div className={styles.header}>
       <div className={styles.headerLeft}>
-        <button
-          className={styles.menuButton}
-          onClick={onMenuClick}
-          aria-label="Open settings"
-        >
-          <Menu className={styles.menuIcon} />
-        </button>
+        <AppLogo />
       </div>
       <div className={styles.yearControls}>
         {month == null ? (
           <>
-            <Button
-              icon
+            <button
+              className={styles.navButton}
               onClick={() => onYearChange(year - 1)}
               aria-label="Previous year"
             >
-              ←
-            </Button>
+              <ChevronLeft className={styles.navIcon} />
+            </button>
             <span className={styles.year}>{year}</span>
-            <Button
-              icon
+            <button
+              className={styles.navButton}
               onClick={() => onYearChange(year + 1)}
               aria-label="Next year"
             >
-              →
-            </Button>
+              <ChevronRight className={styles.navIcon} />
+            </button>
           </>
         ) : (
           <>
-            <Button
-              icon
+            <button
+              className={styles.navButton}
               onClick={() => {
                 const prevMonth = month === 0 ? 11 : month - 1;
                 const prevYear = month === 0 ? year - 1 : year;
@@ -73,8 +94,8 @@ export function CalendarHeader({
               }}
               aria-label="Previous month"
             >
-              ←
-            </Button>
+              <ChevronLeft className={styles.navIcon} />
+            </button>
             <button
               className={styles.yearMonth}
               onClick={onReturnToYear}
@@ -82,8 +103,8 @@ export function CalendarHeader({
             >
               {year}, {getMonthName(month)}
             </button>
-            <Button
-              icon
+            <button
+              className={styles.navButton}
               onClick={() => {
                 const nextMonth = month === 11 ? 0 : month + 1;
                 const nextYear = month === 11 ? year + 1 : year;
@@ -91,12 +112,12 @@ export function CalendarHeader({
               }}
               aria-label="Next month"
             >
-              →
-            </Button>
+              <ChevronRight className={styles.navIcon} />
+            </button>
           </>
         )}
       </div>
-      <div className={styles.headerActions}>
+      <div className={styles.headerRight}>
         {syncStatus && (
           <ErrorBoundary
             title="Sync status unavailable"
@@ -116,6 +137,13 @@ export function CalendarHeader({
             Sign in
           </button>
         )}
+        <button
+          className={styles.menuButton}
+          onClick={onMenuClick}
+          aria-label="Open settings"
+        >
+          <Menu className={styles.menuIcon} />
+        </button>
       </div>
     </div>
   );

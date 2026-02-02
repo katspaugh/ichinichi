@@ -1,10 +1,10 @@
-# DailyNote
+# Ichinichi
 
 A minimalist daily notes application designed to help you build and maintain a consistent writing habit. With end-to-end encryption and a focus on great UX, it's the perfect tool for personal reflection and daily journaling.
 
 <img width="1051" height="881" alt="Image" src="https://github.com/user-attachments/assets/edc0b6d1-dc11-4760-9457-d438140182e6" />
 
-## Why DailyNote?
+## Why Ichinichi?
 
 ### 📝 **Minimalist Design for Consistency**
 
@@ -37,7 +37,7 @@ A minimalist daily notes application designed to help you build and maintain a c
 
 ## Demo
 
-Visit the live demo: [Demo](dailynote.xyz)
+Visit the live demo: [Demo](https://ichinichi.app)
 
 ## Tech Stack
 
@@ -60,8 +60,8 @@ Visit the live demo: [Demo](dailynote.xyz)
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/yourusername/dailynote.git
-cd dailynote
+git clone https://github.com/yourusername/ichinichi.git
+cd ichinichi
 ```
 
 2. Install dependencies:
@@ -122,7 +122,7 @@ This project includes Wrangler configuration for deployment to Cloudflare's new 
    yarn cf:deploy
    ```
 
-3. Your site will be live at `https://dailynote.pages.dev`
+3. Your site will be live at `https://ichinichi.pages.dev`
 
 **Method 2: Git Integration (Legacy Pages Tab)**
 

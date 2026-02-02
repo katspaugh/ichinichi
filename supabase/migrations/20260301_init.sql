@@ -1,4 +1,4 @@
--- Initial database setup for DailyNote (clean slate)
+-- Initial database setup for Ichinichi (clean slate)
 
 create extension if not exists "pgcrypto";
 

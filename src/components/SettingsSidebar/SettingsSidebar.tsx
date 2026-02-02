@@ -292,7 +292,7 @@ function LinksSection({
         </button>
       ) : (
         <a
-          href="https://dailynote.app/privacy"
+          href="https://ichinichi.app/privacy"
           target="_blank"
           rel="noopener noreferrer"
           className={styles.linkRow}
@@ -318,7 +318,7 @@ function LinksSection({
         </button>
       ) : (
         <a
-          href="https://dailynote.app/about"
+          href="https://ichinichi.app/about"
           target="_blank"
           rel="noopener noreferrer"
           className={styles.linkRow}
@@ -331,7 +331,7 @@ function LinksSection({
         </a>
       )}
       <a
-        href={`https://github.com/katspaugh/dailynote/commit/${commitHash}`}
+        href={`https://github.com/katspaugh/ichinichi/commit/${commitHash}`}
         target="_blank"
         rel="noopener noreferrer"
         className={styles.linkRow}

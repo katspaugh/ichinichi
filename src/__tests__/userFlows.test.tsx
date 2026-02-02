@@ -273,7 +273,7 @@ describe("Local Mode User Flow", () => {
     // ===== PART 1: First Visit - Intro Modal =====
     await waitFor(
       () => {
-        expect(screen.getByText("Welcome to DailyNote")).toBeTruthy();
+        expect(screen.getByText("Welcome to Ichinichi")).toBeTruthy();
       },
       { timeout: 10000 },
     );
@@ -288,7 +288,7 @@ describe("Local Mode User Flow", () => {
     // Dismiss intro
     fireEvent.click(screen.getByText("Start writing"));
     await waitFor(() => {
-      expect(screen.queryByText("Welcome to DailyNote")).toBeNull();
+      expect(screen.queryByText("Welcome to Ichinichi")).toBeNull();
     });
 
     // ===== PART 2: Calendar View =====
@@ -413,13 +413,13 @@ describe("Cloud Auth User Flow", () => {
       () => {
         const introSetup = screen.queryByText("Set up sync");
         const headerSignIn = screen.queryByText("Sign in to sync");
-        const authTitle = screen.queryByText("Sign in to DailyNote");
+        const authTitle = screen.queryByText("Sign in to Ichinichi");
         expect(introSetup || headerSignIn || authTitle).toBeTruthy();
       },
       { timeout: 10000 },
     );
 
-    const authTitle = screen.queryByText("Sign in to DailyNote");
+    const authTitle = screen.queryByText("Sign in to Ichinichi");
     const authEmail = screen.queryByLabelText("Email");
     if (!authTitle && !authEmail) {
       const introSetup = screen.queryByText("Set up sync");
@@ -443,7 +443,7 @@ describe("Cloud Auth User Flow", () => {
     });
 
     expect(
-      screen.queryByText("Sign in to DailyNote") ||
+      screen.queryByText("Sign in to Ichinichi") ||
         screen.queryByText("Create an account"),
     ).toBeTruthy();
 
@@ -456,7 +456,7 @@ describe("Cloud Auth User Flow", () => {
     // ===== PART 4: Toggle Back to Sign In =====
     fireEvent.click(screen.getByText("Sign in"));
     await waitFor(() => {
-      expect(screen.getByText("Sign in to DailyNote")).toBeTruthy();
+      expect(screen.getByText("Sign in to Ichinichi")).toBeTruthy();
     });
 
     // ===== PART 5: Submit with Invalid Credentials =====
