@@ -9,6 +9,20 @@
 
 .monthGridPane {
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.monthGridWrap {
+  flex-shrink: 0;
+}
+
+.monthNav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--spacing-sm);
 }
 
 .editorPane {
@@ -59,6 +73,11 @@
   .monthGridPane {
     width: 40%;
     max-width: 550px;
+  }
+
+  .monthGridWrap {
+    flex: 1;
+    min-height: 0;
   }
 
   .editorPane {

@@ -63,7 +63,12 @@ export function MonthView({
   const [, setWeekStartVersion] = useState(0);
 
   // Keyboard navigation for notes (arrow left/right)
-  const { navigateToPrevious, navigateToNext } = useNoteNavigation({
+  const {
+    canNavigatePrev,
+    canNavigateNext,
+    navigateToPrevious,
+    navigateToNext,
+  } = useNoteNavigation({
     currentDate: monthDate,
     noteDates,
     onNavigate: onDayClick,
@@ -104,6 +109,10 @@ export function MonthView({
         hasNote={hasNote}
         selectedDate={monthDate}
         onDayClick={onDayClick}
+        canNavigatePrev={canNavigatePrev}
+        canNavigateNext={canNavigateNext}
+        onNavigatePrev={navigateToPrevious}
+        onNavigateNext={navigateToNext}
         onWeekStartChange={handleWeekStartChange}
         now={now}
         content={content}

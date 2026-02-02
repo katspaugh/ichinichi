@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ErrorBoundary } from "../ErrorBoundary";
+import { NavigationArrow } from "../NavigationArrow";
 import { NoteEditor } from "../NoteEditor";
 import { MonthGrid } from "./MonthGrid";
 import styles from "./MonthViewLayout.module.css";
@@ -13,6 +14,10 @@ interface MonthViewLayoutProps {
   hasNote: (date: string) => boolean;
   selectedDate: string | null;
   onDayClick: (date: string) => void;
+  canNavigatePrev: boolean;
+  canNavigateNext: boolean;
+  onNavigatePrev: () => void;
+  onNavigateNext: () => void;
   onWeekStartChange?: () => void;
   now?: Date;
   // Editor props
@@ -72,6 +77,10 @@ export function MonthViewLayout({
   hasNote,
   selectedDate,
   onDayClick,
+  canNavigatePrev,
+  canNavigateNext,
+  onNavigatePrev,
+  onNavigateNext,
   onWeekStartChange,
   now,
   content,
@@ -96,16 +105,33 @@ export function MonthViewLayout({
   return (
     <div className={styles.layout}>
       <div className={styles.monthGridPane}>
-        <MonthGrid
-          year={year}
-          month={month}
-          hasNote={hasNote}
-          onDayClick={handleDayClick}
-          showMonthView={true}
-          selectedDate={selectedDate}
-          onWeekStartChange={onWeekStartChange}
-          now={now}
-        />
+        <div className={styles.monthGridWrap}>
+          <MonthGrid
+            year={year}
+            month={month}
+            hasNote={hasNote}
+            onDayClick={handleDayClick}
+            showMonthView={true}
+            selectedDate={selectedDate}
+            onWeekStartChange={onWeekStartChange}
+            now={now}
+          />
+        </div>
+
+        <div className={styles.monthNav} aria-label="Note navigation">
+          <NavigationArrow
+            direction="left"
+            onClick={onNavigatePrev}
+            disabled={!canNavigatePrev}
+            ariaLabel="Previous note"
+          />
+          <NavigationArrow
+            direction="right"
+            onClick={onNavigateNext}
+            disabled={!canNavigateNext}
+            ariaLabel="Next note"
+          />
+        </div>
       </div>
 
       <div className={styles.editorPane}>
