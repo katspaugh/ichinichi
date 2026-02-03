@@ -1,0 +1,127 @@
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-lg);
+  margin-bottom: var(--spacing-xl);
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.headerCenter {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-lg);
+}
+
+.headerRight {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.appLogo {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.logoIcon {
+  width: 32px;
+  height: 32px;
+  background-color: #F5F0EB;
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+:root[data-theme="dark"] .logoIcon {
+  background-color: var(--color-surface);
+}
+
+.appName {
+  font-size: 16px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.syncErrorBoundary {
+  padding: var(--spacing-xs) var(--spacing-sm);
+}
+
+.signInButton {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  cursor: pointer;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius);
+  transition: all var(--transition-fast);
+}
+
+.signInButton:hover {
+  color: var(--color-text);
+  border-color: var(--color-text-muted);
+}
+
+.menuButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  color: var(--color-text);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+}
+
+.menuButton:hover {
+  background-color: var(--color-surface);
+}
+
+.menuIcon {
+  width: 20px;
+  height: 20px;
+}
+
+@media (min-width: 1200px) {
+  .header {
+    margin-bottom: var(--spacing-md);
+  }
+}
+
+@media (max-width: 768px) {
+  .header {
+    flex-wrap: wrap;
+    gap: var(--spacing-md);
+  }
+
+  .headerLeft {
+    order: -1;
+    flex: 0 0 auto;
+  }
+
+  .appName {
+    display: none;
+  }
+
+  .headerCenter {
+    width: 100%;
+    justify-content: center;
+    order: 1;
+  }
+
+  .headerRight {
+    order: -1;
+    margin-left: auto;
+  }
+}

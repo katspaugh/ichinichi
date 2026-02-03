@@ -48,7 +48,15 @@ function getWeatherIcon(code: number): string {
   return WEATHER_ICONS[code] ?? "🌡️";
 }
 
-async function fetchCityName(lat: number, lon: number): Promise<string> {
+interface GeocodingResult {
+  city: string;
+  countryCode: string | null;
+}
+
+async function fetchGeocodingData(
+  lat: number,
+  lon: number,
+): Promise<GeocodingResult> {
   try {
     const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&zoom=10`;
     const response = await fetch(url, {
@@ -59,7 +67,7 @@ async function fetchCityName(lat: number, lon: number): Promise<string> {
     });
 
     if (!response.ok) {
-      return "";
+      return { city: "", countryCode: null };
     }
 
     const data = await response.json();
@@ -71,10 +79,11 @@ async function fetchCityName(lat: number, lon: number): Promise<string> {
       address.municipality ||
       address.county ||
       "";
+    const countryCode = address.country_code?.toUpperCase() || null;
 
-    return city;
+    return { city, countryCode };
   } catch {
-    return "";
+    return { city: "", countryCode: null };
   }
 }
 
@@ -115,18 +124,22 @@ export class WeatherRepository {
     lon: number,
     unitPreference: UnitPreference,
   ): Promise<WeatherData | null> {
-    const unit = resolveUnitPreference(unitPreference);
-    const cached = this.getCachedWeather(lat, lon, unit);
-    if (cached) return cached;
-
     try {
+      // Fetch geocoding first to get country code for unit resolution
+      const geocoding = await fetchGeocodingData(lat, lon);
+      const unit = resolveUnitPreference(unitPreference, {
+        countryCode: geocoding.countryCode,
+      });
+
+      const cached = this.getCachedWeather(lat, lon, unit);
+      if (cached) return cached;
+
       const tempUnitQuery = unit === "F" ? "&temperature_unit=fahrenheit" : "";
       const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code${tempUnitQuery}`;
 
-      const [weatherResponse, city] = await Promise.all([
-        fetch(weatherUrl, { signal: AbortSignal.timeout(5000) }),
-        fetchCityName(lat, lon),
-      ]);
+      const weatherResponse = await fetch(weatherUrl, {
+        signal: AbortSignal.timeout(5000),
+      });
 
       if (!weatherResponse.ok) {
         console.warn("Weather API returned error:", weatherResponse.status);
@@ -142,7 +155,7 @@ export class WeatherRepository {
       const weatherData: WeatherData = {
         temperature: Math.round(data.current.temperature_2m),
         icon: getWeatherIcon(data.current.weather_code),
-        city,
+        city: geocoding.city,
         timestamp: Date.now(),
         unit,
       };

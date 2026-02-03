@@ -12,7 +12,7 @@
   min-width: 400px;
   max-width: 720px;
   border: 1px solid var(--color-border);
-  background-color: var(--color-bg);
+  background-color: var(--color-surface);
   border-radius: var(--radius-lg);
   margin: 10px;
 }

@@ -16,14 +16,7 @@
   width: 48px;
   height: 48px;
   position: fixed;
-  top: var(--spacing-lg);
-  right: var(--spacing-lg);
+  top: 8px;
+  right: 8px;
   z-index: 101;
-}
-
-@media (max-width: 768px) {
-  .closeButton {
-    top: var(--spacing-xs);
-    right: var(--spacing-xs);
-  }
 }
