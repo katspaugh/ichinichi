@@ -96,7 +96,6 @@ export function useAppModalsController() {
     navigateToDate,
     showIntro,
     dismissIntro,
-    startWriting,
   } = useUrlStateContext();
   const isNoteModalOpen =
     view === ViewType.Note && date !== null && isVaultUnlocked;
@@ -215,7 +214,6 @@ export function useAppModalsController() {
     introModal: {
       isOpen: vaultUiState === "intro",
       onDismiss: dismissIntro,
-      onStartWriting: startWriting,
       onSetupSync: switchToCloud,
     },
     modeChoiceModal: {

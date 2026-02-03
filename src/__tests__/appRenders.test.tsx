@@ -182,14 +182,23 @@ describe("App initial render", () => {
       </ServiceProvider>,
     );
 
-    // First, dismiss the intro modal by clicking "Start writing"
+    // First, dismiss the intro modal by clicking "Maybe later"
     await waitFor(
       () => {
-        expect(screen.getByText("Start writing")).toBeTruthy();
+        expect(screen.getByText("Maybe later")).toBeTruthy();
       },
       { timeout: 3000 },
     );
-    fireEvent.click(screen.getByText("Start writing"));
+    fireEvent.click(screen.getByText("Maybe later"));
+
+    // Wait for vault to be unlocked (needed to click on day cells)
+    await waitFor(
+      () => {
+        const root = document.documentElement;
+        expect(root.dataset.vaultUnlocked).toBe("true");
+      },
+      { timeout: 5000 },
+    );
 
     // Get today's date
     const today = new Date();

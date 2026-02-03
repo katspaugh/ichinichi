@@ -11,7 +11,7 @@ test.describe('Cloud Authentication', () => {
   test('shows either intro modal or sign in button on first load', async ({ page }) => {
     // Either the intro modal should be visible OR the calendar with sign-in button
     const hasIntroModal = await page
-      .getByRole('button', { name: 'Start writing' })
+      .getByRole('button', { name: 'Sign in / sign up' })
       .isVisible({ timeout: 3000 })
       .catch(() => false);
     const hasSignInButton = await page
@@ -24,7 +24,7 @@ test.describe('Cloud Authentication', () => {
 
   test('can open auth modal via header button or intro modal', async ({ page }) => {
     // Try intro modal first, then fall back to header button
-    const setupSyncButton = page.getByRole('button', { name: 'Set up sync' });
+    const setupSyncButton = page.getByRole('button', { name: 'Sign in / sign up' });
     const signInButton = page.getByRole('button', { name: /Sign in/i });
 
     if (await setupSyncButton.isVisible({ timeout: 2000 }).catch(() => false)) {
@@ -43,7 +43,7 @@ test.describe('Cloud Authentication', () => {
     await helpers.clearStorageAndReload();
 
     // Open auth modal
-    const setupSyncButton = page.getByRole('button', { name: 'Set up sync' });
+    const setupSyncButton = page.getByRole('button', { name: 'Sign in / sign up' });
     const signInButton = page.getByRole('button', { name: /Sign in/i });
 
     if (await setupSyncButton.isVisible({ timeout: 2000 }).catch(() => false)) {
@@ -71,7 +71,7 @@ test.describe('Cloud Authentication', () => {
 
   test('shows validation error for invalid email', async ({ page }) => {
     // Open auth modal
-    const setupSyncButton = page.getByRole('button', { name: 'Set up sync' });
+    const setupSyncButton = page.getByRole('button', { name: 'Sign in / sign up' });
     const signInButton = page.getByRole('button', { name: /Sign in/i });
 
     if (await setupSyncButton.isVisible({ timeout: 2000 }).catch(() => false)) {
@@ -96,7 +96,7 @@ test.describe('Cloud Authentication', () => {
     test.skip(!TEST_EMAIL || !TEST_PASSWORD, 'Test credentials not configured');
 
     // Open auth modal
-    const setupSyncButton = page.getByRole('button', { name: 'Set up sync' });
+    const setupSyncButton = page.getByRole('button', { name: 'Sign in / sign up' });
     const signInButton = page.getByRole('button', { name: /Sign in/i });
 
     if (await setupSyncButton.isVisible({ timeout: 2000 }).catch(() => false)) {
@@ -246,7 +246,7 @@ test.describe('Sync Status', () => {
     await helpers.clearStorageAndReload();
 
     // Open auth modal
-    const setupSyncButton = page.getByRole('button', { name: 'Set up sync' });
+    const setupSyncButton = page.getByRole('button', { name: 'Sign in / sign up' });
     const signInButton = page.getByRole('button', { name: /Sign in/i });
 
     if (await setupSyncButton.isVisible({ timeout: 2000 }).catch(() => false)) {

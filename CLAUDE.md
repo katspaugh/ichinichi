@@ -148,6 +148,22 @@ These patterns ensure:
 - Runtime safety for actor communication
 - Better type inference throughout
 
+## Agent Workflow Rules
+
+When running commands like `build`, `lint`, `type-check`, or `tests`:
+
+- **Always use a Haiku subagent** (`model: "haiku"`) to run these commands.
+- Have the subagent find specific errors/warnings or summarize the results.
+- Never run these commands directly in the main agent to save tokens in the main context window.
+
+```typescript
+// Example: Run type-check with Haiku subagent
+Task tool with:
+  subagent_type: "Bash"
+  model: "haiku"
+  prompt: "Run `npm run type-check` and report any type errors found, or confirm all types pass."
+```
+
 ## Reference Docs
 
 - `docs/app-spec.md` for full business logic and flows.

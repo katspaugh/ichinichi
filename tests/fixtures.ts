@@ -125,6 +125,12 @@ export const test = base.extend<{ helpers: TestHelpers }>({
         // Reload the page to apply changes
         await page.reload();
         await page.waitForLoadState('networkidle');
+        // Wait for app to be fully hydrated (intro modal or calendar visible)
+        await page.waitForFunction(() => {
+          const hasIntro = document.body.textContent?.includes('Welcome to Ichinichi');
+          const hasCalendar = document.body.textContent?.match(/20[0-9]{2}/);
+          return hasIntro || hasCalendar;
+        }, { timeout: 15000 });
       },
 
       getTodayDate: () => {
@@ -154,10 +160,12 @@ export const test = base.extend<{ helpers: TestHelpers }>({
       },
 
       dismissIntroModal: async () => {
-        const startButton = page.getByRole('button', { name: 'Start writing' });
-        if (await startButton.isVisible({ timeout: 3000 }).catch(() => false)) {
-          await startButton.click();
+        const maybeLaterButton = page.getByRole('button', { name: 'Maybe later' });
+        if (await maybeLaterButton.isVisible({ timeout: 3000 }).catch(() => false)) {
+          await maybeLaterButton.click();
         }
+        // Wait for vault to be unlocked (needed to interact with notes)
+        await helpers.waitForVaultUnlocked();
       },
 
       setupLocalVault: async (password?: string) => {

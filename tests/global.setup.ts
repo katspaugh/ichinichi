@@ -10,7 +10,7 @@ setup('verify app is accessible', async ({ page }) => {
 
   // Wait for the app to load (either intro modal or calendar)
   await page.waitForFunction(() => {
-    const hasIntro = document.body.textContent?.includes('Start writing');
+    const hasIntro = document.body.textContent?.includes('Sign in / sign up');
     const hasCalendar = document.body.textContent?.match(/20[0-9]{2}/);
     return hasIntro || hasCalendar;
   }, { timeout: 30000 });

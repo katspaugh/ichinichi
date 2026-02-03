@@ -286,10 +286,19 @@ describe("Local Mode User Flow", () => {
     ).toBeTruthy();
 
     // Dismiss intro
-    fireEvent.click(screen.getByText("Start writing"));
+    fireEvent.click(screen.getByText("Maybe later"));
     await waitFor(() => {
       expect(screen.queryByText("Welcome to Ichinichi")).toBeNull();
     });
+
+    // Wait for vault to be unlocked (needed to click on day cells)
+    await waitFor(
+      () => {
+        const root = document.documentElement;
+        expect(root.dataset.vaultUnlocked).toBe("true");
+      },
+      { timeout: 5000 },
+    );
 
     // ===== PART 2: Calendar View =====
     // Verify all 12 months visible
@@ -411,7 +420,7 @@ describe("Cloud Auth User Flow", () => {
     // Wait for either the intro modal CTA, a sign-in button, or the auth modal
     await waitFor(
       () => {
-        const introSetup = screen.queryByText("Set up sync");
+        const introSetup = screen.queryByText("Sign in / sign up");
         const headerSignIn = screen.queryByText("Sign in to sync");
         const authTitle = screen.queryByText("Sign in to Ichinichi");
         expect(introSetup || headerSignIn || authTitle).toBeTruthy();
@@ -422,11 +431,11 @@ describe("Cloud Auth User Flow", () => {
     const authTitle = screen.queryByText("Sign in to Ichinichi");
     const authEmail = screen.queryByLabelText("Email");
     if (!authTitle && !authEmail) {
-      const introSetup = screen.queryByText("Set up sync");
+      const introSetup = screen.queryByText("Sign in / sign up");
       if (introSetup) {
         fireEvent.click(introSetup);
         await waitFor(() => {
-          expect(screen.queryByText("Set up sync")).toBeNull();
+          expect(screen.queryByText("Sign in / sign up")).toBeNull();
         });
       }
 

@@ -10,7 +10,6 @@ interface AppModalsViewProps {
   introModal: {
     isOpen: boolean;
     onDismiss: () => void;
-    onStartWriting: () => void;
     onSetupSync: () => void;
   };
   modeChoiceModal: {
@@ -78,7 +77,6 @@ export function AppModalsView({
       <IntroModal
         isOpen={introModal.isOpen}
         onDismiss={introModal.onDismiss}
-        onStartWriting={introModal.onStartWriting}
         onSetupSync={introModal.onSetupSync}
       />
 

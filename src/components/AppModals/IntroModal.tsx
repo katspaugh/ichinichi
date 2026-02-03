@@ -7,14 +7,12 @@ import styles from "./IntroModal.module.css";
 interface IntroModalProps {
   isOpen: boolean;
   onDismiss: () => void;
-  onStartWriting: () => void;
   onSetupSync: () => void;
 }
 
 export function IntroModal({
   isOpen,
   onDismiss,
-  onStartWriting,
   onSetupSync,
 }: IntroModalProps) {
   return (
@@ -33,19 +31,19 @@ export function IntroModal({
           <Button
             className={styles.actionButton}
             variant="primary"
-            onClick={onStartWriting}
-          >
-            Start writing
-          </Button>
-          <Button
-            className={styles.actionButton}
-            variant="ghost"
             onClick={() => {
               onDismiss();
               onSetupSync();
             }}
           >
-            Set up sync
+            Sign in / sign up
+          </Button>
+          <Button
+            className={styles.actionButton}
+            variant="ghost"
+            onClick={onDismiss}
+          >
+            Maybe later
           </Button>
         </div>
       </ModalCard>

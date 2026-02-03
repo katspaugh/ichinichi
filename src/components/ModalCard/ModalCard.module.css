@@ -41,16 +41,27 @@
   .container[data-full-screen-mobile="true"] {
     padding: 0;
     align-items: stretch;
+    height: 100vh;
+    height: 100dvh;
+    min-height: 100vh;
+    min-height: 100dvh;
   }
 
   .card[data-full-screen-mobile="true"] {
     max-width: 100%;
-    min-height: 100%;
-    padding: var(--spacing-xl);
+    height: 100%;
+    max-height: 100%;
+    padding: calc(var(--spacing-xl) + env(safe-area-inset-top))
+      calc(var(--spacing-xl) + env(safe-area-inset-right))
+      calc(var(--spacing-xl) + env(safe-area-inset-bottom))
+      calc(var(--spacing-xl) + env(safe-area-inset-left));
     border: none;
     border-radius: 0;
     display: flex;
     flex-direction: column;
-    justify-content: center;
+    justify-content: flex-start;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
   }
 }
