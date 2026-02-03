@@ -1,6 +1,7 @@
 .indicator {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: var(--spacing-xs);
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
@@ -8,6 +9,19 @@
   border-radius: var(--radius);
   background-color: transparent;
   border: 1px solid var(--color-border);
+  min-width: 90px;
+  height: 28px;
+  cursor: default;
+}
+
+button.indicator {
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+button.indicator:hover {
+  color: var(--color-text);
+  border-color: var(--color-text-muted);
 }
 
 .synced {

@@ -3,17 +3,28 @@ import type { PendingOpsSummary } from "../../domain/sync";
 import styles from "./SyncIndicator.module.css";
 
 interface SyncIndicatorProps {
-  status: SyncStatus;
+  status?: SyncStatus;
   pendingOps?: PendingOpsSummary;
   errorMessage?: string;
+  onSignIn?: () => void;
 }
 
 export function SyncIndicator({
   status,
   pendingOps,
   errorMessage,
+  onSignIn,
 }: SyncIndicatorProps) {
   const hasPendingOps = (pendingOps?.total ?? 0) > 0;
+
+  // Show sign in button when no status (not signed in)
+  if (!status && onSignIn) {
+    return (
+      <button className={styles.indicator} onClick={onSignIn}>
+        Sign in
+      </button>
+    );
+  }
 
   const getLabel = () => {
     if (hasPendingOps && status === SyncStatus.Idle) {
@@ -34,10 +45,14 @@ export function SyncIndicator({
   };
 
   const label = getLabel();
-  if (!label) return null;
+
+  // Always render to maintain consistent layout
+  if (!label) {
+    return <span className={styles.indicator} style={{ visibility: "hidden" }}>Synced</span>;
+  }
 
   const classSuffix =
-    hasPendingOps && status === SyncStatus.Idle ? "pending" : status;
+    hasPendingOps && status === SyncStatus.Idle ? "pending" : status ?? "";
   const statusClassMap: Record<string, string | undefined> = {
     [SyncStatus.Synced]: styles.synced,
     [SyncStatus.Error]: styles.error,

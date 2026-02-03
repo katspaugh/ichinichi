@@ -78,25 +78,19 @@ export function Header({
       </div>
       {children && <div className={styles.headerCenter}>{children}</div>}
       <div className={styles.headerRight}>
-        {syncStatus && (
-          <ErrorBoundary
-            title="Sync status unavailable"
-            description="Sync will resume automatically once ready."
-            resetLabel="Retry"
-            className={styles.syncErrorBoundary}
-          >
-            <SyncIndicator
-              status={syncStatus}
-              pendingOps={pendingOps}
-              errorMessage={syncError ?? undefined}
-            />
-          </ErrorBoundary>
-        )}
-        {onSignIn && (
-          <button className={styles.signInButton} onClick={onSignIn}>
-            Sign in
-          </button>
-        )}
+        <ErrorBoundary
+          title="Sync status unavailable"
+          description="Sync will resume automatically once ready."
+          resetLabel="Retry"
+          className={styles.syncErrorBoundary}
+        >
+          <SyncIndicator
+            status={syncStatus}
+            pendingOps={pendingOps}
+            errorMessage={syncError ?? undefined}
+            onSignIn={onSignIn}
+          />
+        </ErrorBoundary>
         <button
           className={styles.menuButton}
           onClick={onMenuClick}

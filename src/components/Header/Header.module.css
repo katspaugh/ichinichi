@@ -64,22 +64,6 @@
   padding: var(--spacing-xs) var(--spacing-sm);
 }
 
-.signInButton {
-  font-size: var(--font-size-xs);
-  color: var(--color-text-muted);
-  background: transparent;
-  border: 1px solid var(--color-border);
-  cursor: pointer;
-  padding: var(--spacing-xs) var(--spacing-sm);
-  border-radius: var(--radius);
-  transition: all var(--transition-fast);
-}
-
-.signInButton:hover {
-  color: var(--color-text);
-  border-color: var(--color-text-muted);
-}
-
 .menuButton {
   display: flex;
   align-items: center;
@@ -119,10 +103,6 @@
   .headerLeft {
     order: -1;
     flex: 0 0 auto;
-  }
-
-  .appName {
-    display: none;
   }
 
   .headerCenter {

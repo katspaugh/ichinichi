@@ -42,10 +42,12 @@ describe("SyncIndicator component", () => {
     expect(screen.getByText("Sync error")).toBeTruthy();
   });
 
-  it("should render nothing when status is Idle and no pending ops", () => {
+  it("should render hidden placeholder when status is Idle and no pending ops", () => {
     const { container } = render(<SyncIndicator status={SyncStatus.Idle} />);
 
-    expect(container.textContent).toBe("");
+    const indicator = container.querySelector("span");
+    expect(indicator).toBeTruthy();
+    expect(indicator?.style.visibility).toBe("hidden");
   });
 
   it("should render 'Sync needed' when status is Idle but has pending ops", () => {
