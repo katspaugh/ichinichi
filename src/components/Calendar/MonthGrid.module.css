@@ -80,12 +80,22 @@
 }
 
 .days {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.week {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   gap: 2px;
 }
 
 .monthGrid[data-month-view="true"] .days {
+  gap: 4px;
+}
+
+.monthGrid[data-month-view="true"] .week {
   gap: 4px;
 }
 
@@ -131,10 +141,14 @@
   }
 
   .days {
-    grid-template-rows: repeat(6, 1fr);
     gap: 1px;
     flex: 1;
     overflow: hidden;
+  }
+
+  .week {
+    flex: 1;
+    gap: 1px;
   }
 
   .monthGrid[data-month-view="true"] {
@@ -146,6 +160,10 @@
   }
 
   .monthGrid[data-month-view="true"] .days {
+    gap: 6px;
+  }
+
+  .monthGrid[data-month-view="true"] .week {
     gap: 6px;
   }
 
@@ -169,6 +187,21 @@
   }
 
   .monthGrid[data-month-view="true"] .days {
+    flex-direction: row;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    gap: 0;
+  }
+
+  .monthGrid[data-month-view="true"] .days::-webkit-scrollbar {
+    display: none;
+  }
+
+  .monthGrid[data-month-view="true"] .week {
+    flex: 0 0 100%;
+    scroll-snap-align: start;
     gap: 2px;
   }
 }

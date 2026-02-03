@@ -11,6 +11,7 @@ interface CalendarHeaderProps {
   onYearChange: (year: number) => void;
   onMonthChange?: (year: number, month: number) => void;
   onReturnToYear?: () => void;
+  onLogoClick?: () => void;
   syncStatus?: SyncStatus;
   syncError?: string | null;
   pendingOps?: PendingOpsSummary;
@@ -24,6 +25,7 @@ export function CalendarHeader({
   onYearChange,
   onMonthChange,
   onReturnToYear,
+  onLogoClick,
   syncStatus,
   syncError,
   pendingOps,
@@ -35,6 +37,7 @@ export function CalendarHeader({
       syncStatus={syncStatus}
       syncError={syncError}
       pendingOps={pendingOps}
+      onLogoClick={onLogoClick}
       onMenuClick={onMenuClick}
       onSignIn={onSignIn}
     >

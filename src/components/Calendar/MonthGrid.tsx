@@ -48,7 +48,7 @@ export function MonthGrid({
     }
   }, [showMonthView, onMonthClick, year, month]);
 
-  const days = useMemo(() => {
+  const weeks = useMemo(() => {
     const daysInMonth = getDaysInMonth(year, month);
     const firstDay = getFirstDayOfMonth(year, month);
 
@@ -64,7 +64,13 @@ export function MonthGrid({
       cells.push({ day, date: new Date(year, month, day) });
     }
 
-    return cells;
+    // Group into weeks (arrays of 7 days each)
+    const weekGroups: Array<typeof cells> = [];
+    for (let i = 0; i < cells.length; i += 7) {
+      weekGroups.push(cells.slice(i, i + 7));
+    }
+
+    return weekGroups;
   }, [year, month]);
 
   return (
@@ -112,33 +118,37 @@ export function MonthGrid({
         })}
       </div>
       <div className={styles.days}>
-        {days.map((cell, index) => {
-          if (cell.day === null || cell.date === null) {
-            return (
-              <DayCell
-                key={index}
-                day={null}
-                state={DayCellState.Empty}
-                hasNote={false}
-              />
-            );
-          }
+        {weeks.map((week, weekIndex) => (
+          <div key={weekIndex} className={styles.week}>
+            {week.map((cell, dayIndex) => {
+              if (cell.day === null || cell.date === null) {
+                return (
+                  <DayCell
+                    key={dayIndex}
+                    day={null}
+                    state={DayCellState.Empty}
+                    hasNote={false}
+                  />
+                );
+              }
 
-          const dateStr = formatDate(cell.date);
-          const state = getDayCellState(cell.date, resolvedNow);
+              const dateStr = formatDate(cell.date);
+              const state = getDayCellState(cell.date, resolvedNow);
 
-          return (
-            <DayCell
-              key={index}
-              day={cell.day}
-              date={cell.date}
-              state={state}
-              hasNote={hasNote(dateStr)}
-              selected={selectedDate === dateStr}
-              onClick={onDayClick ? () => onDayClick(dateStr) : undefined}
-            />
-          );
-        })}
+              return (
+                <DayCell
+                  key={dayIndex}
+                  day={cell.day}
+                  date={cell.date}
+                  state={state}
+                  hasNote={hasNote(dateStr)}
+                  selected={selectedDate === dateStr}
+                  onClick={onDayClick ? () => onDayClick(dateStr) : undefined}
+                />
+              );
+            })}
+          </div>
+        ))}
       </div>
     </div>
   );

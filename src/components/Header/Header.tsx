@@ -6,9 +6,13 @@ import type { SyncStatus } from "../../types";
 import type { PendingOpsSummary } from "../../domain/sync";
 import styles from "./Header.module.css";
 
-function AppLogo() {
-  return (
-    <div className={styles.appLogo}>
+interface AppLogoProps {
+  onClick?: () => void;
+}
+
+function AppLogo({ onClick }: AppLogoProps) {
+  const content = (
+    <>
       <div className={styles.logoIcon}>
         <svg width="24" height="22" viewBox="0 0 24 22" fill="none">
           <g transform="translate(0, 4)">
@@ -29,9 +33,23 @@ function AppLogo() {
           <ellipse cx="19" cy="5" rx="5" ry="5" fill="#FCD34D" />
         </svg>
       </div>
-      <span className={styles.appName}>いちにち</span>
-    </div>
+      <span className={styles.appName} title="Ichinichi">いちにち</span>
+    </>
   );
+
+  if (onClick) {
+    return (
+      <button
+        className={styles.appLogo}
+        onClick={onClick}
+        aria-label="Go to year view"
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return <div className={styles.appLogo}>{content}</div>;
 }
 
 interface HeaderProps {
@@ -39,6 +57,7 @@ interface HeaderProps {
   syncStatus?: SyncStatus;
   syncError?: string | null;
   pendingOps?: PendingOpsSummary;
+  onLogoClick?: () => void;
   onMenuClick?: () => void;
   onSignIn?: () => void;
 }
@@ -48,13 +67,14 @@ export function Header({
   syncStatus,
   syncError,
   pendingOps,
+  onLogoClick,
   onMenuClick,
   onSignIn,
 }: HeaderProps) {
   return (
     <header className={styles.header}>
       <div className={styles.headerLeft}>
-        <AppLogo />
+        <AppLogo onClick={onLogoClick} />
       </div>
       {children && <div className={styles.headerCenter}>{children}</div>}
       <div className={styles.headerRight}>

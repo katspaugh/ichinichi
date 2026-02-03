@@ -28,6 +28,16 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-md);
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  border-radius: var(--radius);
+  transition: opacity var(--transition-fast);
+}
+
+.appLogo:hover {
+  opacity: 0.8;
 }
 
 .logoIcon {
@@ -103,6 +113,7 @@
   .header {
     flex-wrap: wrap;
     gap: var(--spacing-md);
+    margin-bottom: var(--spacing-lg);
   }
 
   .headerLeft {

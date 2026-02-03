@@ -97,6 +97,7 @@ export function MonthView({
         onYearChange={onYearChange}
         onMonthChange={onMonthChange}
         onReturnToYear={onReturnToYear}
+        onLogoClick={onReturnToYear}
         syncStatus={syncStatus}
         syncError={syncError}
         pendingOps={pendingOps}

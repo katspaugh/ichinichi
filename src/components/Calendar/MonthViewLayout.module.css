@@ -25,6 +25,16 @@
   padding: 0 var(--spacing-sm);
 }
 
+@media (max-width: 768px) {
+  .layout {
+    gap: var(--spacing-md);
+  }
+
+  .monthNav {
+    display: none;
+  }
+}
+
 .editorPane {
   flex: 1;
   display: flex;
