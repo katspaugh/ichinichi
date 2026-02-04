@@ -41,6 +41,8 @@ describe("Sync status data flow", () => {
       repository: mockRepository as any,
       enabled: true,
       online: true,
+      userId: null,
+      supabase: null,
     });
 
     // Send SYNC_STARTED manually (simulating what syncResources actor does)
@@ -68,6 +70,8 @@ describe("Sync status data flow", () => {
       repository: mockRepository as any,
       enabled: true,
       online: true,
+      userId: null,
+      supabase: null,
     });
 
     // Start sync

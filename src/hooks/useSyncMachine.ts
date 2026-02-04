@@ -6,6 +6,7 @@ import {
   sendTo,
   type ActorRefFrom,
 } from "xstate";
+import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
 import { SyncStatus } from "../types";
 import type { UnifiedSyncedNoteRepository } from "../domain/notes/hydratingSyncedNoteRepository";
 import type { PendingOpsSummary, SyncService } from "../domain/sync";
@@ -37,6 +38,8 @@ export type SyncMachineEvent =
       repository: UnifiedSyncedNoteRepository | null;
       enabled: boolean;
       online: boolean;
+      userId: string | null;
+      supabase: SupabaseClient | null;
     }
   | { type: "REQUEST_SYNC"; immediate?: boolean }
   | { type: "REQUEST_IDLE_SYNC"; delayMs?: number }
@@ -45,16 +48,22 @@ export type SyncMachineEvent =
   | { type: "SYNC_FINISHED"; status: SyncStatus }
   | { type: "SYNC_FAILED"; error: string }
   | { type: "PENDING_OPS_REFRESHED"; summary: PendingOpsSummary }
-  | { type: "PENDING_OPS_FAILED" };
+  | { type: "PENDING_OPS_FAILED" }
+  | { type: "REALTIME_NOTE_CHANGED"; date: string }
+  | { type: "REALTIME_CONNECTED" }
+  | { type: "REALTIME_DISCONNECTED" };
 
 interface SyncMachineContext {
   repository: UnifiedSyncedNoteRepository | null;
   enabled: boolean;
   online: boolean;
+  userId: string | null;
+  supabase: SupabaseClient | null;
   syncError: string | null;
   lastSynced: Date | null;
   pendingOps: PendingOpsSummary;
   status: SyncStatus;
+  realtimeConnected: boolean;
 }
 
 const syncResourcesActor = fromCallback<
@@ -166,11 +175,67 @@ const pendingOpsPollerActor = fromCallback<PendingOpsPollerEvent>(
   },
 );
 
+type RealtimeActorEvent = { type: "START"; userId: string } | { type: "STOP" };
+
+const realtimeActor = fromCallback<
+  RealtimeActorEvent,
+  { supabase: SupabaseClient | null }
+>(({ sendBack, receive, input }) => {
+  let channel: RealtimeChannel | null = null;
+  let debounceTimer: number | null = null;
+  const DEBOUNCE_MS = 500;
+
+  receive((event) => {
+    if (event.type === "START") {
+      if (!input.supabase) return;
+      channel = input.supabase
+        .channel(`notes:${event.userId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "notes",
+            filter: `user_id=eq.${event.userId}`,
+          },
+          (payload) => {
+            const record = payload.new as { date?: string } | undefined;
+            if (!record?.date) return;
+
+            // Debounce rapid events
+            if (debounceTimer) window.clearTimeout(debounceTimer);
+            debounceTimer = window.setTimeout(() => {
+              sendBack({ type: "REALTIME_NOTE_CHANGED", date: record.date! });
+            }, DEBOUNCE_MS);
+          },
+        )
+        .subscribe((status) => {
+          if (status === "SUBSCRIBED") {
+            sendBack({ type: "REALTIME_CONNECTED" });
+          } else if (status === "CLOSED" || status === "CHANNEL_ERROR") {
+            sendBack({ type: "REALTIME_DISCONNECTED" });
+          }
+        });
+    } else if (event.type === "STOP") {
+      if (debounceTimer) window.clearTimeout(debounceTimer);
+      void channel?.unsubscribe();
+      channel = null;
+    }
+  });
+
+  return () => {
+    if (debounceTimer) window.clearTimeout(debounceTimer);
+    void channel?.unsubscribe();
+  };
+});
+
 type SyncResourcesActorRef = ActorRefFrom<typeof syncResourcesActor>;
 type PendingOpsPollerActorRef = ActorRefFrom<typeof pendingOpsPollerActor>;
+type RealtimeActorRef = ActorRefFrom<typeof realtimeActor>;
 
 void (null as unknown as SyncResourcesActorRef);
 void (null as unknown as PendingOpsPollerActorRef);
+void (null as unknown as RealtimeActorRef);
 
 export const syncMachine = setup({
   types: {
@@ -180,6 +245,7 @@ export const syncMachine = setup({
   actors: {
     syncResources: syncResourcesActor,
     pendingOpsPoller: pendingOpsPollerActor,
+    realtimeActor: realtimeActor,
   },
 }).createMachine({
   id: "sync",
@@ -188,10 +254,13 @@ export const syncMachine = setup({
     repository: null,
     enabled: false,
     online: false,
+    userId: null,
+    supabase: null,
     syncError: null,
     lastSynced: null,
     pendingOps: initialPendingOps,
     status: SyncStatus.Idle,
+    realtimeConnected: false,
   },
   states: {
     disabled: {
@@ -204,6 +273,8 @@ export const syncMachine = setup({
               repository: event.repository,
               enabled: event.enabled,
               online: event.online,
+              userId: event.userId,
+              supabase: event.supabase,
             })),
           },
           {
@@ -214,6 +285,8 @@ export const syncMachine = setup({
               repository: event.repository,
               enabled: event.enabled,
               online: event.online,
+              userId: event.userId,
+              supabase: event.supabase,
               status: SyncStatus.Offline,
             })),
           },
@@ -223,6 +296,8 @@ export const syncMachine = setup({
               repository: event.repository,
               enabled: event.enabled,
               online: event.online,
+              userId: event.userId,
+              supabase: event.supabase,
               status: SyncStatus.Idle,
             })),
           },
@@ -231,7 +306,17 @@ export const syncMachine = setup({
     },
     active: {
       id: "active",
-      entry: assign({ syncError: null }),
+      entry: [
+        assign({ syncError: null }),
+        enqueueActions(({ enqueue, context }) => {
+          if (context.userId) {
+            enqueue(sendTo("realtimeActor", { type: "START", userId: context.userId }));
+          }
+        }),
+      ],
+      exit: enqueueActions(({ enqueue }) => {
+        enqueue(sendTo("realtimeActor", { type: "STOP" }));
+      }),
       invoke: [
         {
           id: "syncResources",
@@ -244,6 +329,13 @@ export const syncMachine = setup({
           id: "pendingOpsPoller",
           src: "pendingOpsPoller",
         },
+        {
+          id: "realtimeActor",
+          src: "realtimeActor",
+          input: ({ context }) => ({
+            supabase: context.supabase,
+          }),
+        },
       ],
       on: {
         INPUTS_CHANGED: [
@@ -254,9 +346,12 @@ export const syncMachine = setup({
               repository: event.repository,
               enabled: event.enabled,
               online: event.online,
+              userId: event.userId,
+              supabase: event.supabase,
               pendingOps: initialPendingOps,
               syncError: null,
               status: SyncStatus.Idle,
+              realtimeConnected: false,
             })),
           },
           {
@@ -267,6 +362,8 @@ export const syncMachine = setup({
               repository: event.repository,
               enabled: event.enabled,
               online: event.online,
+              userId: event.userId,
+              supabase: event.supabase,
               status: SyncStatus.Offline,
             })),
           },
@@ -281,6 +378,8 @@ export const syncMachine = setup({
               repository: event.repository,
               enabled: event.enabled,
               online: event.online,
+              userId: event.userId,
+              supabase: event.supabase,
               status: SyncStatus.Idle,
               syncError: null,
             })),
@@ -290,6 +389,8 @@ export const syncMachine = setup({
               repository: event.repository,
               enabled: event.enabled,
               online: event.online,
+              userId: event.userId,
+              supabase: event.supabase,
             })),
           },
         ],
@@ -391,6 +492,28 @@ export const syncMachine = setup({
         },
         PENDING_OPS_FAILED: {
           actions: assign({ pendingOps: initialPendingOps }),
+        },
+        REALTIME_NOTE_CHANGED: {
+          actions: enqueueActions(({ enqueue }) => {
+            enqueue(
+              sendTo("syncResources", { type: "REQUEST_SYNC", immediate: true }),
+            );
+            enqueue(sendTo("pendingOpsPoller", { type: "REFRESH" }));
+          }),
+        },
+        REALTIME_CONNECTED: {
+          actions: [
+            assign({ realtimeConnected: true }),
+            // Sync on reconnect to catch missed events
+            enqueueActions(({ enqueue }) => {
+              enqueue(
+                sendTo("syncResources", { type: "REQUEST_SYNC", immediate: true }),
+              );
+            }),
+          ],
+        },
+        REALTIME_DISCONNECTED: {
+          actions: assign({ realtimeConnected: false }),
         },
       },
       initial: "initializing",

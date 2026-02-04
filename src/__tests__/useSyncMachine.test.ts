@@ -424,6 +424,8 @@ describe("syncMachine", () => {
       repository: mockRepository as any,
       enabled: true,
       online: true,
+      userId: null,
+      supabase: null,
     });
 
     // Should be in active state - now that sendTo works correctly, the machine will
@@ -450,6 +452,8 @@ describe("syncMachine", () => {
       repository: mockRepository as any,
       enabled: true,
       online: true,
+      userId: null,
+      supabase: null,
     });
 
     // Now that sendTo works correctly, the machine immediately sends REQUEST_SYNC
@@ -481,6 +485,8 @@ describe("syncMachine", () => {
       repository: mockRepository as any,
       enabled: true,
       online: false,
+      userId: null,
+      supabase: null,
     });
 
     expect(actor.getSnapshot().value).toEqual({ active: "offline" });
@@ -502,6 +508,8 @@ describe("syncMachine", () => {
       repository: mockRepository as any,
       enabled: true,
       online: false,
+      userId: null,
+      supabase: null,
     });
 
     expect(actor.getSnapshot().value).toEqual({ active: "offline" });
@@ -512,6 +520,8 @@ describe("syncMachine", () => {
       repository: mockRepository as any,
       enabled: true,
       online: true,
+      userId: null,
+      supabase: null,
     });
 
     const snapshot = actor.getSnapshot();
@@ -546,6 +556,8 @@ describe("syncMachine", () => {
         repository: mockRepository as any,
         enabled: true,
         online: true,
+        userId: null,
+        supabase: null,
       });
 
       // Now that sendTo works correctly, it may already be syncing
@@ -608,6 +620,8 @@ describe("syncMachine", () => {
         repository: mockRepository as any,
         enabled: true,
         online: false, // Offline!
+        userId: null,
+        supabase: null,
       });
 
       expect(actor.getSnapshot().value).toEqual({ active: "offline" });
@@ -644,6 +658,8 @@ describe("syncMachine", () => {
         repository: mockRepository as any,
         enabled: true,
         online: true,
+        userId: null,
+        supabase: null,
       });
 
       actor.send({ type: "REQUEST_IDLE_SYNC" });
@@ -685,6 +701,8 @@ describe("syncMachine", () => {
         repository: mockRepository as any,
         enabled: true,
         online: true,
+        userId: null,
+        supabase: null,
       });
 
       // The machine should transition through initializing to ready
@@ -719,6 +737,8 @@ describe("syncMachine", () => {
         repository: mockRepository as any,
         enabled: true,
         online: true,
+        userId: null,
+        supabase: null,
       });
 
       // Now that sendTo works correctly, machine transitions to syncing immediately
@@ -773,6 +793,8 @@ describe("syncMachine", () => {
         repository: mockRepository as any,
         enabled: true,
         online: true,
+        userId: null,
+        supabase: null,
       });
 
       // Verify the context has the repository
@@ -853,6 +875,8 @@ describe("syncMachine", () => {
         repository: mockRepository as any,
         enabled: true,
         online: true,
+        userId: null,
+        supabase: null,
       });
 
       // Check if the actor was spawned

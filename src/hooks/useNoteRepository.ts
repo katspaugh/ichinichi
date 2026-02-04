@@ -157,7 +157,7 @@ export function useNoteRepository({
   const syncEnabled =
     mode === AppMode.Cloud && !!userId && !!vaultKey && !!activeKeyId;
   const { syncStatus, syncError, triggerSync, queueIdleSync, pendingOps } =
-    useSync(syncedRepo, { enabled: syncEnabled });
+    useSync(syncedRepo, { enabled: syncEnabled, userId, supabase });
   const { hasNote, noteDates, refreshNoteDates, applyNoteChange } = useNoteDates(
     repository,
     year,

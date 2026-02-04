@@ -1,5 +1,6 @@
 import { useCallback, useEffect } from "react";
 import { useMachine } from "@xstate/react";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { SyncStatus } from "../types";
 import type { UnifiedSyncedNoteRepository } from "../domain/notes/hydratingSyncedNoteRepository";
 import type { PendingOpsSummary } from "../domain/sync";
@@ -13,14 +14,21 @@ interface UseSyncReturn {
   triggerSync: (options?: { immediate?: boolean }) => void;
   queueIdleSync: (options?: { delayMs?: number }) => void;
   pendingOps: PendingOpsSummary;
+  realtimeConnected: boolean;
 }
 
 export function useSync(
   repository: UnifiedSyncedNoteRepository | null,
-  options?: { enabled?: boolean },
+  options?: {
+    enabled?: boolean;
+    userId?: string | null;
+    supabase?: SupabaseClient | null;
+  },
 ): UseSyncReturn {
   const online = useConnectivity();
   const syncEnabled = options?.enabled ?? !!repository;
+  const userId = options?.userId ?? null;
+  const supabase = options?.supabase ?? null;
   const [state, send] = useMachine(syncMachine);
 
   useEffect(() => {
@@ -29,8 +37,10 @@ export function useSync(
       repository,
       enabled: syncEnabled,
       online,
+      userId,
+      supabase,
     });
-  }, [send, repository, syncEnabled, online]);
+  }, [send, repository, syncEnabled, online, userId, supabase]);
 
   const triggerSync = useCallback(
     (options?: { immediate?: boolean }) => {
@@ -53,5 +63,6 @@ export function useSync(
     triggerSync,
     queueIdleSync,
     pendingOps: state.context.pendingOps,
+    realtimeConnected: state.context.realtimeConnected,
   };
 }
