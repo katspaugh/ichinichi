@@ -156,8 +156,15 @@ export function useNoteRepository({
       : null;
   const syncEnabled =
     mode === AppMode.Cloud && !!userId && !!vaultKey && !!activeKeyId;
-  const { syncStatus, syncError, triggerSync, queueIdleSync, pendingOps } =
-    useSync(syncedRepo, { enabled: syncEnabled, userId, supabase });
+  const {
+    syncStatus,
+    syncError,
+    triggerSync,
+    queueIdleSync,
+    pendingOps,
+    lastRealtimeChangedDate,
+    clearRealtimeChanged,
+  } = useSync(syncedRepo, { enabled: syncEnabled, userId, supabase });
   const { hasNote, noteDates, refreshNoteDates, applyNoteChange } = useNoteDates(
     repository,
     year,
@@ -211,7 +218,28 @@ export function useNoteRepository({
     isSaving,
     isContentReady,
     isOfflineStub,
+    forceRefresh,
   } = useNoteContent(date, repository, hasNote, handleAfterSave);
+
+  // When a realtime update arrives for the current note and user isn't editing, refresh content
+  useEffect(() => {
+    if (
+      lastRealtimeChangedDate &&
+      lastRealtimeChangedDate === date &&
+      !hasEdits &&
+      isContentReady
+    ) {
+      forceRefresh();
+      clearRealtimeChanged();
+    }
+  }, [
+    lastRealtimeChangedDate,
+    date,
+    hasEdits,
+    isContentReady,
+    forceRefresh,
+    clearRealtimeChanged,
+  ]);
 
   return {
     repository,

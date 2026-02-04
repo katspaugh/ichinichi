@@ -19,6 +19,8 @@ export interface UseNoteContentReturn {
   isSaving: boolean;
   isContentReady: boolean;
   isOfflineStub: boolean;
+  /** Force a refresh from remote (used for realtime updates) */
+  forceRefresh: () => void;
 }
 
 // Legacy types and reducer for backward compatibility with tests
@@ -265,5 +267,6 @@ export function useNoteContent(
     isSaving: local.isSaving,
     isContentReady: local.isReady,
     isOfflineStub,
+    forceRefresh: remote.forceRefresh,
   };
 }

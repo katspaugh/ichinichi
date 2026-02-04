@@ -51,7 +51,8 @@ export type SyncMachineEvent =
   | { type: "PENDING_OPS_FAILED" }
   | { type: "REALTIME_NOTE_CHANGED"; date: string }
   | { type: "REALTIME_CONNECTED" }
-  | { type: "REALTIME_DISCONNECTED" };
+  | { type: "REALTIME_DISCONNECTED" }
+  | { type: "CLEAR_REALTIME_CHANGED" };
 
 interface SyncMachineContext {
   repository: UnifiedSyncedNoteRepository | null;
@@ -64,6 +65,8 @@ interface SyncMachineContext {
   pendingOps: PendingOpsSummary;
   status: SyncStatus;
   realtimeConnected: boolean;
+  /** Date of the last note changed via realtime (for triggering note refresh) */
+  lastRealtimeChangedDate: string | null;
 }
 
 const syncResourcesActor = fromCallback<
@@ -261,6 +264,7 @@ export const syncMachine = setup({
     pendingOps: initialPendingOps,
     status: SyncStatus.Idle,
     realtimeConnected: false,
+    lastRealtimeChangedDate: null,
   },
   states: {
     disabled: {
@@ -494,12 +498,15 @@ export const syncMachine = setup({
           actions: assign({ pendingOps: initialPendingOps }),
         },
         REALTIME_NOTE_CHANGED: {
-          actions: enqueueActions(({ enqueue }) => {
-            enqueue(
-              sendTo("syncResources", { type: "REQUEST_SYNC", immediate: true }),
-            );
-            enqueue(sendTo("pendingOpsPoller", { type: "REFRESH" }));
-          }),
+          actions: [
+            assign(({ event }) => ({ lastRealtimeChangedDate: event.date })),
+            enqueueActions(({ enqueue }) => {
+              enqueue(
+                sendTo("syncResources", { type: "REQUEST_SYNC", immediate: true }),
+              );
+              enqueue(sendTo("pendingOpsPoller", { type: "REFRESH" }));
+            }),
+          ],
         },
         REALTIME_CONNECTED: {
           actions: [
@@ -514,6 +521,9 @@ export const syncMachine = setup({
         },
         REALTIME_DISCONNECTED: {
           actions: assign({ realtimeConnected: false }),
+        },
+        CLEAR_REALTIME_CHANGED: {
+          actions: assign({ lastRealtimeChangedDate: null }),
         },
       },
       initial: "initializing",

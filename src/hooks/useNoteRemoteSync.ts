@@ -60,6 +60,8 @@ export interface UseNoteRemoteSyncReturn {
   isKnownRemoteOnly: boolean;
   /** Trigger a background refresh from remote */
   triggerRefresh: () => void;
+  /** Force a refresh even if already refreshed for this date (used for realtime updates) */
+  forceRefresh: () => void;
 }
 
 interface UseNoteRemoteSyncOptions {
@@ -86,7 +88,8 @@ type RemoteSyncEvent =
   | { type: "REMOTE_CACHE_READY"; date: string; hasRemote: boolean }
   | { type: "REMOTE_REFRESHED"; content: string }
   | { type: "CHECK_DONE" }
-  | { type: "CLEAR_PENDING_REMOTE" };
+  | { type: "CLEAR_PENDING_REMOTE" }
+  | { type: "FORCE_REFRESH" };
 
 interface RemoteSyncContext {
   date: string | null;
@@ -242,6 +245,7 @@ const remoteSyncMachine = setup({
     markRefreshed: assign(({ context }: { context: RemoteSyncContext }) => ({
       hasRefreshedForDate: context.date,
     })),
+    clearRefreshedFlag: assign({ hasRefreshedForDate: null }),
   },
   guards: {
     shouldCheckRemoteCache: ({ context }: { context: RemoteSyncContext }) =>
@@ -280,6 +284,10 @@ const remoteSyncMachine = setup({
     },
     CLEAR_PENDING_REMOTE: {
       actions: "clearPendingRemoteContent",
+    },
+    FORCE_REFRESH: {
+      actions: "clearRefreshedFlag",
+      target: ".decide",
     },
   },
   states: {
@@ -409,6 +417,10 @@ export function useNoteRemoteSync(
     });
   }, [send, date, repository, online, isLocalReady]);
 
+  const forceRefresh = useCallback(() => {
+    send({ type: "FORCE_REFRESH" });
+  }, [send]);
+
   useEffect(() => {
     const pending = state.context.pendingRemoteContent;
     if (!pending) return;
@@ -427,5 +439,6 @@ export function useNoteRemoteSync(
   return {
     isKnownRemoteOnly,
     triggerRefresh,
+    forceRefresh,
   };
 }

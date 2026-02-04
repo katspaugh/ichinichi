@@ -15,6 +15,10 @@ interface UseSyncReturn {
   queueIdleSync: (options?: { delayMs?: number }) => void;
   pendingOps: PendingOpsSummary;
   realtimeConnected: boolean;
+  /** Date of the last note changed via realtime subscription */
+  lastRealtimeChangedDate: string | null;
+  /** Clear the lastRealtimeChangedDate after consuming it */
+  clearRealtimeChanged: () => void;
 }
 
 export function useSync(
@@ -56,6 +60,10 @@ export function useSync(
     [send],
   );
 
+  const clearRealtimeChanged = useCallback(() => {
+    send({ type: "CLEAR_REALTIME_CHANGED" });
+  }, [send]);
+
   return {
     syncStatus: state.context.status,
     syncError: state.context.syncError,
@@ -64,5 +72,7 @@ export function useSync(
     queueIdleSync,
     pendingOps: state.context.pendingOps,
     realtimeConnected: state.context.realtimeConnected,
+    lastRealtimeChangedDate: state.context.lastRealtimeChangedDate,
+    clearRealtimeChanged,
   };
 }
