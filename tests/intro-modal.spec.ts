@@ -5,16 +5,6 @@ test.describe('Intro Modal', () => {
     await page.setViewportSize({ width: 393, height: 852 });
     await helpers.clearStorageAndReload();
 
-    // Debug: Check localStorage state after clearing
-    const storageState = await page.evaluate(() => {
-      return {
-        introSeen: localStorage.getItem('dailynote_intro_seen_v1'),
-        hasLoggedIn: localStorage.getItem('dailynote_has_logged_in_v1'),
-        allKeys: Object.keys(localStorage),
-      };
-    });
-    console.log('localStorage state:', storageState);
-
     const title = page.getByRole('heading', { name: 'Welcome to Ichinichi' });
     await expect(title).toBeVisible();
 

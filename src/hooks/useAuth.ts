@@ -286,9 +286,12 @@ const authMachine = setup({
       }
       return { error: event.message };
     }),
-    markHasLoggedIn: () => {
+    markHasLoggedIn: (args: { event: AuthEvent }) => {
       if (typeof window === "undefined") return;
-      localStorage.setItem(AUTH_HAS_LOGGED_IN_KEY, "1");
+      // Only mark as logged in if there's an actual session
+      if (args.event.type === "SESSION_CHANGED" && args.event.session) {
+        localStorage.setItem(AUTH_HAS_LOGGED_IN_KEY, "1");
+      }
     },
   },
 }).createMachine({

@@ -90,11 +90,14 @@ export const test = base.extend<{ helpers: TestHelpers }>({
   helpers: async ({ page }, use) => {
     const helpers: TestHelpers = {
       clearStorageAndReload: async () => {
+        // Clear cookies first (including Supabase auth cookies)
         await page.context().clearCookies();
-        // First navigate to the app
-        await page.goto('/');
 
-        // Clear storage and wait for IndexedDB deletion to complete
+        // Navigate to app first to have access to storage APIs
+        await page.goto('/');
+        await page.waitForLoadState('domcontentloaded');
+
+        // Clear all storage
         await page.evaluate(async () => {
           // Clear known IndexedDB databases used by the app
           const knownDatabases = [
@@ -122,8 +125,8 @@ export const test = base.extend<{ helpers: TestHelpers }>({
           sessionStorage.clear();
         });
 
-        // Reload the page to apply changes
-        await page.reload();
+        // Navigate to app again (not reload) to start fresh with cleared storage
+        await page.goto('/');
         await page.waitForLoadState('networkidle');
         // Wait for app to be fully hydrated (intro modal or calendar visible)
         await page.waitForFunction(() => {
