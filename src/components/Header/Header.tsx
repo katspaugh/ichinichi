@@ -33,7 +33,7 @@ function AppLogo({ onClick }: AppLogoProps) {
           <ellipse cx="19" cy="5" rx="5" ry="5" fill="#FCD34D" />
         </svg>
       </div>
-      <span className={styles.appName} title="Ichinichi">いちにち</span>
+      <span className={styles.appName} lang="ja" title="ichinichi">いちにち</span>
     </>
   );
 
