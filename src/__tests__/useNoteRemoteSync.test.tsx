@@ -141,4 +141,79 @@ describe("useNoteRemoteSync", () => {
     );
     await waitFor(() => expect(onRemoteUpdate).toHaveBeenCalled());
   });
+
+  it("forceRefresh triggers refresh even after initial refresh completed", async () => {
+    const repository = createRepository();
+    const onRemoteUpdate = jest.fn();
+
+    const { result } = renderHook(() =>
+      useNoteRemoteSync("10-01-2026", repository, {
+        onRemoteUpdate,
+        localContent: "local",
+        hasLocalEdits: false,
+        isLocalReady: true,
+      }),
+    );
+
+    // Wait for initial refresh
+    await waitFor(() =>
+      expect(repository.refreshNote).toHaveBeenCalledWith("10-01-2026"),
+    );
+
+    // Clear mock to track new calls
+    (repository.refreshNote as jest.Mock).mockClear();
+    onRemoteUpdate.mockClear();
+
+    // Force refresh should trigger another refresh even though we already refreshed
+    act(() => {
+      result.current.forceRefresh();
+    });
+
+    await waitFor(() =>
+      expect(repository.refreshNote).toHaveBeenCalledWith("10-01-2026"),
+    );
+    await waitFor(() => expect(onRemoteUpdate).toHaveBeenCalled());
+  });
+
+  it("forceRefresh does not refresh when user has local edits", async () => {
+    const repository = createRepository();
+    const onRemoteUpdate = jest.fn();
+
+    const { result, rerender } = renderHook(
+      ({ hasLocalEdits }) =>
+        useNoteRemoteSync("10-01-2026", repository, {
+          onRemoteUpdate,
+          localContent: "local",
+          hasLocalEdits,
+          isLocalReady: true,
+        }),
+      { initialProps: { hasLocalEdits: false } },
+    );
+
+    // Wait for initial refresh
+    await waitFor(() =>
+      expect(repository.refreshNote).toHaveBeenCalledWith("10-01-2026"),
+    );
+
+    // Rerender with local edits
+    rerender({ hasLocalEdits: true });
+
+    // Clear mock to track new calls
+    (repository.refreshNote as jest.Mock).mockClear();
+    onRemoteUpdate.mockClear();
+
+    // Force refresh - should trigger refresh but not apply update due to edits
+    act(() => {
+      result.current.forceRefresh();
+    });
+
+    await waitFor(() =>
+      expect(repository.refreshNote).toHaveBeenCalledWith("10-01-2026"),
+    );
+
+    // onRemoteUpdate should NOT be called because hasLocalEdits is true
+    // Give it some time to potentially be called incorrectly
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(onRemoteUpdate).not.toHaveBeenCalled();
+  });
 });

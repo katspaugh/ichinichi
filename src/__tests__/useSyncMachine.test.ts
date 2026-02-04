@@ -905,4 +905,96 @@ describe("syncMachine", () => {
       actor.stop();
     });
   });
+
+  describe("realtime events", () => {
+    it("should set lastRealtimeChangedDate when REALTIME_NOTE_CHANGED is received", () => {
+      const mockRepository = {
+        sync: jest.fn().mockResolvedValue({ ok: true, value: SyncStatus.Synced }),
+      };
+
+      const actor = createActor(syncMachine);
+      actor.start();
+
+      // Move to active state
+      actor.send({
+        type: "INPUTS_CHANGED",
+        repository: mockRepository as any,
+        enabled: true,
+        online: true,
+        userId: "user-123",
+        supabase: null,
+      });
+
+      expect(actor.getSnapshot().context.lastRealtimeChangedDate).toBeNull();
+
+      // Simulate realtime event
+      actor.send({ type: "REALTIME_NOTE_CHANGED", date: "15-01-2026" });
+
+      expect(actor.getSnapshot().context.lastRealtimeChangedDate).toBe(
+        "15-01-2026",
+      );
+
+      actor.stop();
+    });
+
+    it("should clear lastRealtimeChangedDate when CLEAR_REALTIME_CHANGED is received", () => {
+      const mockRepository = {
+        sync: jest.fn().mockResolvedValue({ ok: true, value: SyncStatus.Synced }),
+      };
+
+      const actor = createActor(syncMachine);
+      actor.start();
+
+      // Move to active state
+      actor.send({
+        type: "INPUTS_CHANGED",
+        repository: mockRepository as any,
+        enabled: true,
+        online: true,
+        userId: "user-123",
+        supabase: null,
+      });
+
+      // Set a realtime changed date
+      actor.send({ type: "REALTIME_NOTE_CHANGED", date: "15-01-2026" });
+      expect(actor.getSnapshot().context.lastRealtimeChangedDate).toBe(
+        "15-01-2026",
+      );
+
+      // Clear it
+      actor.send({ type: "CLEAR_REALTIME_CHANGED" });
+      expect(actor.getSnapshot().context.lastRealtimeChangedDate).toBeNull();
+
+      actor.stop();
+    });
+
+    it("should set realtimeConnected when REALTIME_CONNECTED is received", () => {
+      const mockRepository = {
+        sync: jest.fn().mockResolvedValue({ ok: true, value: SyncStatus.Synced }),
+      };
+
+      const actor = createActor(syncMachine);
+      actor.start();
+
+      // Move to active state
+      actor.send({
+        type: "INPUTS_CHANGED",
+        repository: mockRepository as any,
+        enabled: true,
+        online: true,
+        userId: "user-123",
+        supabase: null,
+      });
+
+      expect(actor.getSnapshot().context.realtimeConnected).toBe(false);
+
+      actor.send({ type: "REALTIME_CONNECTED" });
+      expect(actor.getSnapshot().context.realtimeConnected).toBe(true);
+
+      actor.send({ type: "REALTIME_DISCONNECTED" });
+      expect(actor.getSnapshot().context.realtimeConnected).toBe(false);
+
+      actor.stop();
+    });
+  });
 });
