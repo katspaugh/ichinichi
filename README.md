@@ -2,9 +2,11 @@
 
 A minimalist daily notes application designed to help you build and maintain a consistent writing habit. With end-to-end encryption and a focus on great UX, it's the perfect tool for personal reflection and daily journaling.
 
-<img width="1051" height="881" alt="Image" src="https://github.com/user-attachments/assets/edc0b6d1-dc11-4760-9457-d438140182e6" />
+<img width="1564" height="1061" alt="Image" src="https://github.com/user-attachments/assets/c7ce4046-7f63-46e9-aeb6-4d2bd7d67194" />
 
 ## Why Ichinichi?
+
+いちにち (_ichi nichi_) means _one day_ in Japanese.
 
 ### 📝 **Minimalist Design for Consistency**
 
