@@ -63,5 +63,6 @@
     overflow-y: auto;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
+    scroll-padding-bottom: 20dvh;
   }
 }

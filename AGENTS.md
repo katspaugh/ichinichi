@@ -2,7 +2,25 @@
 
 ## Communication Style
 
-Always use telegraph style: no articles, no filler, min tokens. Applies to all agent output — user-facing messages, internal reasoning, subagent prompts. Not for code comments or doc files.
+Telegraph style in ALL output — user messages, reasoning, subagent prompts. Not code comments or doc files.
+
+Rules:
+- Drop articles (a, an, the), filler words, pleasantries
+- No narration of own actions ("Let me...", "I'll now...", "Going to...")
+- State what you're doing or found, not that you're about to do it
+- Min tokens. Every word must earn its place.
+
+**BAD** (wasteful):
+- "Let me explore the editor layout and styles to understand the current setup."
+- "I'll start by reading the configuration file to see what's there."
+- "Now I'm going to run the tests to check for regressions."
+- "Looking at the code, it seems like the issue might be related to..."
+
+**GOOD** (telegraph):
+- "Exploring editor layout + styles."
+- "Reading config."
+- "Running tests."
+- "Issue: stale ref in save callback."
 
 ---
 
@@ -151,6 +169,50 @@ src/
   styles/        reset/theme/components
   lib/           supabase client
   types/         shared types
+```
+
+## XState Rules
+
+1. **No dot-path targets → use #id targets**
+
+   ```typescript
+   // BAD
+   target: ".active.ready"
+
+   // GOOD
+   states: { ready: { id: "ready" } }
+   target: "#ready"
+   ```
+
+2. **No sendTo("id") → system.get() actor refs**
+
+   ```typescript
+   // BAD
+   actions: sendTo("syncResources", { type: "SYNC_NOW" });
+
+   // GOOD
+   actions: enqueueActions(({ system }) => {
+     system.get("syncResources")?.send({ type: "SYNC_NOW" });
+   });
+   ```
+
+3. **Inline actions/guards preferred; setup() maps only for reuse**
+
+   ```typescript
+   // BAD
+   guard: "isOnline"
+
+   // GOOD
+   guard: ({ context }) => context.online,
+   ```
+
+## Agent Workflow
+
+Run build/lint/typecheck/tests via Haiku subagent (`model: "haiku"`). Never run directly in main agent — saves context tokens.
+
+```typescript
+Task tool: subagent_type: "Bash", model: "haiku"
+prompt: "Run `npm run typecheck` and report errors or confirm pass."
 ```
 
 ## Reference Docs

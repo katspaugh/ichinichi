@@ -116,6 +116,7 @@
 
 .contentEditable {
   padding-bottom: min(30vh, 12rem);
+  padding-bottom: 30dvh;
 }
 
 .content[data-empty="true"]::before {
@@ -358,5 +359,6 @@
   .content {
     flex: 0 0 auto;
     min-height: 60vh;
+    min-height: 60dvh;
   }
 }
