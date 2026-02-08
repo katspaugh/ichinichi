@@ -3,7 +3,6 @@ import {
   enqueueActions,
   fromCallback,
   setup,
-  sendTo,
   type ActorRefFrom,
 } from "xstate";
 import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
@@ -312,18 +311,19 @@ export const syncMachine = setup({
       id: "active",
       entry: [
         assign({ syncError: null }),
-        enqueueActions(({ enqueue, context }) => {
+        enqueueActions(({ context, system }) => {
           if (context.userId) {
-            enqueue(sendTo("realtimeActor", { type: "START", userId: context.userId }));
+            system.get("realtimeActor")?.send({ type: "START", userId: context.userId });
           }
         }),
       ],
-      exit: enqueueActions(({ enqueue }) => {
-        enqueue(sendTo("realtimeActor", { type: "STOP" }));
+      exit: enqueueActions(({ system }) => {
+        system.get("realtimeActor")?.send({ type: "STOP" });
       }),
       invoke: [
         {
           id: "syncResources",
+          systemId: "syncResources",
           src: "syncResources",
           input: ({ context }) => ({
             repository: context.repository as UnifiedSyncedNoteRepository,
@@ -331,10 +331,12 @@ export const syncMachine = setup({
         },
         {
           id: "pendingOpsPoller",
+          systemId: "pendingOpsPoller",
           src: "pendingOpsPoller",
         },
         {
           id: "realtimeActor",
+          systemId: "realtimeActor",
           src: "realtimeActor",
           input: ({ context }) => ({
             supabase: context.supabase,
@@ -399,31 +401,27 @@ export const syncMachine = setup({
           },
         ],
         REQUEST_SYNC: {
-          actions: enqueueActions(({ enqueue, event }) => {
-            enqueue(
-              sendTo("syncResources", {
-                type: "REQUEST_SYNC",
-                immediate: Boolean(event.immediate),
-              }),
-            );
+          actions: enqueueActions(({ event, system }) => {
+            system.get("syncResources")?.send({
+              type: "REQUEST_SYNC",
+              immediate: Boolean(event.immediate),
+            });
           }),
         },
         REQUEST_IDLE_SYNC: {
-          actions: enqueueActions(({ enqueue, event }) => {
-            enqueue(sendTo("pendingOpsPoller", { type: "REFRESH" }));
-            enqueue(
-              sendTo("syncResources", {
-                type: "REQUEST_IDLE_SYNC",
-                delayMs: event.delayMs,
-              }),
-            );
+          actions: enqueueActions(({ event, system }) => {
+            system.get("pendingOpsPoller")?.send({ type: "REFRESH" });
+            system.get("syncResources")?.send({
+              type: "REQUEST_IDLE_SYNC",
+              delayMs: event.delayMs,
+            });
           }),
         },
         SYNC_REQUESTED: {
           guard: ({ context }) => context.online,
-          actions: enqueueActions(({ enqueue }) => {
+          actions: enqueueActions(({ enqueue, system }) => {
             enqueue.assign({ status: SyncStatus.Syncing });
-            enqueue(sendTo("syncResources", { type: "SYNC_NOW" }));
+            system.get("syncResources")?.send({ type: "SYNC_NOW" });
           }),
         },
         SYNC_STARTED: {
@@ -443,8 +441,8 @@ export const syncMachine = setup({
                     ? new Date()
                     : context.lastSynced,
               })),
-              enqueueActions(({ enqueue }) => {
-                enqueue(sendTo("pendingOpsPoller", { type: "REFRESH" }));
+              enqueueActions(({ system }) => {
+                system.get("pendingOpsPoller")?.send({ type: "REFRESH" });
               }),
             ],
           },
@@ -459,8 +457,8 @@ export const syncMachine = setup({
                     ? new Date()
                     : context.lastSynced,
               })),
-              enqueueActions(({ enqueue }) => {
-                enqueue(sendTo("pendingOpsPoller", { type: "REFRESH" }));
+              enqueueActions(({ system }) => {
+                system.get("pendingOpsPoller")?.send({ type: "REFRESH" });
               }),
             ],
           },
@@ -473,8 +471,8 @@ export const syncMachine = setup({
                 lastSynced:
                   event.status === SyncStatus.Synced ? new Date() : null,
               })),
-              enqueueActions(({ enqueue }) => {
-                enqueue(sendTo("pendingOpsPoller", { type: "REFRESH" }));
+              enqueueActions(({ system }) => {
+                system.get("pendingOpsPoller")?.send({ type: "REFRESH" });
               }),
             ],
           },
@@ -486,8 +484,8 @@ export const syncMachine = setup({
               status: SyncStatus.Error,
               syncError: event.error,
             })),
-            enqueueActions(({ enqueue }) => {
-              enqueue(sendTo("pendingOpsPoller", { type: "REFRESH" }));
+            enqueueActions(({ system }) => {
+              system.get("pendingOpsPoller")?.send({ type: "REFRESH" });
             }),
           ],
         },
@@ -500,11 +498,9 @@ export const syncMachine = setup({
         REALTIME_NOTE_CHANGED: {
           actions: [
             assign(({ event }) => ({ lastRealtimeChangedDate: event.date })),
-            enqueueActions(({ enqueue }) => {
-              enqueue(
-                sendTo("syncResources", { type: "REQUEST_SYNC", immediate: true }),
-              );
-              enqueue(sendTo("pendingOpsPoller", { type: "REFRESH" }));
+            enqueueActions(({ system }) => {
+              system.get("syncResources")?.send({ type: "REQUEST_SYNC", immediate: true });
+              system.get("pendingOpsPoller")?.send({ type: "REFRESH" });
             }),
           ],
         },
@@ -512,10 +508,8 @@ export const syncMachine = setup({
           actions: [
             assign({ realtimeConnected: true }),
             // Sync on reconnect to catch missed events
-            enqueueActions(({ enqueue }) => {
-              enqueue(
-                sendTo("syncResources", { type: "REQUEST_SYNC", immediate: true }),
-              );
+            enqueueActions(({ system }) => {
+              system.get("syncResources")?.send({ type: "REQUEST_SYNC", immediate: true });
             }),
           ],
         },
@@ -530,13 +524,11 @@ export const syncMachine = setup({
       states: {
         initializing: {
           id: "initializing",
-          entry: enqueueActions(({ enqueue }) => {
-            enqueue(
-              sendTo("syncResources", {
-                type: "REQUEST_SYNC",
-                immediate: true,
-              }),
-            );
+          entry: enqueueActions(({ system }) => {
+            system.get("syncResources")?.send({
+              type: "REQUEST_SYNC",
+              immediate: true,
+            });
           }),
           always: { target: "#ready" },
         },

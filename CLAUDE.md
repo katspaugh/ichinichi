@@ -1,172 +1,139 @@
-# Ichinichi - Project Guide
+# Ichinichi
 
-## Overview
+## Communication Style
 
-Ichinichi is a minimalist daily notes app with a year-at-a-glance calendar. It is local-first with optional cloud sync. Notes are encrypted client-side and stored in IndexedDB. Only today's note is editable; past notes are read-only; future dates are disabled.
+Always use telegraph style: no articles, no filler, min tokens. Applies to all agent output — user-facing messages, internal reasoning, subagent prompts. Not for code comments or doc files.
+
+---
+
+Minimalist daily notes app. Year-at-a-glance calendar. Local-first, optional cloud sync. Client-side encryption, IndexedDB storage. Today editable, past read-only, future disabled.
 
 ## Core Rules
 
-- One note per day, keyed by date string DD-MM-YYYY.
-- Today editable only; past read-only; future not clickable.
-- Empty note (no text and no images) deletes the note.
-- URL params drive navigation: ?date=DD-MM-YYYY opens a note, ?year=YYYY opens calendar.
-- Escape closes the note modal; left/right arrows navigate notes when not editing.
+- One note/day, key: DD-MM-YYYY
+- Empty note (no text, no images) → delete
+- URL params: ?date=DD-MM-YYYY opens note, ?year=YYYY opens calendar
+- Escape closes modal; arrows navigate notes when not editing
 
 ## Tech Stack
 
-- React 18 + TypeScript
-- Vite
-- IndexedDB for local persistence
-- Supabase for optional sync (auth, database, storage)
-- CSS custom properties for theming
+React 18 + TypeScript, Vite, IndexedDB, Supabase (optional sync), CSS custom properties
 
-## Architecture Layers
+## Architecture
 
-- UI: `src/components` (pure views).
-- Controllers: `src/controllers` (view models and orchestration).
-- Domain: `src/domain` (use cases for notes, vault, sync).
-- Infrastructure: `src/storage`, `src/services`, `src/lib` (crypto, persistence, backend).
+- UI: `src/components` — pure views
+- Controllers: `src/controllers` — view models, orchestration
+- Domain: `src/domain` — use cases (notes, vault, sync)
+- Infra: `src/storage`, `src/services`, `src/lib` — crypto, persistence, backend
 
 ## App Modes
 
-- Local mode (default): single unified IndexedDB dataset; no account required.
-- Cloud mode (opt-in): Supabase auth + encrypted sync; local cache remains source of truth.
+- Local (default): unified IndexedDB, no account
+- Cloud (opt-in): Supabase auth + encrypted sync, local cache = source of truth
 
 ## Data Model (src/types/index.ts)
 
-- Note: date, content (sanitized HTML), updatedAt.
-- SyncedNote: note + revision, serverUpdatedAt?, deleted?.
-- NoteImage: id, noteDate, type (background|inline), filename, mimeType, width, height, size, createdAt.
+- Note: date, content (sanitized HTML), updatedAt
+- SyncedNote: note + revision, serverUpdatedAt?, deleted?
+- NoteImage: id, noteDate, type (background|inline), filename, mimeType, width, height, size, createdAt
 
-## Storage and Encryption
+## Storage & Encryption
 
-- Unified IndexedDB database: `dailynotes-unified` with stores `notes`, `note_meta`, `images`, `image_meta`, `sync_state`.
-- Notes and images are encrypted with AES-GCM; metadata stored separately.
-- Vault meta: localStorage key `dailynote_vault_meta_v1`.
-- Device key: non-exportable CryptoKey in IndexedDB (`dailynotes-vault`).
-- Password wrapping uses PBKDF2 (SHA-256, 600k iterations).
-- Cloud keyring stored in Supabase `user_keyrings`.
-- Cloud DEK cache stored in localStorage `dailynote_cloud_dek_cache_v1`.
-- Multi-key support: notes/images carry `key_id` to avoid re-encrypting on mode changes.
+- DB: `dailynotes-unified` → stores: notes, note_meta, images, image_meta, sync_state
+- AES-GCM encryption; metadata stored separately
+- Vault meta: localStorage `dailynote_vault_meta_v1`
+- Device key: non-exportable CryptoKey in IndexedDB (`dailynotes-vault`)
+- Password wrap: PBKDF2 SHA-256, 600k iterations
+- Cloud keyring: Supabase `user_keyrings`
+- Cloud DEK cache: localStorage `dailynote_cloud_dek_cache_v1`
+- Multi-key: notes/images carry `key_id`, no re-encrypt on mode change
 
-## Sync (Cloud Mode)
+## Sync (Cloud)
 
-- Debounced sync on edits; immediate sync on note close and pagehide/beforeunload.
-- Status: idle, syncing, synced, offline, error.
-- Conflict resolution: revision wins; updatedAt breaks ties.
-- Remote updates pulled by `server_updated_at` cursor; local pending ops pushed first.
+- Debounced on edit; immediate on note close + pagehide/beforeunload
+- Status: idle | syncing | synced | offline | error
+- Conflict: revision wins, updatedAt tiebreak
+- Pull by `server_updated_at` cursor; push local pending ops first
 
-## Editor and Images
+## Editor & Images
 
-- ContentEditable editor with HTML sanitization on save and load.
-- Inline image upload supports paste/drop; images are compressed before upload.
-- Inline images use `data-image-id` and URLs are resolved via `ImageUrlManager`.
-- Saving indicator appears after idle; modal shows decrypting state until ready.
+- ContentEditable + HTML sanitization on save/load
+- Inline image: paste/drop, compressed before upload
+- `data-image-id` attrs, URLs via `ImageUrlManager`
+- Saving indicator after idle; decrypting state until ready
 
 ## UI Flows
 
-- Intro modal on first run.
-- Mode choice prompt once local notes exist.
-- Local vault unlock modal when device key missing.
-- Cloud auth modal for sign-in/sign-up.
-- Vault error modal on unlock failures.
+- Intro modal → first run
+- Mode choice → once local notes exist
+- Vault unlock → device key missing
+- Cloud auth → sign-in/sign-up
+- Vault error → unlock failures
 
-## Project Structure (high level)
+## Structure
 
 ```
 src/
-  components/        Calendar, NoteEditor, AppModals, SyncIndicator, AuthForm, VaultUnlock
-  controllers/       useAppController, useAppModalsController
-  contexts/          AppMode/UrlState/ActiveVault/NoteRepository providers
-  domain/            notes, sync, vault use cases
-  hooks/             note content/navigation/sync/auth/vault hooks
-  services/          vaultService, syncService
-  storage/           unified DB, crypto, repositories, keyring, sync
-  utils/             date, note rules, sanitization, URL state, images
-  styles/            reset/theme/components
-  lib/               supabase client
-  types/             shared types
+  components/    Calendar, NoteEditor, AppModals, SyncIndicator, AuthForm, VaultUnlock
+  controllers/   useAppController, useAppModalsController
+  contexts/      AppMode/UrlState/ActiveVault/NoteRepository providers
+  domain/        notes, sync, vault use cases
+  hooks/         note content/navigation/sync/auth/vault
+  services/      vaultService, syncService
+  storage/       unified DB, crypto, repositories, keyring, sync
+  utils/         date, note rules, sanitization, URL state, images
+  styles/        reset/theme/components
+  lib/           supabase client
+  types/         shared types
 ```
 
 ## XState Rules
 
-When writing or modifying XState machines, follow these rules to avoid runtime errors:
-
-1. **Ban dot-path targets → use #id targets.**
+1. **No dot-path targets → use #id targets**
 
    ```typescript
-   // BAD: Error-prone string paths
+   // BAD
    target: ".active.ready"
-   target: ".disabled"
 
-   // GOOD: Use explicit state IDs
-   states: {
-     disabled: { id: "disabled", ... },
-     active: {
-       states: {
-         ready: { id: "ready", ... }
-       }
-     }
-   }
-   target: "#disabled"
+   // GOOD
+   states: { ready: { id: "ready" } }
    target: "#ready"
    ```
 
-2. **Ban sendTo("id") → use actor references via system.get().**
+2. **No sendTo("id") → system.get() actor refs**
 
    ```typescript
-   // BAD: Throws if actor doesn't exist
+   // BAD
    actions: sendTo("syncResources", { type: "SYNC_NOW" });
 
-   // GOOD: Safe actor reference lookup
+   // GOOD
    actions: enqueueActions(({ system }) => {
-     const actor = system.get("syncResources");
-     if (actor) {
-       actor.send({ type: "SYNC_NOW" });
-     }
+     system.get("syncResources")?.send({ type: "SYNC_NOW" });
    });
    ```
 
-3. **Prefer inline actions/guards; use setup() maps only when you need reuse.**
+3. **Inline actions/guards preferred; setup() maps only for reuse**
 
    ```typescript
-   // BAD: String reference, error-prone, no type checking
-   guard: "isOnline",
-   actions: ["updateInputs", "setStatusIdle"],
+   // BAD
+   guard: "isOnline"
 
-   // GOOD: Inline with full type inference
+   // GOOD
    guard: ({ context }) => context.online,
-   actions: assign(({ event }) => ({
-     repository: event.repository,
-     status: SyncStatus.Idle,
-   })),
    ```
 
-These patterns ensure:
+## Agent Workflow
 
-- Compile-time checking where possible
-- Runtime safety for actor communication
-- Better type inference throughout
-
-## Agent Workflow Rules
-
-When running commands like `build`, `lint`, `type-check`, or `tests`:
-
-- **Always use a Haiku subagent** (`model: "haiku"`) to run these commands.
-- Have the subagent find specific errors/warnings or summarize the results.
-- Never run these commands directly in the main agent to save tokens in the main context window.
+Run build/lint/typecheck/tests via Haiku subagent (`model: "haiku"`). Never run directly in main agent — saves context tokens.
 
 ```typescript
-// Example: Run type-check with Haiku subagent
-Task tool with:
-  subagent_type: "Bash"
-  model: "haiku"
-  prompt: "Run `npm run type-check` and report any type errors found, or confirm all types pass."
+Task tool: subagent_type: "Bash", model: "haiku"
+prompt: "Run `npm run typecheck` and report errors or confirm pass."
 ```
 
 ## Reference Docs
 
-- `docs/app-spec.md` for full business logic and flows.
-- `docs/architecture.md` for layer boundaries.
-- `docs/data-flow.md` for local/cloud sync details.
-- `docs/key-derivation.md` for KEK/DEK and unlock flow.
+- `docs/app-spec.md` — business logic, flows
+- `docs/architecture.md` — layer boundaries
+- `docs/data-flow.md` — local/cloud sync
+- `docs/key-derivation.md` — KEK/DEK, unlock flow

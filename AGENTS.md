@@ -1,67 +1,62 @@
-# Ichinichi - Project Guide
+# Ichinichi
 
-## Overview
+## Communication Style
 
-Ichinichi is a minimalist daily notes app with a year-at-a-glance calendar. It is local-first with optional cloud sync. Notes are encrypted client-side and stored in IndexedDB. Only today's note is editable; past notes are read-only; future dates are disabled.
+Always use telegraph style: no articles, no filler, min tokens. Applies to all agent output — user-facing messages, internal reasoning, subagent prompts. Not for code comments or doc files.
 
-## Development Workflow
+---
 
-### Bug Fixing Process
+Minimalist daily notes app. Year-at-a-glance calendar. Local-first, optional cloud sync. Client-side encryption, IndexedDB. Today editable, past read-only, future disabled.
 
-When fixing a bug, always follow this process:
+## Dev Workflow
 
-1. **Create a test reproducing the bug first** — Write a failing test that demonstrates the bug before making any code changes. This ensures you understand the bug and provides a regression test.
-2. **Fix the bug** — Make the minimal changes needed to fix the issue.
-3. **Verify the test passes** — Run the test to confirm the fix works.
-4. **Run all tests** — Ensure no regressions with `npm test`.
-5. **Run type check** — Verify no type errors with `npm run typecheck`.
+### Bug Fix Process
+
+1. Write failing test reproducing bug first
+2. Fix with minimal changes
+3. Verify test passes
+4. `npm test` — no regressions
+5. `npm run typecheck` — no type errors
 
 ## Core Rules
 
-- One note per day, keyed by date string DD-MM-YYYY.
-- Today editable only; past read-only; future not clickable.
-- Empty note (no text and no images) deletes the note.
-- URL params drive navigation: ?date=DD-MM-YYYY opens a note, ?year=YYYY opens calendar.
-- Escape closes the note modal; left/right arrows navigate notes when not editing.
+- One note/day, key: DD-MM-YYYY
+- Empty note (no text, no images) → delete
+- URL params: ?date=DD-MM-YYYY note, ?year=YYYY calendar
+- Escape closes modal; arrows navigate when not editing
 
 ## Tech Stack
 
-- React 18 + TypeScript
-- Vite
-- IndexedDB for local persistence
-- Supabase for optional sync (auth, database, storage)
-- CSS custom properties for theming
+React 18 + TypeScript, Vite, IndexedDB, Supabase (optional sync), CSS custom properties
 
-## Architecture Layers
+## Architecture
 
-- UI: `src/components` (pure views).
-- Controllers: `src/controllers` (view models and orchestration).
-- Domain: `src/domain` (use cases for notes, vault, sync).
-- Infrastructure: `src/storage`, `src/services`, `src/lib` (crypto, persistence, backend).
+- UI: `src/components` — pure views
+- Controllers: `src/controllers` — view models, orchestration
+- Domain: `src/domain` — use cases (notes, vault, sync)
+- Infra: `src/storage`, `src/services`, `src/lib` — crypto, persistence, backend
 
 ## Key Patterns
 
 ### Error Handling
 
-The codebase uses a functional `Result<T, E>` pattern in the domain layer:
+Functional `Result<T, E>` in domain layer:
 
 ```typescript
-// src/domain/result.ts
 type Result<T, E> = { ok: true; value: T } | { ok: false; error: E };
 ```
 
-Domain-specific error types are discriminated unions in `src/domain/errors.ts`:
+Domain error types (discriminated unions in `src/domain/errors.ts`):
+- StorageError: NotFound | Corrupt | IO | Unknown
+- CryptoError: KeyMissing | EncryptFailed | DecryptFailed | Unknown
+- SyncError: Offline | Conflict | RemoteRejected | Unknown
+- VaultError: VaultLocked | KeyMissing | UnlockFailed | Unknown
 
-- `StorageError`: NotFound, Corrupt, IO, Unknown
-- `CryptoError`: KeyMissing, EncryptFailed, DecryptFailed, Unknown
-- `SyncError`: Offline, Conflict, RemoteRejected, Unknown
-- `VaultError`: VaultLocked, KeyMissing, UnlockFailed, Unknown
+**Inconsistency**: Result used in sync/gateway, NOT in repositories (return null) or hooks (try/catch). See `docs/effect-refactoring.md`.
 
-**Inconsistency warning**: Result pattern is used in sync/gateway code but NOT in repositories (which return `null` for errors) or hooks (which use try/catch). See `docs/effect-refactoring.md` for planned unification.
+### Async Pattern
 
-### Async Patterns
-
-Hooks use a `cancelled` flag pattern for cleanup:
+Hooks use `cancelled` flag for cleanup:
 
 ```typescript
 useEffect(() => {
@@ -71,137 +66,122 @@ useEffect(() => {
     if (!cancelled) dispatch({ type: "LOAD_SUCCESS", result });
   };
   void load();
-  return () => {
-    cancelled = true;
-  };
+  return () => { cancelled = true; };
 }, [date]);
 ```
 
-**Known issue**: This pattern prevents state updates but doesn't cancel in-flight operations. The operation runs to completion and the result is discarded.
+**Caveat**: prevents state updates only, in-flight ops run to completion.
 
-### Dependency Injection
+### DI
 
-- Domain layer defines interfaces (`Clock`, `Connectivity`, `KeyringProvider`, `SyncStateStore`)
-- Infrastructure implements them (`src/storage/runtimeAdapters.ts`)
-- React Context provides dependencies to hooks
-- Factory functions compose dependencies (`src/domain/notes/repositoryFactory.ts`)
-
-Some services are module-level singletons (`syncStateStore`, `pendingOpsSource`) while others are passed as parameters. This inconsistency is being addressed.
+- Domain defines interfaces (Clock, Connectivity, KeyringProvider, SyncStateStore)
+- Infra implements (`src/storage/runtimeAdapters.ts`)
+- React Context provides to hooks
+- Factories compose deps (`src/domain/notes/repositoryFactory.ts`)
+- Some services module-level singletons, others param-passed (inconsistency being addressed)
 
 ### State Machines
 
-Sync uses a reducer-based state machine (`src/domain/sync/stateMachine.ts`):
-
+Sync: reducer-based (`src/domain/sync/stateMachine.ts`):
 ```typescript
 type SyncPhase = "disabled" | "offline" | "ready" | "syncing" | "error";
-type SyncMachineEvent =
-  | { type: "INPUTS_CHANGED"; inputs: SyncMachineInputs }
-  | { type: "SYNC_REQUESTED"; intent: SyncIntent }
-  | { type: "SYNC_DISPATCHED" }
-  | { type: "SYNC_STARTED" }
-  | { type: "SYNC_FINISHED"; status: SyncStatus };
 ```
 
-Note content also uses a state machine in `useLocalNoteContent.ts`:
-
+Note content: state machine in `useLocalNoteContent.ts`:
 ```typescript
-type LocalNoteState =
-  | { status: "idle"; ... }
-  | { status: "loading"; ... }
-  | { status: "ready"; ... }
-  | { status: "error"; ... };
+type LocalNoteState = { status: "idle" | "loading" | "ready" | "error"; ... };
 ```
 
 ## App Modes
 
-- Local mode (default): single unified IndexedDB dataset; no account required.
-- Cloud mode (opt-in): Supabase auth + encrypted sync; local cache remains source of truth.
+- Local (default): unified IndexedDB, no account
+- Cloud (opt-in): Supabase auth + encrypted sync, local cache = source of truth
 
 ## Data Model (src/types/index.ts)
 
-- Note: date, content (sanitized HTML), updatedAt.
-- SyncedNote: note + revision, serverUpdatedAt?, deleted?.
-- NoteImage: id, noteDate, type (background|inline), filename, mimeType, width, height, size, createdAt.
+- Note: date, content (sanitized HTML), updatedAt
+- SyncedNote: note + revision, serverUpdatedAt?, deleted?
+- NoteImage: id, noteDate, type (background|inline), filename, mimeType, width, height, size, createdAt
 
-## Storage and Encryption
+## Storage & Encryption
 
-- Unified IndexedDB database: `dailynotes-unified` with stores `notes`, `note_meta`, `images`, `image_meta`, `sync_state`.
-- Notes and images are encrypted with AES-GCM; metadata stored separately.
-- Vault meta: localStorage key `dailynote_vault_meta_v1`.
-- Device key: non-exportable CryptoKey in IndexedDB (`dailynotes-vault`).
-- Password wrapping uses PBKDF2 (SHA-256, 600k iterations).
-- Cloud keyring stored in Supabase `user_keyrings`.
-- Cloud DEK cache stored in localStorage `dailynote_cloud_dek_cache_v1`.
-- Multi-key support: notes/images carry `key_id` to avoid re-encrypting on mode changes.
+- DB: `dailynotes-unified` → notes, note_meta, images, image_meta, sync_state
+- AES-GCM; metadata separate
+- Vault meta: localStorage `dailynote_vault_meta_v1`
+- Device key: non-exportable CryptoKey in IndexedDB (`dailynotes-vault`)
+- Password wrap: PBKDF2 SHA-256, 600k iterations
+- Cloud keyring: Supabase `user_keyrings`
+- Cloud DEK cache: localStorage `dailynote_cloud_dek_cache_v1`
+- Multi-key: `key_id` on notes/images, no re-encrypt on mode change
 
-## Sync (Cloud Mode)
+## Sync (Cloud)
 
-- Debounced sync on edits; immediate sync on note close and pagehide/beforeunload.
-- Status: idle, syncing, synced, offline, error.
-- Conflict resolution: revision wins; updatedAt breaks ties.
-- Remote updates pulled by `server_updated_at` cursor; local pending ops pushed first.
+- Debounced on edit; immediate on close + pagehide/beforeunload
+- Status: idle | syncing | synced | offline | error
+- Conflict: revision wins, updatedAt tiebreak
+- Pull by `server_updated_at` cursor; push pending ops first
 
-## Editor and Images
+## Editor & Images
 
-- ContentEditable editor with HTML sanitization on save and load.
-- Inline image upload supports paste/drop; images are compressed before upload.
-- Inline images use `data-image-id` and URLs are resolved via `ImageUrlManager`.
-- Saving indicator appears after idle; modal shows decrypting state until ready.
+- ContentEditable + HTML sanitization save/load
+- Inline image: paste/drop, compressed
+- `data-image-id` attrs, URLs via `ImageUrlManager`
+- Saving indicator after idle; decrypting state until ready
 
 ## UI Flows
 
-- Intro modal on first run.
-- Mode choice prompt once local notes exist.
-- Local vault unlock modal when device key missing.
-- Cloud auth modal for sign-in/sign-up.
-- Vault error modal on unlock failures.
+- Intro modal → first run
+- Mode choice → local notes exist
+- Vault unlock → device key missing
+- Cloud auth → sign-in/sign-up
+- Vault error → unlock failures
 
-## Project Structure (high level)
+## Structure
 
 ```
 src/
-  components/        Calendar, NoteEditor, AppModals, SyncIndicator, AuthForm, VaultUnlock
-  controllers/       useAppController, useAppModalsController
-  contexts/          AppMode/UrlState/ActiveVault/NoteRepository providers
-  domain/            notes, sync, vault use cases
-  hooks/             note content/navigation/sync/auth/vault hooks
-  services/          vaultService, syncService
-  storage/           unified DB, crypto, repositories, keyring, sync
-  utils/             date, note rules, sanitization, URL state, images
-  styles/            reset/theme/components
-  lib/               supabase client
-  types/             shared types
+  components/    Calendar, NoteEditor, AppModals, SyncIndicator, AuthForm, VaultUnlock
+  controllers/   useAppController, useAppModalsController
+  contexts/      AppMode/UrlState/ActiveVault/NoteRepository providers
+  domain/        notes, sync, vault use cases
+  hooks/         note content/navigation/sync/auth/vault
+  services/      vaultService, syncService
+  storage/       unified DB, crypto, repositories, keyring, sync
+  utils/         date, note rules, sanitization, URL state, images
+  styles/        reset/theme/components
+  lib/           supabase client
+  types/         shared types
 ```
 
 ## Reference Docs
 
-- `docs/app-spec.md` for full business logic and flows.
-- `docs/architecture.md` for layer boundaries.
-- `docs/data-flow.md` for local/cloud sync details.
-- `docs/key-derivation.md` for KEK/DEK and unlock flow.
-- `docs/effect-refactoring.md` for planned Effect adoption to fix async/cancellation issues.
+- `docs/app-spec.md` — business logic, flows
+- `docs/architecture.md` — layer boundaries
+- `docs/data-flow.md` — local/cloud sync
+- `docs/key-derivation.md` — KEK/DEK, unlock flow
+- `docs/effect-refactoring.md` — planned Effect adoption
 
-## Known Issues and Technical Debt
+## Known Issues & Tech Debt
 
 ### High-Severity Async Bugs
 
-These are documented in detail in `docs/effect-refactoring.md`:
+Detailed in `docs/effect-refactoring.md`:
 
-1. **useVault.ts:82-123** — `unlockingRef` not reset on cancellation; unlock can be permanently blocked
-2. **useUnifiedMigration.ts:28-67** — `isMigrating` in deps + set inside effect; migration can get stuck
-3. **useLocalNoteContent.ts:190-232** — Save queue captures stale repository/date; can save to wrong note
-4. **useNoteRemoteSync.ts:153-187** — Refresh uses refs for current date, not target; update applied to wrong note
+1. **useVault.ts:82-123** — `unlockingRef` not reset on cancel; unlock permanently blocked
+2. **useUnifiedMigration.ts:28-67** — `isMigrating` in deps + set in effect; migration stuck
+3. **useLocalNoteContent.ts:190-232** — save queue captures stale repo/date; saves wrong note
+4. **useNoteRemoteSync.ts:153-187** — refresh uses refs for current date not target; wrong note update
 
 ### Patterns to Avoid
 
-- **Multiple useEffects on shared state**: Leads to race conditions. Prefer single effect with state machine.
-- **Refs updated in one effect, read in async callbacks of another**: Values may be stale.
-- **`cancelled` flag without actual operation cancellation**: Side effects still run; only state updates are skipped.
-- **Fire-and-forget `void promise.then(...)`**: No tracking, no cancellation, no error handling.
+- Multiple useEffects on shared state → race conditions; prefer single effect + state machine
+- Refs updated in one effect, read in async callback of another → stale values
+- `cancelled` flag without operation cancellation → side effects still run
+- Fire-and-forget `void promise.then(...)` → no tracking/cancellation/error handling
 
-### Areas Needing Refactoring
+### Refactoring Needed
 
-- **Error handling inconsistency**: Repositories return `null`, gateways return `Result`, hooks use try/catch.
-- **Mixed DI patterns**: Some services are singletons, others are passed as params.
-- **Large files**: `unifiedSyncedNoteRepository.ts` (668 lines) should be split.
-- **No React Error Boundaries**: Runtime errors can crash the entire app.
+- Error handling inconsistent: repos null, gateways Result, hooks try/catch
+- Mixed DI: some singletons, some param-passed
+- `unifiedSyncedNoteRepository.ts` (668 lines) → split
+- No React Error Boundaries → runtime crash kills app
