@@ -202,6 +202,12 @@
   border-radius: 4px;
 }
 
+.content blockquote {
+  border-left: 3px solid var(--color-border);
+  margin: 0.5em 0;
+  padding: 0.25em 0 0.25em 1em;
+}
+
 .content a {
   color: var(--color-link);
   text-decoration: underline;

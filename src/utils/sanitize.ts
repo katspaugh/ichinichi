@@ -28,6 +28,7 @@ const SANITIZE_CONFIG = {
     "h5",
     "h6",
     "hr",
+    "blockquote",
   ],
   ALLOWED_ATTR: [
     "data-image-id",

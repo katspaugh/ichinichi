@@ -16,6 +16,8 @@
 
 button.indicator {
   cursor: pointer;
+  color: var(--color-text);
+  border-color: var(--color-border);
   transition: all var(--transition-fast);
 }
 
