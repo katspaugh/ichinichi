@@ -86,6 +86,10 @@ function App() {
       ? appMode.switchToCloud
       : undefined;
 
+  const handleSyncClick = useCallback(() => {
+    notes.triggerSync({ immediate: true });
+  }, [notes.triggerSync]);
+
   // Sign out handler for settings sidebar
   const signOutHandler =
     appMode.mode === AppMode.Cloud && auth.authState === AuthState.SignedIn
@@ -148,6 +152,7 @@ function App() {
                     pendingOps={canSync ? notes.pendingOps : undefined}
                     onMenuClick={handleMenuClick}
                     onSignIn={signInHandler}
+                    onSyncClick={canSync ? handleSyncClick : undefined}
                   />
                 ) : (
                   <Calendar
@@ -166,6 +171,7 @@ function App() {
                     pendingOps={canSync ? notes.pendingOps : undefined}
                     onMenuClick={handleMenuClick}
                     onSignIn={signInHandler}
+                    onSyncClick={canSync ? handleSyncClick : undefined}
                   />
                 )}
 

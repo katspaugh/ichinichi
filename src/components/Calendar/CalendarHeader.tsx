@@ -17,6 +17,7 @@ interface CalendarHeaderProps {
   pendingOps?: PendingOpsSummary;
   onMenuClick?: () => void;
   onSignIn?: () => void;
+  onSyncClick?: () => void;
 }
 
 export function CalendarHeader({
@@ -31,6 +32,7 @@ export function CalendarHeader({
   pendingOps,
   onMenuClick,
   onSignIn,
+  onSyncClick,
 }: CalendarHeaderProps) {
   return (
     <Header
@@ -40,6 +42,7 @@ export function CalendarHeader({
       onLogoClick={onLogoClick}
       onMenuClick={onMenuClick}
       onSignIn={onSignIn}
+      onSyncClick={onSyncClick}
     >
       {month == null ? (
         <>

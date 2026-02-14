@@ -16,14 +16,21 @@
 
 button.indicator {
   cursor: pointer;
-  color: var(--color-text);
-  border-color: var(--color-border);
   transition: all var(--transition-fast);
 }
 
-button.indicator:hover {
+button.indicator:not(.synced) {
+  color: var(--color-text);
+  border-color: var(--color-border);
+}
+
+button.indicator:not(.synced):hover {
   color: var(--color-text);
   border-color: var(--color-text-muted);
+}
+
+button.indicator.synced:hover {
+  opacity: 0.7;
 }
 
 .synced {

@@ -7,6 +7,7 @@ interface SyncIndicatorProps {
   pendingOps?: PendingOpsSummary;
   errorMessage?: string;
   onSignIn?: () => void;
+  onSyncClick?: () => void;
 }
 
 export function SyncIndicator({
@@ -14,6 +15,7 @@ export function SyncIndicator({
   pendingOps,
   errorMessage,
   onSignIn,
+  onSyncClick,
 }: SyncIndicatorProps) {
   const hasPendingOps = (pendingOps?.total ?? 0) > 0;
 
@@ -60,6 +62,17 @@ export function SyncIndicator({
     pending: styles.pending,
   };
   const statusClass = statusClassMap[classSuffix];
+
+  if (onSyncClick && status === SyncStatus.Synced) {
+    return (
+      <button
+        className={[styles.indicator, statusClass].filter(Boolean).join(" ")}
+        onClick={onSyncClick}
+      >
+        {label}
+      </button>
+    );
+  }
 
   return (
     <span
