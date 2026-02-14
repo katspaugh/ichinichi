@@ -24,10 +24,10 @@ export function useVisualViewport(active: boolean): void {
     function sync() {
       const vv = window.visualViewport;
       if (!vv) return;
-      // +100 compensates for iOS keyboard accessory bar / toolbar not
+      // +120 compensates for iOS keyboard accessory bar / toolbar not
       // being reflected in visualViewport. Capped at innerHeight so the
       // value never exceeds the full viewport when keyboard is closed.
-      const usable = Math.min(vv.offsetTop + vv.height + 100, window.innerHeight);
+      const usable = Math.min(vv.offsetTop + vv.height + 120, window.innerHeight);
       document.documentElement.style.setProperty("--vvh", `${usable}px`);
     }
 
