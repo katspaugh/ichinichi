@@ -68,7 +68,8 @@ export function Calendar({
       '[data-current-month="true"]',
     );
     if (currentMonthEl instanceof HTMLElement) {
-      currentMonthEl.scrollIntoView({ block: "start", behavior: "smooth" });
+      // Use instant scroll so snap doesn't fight smooth animation
+      currentMonthEl.scrollIntoView({ block: "start", behavior: "instant" });
       hasAutoScrolledRef.current = true;
     }
   }, [year]);

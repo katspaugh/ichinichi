@@ -99,8 +99,30 @@
   .calendar {
     padding: var(--spacing-md);
     padding-top: 0;
-    height: auto;
+    height: 100dvh;
     min-height: 0;
+    overflow: hidden;
+  }
+
+  .calendar[data-month-view="true"] {
+    height: auto;
+    overflow: visible;
+  }
+
+  .grid:not([data-month-view="true"]) {
+    overflow-y: auto;
+    scroll-snap-type: y mandatory;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .grid:not([data-month-view="true"])::-webkit-scrollbar {
+    display: none;
+  }
+
+  .grid:not([data-month-view="true"]) > * {
+    scroll-snap-align: start;
   }
 
   .yearMonth {

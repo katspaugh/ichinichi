@@ -1,6 +1,6 @@
 import {
   formatWeatherLabel,
-  hasWeather,
+  hasWeatherAttr,
   clearWeatherFromEditor,
   getPendingWeatherHrs,
   applyWeatherToHr,
@@ -18,165 +18,282 @@ function makeWeather(overrides?: Partial<WeatherData>): WeatherData {
   };
 }
 
-function createEditor(): HTMLDivElement {
-  const editor = document.createElement("div");
-  document.body.appendChild(editor);
-  return editor;
+interface MockNode {
+  type: { name: string };
+  attrs: Record<string, unknown>;
+  nodeSize: number;
 }
 
-function addHr(
-  editor: HTMLElement,
-  attrs?: Record<string, string>,
-): HTMLHRElement {
-  const hr = document.createElement("hr");
-  if (attrs) {
-    for (const [key, value] of Object.entries(attrs)) {
-      hr.setAttribute(key, value);
-    }
-  }
-  editor.appendChild(hr);
-  return hr;
+function makeMockNode(
+  attrs: Record<string, unknown>,
+  typeName = "timestampHorizontalRule",
+): MockNode {
+  return {
+    type: { name: typeName },
+    attrs: { ...attrs },
+    nodeSize: 1,
+  };
 }
 
-afterEach(() => {
-  document.body.innerHTML = "";
-});
+/**
+ * Creates a minimal mock Editor with a flat list of nodes.
+ * `descendants` iterates over them; `nodeAt` looks up by position.
+ */
+function makeMockEditor(nodes: MockNode[]) {
+  const dispatched: unknown[] = [];
+
+  const doc = {
+    descendants(cb: (node: MockNode, pos: number) => void) {
+      nodes.forEach((node, i) => cb(node, i));
+    },
+    nodeAt(pos: number): MockNode | null {
+      return nodes[pos] ?? null;
+    },
+  };
+
+  const setNodeMarkupCalls: Array<{
+    pos: number;
+    type: undefined;
+    attrs: Record<string, unknown>;
+  }> = [];
+
+  const tr = {
+    setNodeMarkup(
+      pos: number,
+      type: undefined,
+      attrs: Record<string, unknown>,
+    ) {
+      setNodeMarkupCalls.push({ pos, type, attrs });
+      // Also update the mock node so subsequent reads reflect the change
+      if (nodes[pos]) {
+        nodes[pos].attrs = { ...attrs };
+      }
+    },
+  };
+
+  const editor = {
+    state: { doc, tr },
+    view: {
+      dispatch(transaction: unknown) {
+        dispatched.push(transaction);
+      },
+    },
+  };
+
+  return { editor, dispatched, setNodeMarkupCalls };
+}
 
 describe("formatWeatherLabel", () => {
   it("formats with city, temperature, and icon", () => {
-    const weather = makeWeather({ city: "Berlin", temperature: 15, unit: "C", icon: "☁️" });
+    const weather = makeWeather({
+      city: "Berlin",
+      temperature: 15,
+      unit: "C",
+      icon: "☁️",
+    });
     expect(formatWeatherLabel(weather)).toBe("Berlin, 15°C ☁️");
   });
 
   it("formats with Fahrenheit", () => {
-    const weather = makeWeather({ city: "NYC", temperature: 72, unit: "F", icon: "🌤️" });
+    const weather = makeWeather({
+      city: "NYC",
+      temperature: 72,
+      unit: "F",
+      icon: "🌤️",
+    });
     expect(formatWeatherLabel(weather)).toBe("NYC, 72°F 🌤️");
   });
 
   it("omits city when empty", () => {
-    const weather = makeWeather({ city: "", temperature: 10, unit: "C", icon: "🌧️" });
+    const weather = makeWeather({
+      city: "",
+      temperature: 10,
+      unit: "C",
+      icon: "🌧️",
+    });
     expect(formatWeatherLabel(weather)).toBe("10°C 🌧️");
   });
 
   it("handles negative temperatures", () => {
-    const weather = makeWeather({ city: "Oslo", temperature: -5, unit: "C", icon: "❄️" });
+    const weather = makeWeather({
+      city: "Oslo",
+      temperature: -5,
+      unit: "C",
+      icon: "❄️",
+    });
     expect(formatWeatherLabel(weather)).toBe("Oslo, -5°C ❄️");
   });
 
   it("handles zero temperature", () => {
-    const weather = makeWeather({ city: "Moscow", temperature: 0, unit: "C", icon: "🌨️" });
+    const weather = makeWeather({
+      city: "Moscow",
+      temperature: 0,
+      unit: "C",
+      icon: "🌨️",
+    });
     expect(formatWeatherLabel(weather)).toBe("Moscow, 0°C 🌨️");
   });
 });
 
-describe("hasWeather", () => {
-  it("returns false for plain HR", () => {
-    const editor = createEditor();
-    const hr = addHr(editor);
-    expect(hasWeather(hr)).toBe(false);
+describe("hasWeatherAttr", () => {
+  it("returns false when no weather attr", () => {
+    expect(hasWeatherAttr({ timestamp: "123" })).toBe(false);
   });
 
-  it("returns true for HR with data-weather attribute", () => {
-    const editor = createEditor();
-    const hr = addHr(editor, { "data-weather": "Tokyo, 22°C ☀️" });
-    expect(hasWeather(hr)).toBe(true);
+  it("returns true when weather attr is set", () => {
+    expect(hasWeatherAttr({ weather: "Tokyo, 22°C ☀️" })).toBe(true);
   });
 
-  it("returns true even if data-weather is empty string", () => {
-    const editor = createEditor();
-    const hr = addHr(editor, { "data-weather": "" });
-    expect(hasWeather(hr)).toBe(true);
+  it("returns false when weather is null", () => {
+    expect(hasWeatherAttr({ weather: null })).toBe(false);
+  });
+
+  it("returns false when weather is empty string", () => {
+    expect(hasWeatherAttr({ weather: "" })).toBe(false);
   });
 });
 
 describe("clearWeatherFromEditor", () => {
-  it("removes data-weather from all HRs", () => {
-    const editor = createEditor();
-    const hr1 = addHr(editor, { "data-weather": "A" });
-    const hr2 = addHr(editor, { "data-weather": "B" });
+  it("removes weather from all timestamp HRs", () => {
+    const nodes = [
+      makeMockNode({ timestamp: "1", weather: "A" }),
+      makeMockNode({ timestamp: "2", weather: "B" }),
+    ];
+    const { editor, dispatched, setNodeMarkupCalls } = makeMockEditor(nodes);
 
-    const changed = clearWeatherFromEditor(editor);
+    const changed = clearWeatherFromEditor(editor as never);
 
     expect(changed).toBe(true);
-    expect(hr1.hasAttribute("data-weather")).toBe(false);
-    expect(hr2.hasAttribute("data-weather")).toBe(false);
+    expect(dispatched).toHaveLength(1);
+    expect(setNodeMarkupCalls).toHaveLength(2);
+    expect(setNodeMarkupCalls[0].attrs.weather).toBeNull();
+    expect(setNodeMarkupCalls[1].attrs.weather).toBeNull();
   });
 
   it("returns false when no HRs have weather", () => {
-    const editor = createEditor();
-    addHr(editor);
+    const nodes = [makeMockNode({ timestamp: "1" })];
+    const { editor, dispatched } = makeMockEditor(nodes);
 
-    const changed = clearWeatherFromEditor(editor);
+    const changed = clearWeatherFromEditor(editor as never);
+
     expect(changed).toBe(false);
+    expect(dispatched).toHaveLength(0);
   });
 
-  it("only removes data-weather, preserves other attributes", () => {
-    const editor = createEditor();
-    const hr = addHr(editor, {
-      "data-weather": "Tokyo, 22°C",
-      "data-timestamp": "1234567890",
-    });
+  it("preserves other attributes when clearing weather", () => {
+    const nodes = [
+      makeMockNode({ timestamp: "1", label: "10:30 AM", weather: "Tokyo" }),
+    ];
+    const { editor, setNodeMarkupCalls } = makeMockEditor(nodes);
 
-    clearWeatherFromEditor(editor);
+    clearWeatherFromEditor(editor as never);
 
-    expect(hr.hasAttribute("data-weather")).toBe(false);
-    expect(hr.getAttribute("data-timestamp")).toBe("1234567890");
+    expect(setNodeMarkupCalls[0].attrs.timestamp).toBe("1");
+    expect(setNodeMarkupCalls[0].attrs.label).toBe("10:30 AM");
+    expect(setNodeMarkupCalls[0].attrs.weather).toBeNull();
+  });
+
+  it("ignores non-timestampHorizontalRule nodes", () => {
+    const nodes = [
+      makeMockNode({ weather: "A" }, "paragraph"),
+      makeMockNode({ timestamp: "1", weather: "B" }),
+    ];
+    const { editor, setNodeMarkupCalls } = makeMockEditor(nodes);
+
+    clearWeatherFromEditor(editor as never);
+
+    expect(setNodeMarkupCalls).toHaveLength(1);
+    expect(setNodeMarkupCalls[0].pos).toBe(1);
   });
 });
 
 describe("getPendingWeatherHrs", () => {
-  it("returns HRs with data-timestamp but no data-weather", () => {
-    const editor = createEditor();
-    addHr(editor, { "data-timestamp": "123" }); // pending
-    addHr(editor, { "data-timestamp": "456", "data-weather": "done" }); // done
-    addHr(editor); // no timestamp
+  it("returns HRs with timestamp but no weather", () => {
+    const nodes = [
+      makeMockNode({ timestamp: "123" }), // pending
+      makeMockNode({ timestamp: "456", weather: "done" }), // done
+      makeMockNode({}), // no timestamp
+    ];
+    const { editor } = makeMockEditor(nodes);
 
-    const pending = getPendingWeatherHrs(editor);
+    const pending = getPendingWeatherHrs(editor as never);
+
     expect(pending).toHaveLength(1);
-    expect(pending[0].getAttribute("data-timestamp")).toBe("123");
+    expect(pending[0].timestamp).toBe("123");
+    expect(pending[0].pos).toBe(0);
   });
 
   it("returns empty array when no pending HRs", () => {
-    const editor = createEditor();
-    addHr(editor, { "data-timestamp": "123", "data-weather": "done" });
+    const nodes = [
+      makeMockNode({ timestamp: "123", weather: "done" }),
+    ];
+    const { editor } = makeMockEditor(nodes);
 
-    expect(getPendingWeatherHrs(editor)).toHaveLength(0);
+    expect(getPendingWeatherHrs(editor as never)).toHaveLength(0);
   });
 
   it("returns multiple pending HRs in order", () => {
-    const editor = createEditor();
-    addHr(editor, { "data-timestamp": "a" });
-    addHr(editor, { "data-timestamp": "b" });
-    addHr(editor, { "data-timestamp": "c" });
+    const nodes = [
+      makeMockNode({ timestamp: "a" }),
+      makeMockNode({ timestamp: "b" }),
+      makeMockNode({ timestamp: "c" }),
+    ];
+    const { editor } = makeMockEditor(nodes);
 
-    const pending = getPendingWeatherHrs(editor);
+    const pending = getPendingWeatherHrs(editor as never);
+
     expect(pending).toHaveLength(3);
-    expect(pending.map((hr) => hr.getAttribute("data-timestamp"))).toEqual([
-      "a",
-      "b",
-      "c",
-    ]);
+    expect(pending.map((hr) => hr.timestamp)).toEqual(["a", "b", "c"]);
+    expect(pending.map((hr) => hr.pos)).toEqual([0, 1, 2]);
   });
 });
 
 describe("applyWeatherToHr", () => {
-  it("sets data-weather attribute with formatted label", () => {
-    const editor = createEditor();
-    const hr = addHr(editor, { "data-timestamp": "123" });
-    const weather = makeWeather({ city: "London", temperature: 18, icon: "🌤️" });
+  it("sets weather attribute with formatted label", () => {
+    const nodes = [makeMockNode({ timestamp: "123" })];
+    const { editor, dispatched, setNodeMarkupCalls } = makeMockEditor(nodes);
+    const weather = makeWeather({
+      city: "London",
+      temperature: 18,
+      icon: "🌤️",
+    });
 
-    applyWeatherToHr(hr, weather);
+    applyWeatherToHr(editor as never, 0, weather);
 
-    expect(hr.getAttribute("data-weather")).toBe("London, 18°C 🌤️");
+    expect(dispatched).toHaveLength(1);
+    expect(setNodeMarkupCalls[0].attrs.weather).toBe("London, 18°C 🌤️");
   });
 
-  it("overwrites existing data-weather", () => {
-    const editor = createEditor();
-    const hr = addHr(editor, { "data-weather": "old value" });
-    const weather = makeWeather({ city: "Paris", temperature: 25, icon: "☀️" });
+  it("overwrites existing weather", () => {
+    const nodes = [makeMockNode({ timestamp: "1", weather: "old value" })];
+    const { editor, setNodeMarkupCalls } = makeMockEditor(nodes);
+    const weather = makeWeather({
+      city: "Paris",
+      temperature: 25,
+      icon: "☀️",
+    });
 
-    applyWeatherToHr(hr, weather);
+    applyWeatherToHr(editor as never, 0, weather);
 
-    expect(hr.getAttribute("data-weather")).toBe("Paris, 25°C ☀️");
+    expect(setNodeMarkupCalls[0].attrs.weather).toBe("Paris, 25°C ☀️");
+  });
+
+  it("does nothing if node at pos is not a timestampHorizontalRule", () => {
+    const nodes = [makeMockNode({}, "paragraph")];
+    const { editor, dispatched } = makeMockEditor(nodes);
+    const weather = makeWeather();
+
+    applyWeatherToHr(editor as never, 0, weather);
+
+    expect(dispatched).toHaveLength(0);
+  });
+
+  it("does nothing if no node at pos", () => {
+    const { editor, dispatched } = makeMockEditor([]);
+    const weather = makeWeather();
+
+    applyWeatherToHr(editor as never, 5, weather);
+
+    expect(dispatched).toHaveLength(0);
   });
 });
