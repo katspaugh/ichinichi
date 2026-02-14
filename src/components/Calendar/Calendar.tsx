@@ -18,6 +18,7 @@ interface CalendarProps {
   pendingOps?: PendingOpsSummary;
   onMenuClick?: () => void;
   onSignIn?: () => void;
+  onSyncClick?: () => void;
   now?: Date;
   weekStartVersion?: number;
 }
@@ -35,6 +36,7 @@ export function Calendar({
   pendingOps,
   onMenuClick,
   onSignIn,
+  onSyncClick,
   now,
   weekStartVersion,
 }: CalendarProps) {
@@ -88,6 +90,7 @@ export function Calendar({
         pendingOps={pendingOps}
         onMenuClick={onMenuClick}
         onSignIn={onSignIn}
+        onSyncClick={onSyncClick}
       />
       <CalendarGrid
         year={year}

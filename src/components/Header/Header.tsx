@@ -60,6 +60,7 @@ interface HeaderProps {
   onLogoClick?: () => void;
   onMenuClick?: () => void;
   onSignIn?: () => void;
+  onSyncClick?: () => void;
 }
 
 export function Header({
@@ -70,6 +71,7 @@ export function Header({
   onLogoClick,
   onMenuClick,
   onSignIn,
+  onSyncClick,
 }: HeaderProps) {
   return (
     <header className={styles.header}>
@@ -89,6 +91,7 @@ export function Header({
             pendingOps={pendingOps}
             errorMessage={syncError ?? undefined}
             onSignIn={onSignIn}
+            onSyncClick={onSyncClick}
           />
         </ErrorBoundary>
         <button

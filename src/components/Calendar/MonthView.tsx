@@ -31,6 +31,7 @@ interface MonthViewProps {
   pendingOps?: PendingOpsSummary;
   onMenuClick?: () => void;
   onSignIn?: () => void;
+  onSyncClick?: () => void;
   now?: Date;
   weekStartVersion?: number;
 }
@@ -57,6 +58,7 @@ export function MonthView({
   pendingOps,
   onMenuClick,
   onSignIn,
+  onSyncClick,
   now,
   weekStartVersion,
 }: MonthViewProps) {
@@ -103,6 +105,7 @@ export function MonthView({
         pendingOps={pendingOps}
         onMenuClick={onMenuClick}
         onSignIn={onSignIn}
+        onSyncClick={onSyncClick}
       />
       <MonthViewLayout
         year={year}
