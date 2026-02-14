@@ -162,16 +162,11 @@ export const TimestampHorizontalRule = Node.create<TimestampHorizontalRuleOption
         },
 
         appendTransaction(transactions, oldState, newState) {
-          // Only process user edits that add actual text content, not just
-          // structural changes like pressing Enter (paragraph splits).
-          // Compare text length as a simple heuristic.
+          // Only process user edits (doc changes)
           const hasDocChange = transactions.some(
             (tr) => tr.docChanged && !tr.getMeta("remote") && !tr.getMeta("timestampInsert"),
           );
           if (!hasDocChange) return null;
-          if (newState.doc.textContent.length <= oldState.doc.textContent.length) {
-            return null;
-          }
 
           const pluginState = timestampSessionPluginKey.getState(oldState);
           if (!pluginState) return null;
