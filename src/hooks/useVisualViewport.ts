@@ -24,7 +24,7 @@ export function useVisualViewport(active: boolean): void {
     function sync() {
       const vv = window.visualViewport;
       if (!vv) return;
-      const usable = vv.offsetTop + vv.height;
+      const usable = vv.offsetTop + vv.height + 20;
       document.documentElement.style.setProperty("--vvh", `${usable}px`);
     }
 
