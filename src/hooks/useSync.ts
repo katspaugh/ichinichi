@@ -46,6 +46,16 @@ export function useSync(
     });
   }, [send, repository, syncEnabled, online, userId, supabase]);
 
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        send({ type: "WINDOW_FOCUSED" });
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [send]);
+
   const triggerSync = useCallback(
     (options?: { immediate?: boolean }) => {
       send({ type: "REQUEST_SYNC", immediate: Boolean(options?.immediate) });

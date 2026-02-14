@@ -906,6 +906,58 @@ describe("syncMachine", () => {
     });
   });
 
+  describe("window focus sync", () => {
+    it("should trigger immediate sync when WINDOW_FOCUSED is received in active state", () => {
+      const mockRepository = {
+        sync: jest.fn().mockResolvedValue({ ok: true, value: SyncStatus.Synced }),
+      };
+
+      const actor = createActor(syncMachine);
+      actor.start();
+
+      // Move to active state
+      actor.send({
+        type: "INPUTS_CHANGED",
+        repository: mockRepository as any,
+        enabled: true,
+        online: true,
+        userId: null,
+        supabase: null,
+      });
+
+      expect(actor.getSnapshot().value).toHaveProperty("active");
+
+      // Simulate window focus
+      actor.send({ type: "WINDOW_FOCUSED" });
+
+      // Machine should still be in active state (event is handled, sync requested)
+      expect(actor.getSnapshot().value).toHaveProperty("active");
+
+      // Simulate the sync flow triggered by WINDOW_FOCUSED
+      actor.send({ type: "SYNC_REQUESTED", intent: { immediate: true } });
+      actor.send({ type: "SYNC_STARTED" });
+
+      expect(actor.getSnapshot().value).toEqual({ active: "syncing" });
+      expect(actor.getSnapshot().context.status).toBe(SyncStatus.Syncing);
+
+      actor.stop();
+    });
+
+    it("should ignore WINDOW_FOCUSED when in disabled state", () => {
+      const actor = createActor(syncMachine);
+      actor.start();
+
+      expect(actor.getSnapshot().value).toBe("disabled");
+
+      // Should not throw or transition
+      actor.send({ type: "WINDOW_FOCUSED" });
+
+      expect(actor.getSnapshot().value).toBe("disabled");
+
+      actor.stop();
+    });
+  });
+
   describe("realtime events", () => {
     it("should set lastRealtimeChangedDate when REALTIME_NOTE_CHANGED is received", () => {
       const mockRepository = {
