@@ -98,6 +98,9 @@
 @media (max-width: 768px) {
   .calendar {
     padding: var(--spacing-md);
+    padding-top: 0;
+    height: auto;
+    min-height: 0;
   }
 
   .yearMonth {

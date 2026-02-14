@@ -95,9 +95,14 @@
 
 @media (max-width: 768px) {
   .header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background-color: var(--color-bg);
     flex-wrap: wrap;
     gap: var(--spacing-md);
     margin-bottom: var(--spacing-lg);
+    padding-top: var(--spacing-md);
   }
 
   .headerLeft {
