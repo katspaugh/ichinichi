@@ -33,13 +33,6 @@
 }
 
 @media (max-width: 768px) {
-  .modalWrapper {
-    height: 100vh;
-    height: 100dvh;
-    height: var(--vvh, 100dvh);
-    overflow: hidden;
-  }
-
   .editorWrapper {
     margin: 0;
     max-width: 100vw;
@@ -47,9 +40,10 @@
     padding: var(--spacing-lg) var(--spacing-xl);
     border: none;
     overflow-y: auto;
-    /* Fill remaining space after nav */
-    flex: 1;
-    min-height: 0;
+    /* Stop editor at the keyboard edge. Nav flows below (behind keyboard). */
+    max-height: 100vh;
+    max-height: 100dvh;
+    max-height: var(--vvh, 100dvh);
   }
 
   .nav {
@@ -57,7 +51,6 @@
     align-items: center;
     justify-content: space-between;
     padding: var(--spacing-lg);
-    flex-shrink: 0;
   }
 
   .rightArrow,
