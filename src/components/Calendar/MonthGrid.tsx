@@ -71,7 +71,7 @@ export function MonthGrid({
     }
 
     return weekGroups;
-  }, [year, month]);
+  }, [year, month, currentWeekStart]);
 
   return (
     <div
