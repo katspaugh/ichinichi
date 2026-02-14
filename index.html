@@ -49,21 +49,6 @@
       content="#0a0a0a"
     />
 
-    <!-- Prevent flash of wrong theme on load -->
-    <script>
-      (function () {
-        var d = document.documentElement,
-          t = localStorage.getItem("dailynote_theme_v1");
-        d.classList.add("no-transition");
-        if (t === "light" || t === "dark") d.setAttribute("data-theme", t);
-        requestAnimationFrame(function () {
-          requestAnimationFrame(function () {
-            d.classList.remove("no-transition");
-          });
-        });
-      })();
-    </script>
-
     <!-- Additional Meta Tags -->
     <meta
       name="keywords"
