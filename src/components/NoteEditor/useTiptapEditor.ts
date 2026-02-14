@@ -259,6 +259,34 @@ export function useTiptapEditor({
     }
   }, [editor, onImageDrop, onDropComplete]);
 
+  // Scroll cursor into view when virtual keyboard opens (viewport shrinks)
+  useEffect(() => {
+    if (!editor || editor.isDestroyed || !isEditable) return;
+
+    const vv = window.visualViewport;
+    if (!vv) return;
+
+    let prevHeight = vv.height;
+
+    function onResize() {
+      const vv = window.visualViewport;
+      if (!vv || !editor || editor.isDestroyed) return;
+
+      const shrank = vv.height < prevHeight;
+      prevHeight = vv.height;
+
+      if (!shrank || !editor.isFocused) return;
+
+      // Let the CSS variable (--vvh) update first, then scroll
+      requestAnimationFrame(() => {
+        editor.commands.scrollIntoView();
+      });
+    }
+
+    vv.addEventListener("resize", onResize);
+    return () => vv.removeEventListener("resize", onResize);
+  }, [editor, isEditable]);
+
   // Cancel pending serialization on unmount
   useEffect(() => {
     return () => {
