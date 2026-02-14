@@ -1,7 +1,5 @@
+import type { Editor } from "@tiptap/core";
 import type { WeatherData } from "./WeatherRepository";
-
-const WEATHER_ATTR = "data-weather";
-const TIMESTAMP_ATTR = "data-timestamp";
 
 export function formatWeatherLabel(weather: WeatherData): string {
   const temp = `${weather.temperature}°${weather.unit}`;
@@ -11,32 +9,61 @@ export function formatWeatherLabel(weather: WeatherData): string {
   return `${temp} ${weather.icon}`;
 }
 
-export function hasWeather(hr: HTMLHRElement): boolean {
-  return hr.hasAttribute(WEATHER_ATTR);
+export function hasWeatherAttr(attrs: Record<string, unknown>): boolean {
+  return !!attrs.weather;
 }
 
-export function clearWeatherFromEditor(editor: HTMLElement): boolean {
-  const hrs = editor.querySelectorAll<HTMLHRElement>(`hr[${WEATHER_ATTR}]`);
-  if (hrs.length === 0) return false;
-  hrs.forEach((hr) => {
-    hr.removeAttribute(WEATHER_ATTR);
+export function clearWeatherFromEditor(editor: Editor): boolean {
+  let found = false;
+  const { tr } = editor.state;
+
+  editor.state.doc.descendants((node, pos) => {
+    if (node.type.name === "timestampHorizontalRule" && node.attrs.weather) {
+      found = true;
+      tr.setNodeMarkup(pos, undefined, {
+        ...node.attrs,
+        weather: null,
+      });
+    }
   });
-  return true;
+
+  if (found) {
+    editor.view.dispatch(tr);
+  }
+  return found;
 }
 
-export function getPendingWeatherHrs(
-  editor: HTMLElement,
-): HTMLHRElement[] {
-  return Array.from(
-    editor.querySelectorAll<HTMLHRElement>(
-      `hr[${TIMESTAMP_ATTR}]:not([${WEATHER_ATTR}])`,
-    ),
-  );
+export interface PendingWeatherHr {
+  pos: number;
+  timestamp: string;
+}
+
+export function getPendingWeatherHrs(editor: Editor): PendingWeatherHr[] {
+  const result: PendingWeatherHr[] = [];
+  editor.state.doc.descendants((node, pos) => {
+    if (
+      node.type.name === "timestampHorizontalRule" &&
+      node.attrs.timestamp &&
+      !node.attrs.weather
+    ) {
+      result.push({ pos, timestamp: node.attrs.timestamp });
+    }
+  });
+  return result;
 }
 
 export function applyWeatherToHr(
-  hr: HTMLHRElement,
+  editor: Editor,
+  pos: number,
   weather: WeatherData,
 ): void {
-  hr.setAttribute(WEATHER_ATTR, formatWeatherLabel(weather));
+  const node = editor.state.doc.nodeAt(pos);
+  if (!node || node.type.name !== "timestampHorizontalRule") return;
+
+  const { tr } = editor.state;
+  tr.setNodeMarkup(pos, undefined, {
+    ...node.attrs,
+    weather: formatWeatherLabel(weather),
+  });
+  editor.view.dispatch(tr);
 }

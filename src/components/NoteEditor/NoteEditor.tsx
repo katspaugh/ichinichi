@@ -1,13 +1,12 @@
 import { useCallback } from "react";
-import type { DragEvent } from "react";
+import type { Editor } from "@tiptap/core";
 import { formatDateDisplay } from "../../utils/date";
 import { canEditNote } from "../../utils/noteRules";
 import { NoteEditorView } from "./NoteEditorView";
-import { useContentEditableEditor } from "./useContentEditableEditor";
+import { useTiptapEditor } from "./useTiptapEditor";
 import { useSavingIndicator } from "./useSavingIndicator";
-import { useInlineImageUpload, useInlineImageUrls } from "./useInlineImages";
+import { useInlineImageUpload } from "./useInlineImages";
 import { useImageDragState } from "./useImageDragState";
-import { useDropIndicator } from "./useDropIndicator";
 import { LocationPrompt } from "../LocationPrompt/LocationPrompt";
 import { useWeatherContext } from "../../contexts/weatherContext";
 
@@ -74,21 +73,13 @@ export function NoteEditor({
   });
 
   const handleWeatherClick = useCallback(
-    (hr: HTMLHRElement) => {
-      weather.requestPreciseForHr(hr);
+    (ed: Editor, pos: number) => {
+      weather.requestPreciseForHr(ed, pos);
     },
     [weather],
   );
 
-  const {
-    editorRef,
-    handleInput,
-    handlePaste,
-    handleDrop,
-    handleDragOver,
-    handleClick,
-    handleKeyDown,
-  } = useContentEditableEditor({
+  const { editor } = useTiptapEditor({
     content,
     isEditable,
     placeholderText,
@@ -105,64 +96,26 @@ export function NoteEditor({
 
   const handleLocationConfirm = useCallback(async () => {
     const applied = await weather.confirmPreciseForHr();
-    if (applied && editorRef.current) {
-      // Save content directly without triggering full input processing
-      // (which would insert a new timestamp HR)
-      onChange(editorRef.current.innerHTML);
+    if (applied && editor) {
+      // Trigger save after weather update
+      const html = editor.isEmpty ? "" : editor.getHTML();
+      onChange(html);
     }
     return applied;
-  }, [editorRef, onChange, weather]);
+  }, [editor, onChange, weather]);
 
   const handleLocationDeny = useCallback(() => {
     weather.dismissPrecisePrompt();
   }, [weather]);
 
-  const { indicatorPosition, updateIndicator, clearIndicator } =
-    useDropIndicator({
-      editorRef,
-      isEditable,
-      isDraggingImage,
-    });
-
-  const handleDragOverWithIndicator = useCallback(
-    (event: DragEvent<HTMLDivElement>) => {
-      handleDragOver(event);
-      updateIndicator(event);
-    },
-    [handleDragOver, updateIndicator],
-  );
-
-  const handleDropWithIndicator = useCallback(
-    (event: DragEvent<HTMLDivElement>) => {
-      clearIndicator();
-      handleDrop(event);
-    },
-    [clearIndicator, handleDrop],
-  );
-
-  useInlineImageUrls({
-    date,
-    content,
-    editorRef,
-  });
-
   return (
     <>
       <NoteEditorView
         formattedDate={formattedDate}
-        isEditable={isEditable}
         showReadonlyBadge={!canEdit}
         statusText={statusText}
-        placeholderText={placeholderText}
-        editorRef={editorRef}
-        onInput={handleInput}
-        onPaste={handlePaste}
-        onDrop={handleDropWithIndicator}
-        onDragOver={handleDragOverWithIndicator}
-        onClick={handleClick}
-        onKeyDown={handleKeyDown}
+        editor={editor}
         isDraggingImage={isDraggingImage}
-        dropIndicatorPosition={indicatorPosition}
         isBlurred={isBlurred}
       />
       <LocationPrompt
