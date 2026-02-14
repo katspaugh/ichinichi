@@ -162,11 +162,16 @@ export const TimestampHorizontalRule = Node.create<TimestampHorizontalRuleOption
         },
 
         appendTransaction(transactions, oldState, newState) {
-          // Only process user edits (doc changes)
+          // Only process user edits that add actual text content, not just
+          // structural changes like pressing Enter (paragraph splits).
+          // Compare text length as a simple heuristic.
           const hasDocChange = transactions.some(
             (tr) => tr.docChanged && !tr.getMeta("remote") && !tr.getMeta("timestampInsert"),
           );
           if (!hasDocChange) return null;
+          if (newState.doc.textContent.length <= oldState.doc.textContent.length) {
+            return null;
+          }
 
           const pluginState = timestampSessionPluginKey.getState(oldState);
           if (!pluginState) return null;
@@ -196,11 +201,15 @@ export const TimestampHorizontalRule = Node.create<TimestampHorizontalRuleOption
             return null;
           }
 
-          // Insert timestamp HR at beginning of document
+          // Insert timestamp HR before the block where the user is typing.
+          // This places it after existing content but before new input.
+          // On an empty note this is position 0 (the top).
           const { timestamp, label } = makeTimestampAttrs();
           const tr = newState.tr;
+          const { $from } = newState.selection;
+          const insertPos = $from.before($from.depth === 0 ? 1 : $from.depth);
           tr.insert(
-            0,
+            insertPos,
             extensionType.create({ timestamp, label }),
           );
           tr.setMeta("timestampInsert", true);
