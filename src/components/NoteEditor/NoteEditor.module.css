@@ -349,16 +349,16 @@
   }
 
   .editor {
-    height: 100%;
-    min-height: 0;
+    height: auto;
   }
 
   .body {
-    flex: 1;
-    min-height: 0;
+    flex: 0 0 auto;
+    min-height: auto;
   }
 
   .content {
-    min-height: 100%;
+    flex: 0 0 auto;
+    min-height: 50vh;
   }
 }

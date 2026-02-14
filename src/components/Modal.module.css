@@ -1,11 +1,6 @@
 .backdrop {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 100vh;
-  height: 100dvh;
-  height: var(--vvh, 100dvh);
+  inset: 0;
   background-color: var(--overlay-bg);
   backdrop-filter: var(--backdrop-blur);
   -webkit-backdrop-filter: var(--backdrop-blur);
