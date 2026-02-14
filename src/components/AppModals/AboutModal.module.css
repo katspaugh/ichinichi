@@ -19,9 +19,8 @@
 }
 
 .builder {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  justify-content: center;
   gap: 8px;
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
