@@ -36,7 +36,7 @@
   .modalWrapper {
     height: 100vh;
     height: 100dvh;
-    height: min(calc(var(--vvh, 100dvh) + 100px), 100dvh);
+    height: var(--vvh, 100dvh);
     overflow: hidden;
   }
 
