@@ -50,6 +50,7 @@ export function useTiptapEditor({
   const clearWeatherRef = useRef(clearWeatherFromEditor);
   const isWeatherEnabledRef = useRef(showWeather);
   const hasAutoFocusedRef = useRef(false);
+  const pendingUpdateRef = useRef<number | null>(null);
 
   // Keep refs in sync
   useEffect(() => {
@@ -145,18 +146,28 @@ export function useTiptapEditor({
       },
     },
     onUpdate({ editor: ed }) {
-      const html = ed.isEmpty ? "" : ed.getHTML();
-      if (html === lastContentRef.current) return;
-
-      lastContentRef.current = html;
-      isLocalEditRef.current = true;
-      onChangeRef.current(html);
+      // Signal user activity immediately (for saving indicator debounce)
       onUserInputRef.current?.();
 
-      // Apply weather to newly inserted HRs
-      if (isWeatherEnabledRef.current && applyWeatherRef.current) {
-        void applyWeatherRef.current(ed);
+      // Defer HTML serialization to avoid blocking input on every keystroke.
+      // Rapid edits are batched — only the last frame fires onChange.
+      if (pendingUpdateRef.current !== null) {
+        cancelAnimationFrame(pendingUpdateRef.current);
       }
+      pendingUpdateRef.current = requestAnimationFrame(() => {
+        pendingUpdateRef.current = null;
+        const html = ed.isEmpty ? "" : ed.getHTML();
+        if (html === lastContentRef.current) return;
+
+        lastContentRef.current = html;
+        isLocalEditRef.current = true;
+        onChangeRef.current(html);
+
+        // Apply weather to newly inserted HRs
+        if (isWeatherEnabledRef.current && applyWeatherRef.current) {
+          void applyWeatherRef.current(ed);
+        }
+      });
     },
   });
 
@@ -247,6 +258,15 @@ export function useTiptapEditor({
       imageExt.options.onDropComplete = onDropComplete;
     }
   }, [editor, onImageDrop, onDropComplete]);
+
+  // Cancel pending serialization on unmount
+  useEffect(() => {
+    return () => {
+      if (pendingUpdateRef.current !== null) {
+        cancelAnimationFrame(pendingUpdateRef.current);
+      }
+    };
+  }, []);
 
   return { editor };
 }
