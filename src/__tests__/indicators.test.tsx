@@ -2,7 +2,6 @@ import { render, screen } from "@testing-library/react";
 import { SyncIndicator } from "../components/SyncIndicator/SyncIndicator";
 import { NoteEditorView } from "../components/NoteEditor/NoteEditorView";
 import { SyncStatus } from "../types";
-import React from "react";
 
 /**
  * Tests for the "Saving..." and "Syncing..." indicators.
@@ -73,16 +72,8 @@ describe("SyncIndicator component", () => {
 describe("NoteEditorView status text", () => {
   const defaultProps = {
     formattedDate: "January 16, 2026",
-    isEditable: true,
     showReadonlyBadge: false,
-    placeholderText: "Write your note...",
-    editorRef: React.createRef<HTMLDivElement>(),
-    onInput: jest.fn(),
-    onPaste: jest.fn(),
-    onDrop: jest.fn(),
-    onDragOver: jest.fn(),
-    onClick: jest.fn(),
-    onKeyDown: jest.fn(),
+    editor: null,
     isDraggingImage: false,
   };
 

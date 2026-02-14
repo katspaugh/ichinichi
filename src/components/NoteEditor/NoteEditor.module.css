@@ -16,16 +16,6 @@
   opacity: 1;
 }
 
-.dropIndicator {
-  position: fixed;
-  height: 2px;
-  background-color: var(--color-link, #3b82f6);
-  pointer-events: none;
-  z-index: 41;
-  transform: translateY(-1px);
-  box-shadow: 0 0 4px var(--color-link, #3b82f6);
-}
-
 .header {
   display: flex;
   align-items: center;
@@ -119,15 +109,13 @@
   padding-bottom: 30dvh;
 }
 
-.content[data-empty="true"]::before {
+/* Tiptap placeholder — shown when editor is empty */
+.content :global(.is-editor-empty):first-child::before {
   content: attr(data-placeholder);
   color: var(--color-text-muted);
   pointer-events: none;
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  display: block;
+  float: left;
+  height: 0;
 }
 
 .content[contenteditable="false"] {

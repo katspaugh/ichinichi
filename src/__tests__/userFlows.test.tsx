@@ -234,10 +234,17 @@ function getEditor(): HTMLElement {
 }
 
 async function typeInEditor(text: string) {
-  const editor = getEditor();
-  editor.focus();
-  editor.innerHTML = text;
-  fireEvent.input(editor);
+  const editorEl = getEditor();
+  // Tiptap stores the Editor instance on the ProseMirror DOM element as `.editor`
+  const tiptapEditor = (editorEl as unknown as { editor?: { commands: { insertContent: (content: string) => void } } }).editor;
+  if (tiptapEditor) {
+    tiptapEditor.commands.insertContent(text);
+  } else {
+    // Fallback for environments where Tiptap editor isn't mounted
+    editorEl.focus();
+    editorEl.innerHTML = `<p>${text}</p>`;
+    fireEvent.input(editorEl);
+  }
 }
 
 async function closeNoteModal() {
@@ -333,7 +340,9 @@ describe("Local Mode User Flow", () => {
     const editor = getEditor();
     expect(editor.getAttribute("contenteditable")).toBe("true");
     expect(editor.getAttribute("aria-readonly")).toBe("false");
-    expect(editor.getAttribute("data-placeholder")).toBe(
+    // Tiptap's Placeholder extension sets data-placeholder on child nodes (paragraphs)
+    const placeholderNode = editor.querySelector("[data-placeholder]");
+    expect(placeholderNode?.getAttribute("data-placeholder")).toBe(
       "Write your note for today...",
     );
 
@@ -373,10 +382,8 @@ describe("Local Mode User Flow", () => {
     expect(getEditor().innerHTML).toContain(testContent);
 
     // ===== PART 6: Multiple Edits =====
-    const updatedContent = "Hello, this is my first note! And more content.";
-    const editorForUpdate = getEditor();
-    editorForUpdate.innerHTML = updatedContent;
-    fireEvent.input(editorForUpdate);
+    const additionalText = " And more content.";
+    await typeInEditor(additionalText);
 
     await act(async () => {
       await new Promise((r) => setTimeout(r, SAVE_IDLE_DELAY_MS + 100));
