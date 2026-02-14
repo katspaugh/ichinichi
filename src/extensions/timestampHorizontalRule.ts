@@ -1,5 +1,5 @@
-import { Node, mergeAttributes, nodeInputRule } from "@tiptap/core";
-import { Plugin, PluginKey } from "@tiptap/pm/state";
+import { Node, mergeAttributes, InputRule } from "@tiptap/core";
+import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
 import { getTimestampLabel } from "../services/timestampLabel";
 
 const ADDITION_WINDOW_MS = 10 * 60 * 1000;
@@ -99,12 +99,38 @@ export const TimestampHorizontalRule = Node.create<TimestampHorizontalRuleOption
   },
 
   addInputRules() {
+    const hrType = this.type;
+    const schema = this.editor.schema;
+
     return [
-      // Match --- or —- (mobile emdash) at start of line
-      nodeInputRule({
+      // Match --- or —- (mobile emdash) at start of line.
+      // Custom rule to replace the paragraph with HR + new paragraph,
+      // then place the cursor in the new paragraph.
+      new InputRule({
         find: /^\s*(---|—-)\s*$/,
-        type: this.type,
-        getAttributes: () => makeTimestampAttrs(),
+        handler: ({ state, range, match }) => {
+          const { tr } = state;
+          const $from = state.doc.resolve(range.from);
+
+          // Resolve the block that contains the match (the paragraph with ---)
+          const blockStart = $from.start($from.depth);
+          const blockEnd = $from.end($from.depth);
+
+          // Check that we're replacing an entire block
+          if (match[0].trim().length < 2) return;
+
+          const { timestamp, label } = makeTimestampAttrs();
+          const hrNode = hrType.create({ timestamp, label });
+          const newParagraph = schema.nodes.paragraph.create();
+
+          // Replace the entire paragraph block (including its boundaries)
+          // with the HR node + a new empty paragraph
+          tr.replaceWith(blockStart - 1, blockEnd + 1, [hrNode, newParagraph]);
+
+          // Place cursor inside the new paragraph (after the HR)
+          const cursorPos = blockStart - 1 + hrNode.nodeSize + 1;
+          tr.setSelection(TextSelection.create(tr.doc, cursorPos));
+        },
       }),
     ];
   },

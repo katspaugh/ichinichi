@@ -223,7 +223,12 @@
   height: 1px;
   background: var(--color-border);
   overflow: visible;
-  margin: var(--spacing-lg) calc(-1 * var(--spacing-xl));
+  margin: var(--spacing-md) calc(-1 * var(--spacing-xl));
+}
+
+/* Collapse gap between paragraph and immediately following HR */
+.content p + hr {
+  margin-top: var(--spacing-xs);
 }
 
 .content hr[data-timestamp][data-label]::before {
