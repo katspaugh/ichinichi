@@ -16,6 +16,16 @@
   opacity: 1;
 }
 
+.dropIndicator {
+  position: fixed;
+  height: 2px;
+  background-color: var(--color-link, #3b82f6);
+  pointer-events: none;
+  z-index: 41;
+  transform: translateY(-1px);
+  box-shadow: 0 0 4px var(--color-link, #3b82f6);
+}
+
 .header {
   display: flex;
   align-items: center;
@@ -109,13 +119,15 @@
   padding-bottom: 30dvh;
 }
 
-/* Tiptap placeholder — shown when editor is empty */
-.content :global(.is-editor-empty):first-child::before {
+.content[data-empty="true"]::before {
   content: attr(data-placeholder);
   color: var(--color-text-muted);
   pointer-events: none;
-  float: left;
-  height: 0;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: block;
 }
 
 .content[contenteditable="false"] {
@@ -225,7 +237,6 @@
   overflow: visible;
   margin: var(--spacing-lg) calc(-1 * var(--spacing-xl));
 }
-
 
 .content hr[data-timestamp][data-label]::before {
   content: attr(data-label);

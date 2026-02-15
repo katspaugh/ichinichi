@@ -1,12 +1,11 @@
 import { useCallback, useMemo, useReducer, useRef } from "react";
-import type { Editor } from "@tiptap/core";
 import { LocationProvider } from "./LocationProvider";
 import { WeatherRepository } from "./WeatherRepository";
 import {
   applyWeatherToHr,
   clearWeatherFromEditor,
   getPendingWeatherHrs,
-  hasWeatherAttr,
+  hasWeather,
 } from "./WeatherDom";
 import {
   getLocationKind,
@@ -69,8 +68,7 @@ function formatApproxLabel(city: string, country: string): string {
 export function useWeatherFeature() {
   const locationProvider = useMemo(() => new LocationProvider(), []);
   const weatherRepository = useMemo(() => new WeatherRepository(), []);
-  const pendingHrPosRef = useRef<number | null>(null);
-  const pendingEditorRef = useRef<Editor | null>(null);
+  const pendingHrRef = useRef<HTMLHRElement | null>(null);
 
   const [state, dispatch] = useReducer(weatherReducer, undefined, () => ({
     showWeather: getShowWeatherPreference(),
@@ -123,10 +121,10 @@ export function useWeatherFeature() {
     commitLocation(state.locationLabel, "precise");
   }, [commitLocation, locationProvider, state.locationLabel, state.unitPreference, weatherRepository]);
 
-  const applyWeatherToEditorFn = useCallback(
-    async (editor: Editor): Promise<boolean> => {
+  const applyWeatherToEditor = useCallback(
+    async (editor: HTMLElement): Promise<boolean> => {
       if (!state.showWeather) return false;
-      if (!editor.view.dom.isConnected) return false;
+      if (!editor.isConnected) return false;
 
       const pending = getPendingWeatherHrs(editor);
       if (pending.length === 0) return false;
@@ -161,15 +159,15 @@ export function useWeatherFeature() {
         lon,
         state.unitPreference,
       );
-      if (!weather || !editor.view.dom.isConnected) return false;
+      if (!weather || !editor.isConnected) return false;
 
       if (usedPrecise) {
         const nextLabel = weather.city || state.locationLabel || null;
         commitLocation(nextLabel, "precise");
       }
 
-      for (const { pos } of pending) {
-        applyWeatherToHr(editor, pos, weather);
+      for (const hr of pending) {
+        applyWeatherToHr(hr, weather);
       }
       return true;
     },
@@ -185,7 +183,7 @@ export function useWeatherFeature() {
   );
 
   const applyPreciseToHr = useCallback(
-    async (editor: Editor, pos: number): Promise<boolean> => {
+    async (hr: HTMLHRElement): Promise<boolean> => {
       const precise = await locationProvider.getPreciseLocation();
       if (!precise) return false;
 
@@ -195,9 +193,9 @@ export function useWeatherFeature() {
         state.unitPreference,
       );
       if (!weather) return false;
-      if (!editor.view.dom.isConnected) return false;
+      if (!hr.isConnected) return false;
 
-      applyWeatherToHr(editor, pos, weather);
+      applyWeatherToHr(hr, weather);
       const nextLabel = weather.city || state.locationLabel || null;
       commitLocation(nextLabel, "precise");
       return true;
@@ -212,30 +210,26 @@ export function useWeatherFeature() {
   );
 
   const requestPreciseForHr = useCallback(
-    (editor: Editor, pos: number) => {
+    (hr: HTMLHRElement) => {
       if (!state.showWeather) return;
-      pendingHrPosRef.current = pos;
-      pendingEditorRef.current = editor;
+      pendingHrRef.current = hr;
 
       void (async () => {
         const permission = await locationProvider.getPermissionState();
         if (permission === "granted") {
-          await applyPreciseToHr(editor, pos);
-          pendingHrPosRef.current = null;
-          pendingEditorRef.current = null;
+          await applyPreciseToHr(hr);
+          pendingHrRef.current = null;
           return;
         }
 
         if (permission === "denied" || permission === "unavailable") {
-          pendingHrPosRef.current = null;
-          pendingEditorRef.current = null;
+          pendingHrRef.current = null;
           return;
         }
 
         const shouldPrompt = await locationProvider.shouldShowPrompt();
         if (!shouldPrompt) {
-          pendingHrPosRef.current = null;
-          pendingEditorRef.current = null;
+          pendingHrRef.current = null;
           return;
         }
 
@@ -247,19 +241,16 @@ export function useWeatherFeature() {
   );
 
   const dismissPrecisePrompt = useCallback(() => {
-    pendingHrPosRef.current = null;
-    pendingEditorRef.current = null;
+    pendingHrRef.current = null;
     dispatch({ type: "SET_PROMPT_OPEN", value: false });
   }, []);
 
   const confirmPreciseForHr = useCallback(async (): Promise<boolean> => {
     dispatch({ type: "SET_PROMPT_OPEN", value: false });
-    const pos = pendingHrPosRef.current;
-    const editor = pendingEditorRef.current;
-    pendingHrPosRef.current = null;
-    pendingEditorRef.current = null;
-    if (pos === null || !editor) return false;
-    return applyPreciseToHr(editor, pos);
+    const hr = pendingHrRef.current;
+    pendingHrRef.current = null;
+    if (!hr) return false;
+    return applyPreciseToHr(hr);
   }, [applyPreciseToHr]);
 
   const resolvedUnit = resolveUnitPreference(state.unitPreference);
@@ -272,9 +263,9 @@ export function useWeatherFeature() {
     setShowWeather,
     setUnitPreference: setUnitPreferenceValue,
     refreshLocation,
-    applyWeatherToEditor: applyWeatherToEditorFn,
+    applyWeatherToEditor,
     clearWeatherFromEditor,
-    hasWeather: hasWeatherAttr,
+    hasWeather,
     requestPreciseForHr,
     confirmPreciseForHr,
     dismissPrecisePrompt,
