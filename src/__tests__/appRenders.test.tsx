@@ -229,26 +229,23 @@ describe("App initial render", () => {
 
     fireEvent.click(todayButton!);
 
-    // Wait for the editor to appear
+    // Wait for the editor to appear and become editable
     await waitFor(
       () => {
-        const editor = screen.getByRole("textbox");
+        const textboxes = screen.getAllByRole("textbox");
+        const editor = textboxes.find(
+          (el) => el.getAttribute("contenteditable") === "true",
+        );
         expect(editor).toBeTruthy();
-      },
-      { timeout: 3000 },
-    );
-
-    // Wait for the editor to become editable (content needs to load/decrypt)
-    await waitFor(
-      () => {
-        const editor = screen.getByRole("textbox");
-        expect(editor.getAttribute("contenteditable")).toBe("true");
       },
       { timeout: 5000 },
     );
 
     // Verify the editor is editable
-    const editor = screen.getByRole("textbox");
+    const textboxes = screen.getAllByRole("textbox");
+    const editor = textboxes.find(
+      (el) => el.getAttribute("contenteditable") === "true",
+    )!;
     expect(editor.getAttribute("contenteditable")).toBe("true");
     expect(editor.getAttribute("aria-readonly")).toBe("false");
   });

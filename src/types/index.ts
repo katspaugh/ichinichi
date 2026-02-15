@@ -1,6 +1,25 @@
+export type HabitType = "text" | "number" | "checkbox";
+
+export interface HabitDefinition {
+  id: string;
+  name: string;
+  type: HabitType;
+  order: number;
+}
+
+export interface HabitEntry {
+  name: string;
+  type: HabitType;
+  order: number;
+  value: string | number | boolean;
+}
+
+export type HabitValues = Record<string, HabitEntry>;
+
 export interface Note {
   date: string; // "DD-MM-YYYY"
   content: string;
+  habits?: HabitValues;
   updatedAt: string; // ISO timestamp
 }
 

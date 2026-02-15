@@ -4,6 +4,7 @@ import type {
   FormEvent,
   KeyboardEvent,
   MouseEvent,
+  ReactNode,
   RefObject,
 } from "react";
 import { NoteEditorHeader } from "./NoteEditorHeader";
@@ -27,6 +28,7 @@ interface NoteEditorViewProps {
   isDraggingImage?: boolean;
   dropIndicatorPosition?: DropIndicatorPosition | null;
   isBlurred?: boolean;
+  footer?: ReactNode;
 }
 
 export function NoteEditorView({
@@ -45,6 +47,7 @@ export function NoteEditorView({
   isDraggingImage = false,
   dropIndicatorPosition,
   isBlurred = false,
+  footer,
 }: NoteEditorViewProps) {
   const bodyClassName = `${styles.body} ${isBlurred ? styles.blurred : ""}`;
 
@@ -82,6 +85,7 @@ export function NoteEditorView({
           onKeyDown={onKeyDown}
         />
       </div>
+      {footer}
     </div>
   );
 }

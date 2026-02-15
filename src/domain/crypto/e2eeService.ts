@@ -1,15 +1,21 @@
 import type { KeyringProvider } from "./keyring";
+import type { HabitValues } from "../../types";
+
+export interface NotePayload {
+  content: string;
+  habits?: HabitValues;
+}
 
 export interface E2eeService {
   encryptNoteContent(
-    content: string,
+    payload: NotePayload,
     keyId?: string | null,
   ): Promise<{ ciphertext: string; nonce: string; keyId: string } | null>;
   decryptNoteRecord(record: {
     keyId?: string | null;
     ciphertext: string;
     nonce: string;
-  }): Promise<string | null>;
+  }): Promise<NotePayload | null>;
   encryptImageBlob(
     blob: Blob,
     keyId?: string | null,

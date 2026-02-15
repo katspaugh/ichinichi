@@ -11,6 +11,7 @@ import {
 import type { UnifiedSyncedNoteRepository } from "../domain/notes/hydratingSyncedNoteRepository";
 import type { NoteRepository } from "../storage/noteRepository";
 import type { ImageRepository } from "../storage/imageRepository";
+import type { HabitValues } from "../types";
 import { AppMode } from "./useAppMode";
 import { createHydratingSyncedNoteRepository } from "../domain/notes/hydratingSyncedNoteRepository";
 import { createRemoteNotesGateway } from "../storage/remoteNotesGateway";
@@ -47,6 +48,8 @@ export interface UseNoteRepositoryReturn {
   };
   content: string;
   setContent: (content: string) => void;
+  habits: HabitValues | undefined;
+  setHabits: (habits: HabitValues) => void;
   hasEdits: boolean;
   /** True when the note is being saved (dirty or saving state) */
   isSaving: boolean;
@@ -213,6 +216,8 @@ export function useNoteRepository({
   const {
     content,
     setContent,
+    habits,
+    setHabits,
     isDecrypting,
     hasEdits,
     isSaving,
@@ -253,6 +258,8 @@ export function useNoteRepository({
     capabilities,
     content,
     setContent,
+    habits,
+    setHabits,
     hasEdits,
     isSaving,
     hasNote,

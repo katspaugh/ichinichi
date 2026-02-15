@@ -2,6 +2,7 @@ import { Modal } from "../Modal";
 import { NavigationArrow } from "../NavigationArrow";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { NoteEditor } from "../NoteEditor";
+import type { HabitValues } from "../../types";
 import styles from "./NoteModal.module.css";
 
 interface NoteModalProps {
@@ -17,6 +18,8 @@ interface NoteModalProps {
   isOfflineStub: boolean;
   content: string;
   onChange: (content: string) => void;
+  habits?: HabitValues;
+  onHabitChange?: (habits: HabitValues) => void;
   canNavigatePrev: boolean;
   canNavigateNext: boolean;
   navigateToPrevious: () => void;
@@ -36,6 +39,8 @@ export function NoteModal({
   isOfflineStub,
   content,
   onChange,
+  habits,
+  onHabitChange,
   canNavigatePrev,
   canNavigateNext,
   navigateToPrevious,
@@ -61,6 +66,8 @@ export function NoteModal({
                 isDecrypting={isDecrypting}
                 isContentReady={isContentReady}
                 isOfflineStub={isOfflineStub}
+                habits={habits}
+                onHabitChange={onHabitChange}
               />
             </ErrorBoundary>
           </div>

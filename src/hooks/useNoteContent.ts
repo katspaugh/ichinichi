@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import type { NoteRepository } from "../storage/noteRepository";
+import type { HabitValues } from "../types";
 import { useConnectivity } from "./useConnectivity";
 import { useLocalNoteContent } from "./useLocalNoteContent";
 import { useNoteRemoteSync } from "./useNoteRemoteSync";
@@ -13,6 +14,8 @@ interface SaveSnapshot {
 export interface UseNoteContentReturn {
   content: string;
   setContent: (content: string) => void;
+  habits: HabitValues | undefined;
+  setHabits: (habits: HabitValues) => void;
   isDecrypting: boolean;
   hasEdits: boolean;
   /** True when the note is being saved (dirty or saving state) */
@@ -262,6 +265,8 @@ export function useNoteContent(
   return {
     content: local.content,
     setContent: local.setContent,
+    habits: local.habits,
+    setHabits: local.setHabits,
     isDecrypting: local.isLoading,
     hasEdits: local.hasEdits,
     isSaving: local.isSaving,

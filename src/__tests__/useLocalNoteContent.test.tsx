@@ -39,7 +39,7 @@ describe("useLocalNoteContent", () => {
     rerender({ date: "11-01-2026" });
 
     await waitFor(() =>
-      expect(repository.save).toHaveBeenCalledWith("10-01-2026", "draft"),
+      expect(repository.save).toHaveBeenCalledWith("10-01-2026", "draft", undefined),
     );
   });
 

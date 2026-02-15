@@ -1,4 +1,4 @@
-import type { Note } from "../types";
+import type { Note, HabitValues } from "../types";
 import type { NoteRepository } from "./noteRepository";
 import type { NoteMetaRecord, NoteRecord } from "./unifiedDb";
 import {
@@ -27,13 +27,14 @@ export function createUnifiedNoteRepository(
         if (!record || record.version !== 1) {
           return ok(null);
         }
-        const content = await e2ee.decryptNoteRecord(record);
-        if (!content) {
+        const payload = await e2ee.decryptNoteRecord(record);
+        if (!payload) {
           return err({ type: "DecryptFailed", message: "Failed to decrypt note" });
         }
         return ok({
           date: record.date,
-          content,
+          content: payload.content,
+          habits: payload.habits,
           updatedAt: record.updatedAt,
         });
       } catch (error) {
@@ -44,10 +45,10 @@ export function createUnifiedNoteRepository(
       }
     },
 
-    async save(date: string, content: string): Promise<Result<void, RepositoryError>> {
+    async save(date: string, content: string, habits?: HabitValues): Promise<Result<void, RepositoryError>> {
       try {
         const existingMeta = (await getNoteEnvelopeState(date)).meta;
-        const encrypted = await e2ee.encryptNoteContent(content);
+        const encrypted = await e2ee.encryptNoteContent({ content, habits });
         if (!encrypted) {
           return err({ type: "EncryptFailed", message: "Failed to encrypt note" });
         }

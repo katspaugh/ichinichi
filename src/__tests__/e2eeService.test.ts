@@ -42,7 +42,7 @@ describe("createE2eeService", () => {
       const keyring = createKeyringProvider(keys, "key-1");
       const service = createE2eeService(keyring);
 
-      const result = await service.encryptNoteContent("Hello, world!");
+      const result = await service.encryptNoteContent({ content: "Hello, world!" });
 
       expect(result).not.toBeNull();
       expect(result!.ciphertext).toBeTruthy();
@@ -60,7 +60,7 @@ describe("createE2eeService", () => {
       const keyring = createKeyringProvider(keys, "key-1");
       const service = createE2eeService(keyring);
 
-      const result = await service.encryptNoteContent("Hello", "key-2");
+      const result = await service.encryptNoteContent({ content: "Hello" }, "key-2");
 
       expect(result).not.toBeNull();
       expect(result!.keyId).toBe("key-2");
@@ -71,7 +71,7 @@ describe("createE2eeService", () => {
       const keyring = createKeyringProvider(keys, "missing-key");
       const service = createE2eeService(keyring);
 
-      const result = await service.encryptNoteContent("Hello");
+      const result = await service.encryptNoteContent({ content: "Hello" });
 
       expect(result).toBeNull();
     });
@@ -83,9 +83,9 @@ describe("createE2eeService", () => {
       const service = createE2eeService(keyring);
 
       // Encrypt content with XSS attempt
-      const encrypted = await service.encryptNoteContent(
-        '<script>alert("xss")</script>Hello',
-      );
+      const encrypted = await service.encryptNoteContent({
+        content: '<script>alert("xss")</script>Hello',
+      });
 
       // Decrypt to verify sanitization
       const record: NoteRecord = {
@@ -98,8 +98,8 @@ describe("createE2eeService", () => {
       };
 
       const decrypted = await service.decryptNoteRecord(record);
-      expect(decrypted).toBe("Hello");
-      expect(decrypted).not.toContain("script");
+      expect(decrypted!.content).toBe("Hello");
+      expect(decrypted!.content).not.toContain("script");
     });
 
     it("produces different ciphertext for same content (random IV)", async () => {
@@ -108,8 +108,8 @@ describe("createE2eeService", () => {
       const keyring = createKeyringProvider(keys, "key-1");
       const service = createE2eeService(keyring);
 
-      const result1 = await service.encryptNoteContent("Same content");
-      const result2 = await service.encryptNoteContent("Same content");
+      const result1 = await service.encryptNoteContent({ content: "Same content" });
+      const result2 = await service.encryptNoteContent({ content: "Same content" });
 
       expect(result1!.ciphertext).not.toBe(result2!.ciphertext);
       expect(result1!.nonce).not.toBe(result2!.nonce);
@@ -123,9 +123,9 @@ describe("createE2eeService", () => {
       const keyring = createKeyringProvider(keys, "key-1");
       const service = createE2eeService(keyring);
 
-      const encrypted = await service.encryptNoteContent(
-        "<p>Hello, <b>world</b>!</p>",
-      );
+      const encrypted = await service.encryptNoteContent({
+        content: "<p>Hello, <b>world</b>!</p>",
+      });
 
       const record: NoteRecord = {
         version: 1,
@@ -138,7 +138,7 @@ describe("createE2eeService", () => {
 
       const decrypted = await service.decryptNoteRecord(record);
 
-      expect(decrypted).toBe("<p>Hello, <b>world</b>!</p>");
+      expect(decrypted!.content).toBe("<p>Hello, <b>world</b>!</p>");
     });
 
     it("returns null when key not found", async () => {
@@ -147,7 +147,7 @@ describe("createE2eeService", () => {
       const keyring = createKeyringProvider(keys, "key-1");
       const service = createE2eeService(keyring);
 
-      const encrypted = await service.encryptNoteContent("Hello");
+      const encrypted = await service.encryptNoteContent({ content: "Hello" });
 
       // Remove the key
       keys.delete("key-1");
@@ -177,7 +177,7 @@ describe("createE2eeService", () => {
       const service = createE2eeService(keyring);
 
       // Encrypt with key-2
-      const encrypted = await service.encryptNoteContent("Secret", "key-2");
+      const encrypted = await service.encryptNoteContent({ content: "Secret" }, "key-2");
 
       const record: NoteRecord = {
         version: 1,
@@ -191,7 +191,7 @@ describe("createE2eeService", () => {
       // Should decrypt successfully using keyId from record
       const decrypted = await service.decryptNoteRecord(record);
 
-      expect(decrypted).toBe("Secret");
+      expect(decrypted!.content).toBe("Secret");
     });
 
     it("sanitizes decrypted content", async () => {
@@ -203,7 +203,7 @@ describe("createE2eeService", () => {
       // Note: sanitization happens both on encrypt and decrypt
       // Even if malicious content somehow got into the ciphertext,
       // it would be sanitized on decryption
-      const encrypted = await service.encryptNoteContent("<b>Safe</b>");
+      const encrypted = await service.encryptNoteContent({ content: "<b>Safe</b>" });
 
       const record: NoteRecord = {
         version: 1,
@@ -216,7 +216,7 @@ describe("createE2eeService", () => {
 
       const decrypted = await service.decryptNoteRecord(record);
 
-      expect(decrypted).toBe("<b>Safe</b>");
+      expect(decrypted!.content).toBe("<b>Safe</b>");
     });
   });
 
@@ -380,7 +380,7 @@ describe("createE2eeService", () => {
 
       const original = "<p>This is a <b>test</b> note with <i>formatting</i></p>";
 
-      const encrypted = await service.encryptNoteContent(original);
+      const encrypted = await service.encryptNoteContent({ content: original });
       const record: NoteRecord = {
         version: 1,
         date: "01-01-2024",
@@ -392,7 +392,7 @@ describe("createE2eeService", () => {
 
       const decrypted = await service.decryptNoteRecord(record);
 
-      expect(decrypted).toBe(original);
+      expect(decrypted!.content).toBe(original);
     });
 
     it("image blob survives encrypt/decrypt cycle", async () => {
