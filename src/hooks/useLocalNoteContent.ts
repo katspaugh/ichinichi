@@ -47,6 +47,9 @@ interface LocalNoteContext {
   hasEdits: boolean;
   error: Error | null;
   afterSave?: (snapshot: SaveSnapshot) => void;
+  /** True when the note was loaded from storage with non-empty content.
+   *  Used to prevent accidental deletion if content becomes empty due to a bug. */
+  loadedWithContent: boolean;
 }
 
 const loadNoteActor = fromCallback(
@@ -92,12 +95,28 @@ const saveNoteActor = fromCallback(
     input,
   }: {
     sendBack: (event: LocalNoteEvent) => void;
-    input: { date: string; content: string; repository: NoteRepository };
+    input: {
+      date: string;
+      content: string;
+      repository: NoteRepository;
+      loadedWithContent: boolean;
+    };
   }) => {
     let cancelled = false;
 
     const save = async () => {
       const isEmpty = isContentEmpty(input.content);
+
+      // Guard: never delete a note that was loaded with content.
+      // If content is unexpectedly empty (DOM reset, race condition), skipping
+      // the operation preserves the original note in storage.
+      if (isEmpty && input.loadedWithContent) {
+        if (!cancelled) {
+          sendBack({ type: "SAVE_FAILED" });
+        }
+        return;
+      }
+
       const result = isEmpty
         ? await input.repository.delete(input.date)
         : await input.repository.save(input.date, input.content);
@@ -153,6 +172,7 @@ export const localNoteMachine = setup({
       content: "",
       hasEdits: false,
       error: null,
+      loadedWithContent: false,
     }),
     clearError: assign({ error: null }),
     resetEdits: assign({ hasEdits: false }),
@@ -166,6 +186,7 @@ export const localNoteMachine = setup({
         content: event.content,
         hasEdits: false,
         error: null,
+        loadedWithContent: !isContentEmpty(event.content),
       };
     }),
     applyLoadError: assign((args: { event: LocalNoteEvent }) => {
@@ -241,13 +262,22 @@ export const localNoteMachine = setup({
         content: context.content,
         isEmpty: isContentEmpty(context.content),
       };
+
+      // Guard: never delete a note that was loaded with content.
+      // If content is unexpectedly empty, skip the operation to preserve
+      // the original note in storage.
+      if (snapshot.isEmpty && context.loadedWithContent) {
+        return;
+      }
+
+      const afterSave = context.afterSave;
       const operation = snapshot.isEmpty
         ? context.repository.delete(snapshot.date)
         : context.repository.save(snapshot.date, snapshot.content);
 
       void operation.then((result) => {
         if (result.ok) {
-          context.afterSave?.(snapshot);
+          afterSave?.(snapshot);
         } else {
           console.error("Failed to save note:", result.error);
         }
@@ -277,6 +307,7 @@ export const localNoteMachine = setup({
     hasEdits: false,
     error: null,
     afterSave: undefined,
+    loadedWithContent: false,
   },
   on: {
     UPDATE_AFTER_SAVE: {
@@ -388,6 +419,7 @@ export const localNoteMachine = setup({
           date: context.date as string,
           content: context.content,
           repository: context.repository as NoteRepository,
+          loadedWithContent: context.loadedWithContent,
         }),
       },
       on: {
@@ -465,6 +497,21 @@ export function useLocalNoteContent(
   useEffect(() => {
     return () => {
       send({ type: "FLUSH" });
+    };
+  }, [send]);
+
+  // Flush pending edits when the page becomes hidden (tab switch, browser close).
+  // React cleanup effects may not fire reliably on page unload, so this ensures
+  // content is saved before the user leaves.
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        send({ type: "FLUSH" });
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [send]);
 

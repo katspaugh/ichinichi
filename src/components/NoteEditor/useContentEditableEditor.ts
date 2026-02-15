@@ -176,6 +176,7 @@ export function useContentEditableEditor({
   const hasInsertedTimestampRef = useRef(false);
   const hasAutoFocusedRef = useRef(false);
   const isWeatherEnabledRef = useRef(showWeather);
+  const uploadInProgressRef = useRef(0);
 
   const syncEditorContent = useCallback(() => {
     const el = editorRef.current;
@@ -438,6 +439,11 @@ export function useContentEditableEditor({
       updateEmptyState();
       return;
     }
+    // Skip external content reset while images are uploading to avoid
+    // disconnecting placeholder elements from the DOM
+    if (uploadInProgressRef.current > 0) {
+      return;
+    }
     if (content === lastContentRef.current) {
       updateEmptyState();
       updateTimestampLabels(el);
@@ -561,6 +567,7 @@ export function useContentEditableEditor({
       insertNodeAtCursor(placeholder);
       handleInput();
 
+      uploadInProgressRef.current++;
       dropHandler(file)
         .then(({ id, width, height, filename }) => {
           placeholder.setAttribute("data-image-id", id);
@@ -573,6 +580,7 @@ export function useContentEditableEditor({
           placeholder.remove();
         })
         .finally(() => {
+          uploadInProgressRef.current--;
           onDropCompleteRef.current?.();
           updateEmptyState();
           handleInput();
@@ -616,6 +624,7 @@ export function useContentEditableEditor({
       insertNodeAtCursor(placeholder);
       handleInput();
 
+      uploadInProgressRef.current++;
       dropHandler(file)
         .then(({ id, width, height, filename }) => {
           const finalImage = document.createElement("img");
@@ -632,6 +641,7 @@ export function useContentEditableEditor({
           placeholder.remove();
         })
         .finally(() => {
+          uploadInProgressRef.current--;
           URL.revokeObjectURL(previewUrl);
           onDropCompleteRef.current?.();
           updateEmptyState();
