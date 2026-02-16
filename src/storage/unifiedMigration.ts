@@ -300,7 +300,7 @@ export async function migrateLegacyData({
       continue;
     }
     const encrypted = await e2ee.encryptNoteContent(
-      candidate.content,
+      { content: candidate.content },
       candidate.keyId,
     );
     if (!encrypted) continue;

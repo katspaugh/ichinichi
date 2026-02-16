@@ -2,6 +2,8 @@ import { useCallback, useEffect } from "react";
 import { useMachine } from "@xstate/react";
 import { assign, fromCallback, setup } from "xstate";
 import type { NoteRepository } from "../storage/noteRepository";
+import type { HabitValues } from "../types";
+import { isNoteEmpty } from "../utils/sanitize";
 import { isContentEmpty } from "../utils/sanitize";
 
 interface SaveSnapshot {
@@ -15,6 +17,8 @@ const SAVE_IDLE_DELAY_MS = 2000;
 export interface UseLocalNoteContentReturn {
   content: string;
   setContent: (content: string) => void;
+  habits: HabitValues | undefined;
+  setHabits: (habits: HabitValues) => void;
   isLoading: boolean;
   hasEdits: boolean;
   /** True when the note is being saved (dirty or saving state) */
@@ -22,7 +26,7 @@ export interface UseLocalNoteContentReturn {
   isReady: boolean;
   error: Error | null;
   /** Allows external code to update content (e.g., from remote sync) */
-  applyRemoteUpdate: (content: string) => void;
+  applyRemoteUpdate: (content: string, habits?: HabitValues) => void;
 }
 
 export type LocalNoteEvent =
@@ -31,10 +35,11 @@ export type LocalNoteEvent =
       date: string | null;
       repository: NoteRepository | null;
     }
-  | { type: "LOAD_SUCCESS"; date: string; content: string }
+  | { type: "LOAD_SUCCESS"; date: string; content: string; habits?: HabitValues }
   | { type: "LOAD_ERROR"; date: string; error: Error }
   | { type: "EDIT"; content: string }
-  | { type: "REMOTE_UPDATE"; content: string }
+  | { type: "EDIT_HABITS"; habits: HabitValues }
+  | { type: "REMOTE_UPDATE"; content: string; habits?: HabitValues }
   | { type: "SAVE_SUCCESS"; snapshot: SaveSnapshot }
   | { type: "SAVE_FAILED" }
   | { type: "FLUSH" }
@@ -44,6 +49,7 @@ interface LocalNoteContext {
   date: string | null;
   repository: NoteRepository | null;
   content: string;
+  habits: HabitValues | undefined;
   hasEdits: boolean;
   error: Error | null;
   afterSave?: (snapshot: SaveSnapshot) => void;
@@ -70,6 +76,7 @@ const loadNoteActor = fromCallback(
             type: "LOAD_SUCCESS",
             date: input.date,
             content: result.value?.content ?? "",
+            habits: result.value?.habits,
           });
         } else {
           sendBack({
@@ -98,6 +105,7 @@ const saveNoteActor = fromCallback(
     input: {
       date: string;
       content: string;
+      habits: HabitValues | undefined;
       repository: NoteRepository;
       loadedWithContent: boolean;
     };
@@ -105,7 +113,7 @@ const saveNoteActor = fromCallback(
     let cancelled = false;
 
     const save = async () => {
-      const isEmpty = isContentEmpty(input.content);
+      const isEmpty = isNoteEmpty(input.content, input.habits);
 
       // Guard: never delete a note that was loaded with content.
       // If content is unexpectedly empty (DOM reset, race condition), skipping
@@ -119,7 +127,7 @@ const saveNoteActor = fromCallback(
 
       const result = isEmpty
         ? await input.repository.delete(input.date)
-        : await input.repository.save(input.date, input.content);
+        : await input.repository.save(input.date, input.content, input.habits);
 
       if (!cancelled) {
         if (result.ok) {
@@ -170,13 +178,14 @@ export const localNoteMachine = setup({
       date: null,
       repository: null,
       content: "",
+      habits: undefined as HabitValues | undefined,
       hasEdits: false,
       error: null,
       loadedWithContent: false,
     }),
     clearError: assign({ error: null }),
     resetEdits: assign({ hasEdits: false }),
-    clearContent: assign({ content: "" }),
+    clearContent: assign({ content: "", habits: undefined as HabitValues | undefined }),
     applyLoadedContent: assign((args: { event: LocalNoteEvent }) => {
       const { event } = args;
       if (event.type !== "LOAD_SUCCESS") {
@@ -184,6 +193,7 @@ export const localNoteMachine = setup({
       }
       return {
         content: event.content,
+        habits: event.habits,
         hasEdits: false,
         error: null,
         loadedWithContent: !isContentEmpty(event.content),
@@ -196,6 +206,7 @@ export const localNoteMachine = setup({
       }
       return {
         content: "",
+        habits: undefined as HabitValues | undefined,
         hasEdits: false,
         error: event.error,
       };
@@ -216,6 +227,19 @@ export const localNoteMachine = setup({
         };
       },
     ),
+    applyHabitEdit: assign(
+      (args: { event: LocalNoteEvent }) => {
+        const { event } = args;
+        if (event.type !== "EDIT_HABITS") {
+          return {};
+        }
+        return {
+          habits: event.habits,
+          hasEdits: true,
+          error: null,
+        };
+      },
+    ),
     applyRemoteUpdate: assign((args: { event: LocalNoteEvent }) => {
       const { event } = args;
       if (event.type !== "REMOTE_UPDATE") {
@@ -223,6 +247,7 @@ export const localNoteMachine = setup({
       }
       return {
         content: event.content,
+        habits: event.habits,
         hasEdits: false,
         error: null,
       };
@@ -260,7 +285,7 @@ export const localNoteMachine = setup({
       const snapshot: SaveSnapshot = {
         date: context.date,
         content: context.content,
-        isEmpty: isContentEmpty(context.content),
+        isEmpty: isNoteEmpty(context.content, context.habits),
       };
 
       // Guard: never delete a note that was loaded with content.
@@ -273,7 +298,7 @@ export const localNoteMachine = setup({
       const afterSave = context.afterSave;
       const operation = snapshot.isEmpty
         ? context.repository.delete(snapshot.date)
-        : context.repository.save(snapshot.date, snapshot.content);
+        : context.repository.save(snapshot.date, snapshot.content, context.habits);
 
       void operation.then((result) => {
         if (result.ok) {
@@ -304,6 +329,7 @@ export const localNoteMachine = setup({
     date: null,
     repository: null,
     content: "",
+    habits: undefined,
     hasEdits: false,
     error: null,
     afterSave: undefined,
@@ -368,6 +394,10 @@ export const localNoteMachine = setup({
           target: "dirty",
           actions: "applyEdit",
         },
+        EDIT_HABITS: {
+          target: "dirty",
+          actions: "applyHabitEdit",
+        },
         REMOTE_UPDATE: {
           guard: "canApplyRemote",
           actions: "applyRemoteUpdate",
@@ -395,6 +425,11 @@ export const localNoteMachine = setup({
           reenter: true,
           actions: "applyEdit",
         },
+        EDIT_HABITS: {
+          target: "dirty",
+          reenter: true,
+          actions: "applyHabitEdit",
+        },
         INPUTS_CHANGED: [
           {
             guard: "hasInputs",
@@ -418,6 +453,7 @@ export const localNoteMachine = setup({
         input: ({ context }: { context: LocalNoteContext }) => ({
           date: context.date as string,
           content: context.content,
+          habits: context.habits,
           repository: context.repository as NoteRepository,
           loadedWithContent: context.loadedWithContent,
         }),
@@ -433,6 +469,10 @@ export const localNoteMachine = setup({
         EDIT: {
           target: "dirty",
           actions: "applyEdit",
+        },
+        EDIT_HABITS: {
+          target: "dirty",
+          actions: "applyHabitEdit",
         },
         INPUTS_CHANGED: [
           {
@@ -452,6 +492,10 @@ export const localNoteMachine = setup({
         EDIT: {
           target: "dirty",
           actions: "applyEdit",
+        },
+        EDIT_HABITS: {
+          target: "dirty",
+          actions: "applyHabitEdit",
         },
         REMOTE_UPDATE: {
           guard: "canApplyRemote",
@@ -522,9 +566,16 @@ export function useLocalNoteContent(
     [send],
   );
 
+  const setHabits = useCallback(
+    (habits: HabitValues) => {
+      send({ type: "EDIT_HABITS", habits });
+    },
+    [send],
+  );
+
   const applyRemoteUpdate = useCallback(
-    (content: string) => {
-      send({ type: "REMOTE_UPDATE", content });
+    (content: string, habits?: HabitValues) => {
+      send({ type: "REMOTE_UPDATE", content, habits });
     },
     [send],
   );
@@ -540,6 +591,8 @@ export function useLocalNoteContent(
   return {
     content: state.context.content,
     setContent,
+    habits: state.context.habits,
+    setHabits,
     isLoading: stateValue === "loading",
     hasEdits: state.context.hasEdits,
     isSaving,

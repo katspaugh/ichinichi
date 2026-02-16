@@ -219,18 +219,21 @@ async function clickTodayCell() {
   fireEvent.click(todayButton!);
 }
 
-async function waitForEditorReady() {
-  await waitFor(
-    () => {
-      const editor = screen.getByRole("textbox");
-      expect(editor.getAttribute("contenteditable")).toBe("true");
-    },
-    { timeout: 10000 },
+function findContentEditor(): HTMLElement {
+  const textboxes = screen.getAllByRole("textbox");
+  const editor = textboxes.find(
+    (el) => el.getAttribute("contenteditable") === "true",
   );
+  if (!editor) throw new Error("No contenteditable textbox found");
+  return editor;
+}
+
+async function waitForEditorReady() {
+  await waitFor(() => findContentEditor(), { timeout: 10000 });
 }
 
 function getEditor(): HTMLElement {
-  return screen.getByRole("textbox");
+  return findContentEditor();
 }
 
 async function typeInEditor(text: string) {

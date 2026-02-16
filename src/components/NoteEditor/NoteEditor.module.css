@@ -1,6 +1,7 @@
 .editor {
   display: flex;
   flex-direction: column;
+  flex: 1;
 }
 
 .dragOverlay {
@@ -115,8 +116,6 @@
 }
 
 .contentEditable {
-  padding-bottom: min(30vh, 12rem);
-  padding-bottom: 30dvh;
 }
 
 .content[data-empty="true"]::before {

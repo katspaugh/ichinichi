@@ -53,9 +53,8 @@ describe("locationService", () => {
     it("returns location for known timezone (Europe/Paris)", async () => {
       mockTimezone("Europe/Paris");
 
-      const { locationService } = await import("../services/locationService");
       // Reset cache by creating a fresh import via isolateModules
-      let service: typeof locationService;
+      let service: typeof import("../services/locationService").locationService;
       await jest.isolateModulesAsync(async () => {
         mockTimezone("Europe/Paris");
         const mod = await import("../services/locationService");

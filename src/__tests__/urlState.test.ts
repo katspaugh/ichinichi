@@ -6,7 +6,7 @@ import {
 } from "../utils/urlState";
 import { ViewType } from "../types";
 import { URL_PARAMS, VIEW_PREFERENCE_KEY } from "../utils/constants";
-import { formatDate } from "../utils/date";
+
 
 beforeEach(() => {
   localStorage.clear();

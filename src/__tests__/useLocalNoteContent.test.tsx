@@ -39,7 +39,7 @@ describe("useLocalNoteContent", () => {
     rerender({ date: "11-01-2026" });
 
     await waitFor(() =>
-      expect(repository.save).toHaveBeenCalledWith("10-01-2026", "draft"),
+      expect(repository.save).toHaveBeenCalledWith("10-01-2026", "draft", undefined),
     );
   });
 
@@ -183,8 +183,7 @@ describe("useLocalNoteContent", () => {
 
     // Wait for save timer (2s) to fire
     await act(async () => {
-      jest.advanceTimersByTime?.(2500) ??
-        (await new Promise((r) => setTimeout(r, 2500)));
+      await new Promise((r) => setTimeout(r, 2500));
     });
 
     // repository.delete should NOT have been called — the note previously had content,
@@ -224,7 +223,7 @@ describe("useLocalNoteContent", () => {
     });
 
     await waitFor(() =>
-      expect(repository.save).toHaveBeenCalledWith("10-01-2026", "draft"),
+      expect(repository.save).toHaveBeenCalledWith("10-01-2026", "draft", undefined),
     );
   });
 });

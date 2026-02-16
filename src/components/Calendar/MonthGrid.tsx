@@ -1,4 +1,4 @@
-import { useMemo, useCallback } from "react";
+import { useCallback } from "react";
 import { DayCell } from "./DayCell";
 import {
   getDaysInMonth,
@@ -11,6 +11,28 @@ import {
 } from "../../utils/date";
 import { DayCellState } from "../../types";
 import styles from "./MonthGrid.module.css";
+
+function computeWeeks(year: number, month: number) {
+  const daysInMonth = getDaysInMonth(year, month);
+  const firstDay = getFirstDayOfMonth(year, month);
+
+  const cells: Array<{ day: number | null; date: Date | null }> = [];
+
+  for (let i = 0; i < firstDay; i++) {
+    cells.push({ day: null, date: null });
+  }
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    cells.push({ day, date: new Date(year, month, day) });
+  }
+
+  const weekGroups: Array<typeof cells> = [];
+  for (let i = 0; i < cells.length; i += 7) {
+    weekGroups.push(cells.slice(i, i + 7));
+  }
+
+  return weekGroups;
+}
 
 interface MonthGridProps {
   year: number;
@@ -36,7 +58,7 @@ export function MonthGrid({
   now,
 }: MonthGridProps) {
   const weekdays = getWeekdayOptions();
-  const currentWeekStart = weekdays[0]?.dayIndex ?? 0;
+  const weekStart = weekdays[0]?.dayIndex ?? 0;
   const monthName = getMonthName(month);
   const resolvedNow = now ?? new Date();
   const isCurrentMonth =
@@ -48,30 +70,8 @@ export function MonthGrid({
     }
   }, [showMonthView, onMonthClick, year, month]);
 
-  const weeks = useMemo(() => {
-    const daysInMonth = getDaysInMonth(year, month);
-    const firstDay = getFirstDayOfMonth(year, month);
+  const weeks = computeWeeks(year, month);
 
-    const cells: Array<{ day: number | null; date: Date | null }> = [];
-
-    // Empty cells for days before the first of the month
-    for (let i = 0; i < firstDay; i++) {
-      cells.push({ day: null, date: null });
-    }
-
-    // Days of the month
-    for (let day = 1; day <= daysInMonth; day++) {
-      cells.push({ day, date: new Date(year, month, day) });
-    }
-
-    // Group into weeks (arrays of 7 days each)
-    const weekGroups: Array<typeof cells> = [];
-    for (let i = 0; i < cells.length; i += 7) {
-      weekGroups.push(cells.slice(i, i + 7));
-    }
-
-    return weekGroups;
-  }, [year, month, currentWeekStart]);
 
   return (
     <div
@@ -106,11 +106,11 @@ export function MonthGrid({
               className={styles.weekdayButton}
               type="button"
               onClick={() => {
-                const nextStart = currentWeekStart === 0 ? 1 : 0;
+                const nextStart = weekStart === 0 ? 1 : 0;
                 setWeekStartPreference(nextStart);
                 onWeekStartChange?.();
               }}
-              aria-label={`Set week start to ${currentWeekStart === 0 ? "Monday" : "Sunday"}`}
+              aria-label={`Set week start to ${weekStart === 0 ? "Monday" : "Sunday"}`}
             >
               {day.label}
             </button>

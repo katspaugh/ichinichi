@@ -1,5 +1,6 @@
-import type { E2eeService } from "../domain/crypto/e2eeService";
+import type { E2eeService, NotePayload } from "../domain/crypto/e2eeService";
 import type { KeyringProvider } from "../domain/crypto/keyring";
+import type { HabitValues } from "../types";
 import { sanitizeHtml } from "../utils/sanitize";
 import {
   base64ToBytes,
@@ -62,15 +63,19 @@ export function createE2eeService(keyring: KeyringProvider): E2eeService {
   };
 
   const encryptNoteContent = async (
-    content: string,
+    payload: NotePayload,
     keyId?: string | null,
   ): Promise<{ ciphertext: string; nonce: string; keyId: string } | null> => {
     const resolvedKeyId = keyId ?? keyring.activeKeyId;
     const key = getKey(resolvedKeyId);
     if (!key) return null;
     const iv = randomBytes(NOTE_IV_BYTES);
-    const sanitized = sanitizeHtml(content);
-    const plaintext = encodeUtf8(JSON.stringify({ content: sanitized }));
+    const sanitized = sanitizeHtml(payload.content);
+    const envelope: { content: string; habits?: HabitValues } = { content: sanitized };
+    if (payload.habits && Object.keys(payload.habits).length > 0) {
+      envelope.habits = payload.habits;
+    }
+    const plaintext = encodeUtf8(JSON.stringify(envelope));
     const encrypted = await crypto.subtle.encrypt(
       { name: "AES-GCM", iv },
       key,
@@ -85,7 +90,7 @@ export function createE2eeService(keyring: KeyringProvider): E2eeService {
 
   const decryptNoteRecord = async (
     record: { keyId?: string | null; ciphertext: string; nonce: string },
-  ): Promise<string | null> => {
+  ): Promise<NotePayload | null> => {
     const keyId = record.keyId ?? keyring.activeKeyId;
     const key = getKey(keyId);
     if (!key) return null;
@@ -98,8 +103,12 @@ export function createE2eeService(keyring: KeyringProvider): E2eeService {
     );
     const parsed = JSON.parse(decodeUtf8(new Uint8Array(decrypted))) as {
       content: string;
+      habits?: HabitValues;
     };
-    return sanitizeHtml(parsed.content);
+    return {
+      content: sanitizeHtml(parsed.content),
+      habits: parsed.habits,
+    };
   };
 
   const encryptImageBlob: E2eeService["encryptImageBlob"] = async (

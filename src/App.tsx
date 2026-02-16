@@ -88,7 +88,7 @@ function App() {
 
   const handleSyncClick = useCallback(() => {
     notes.triggerSync({ immediate: true });
-  }, [notes.triggerSync]);
+  }, [notes]);
 
   // Sign out handler for settings sidebar
   const signOutHandler =
