@@ -1,18 +1,11 @@
 import { useCallback, useMemo } from "react";
-import type { HabitDefinition, HabitEntry, HabitType, HabitValues } from "../../types";
+import type { HabitDefinition, HabitEntry, HabitValues } from "../../types";
 
 export interface UseHabitDefinitionsReturn {
   definitions: HabitDefinition[];
   addHabit: (name: string) => void;
   removeHabit: (id: string) => void;
   renameHabit: (id: string, name: string) => void;
-  updateType: (id: string, type: HabitType) => void;
-}
-
-function getDefaultValue(type: HabitType): string | number | boolean {
-  if (type === "checkbox") return false;
-  if (type === "number") return 0;
-  return "";
 }
 
 export function useHabitDefinitions(
@@ -70,17 +63,5 @@ export function useHabitDefinitions(
     [habits, onChange],
   );
 
-  const updateType = useCallback(
-    (id: string, type: HabitType) => {
-      if (!onChange || !habits?.[id]) return;
-      const entry = habits[id];
-      onChange({
-        ...habits,
-        [id]: { ...entry, type, value: getDefaultValue(type) },
-      });
-    },
-    [habits, onChange],
-  );
-
-  return { definitions, addHabit, removeHabit, renameHabit, updateType };
+  return { definitions, addHabit, removeHabit, renameHabit };
 }

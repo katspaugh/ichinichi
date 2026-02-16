@@ -1,17 +1,15 @@
-export type HabitType = "text" | "number" | "checkbox";
-
 export interface HabitDefinition {
   id: string;
   name: string;
-  type: HabitType;
+  type: "text";
   order: number;
 }
 
 export interface HabitEntry {
   name: string;
-  type: HabitType;
+  type: "text";
   order: number;
-  value: string | number | boolean;
+  value: string;
 }
 
 export type HabitValues = Record<string, HabitEntry>;

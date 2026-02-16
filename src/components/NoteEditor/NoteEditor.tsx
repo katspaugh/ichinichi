@@ -153,7 +153,7 @@ export function NoteEditor({
     editorRef,
   });
 
-  const { definitions, addHabit, renameHabit, updateType: handleUpdateType } =
+  const { definitions, addHabit, renameHabit } =
     useHabitDefinitions(habits, onHabitChange);
 
   const handleHabitChange = useCallback(
@@ -172,7 +172,6 @@ export function NoteEditor({
         isEditable={isEditable}
         onAddHabit={addHabit}
         onRenameHabit={renameHabit}
-        onUpdateType={handleUpdateType}
       />
     ) : null;
 

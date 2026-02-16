@@ -20,12 +20,12 @@ export function useNoteKeyboardNav({
         return;
       }
 
-      // Check if contentEditable is focused
+      // Don't navigate if user is editing content or focused on an input
       const activeElement = document.activeElement;
-      const isEditingContent = activeElement?.matches(contentEditableSelector);
-
-      // Don't navigate if user is editing
-      if (isEditingContent) {
+      if (
+        activeElement?.matches(contentEditableSelector) ||
+        activeElement?.matches("input, textarea, select, [contenteditable]")
+      ) {
         return;
       }
 
