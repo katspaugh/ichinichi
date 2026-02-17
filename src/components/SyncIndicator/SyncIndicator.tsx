@@ -63,11 +63,14 @@ export function SyncIndicator({
   };
   const statusClass = statusClassMap[classSuffix];
 
-  if (onSyncClick && status === SyncStatus.Synced) {
+  const isClickable = onSyncClick && status !== SyncStatus.Syncing;
+
+  if (isClickable) {
     return (
       <button
         className={[styles.indicator, statusClass].filter(Boolean).join(" ")}
         onClick={onSyncClick}
+        title={status === SyncStatus.Error ? errorMessage : undefined}
       >
         {label}
       </button>
