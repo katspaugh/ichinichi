@@ -68,6 +68,46 @@ describe("SyncIndicator component", () => {
     const spinner = container.querySelector("span span");
     expect(spinner).toBeTruthy();
   });
+
+  it("should render clickable button for error state with onSyncClick", () => {
+    const onClick = jest.fn();
+    render(<SyncIndicator status={SyncStatus.Error} onSyncClick={onClick} />);
+
+    const button = screen.getByRole("button", { name: "Sync error" });
+    button.click();
+    expect(onClick).toHaveBeenCalled();
+  });
+
+  it("should render clickable button for offline state with onSyncClick", () => {
+    const onClick = jest.fn();
+    render(<SyncIndicator status={SyncStatus.Offline} onSyncClick={onClick} />);
+
+    const button = screen.getByRole("button", { name: "Offline" });
+    button.click();
+    expect(onClick).toHaveBeenCalled();
+  });
+
+  it("should render clickable button for pending ops with onSyncClick", () => {
+    const onClick = jest.fn();
+    render(
+      <SyncIndicator
+        status={SyncStatus.Idle}
+        pendingOps={{ notes: 1, images: 0, total: 1 }}
+        onSyncClick={onClick}
+      />,
+    );
+
+    const button = screen.getByRole("button", { name: "Sync needed" });
+    button.click();
+    expect(onClick).toHaveBeenCalled();
+  });
+
+  it("should NOT render clickable button while syncing", () => {
+    const onClick = jest.fn();
+    render(<SyncIndicator status={SyncStatus.Syncing} onSyncClick={onClick} />);
+
+    expect(screen.queryByRole("button")).toBeNull();
+  });
 });
 
 describe("NoteEditorView status text", () => {
