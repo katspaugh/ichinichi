@@ -89,7 +89,7 @@ export function isNoteEmpty(
   if (
     habits &&
     Object.values(habits).some(
-      (entry) => entry.value !== "" && entry.value !== false && entry.value !== 0,
+      (entry) => entry.value !== "",
     )
   ) {
     return false;

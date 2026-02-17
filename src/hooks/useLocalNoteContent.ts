@@ -3,6 +3,7 @@ import { useMachine } from "@xstate/react";
 import { assign, fromCallback, setup } from "xstate";
 import type { NoteRepository } from "../storage/noteRepository";
 import type { HabitValues } from "../types";
+import { findLatestHabitDefinitions } from "../features/habits/findLatestHabitDefinitions";
 import { isNoteEmpty } from "../utils/sanitize";
 import { isContentEmpty } from "../utils/sanitize";
 
@@ -70,21 +71,34 @@ const loadNoteActor = fromCallback(
 
     const load = async () => {
       const result = await input.repository.get(input.date);
-      if (!cancelled) {
-        if (result.ok) {
-          sendBack({
-            type: "LOAD_SUCCESS",
-            date: input.date,
-            content: result.value?.content ?? "",
-            habits: result.value?.habits,
-          });
-        } else {
-          sendBack({
-            type: "LOAD_ERROR",
-            date: input.date,
-            error: new Error(result.error.message),
-          });
+      if (cancelled) return;
+
+      if (result.ok) {
+        let habits = result.value?.habits;
+
+        // Inherit habit definitions from most recent previous note
+        // when this date has no existing note
+        if (!result.value) {
+          const inherited = await findLatestHabitDefinitions(
+            input.repository,
+            input.date,
+          );
+          if (cancelled) return;
+          habits = inherited;
         }
+
+        sendBack({
+          type: "LOAD_SUCCESS",
+          date: input.date,
+          content: result.value?.content ?? "",
+          habits,
+        });
+      } else {
+        sendBack({
+          type: "LOAD_ERROR",
+          date: input.date,
+          error: new Error(result.error.message),
+        });
       }
     };
 

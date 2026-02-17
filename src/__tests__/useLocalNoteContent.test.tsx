@@ -18,6 +18,28 @@ function createRepository(initialContent = ""): NoteRepository {
   };
 }
 
+function createRepositoryWithHabitInheritance(): NoteRepository {
+  const habits = {
+    "h1": { name: "Exercise", type: "text" as const, order: 0, value: "done" },
+  };
+  return {
+    get: jest.fn((date: string) => {
+      if (date === "09-01-2026") {
+        return Promise.resolve(ok({
+          date: "09-01-2026",
+          content: "note with habits",
+          habits,
+          updatedAt: "2026-01-09T10:00:00.000Z",
+        }));
+      }
+      return Promise.resolve(ok(null));
+    }),
+    save: jest.fn().mockResolvedValue(ok(undefined)),
+    delete: jest.fn().mockResolvedValue(ok(undefined)),
+    getAllDates: jest.fn().mockResolvedValue(ok(["09-01-2026"])),
+  };
+}
+
 describe("useLocalNoteContent", () => {
   it("flushes pending edits when date changes", async () => {
     const repository = createRepository("initial");
@@ -189,6 +211,20 @@ describe("useLocalNoteContent", () => {
     // repository.delete should NOT have been called — the note previously had content,
     // so deleting it would risk data loss
     expect(repository.delete).not.toHaveBeenCalled();
+  });
+
+  it("inherits habit definitions from most recent previous note when note does not exist", async () => {
+    const repository = createRepositoryWithHabitInheritance();
+    const { result } = renderHook(() =>
+      useLocalNoteContent("10-01-2026", repository),
+    );
+
+    await waitFor(() => expect(result.current.isReady).toBe(true));
+
+    expect(result.current.content).toBe("");
+    expect(result.current.habits).toEqual({
+      "h1": { name: "Exercise", type: "text", order: 0, value: "" },
+    });
   });
 
   it("flushes edits on visibilitychange to hidden", async () => {
