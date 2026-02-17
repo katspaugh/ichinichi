@@ -77,8 +77,8 @@ const loadNoteActor = fromCallback(
         let habits = result.value?.habits;
 
         // Inherit habit definitions from most recent previous note
-        // when this date has no existing note
-        if (!result.value) {
+        // when the loaded note has no habits of its own
+        if (!habits || Object.keys(habits).length === 0) {
           const inherited = await findLatestHabitDefinitions(
             input.repository,
             input.date,

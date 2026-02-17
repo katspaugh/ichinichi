@@ -227,6 +227,43 @@ describe("useLocalNoteContent", () => {
     });
   });
 
+  it("inherits habit definitions when note exists but has no habits", async () => {
+    const habits = {
+      "h1": { name: "Exercise", type: "text" as const, order: 0, value: "done" },
+    };
+    const repository: NoteRepository = {
+      get: jest.fn((date: string) => {
+        if (date === "09-01-2026") {
+          return Promise.resolve(ok({
+            date: "09-01-2026",
+            content: "note with habits",
+            habits,
+            updatedAt: "2026-01-09T10:00:00.000Z",
+          }));
+        }
+        // Today's note exists but has no habits
+        return Promise.resolve(ok({
+          date: "10-01-2026",
+          content: "some content",
+          updatedAt: "2026-01-10T10:00:00.000Z",
+        }));
+      }),
+      save: jest.fn().mockResolvedValue(ok(undefined)),
+      delete: jest.fn().mockResolvedValue(ok(undefined)),
+      getAllDates: jest.fn().mockResolvedValue(ok(["09-01-2026", "10-01-2026"])),
+    };
+    const { result } = renderHook(() =>
+      useLocalNoteContent("10-01-2026", repository),
+    );
+
+    await waitFor(() => expect(result.current.isReady).toBe(true));
+
+    expect(result.current.content).toBe("some content");
+    expect(result.current.habits).toEqual({
+      "h1": { name: "Exercise", type: "text", order: 0, value: "" },
+    });
+  });
+
   it("flushes edits on visibilitychange to hidden", async () => {
     const repository = createRepository("initial");
     const { result } = renderHook(() =>
