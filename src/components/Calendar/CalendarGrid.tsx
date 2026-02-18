@@ -38,7 +38,6 @@ export function CalendarGrid({
           hasNote={hasNote}
           onDayClick={onDayClick}
           onMonthClick={onMonthClick}
-          showMonthView={month != null}
           selectedDate={month != null ? selectedDate : undefined}
           onWeekStartChange={onWeekStartChange}
           now={now}

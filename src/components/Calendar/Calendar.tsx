@@ -56,7 +56,7 @@ export function Calendar({
       return;
     }
 
-    if (now.getMonth() <= 1) {
+    if (now.getMonth() <= 0) {
       return;
     }
 

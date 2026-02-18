@@ -26,6 +26,17 @@ function App() {
   const [aboutOpen, setAboutOpen] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
   const [weekStartVersion, setWeekStartVersion] = useState(0);
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(max-width: 768px)").matches,
+  );
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 768px)");
+    const onChange = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+
   const {
     year,
     month,
@@ -41,9 +52,9 @@ function App() {
   const isMonthView = month !== null;
   const commitHash = __COMMIT_HASH__;
 
-  // Use month view state hook for auto-selection when in month view
+  // Use month view state hook for auto-selection when in month view (desktop only)
   useMonthViewState({
-    enabled: isMonthView,
+    enabled: isMonthView && !isMobile,
     year,
     month: month ?? 0,
     monthDate,
@@ -123,8 +134,7 @@ function App() {
                 resetLabel="Reload app"
                 onReset={() => window.location.reload()}
               >
-                {/* Render MonthView with split layout when in month view, otherwise regular Calendar */}
-                {isMonthView ? (
+                {isMonthView && !isMobile ? (
                   <MonthView
                     weekStartVersion={weekStartVersion}
                     year={year}
