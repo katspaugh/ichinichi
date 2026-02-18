@@ -143,3 +143,11 @@
 .addInput:focus {
   opacity: 1;
 }
+
+@media (pointer: coarse) {
+  .nameInput,
+  .input,
+  .addInput {
+    font-size: 1rem;
+  }
+}
