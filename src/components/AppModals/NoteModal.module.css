@@ -34,6 +34,36 @@
   left: var(--spacing-lg);
 }
 
+@keyframes slideInFromTop {
+  from {
+    opacity: 0;
+    transform: translateY(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInFromBottom {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.slideInFromTop {
+  animation: slideInFromTop 250ms ease-out;
+}
+
+.slideInFromBottom {
+  animation: slideInFromBottom 250ms ease-out;
+}
+
 @media (max-width: 768px) {
   .editorWrapper {
     margin: 0;

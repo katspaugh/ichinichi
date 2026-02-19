@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Modal } from "../Modal";
 import { NavigationArrow } from "../NavigationArrow";
 import { ErrorBoundary } from "../ErrorBoundary";
@@ -53,10 +53,33 @@ export function NoteModal({
   const [editorWrapper, setEditorWrapper] = useState<HTMLDivElement | null>(
     null,
   );
+  const editorWrapperDomRef = useRef<HTMLDivElement | null>(null);
   const editorWrapperRef = useCallback(
-    (node: HTMLDivElement | null) => setEditorWrapper(node),
+    (node: HTMLDivElement | null) => {
+      editorWrapperDomRef.current = node;
+      setEditorWrapper(node);
+    },
     [],
   );
+  const prevDateRef = useRef(date);
+
+  useEffect(() => {
+    if (date && prevDateRef.current && date !== prevDateRef.current) {
+      const el = editorWrapperDomRef.current;
+      if (el) {
+        el.scrollTop = 0;
+
+        const cls =
+          date < prevDateRef.current
+            ? styles.slideInFromTop
+            : styles.slideInFromBottom;
+        el.classList.add(cls);
+        const onEnd = () => el.classList.remove(cls);
+        el.addEventListener("animationend", onEnd, { once: true });
+      }
+    }
+    prevDateRef.current = date;
+  }, [date]);
 
   useOverscrollNavigation(editorWrapper, {
     onOverscrollUp: canNavigatePrev ? navigateToPrevious : undefined,
