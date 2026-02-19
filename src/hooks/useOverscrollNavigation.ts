@@ -9,15 +9,14 @@ const TRIGGER_THRESHOLD = 100;
 const RESISTANCE = 0.3;
 
 export function useOverscrollNavigation(
-  ref: React.RefObject<HTMLElement | null>,
+  el: HTMLElement | null,
   { onOverscrollUp, onOverscrollDown }: OverscrollHandlers,
 ) {
   const touchStartY = useRef(0);
-  const atBoundary = useRef<"top" | "bottom" | null>(null);
+  const atBoundary = useRef<"top" | "bottom" | "both" | null>(null);
   const pulling = useRef(false);
 
   useEffect(() => {
-    const el = ref.current;
     if (!el) return;
 
     const isAtTop = () => el.scrollTop <= 0;
@@ -37,9 +36,13 @@ export function useOverscrollNavigation(
     const handleTouchStart = (e: TouchEvent) => {
       touchStartY.current = e.touches[0].clientY;
       pulling.current = false;
-      if (isAtTop()) {
+      const top = isAtTop();
+      const bottom = isAtBottom();
+      if (top && bottom) {
+        atBoundary.current = "both";
+      } else if (top) {
         atBoundary.current = "top";
-      } else if (isAtBottom()) {
+      } else if (bottom) {
         atBoundary.current = "bottom";
       } else {
         atBoundary.current = null;
@@ -50,20 +53,18 @@ export function useOverscrollNavigation(
       if (!atBoundary.current) return;
 
       const dy = e.touches[0].clientY - touchStartY.current;
+      const b = atBoundary.current;
 
       // Pull down at top → previous
-      if (atBoundary.current === "top" && dy > 0) {
+      if ((b === "top" || b === "both") && dy > 0) {
         pulling.current = true;
-        const offset = dy * RESISTANCE;
-        el.style.transform = `translateY(${offset}px)`;
+        el.style.transform = `translateY(${dy * RESISTANCE}px)`;
       }
       // Pull up at bottom → next
-      else if (atBoundary.current === "bottom" && dy < 0) {
+      else if ((b === "bottom" || b === "both") && dy < 0) {
         pulling.current = true;
-        const offset = dy * RESISTANCE;
-        el.style.transform = `translateY(${offset}px)`;
+        el.style.transform = `translateY(${dy * RESISTANCE}px)`;
       } else if (pulling.current) {
-        // Finger moved back past origin — reset
         el.style.transform = "";
         pulling.current = false;
       }
@@ -76,15 +77,15 @@ export function useOverscrollNavigation(
       }
 
       const dy = e.changedTouches[0].clientY - touchStartY.current;
-      const boundary = atBoundary.current;
+      const b = atBoundary.current;
       atBoundary.current = null;
       pulling.current = false;
 
       resetTransform();
 
-      if (boundary === "top" && dy > TRIGGER_THRESHOLD) {
+      if ((b === "top" || b === "both") && dy > TRIGGER_THRESHOLD) {
         onOverscrollUp?.();
-      } else if (boundary === "bottom" && dy < -TRIGGER_THRESHOLD) {
+      } else if ((b === "bottom" || b === "both") && dy < -TRIGGER_THRESHOLD) {
         onOverscrollDown?.();
       }
     };
@@ -98,5 +99,5 @@ export function useOverscrollNavigation(
       el.removeEventListener("touchmove", handleTouchMove);
       el.removeEventListener("touchend", handleTouchEnd);
     };
-  }, [ref, onOverscrollUp, onOverscrollDown]);
+  }, [el, onOverscrollUp, onOverscrollDown]);
 }

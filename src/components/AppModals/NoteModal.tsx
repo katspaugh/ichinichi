@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useState, useCallback } from "react";
 import { Modal } from "../Modal";
 import { NavigationArrow } from "../NavigationArrow";
 import { ErrorBoundary } from "../ErrorBoundary";
@@ -50,9 +50,15 @@ export function NoteModal({
   navigateToPrevious,
   navigateToNext,
 }: NoteModalProps) {
-  const editorRef = useRef<HTMLDivElement>(null);
+  const [editorWrapper, setEditorWrapper] = useState<HTMLDivElement | null>(
+    null,
+  );
+  const editorWrapperRef = useCallback(
+    (node: HTMLDivElement | null) => setEditorWrapper(node),
+    [],
+  );
 
-  useOverscrollNavigation(editorRef, {
+  useOverscrollNavigation(editorWrapper, {
     onOverscrollUp: canNavigatePrev ? navigateToPrevious : undefined,
     onOverscrollDown: canNavigateNext ? navigateToNext : undefined,
   });
@@ -61,7 +67,7 @@ export function NoteModal({
     <Modal isOpen={isOpen} onClose={onClose}>
       {date && shouldRenderNoteEditor && (
         <div className={styles.modalWrapper}>
-          <div className={styles.editorWrapper} ref={editorRef}>
+          <div className={styles.editorWrapper} ref={editorWrapperRef}>
             <ErrorBoundary
               title="Note editor crashed"
               description="You can reopen the note or continue from the calendar."
