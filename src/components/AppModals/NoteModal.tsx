@@ -3,7 +3,7 @@ import { Modal } from "../Modal";
 import { NavigationArrow } from "../NavigationArrow";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { NoteEditor } from "../NoteEditor";
-import { useSwipeGesture } from "../../hooks/useSwipeGesture";
+import { useOverscrollNavigation } from "../../hooks/useOverscrollNavigation";
 import type { HabitValues } from "../../types";
 import styles from "./NoteModal.module.css";
 
@@ -52,9 +52,9 @@ export function NoteModal({
 }: NoteModalProps) {
   const editorRef = useRef<HTMLDivElement>(null);
 
-  useSwipeGesture(editorRef, {
-    onSwipeLeft: canNavigateNext ? navigateToNext : undefined,
-    onSwipeRight: canNavigatePrev ? navigateToPrevious : undefined,
+  useOverscrollNavigation(editorRef, {
+    onOverscrollUp: canNavigatePrev ? navigateToPrevious : undefined,
+    onOverscrollDown: canNavigateNext ? navigateToNext : undefined,
   });
 
   return (
