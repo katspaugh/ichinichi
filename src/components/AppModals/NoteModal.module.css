@@ -49,19 +49,6 @@
   }
 
   .nav {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: var(--spacing-lg);
-  }
-
-  .rightArrow,
-  .leftArrow {
-    position: static;
-    transform: none;
-  }
-
-  .navCurrentDate {
     display: none;
   }
 }

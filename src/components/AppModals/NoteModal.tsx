@@ -1,7 +1,9 @@
+import { useRef } from "react";
 import { Modal } from "../Modal";
 import { NavigationArrow } from "../NavigationArrow";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { NoteEditor } from "../NoteEditor";
+import { useSwipeGesture } from "../../hooks/useSwipeGesture";
 import type { HabitValues } from "../../types";
 import styles from "./NoteModal.module.css";
 
@@ -48,11 +50,18 @@ export function NoteModal({
   navigateToPrevious,
   navigateToNext,
 }: NoteModalProps) {
+  const editorRef = useRef<HTMLDivElement>(null);
+
+  useSwipeGesture(editorRef, {
+    onSwipeLeft: canNavigateNext ? navigateToNext : undefined,
+    onSwipeRight: canNavigatePrev ? navigateToPrevious : undefined,
+  });
+
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
       {date && shouldRenderNoteEditor && (
         <div className={styles.modalWrapper}>
-          <div className={styles.editorWrapper}>
+          <div className={styles.editorWrapper} ref={editorRef}>
             <ErrorBoundary
               title="Note editor crashed"
               description="You can reopen the note or continue from the calendar."
