@@ -9,6 +9,7 @@ interface NoteModalProps {
   isOpen: boolean;
   onClose: () => void;
   date: string | null;
+  isCurrentDate: boolean;
   shouldRenderNoteEditor: boolean;
   isClosing: boolean;
   hasEdits: boolean;
@@ -30,6 +31,7 @@ export function NoteModal({
   isOpen,
   onClose,
   date,
+  isCurrentDate,
   shouldRenderNoteEditor,
   isClosing,
   hasEdits,
@@ -72,7 +74,7 @@ export function NoteModal({
             </ErrorBoundary>
           </div>
 
-          <div className={styles.nav}>
+          <div className={`${styles.nav} ${isCurrentDate ? styles.navCurrentDate : ""}`}>
             <div className={styles.leftArrow}>
               <NavigationArrow
                 direction="left"

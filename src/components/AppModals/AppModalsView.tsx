@@ -49,6 +49,7 @@ interface AppModalsViewProps {
     isOpen: boolean;
     onClose: () => void;
     date: string | null;
+    isCurrentDate: boolean;
     shouldRenderNoteEditor: boolean;
     isClosing: boolean;
     hasEdits: boolean;
@@ -123,6 +124,7 @@ export function AppModalsView({
         isOpen={noteModal.isOpen}
         onClose={noteModal.onClose}
         date={noteModal.date}
+        isCurrentDate={noteModal.isCurrentDate}
         shouldRenderNoteEditor={noteModal.shouldRenderNoteEditor}
         isClosing={noteModal.isClosing}
         hasEdits={noteModal.hasEdits}

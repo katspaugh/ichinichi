@@ -60,4 +60,8 @@
     position: static;
     transform: none;
   }
+
+  .navCurrentDate {
+    display: none;
+  }
 }

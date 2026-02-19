@@ -5,6 +5,7 @@ import { useModalTransition } from "../hooks/useModalTransition";
 import { useNoteNavigation } from "../hooks/useNoteNavigation";
 import { useNoteKeyboardNav } from "../hooks/useNoteKeyboardNav";
 import { AuthState, ViewType } from "../types";
+import { isToday } from "../utils/date";
 import { useActiveVaultContext } from "../contexts/activeVaultContext";
 import { useAppModeContext } from "../contexts/appModeContext";
 import { useNoteRepositoryContext } from "../contexts/noteRepositoryContext";
@@ -254,6 +255,7 @@ export function useAppModalsController() {
       isOpen: isNoteModalOpen,
       onClose: handleCloseModal,
       date,
+      isCurrentDate: date !== null && isToday(date),
       shouldRenderNoteEditor,
       isClosing,
       hasEdits,

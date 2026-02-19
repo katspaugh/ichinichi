@@ -3,7 +3,7 @@
   --palette-light-bg: #F7F8F9;
   --palette-light-surface: #FFFBF5;
   --palette-light-surface-hover: #F5F0EB;
-  --palette-light-text: #3D3D3D;
+  --palette-light-text: rgb(29, 45, 53);
   --palette-light-text-muted: #AAAAAA;
   --palette-light-border: #E8E4DF;
   --palette-light-primary: #007AFF;
