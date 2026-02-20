@@ -10,6 +10,7 @@ interface CalendarGridProps {
   selectedDate?: string | null;
   onWeekStartChange?: () => void;
   now?: Date;
+  gridRef?: React.RefObject<HTMLDivElement | null>;
 }
 
 export function CalendarGrid({
@@ -21,12 +22,14 @@ export function CalendarGrid({
   selectedDate,
   onWeekStartChange,
   now,
+  gridRef,
 }: CalendarGridProps) {
   const months =
     month == null ? Array.from({ length: 12 }, (_, i) => i) : [month];
 
   return (
     <div
+      ref={gridRef}
       className={styles.grid}
       data-month-view={month != null ? "true" : undefined}
     >

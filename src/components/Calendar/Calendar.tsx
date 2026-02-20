@@ -41,36 +41,39 @@ export function Calendar({
   weekStartVersion,
 }: CalendarProps) {
   const hasAutoScrolledRef = useRef(false);
+  const gridRef = useRef<HTMLDivElement>(null);
   const [, setWeekStartVersion] = useState(0);
   const handleWeekStartChange = useCallback(() => {
     setWeekStartVersion((value) => value + 1);
   }, []);
 
   useEffect(() => {
-    if (hasAutoScrolledRef.current) {
-      return;
-    }
-
-    const now = new Date();
-    if (year !== now.getFullYear()) {
-      return;
-    }
-
-    if (now.getMonth() <= 0) {
-      return;
-    }
-
     if (!window.matchMedia("(max-width: 768px)").matches) {
       return;
     }
 
-    const currentMonthEl = document.querySelector(
-      '[data-current-month="true"]',
-    );
-    if (currentMonthEl instanceof HTMLElement) {
-      // Use instant scroll so snap doesn't fight smooth animation
-      currentMonthEl.scrollIntoView({ block: "start", behavior: "instant" });
+    const gridEl = gridRef.current;
+    if (!gridEl) return;
+
+    // Always scroll to top when year changes on mobile
+    gridEl.scrollTop = 0;
+
+    // On first load of current year, scroll to current month instead
+    if (!hasAutoScrolledRef.current) {
       hasAutoScrolledRef.current = true;
+
+      const now = new Date();
+      if (year === now.getFullYear() && now.getMonth() > 0) {
+        const currentMonthEl = gridEl.querySelector(
+          '[data-current-month="true"]',
+        );
+        if (currentMonthEl instanceof HTMLElement) {
+          currentMonthEl.scrollIntoView({
+            block: "start",
+            behavior: "instant",
+          });
+        }
+      }
     }
   }, [year]);
 
@@ -101,6 +104,7 @@ export function Calendar({
         onMonthClick={onMonthChange}
         onWeekStartChange={handleWeekStartChange}
         now={now}
+        gridRef={gridRef}
       />
     </div>
   );
