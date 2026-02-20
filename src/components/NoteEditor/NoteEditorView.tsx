@@ -25,6 +25,7 @@ interface NoteEditorViewProps {
   onDragOver?: (event: DragEvent<HTMLDivElement>) => void;
   onClick?: (event: MouseEvent<HTMLDivElement>) => void;
   onKeyDown?: (event: KeyboardEvent<HTMLDivElement>) => void;
+  onImageSelect?: (file: File) => void;
   isDraggingImage?: boolean;
   dropIndicatorPosition?: DropIndicatorPosition | null;
   isBlurred?: boolean;
@@ -44,6 +45,7 @@ export function NoteEditorView({
   onDragOver,
   onClick,
   onKeyDown,
+  onImageSelect,
   isDraggingImage = false,
   dropIndicatorPosition,
   isBlurred = false,
@@ -71,6 +73,7 @@ export function NoteEditorView({
         formattedDate={formattedDate}
         showReadonlyBadge={showReadonlyBadge}
         statusText={statusText}
+        onImageSelect={onImageSelect}
       />
       <div className={bodyClassName}>
         <NoteEditorContent

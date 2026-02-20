@@ -651,6 +651,53 @@ export function useContentEditableEditor({
     [handleInput, updateEmptyState],
   );
 
+  const handleFileInput = useCallback(
+    (file: File) => {
+      if (!isEditableRef.current) return;
+      const dropHandler = onImageDropRef.current;
+      if (!dropHandler) return;
+
+      const el = editorRef.current;
+      if (!el) return;
+
+      el.focus();
+      placeCaretAtEnd(el);
+
+      const placeholder = document.createElement("img");
+      placeholder.setAttribute("data-image-id", "uploading");
+      placeholder.setAttribute("alt", "Uploading...");
+      const previewUrl = URL.createObjectURL(file);
+      placeholder.setAttribute("src", previewUrl);
+      insertNodeAtCursor(placeholder);
+      handleInput();
+
+      uploadInProgressRef.current++;
+      dropHandler(file)
+        .then(({ id, width, height, filename }) => {
+          const finalImage = document.createElement("img");
+          finalImage.setAttribute("data-image-id", id);
+          finalImage.setAttribute("alt", filename);
+          finalImage.setAttribute("width", String(width));
+          finalImage.setAttribute("height", String(height));
+          if (placeholder.isConnected) {
+            placeholder.replaceWith(finalImage);
+          }
+        })
+        .catch((error) => {
+          console.error("Failed to upload image:", error);
+          placeholder.remove();
+        })
+        .finally(() => {
+          uploadInProgressRef.current--;
+          URL.revokeObjectURL(previewUrl);
+          onDropCompleteRef.current?.();
+          updateEmptyState();
+          handleInput();
+        });
+    },
+    [handleInput, updateEmptyState],
+  );
+
   const handleDragOver = useCallback((event: DragEvent<HTMLDivElement>) => {
     if (!isEditableRef.current) return;
     if (!onImageDropRef.current) return;
@@ -697,5 +744,6 @@ export function useContentEditableEditor({
     handleDragOver,
     handleClick,
     handleKeyDown,
+    handleFileInput,
   };
 }

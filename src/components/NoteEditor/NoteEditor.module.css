@@ -32,6 +32,10 @@
   align-items: center;
   justify-content: space-between;
   margin-bottom: var(--spacing-xl);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background-color: var(--color-surface);
 }
 
 .headerTitle {
@@ -56,12 +60,35 @@
   border-radius: var(--radius-sm);
 }
 
+.imageButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: var(--spacing-xs);
+  border-radius: var(--radius-sm);
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.imageButton:hover {
+  color: var(--color-text);
+  background-color: var(--color-surface);
+}
+
+.imageInput {
+  display: none;
+}
+
 .saving {
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
   opacity: 0;
   visibility: hidden;
-  margin-left: auto;
+  margin-left: 0;
 }
 
 .savingVisible {

@@ -23,6 +23,9 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: "prompt",
+      strategies: "injectManifest",
+      srcDir: "src",
+      filename: "sw.ts",
       includeAssets: [
         "favicons/favicon.ico",
         "favicons/apple-touch-icon.png",
@@ -30,10 +33,8 @@ export default defineConfig({
         "favicons/android-chrome-512x512.png",
       ],
       manifest: false,
-      workbox: {
+      injectManifest: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff,woff2}"],
-        navigateFallback: "index.html",
-        navigateFallbackDenylist: [/^\/api/],
       },
       devOptions: {
         enabled: false,
