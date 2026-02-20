@@ -89,7 +89,8 @@ export function NoteModal({
     <Modal isOpen={isOpen} onClose={onClose}>
       {date && shouldRenderNoteEditor && (
         <div className={styles.modalWrapper} ref={modalWrapperRef}>
-          {canNavigatePrev && <div className={styles.ghostNote} />}
+          {canNavigatePrev && <div className={styles.ghostNoteTop} />}
+          {canNavigateNext && <div className={styles.ghostNoteBottom} />}
 
           <div className={styles.editorWrapper} ref={editorWrapperRef}>
             <ErrorBoundary
@@ -112,8 +113,6 @@ export function NoteModal({
               />
             </ErrorBoundary>
           </div>
-
-          {canNavigateNext && <div className={styles.ghostNote} />}
 
           <div className={`${styles.nav} ${isCurrentDate ? styles.navCurrentDate : ""}`}>
             <div className={styles.leftArrow}>

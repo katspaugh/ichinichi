@@ -19,7 +19,8 @@
   margin: 10px;
 }
 
-.ghostNote {
+.ghostNoteTop,
+.ghostNoteBottom {
   display: none;
 }
 
@@ -40,7 +41,7 @@
 
 @media (max-width: 768px) {
   .modalWrapper {
-    overflow: hidden;
+    position: relative;
   }
 
   .editorWrapper {
@@ -56,13 +57,25 @@
     max-height: var(--vvh, 100dvh);
   }
 
-  .ghostNote {
+  .ghostNoteTop,
+  .ghostNoteBottom {
     display: block;
-    flex: none;
+    position: absolute;
+    left: 0;
+    right: 0;
     height: 100vh;
     height: 100dvh;
     height: var(--vvh, 100dvh);
     background-color: var(--color-surface);
+  }
+
+  .ghostNoteTop {
+    bottom: 100%;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .ghostNoteBottom {
+    top: 100%;
     border-top: 1px solid var(--color-border);
   }
 
