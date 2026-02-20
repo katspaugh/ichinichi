@@ -70,9 +70,9 @@ export function NoteModal({
       if (el) {
         const cls =
           date < prevDateRef.current
-            ? styles.slideDown
-            : styles.slideUp;
-        el.classList.remove(styles.slideDown, styles.slideUp);
+            ? styles.slidePrev
+            : styles.slideNext;
+        el.classList.remove(styles.slidePrev, styles.slideNext);
         // Force reflow so re-adding the same class restarts the animation
         void el.offsetWidth;
         el.classList.add(cls);
