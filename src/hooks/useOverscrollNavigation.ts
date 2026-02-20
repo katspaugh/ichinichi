@@ -9,7 +9,8 @@ const TRIGGER_THRESHOLD = 100;
 const RESISTANCE = 0.3;
 
 export function useOverscrollNavigation(
-  el: HTMLElement | null,
+  scrollEl: HTMLElement | null,
+  transformEl: HTMLElement | null,
   { onOverscrollUp, onOverscrollDown }: OverscrollHandlers,
 ) {
   const touchStartY = useRef(0);
@@ -17,20 +18,20 @@ export function useOverscrollNavigation(
   const pulling = useRef(false);
 
   useEffect(() => {
-    if (!el) return;
+    if (!scrollEl || !transformEl) return;
 
-    const isAtTop = () => el.scrollTop <= 0;
+    const isAtTop = () => scrollEl.scrollTop <= 0;
     const isAtBottom = () =>
-      el.scrollTop + el.clientHeight >= el.scrollHeight - 1;
+      scrollEl.scrollTop + scrollEl.clientHeight >= scrollEl.scrollHeight - 1;
 
     const resetTransform = () => {
-      el.style.transition = "transform 200ms ease-out";
-      el.style.transform = "";
+      transformEl.style.transition = "transform 200ms ease-out";
+      transformEl.style.transform = "";
       const onEnd = () => {
-        el.style.transition = "";
-        el.removeEventListener("transitionend", onEnd);
+        transformEl.style.transition = "";
+        transformEl.removeEventListener("transitionend", onEnd);
       };
-      el.addEventListener("transitionend", onEnd);
+      transformEl.addEventListener("transitionend", onEnd);
     };
 
     const handleTouchStart = (e: TouchEvent) => {
@@ -55,17 +56,14 @@ export function useOverscrollNavigation(
       const dy = e.touches[0].clientY - touchStartY.current;
       const b = atBoundary.current;
 
-      // Pull down at top → previous
       if ((b === "top" || b === "both") && dy > 0) {
         pulling.current = true;
-        el.style.transform = `translateY(${dy * RESISTANCE}px)`;
-      }
-      // Pull up at bottom → next
-      else if ((b === "bottom" || b === "both") && dy < 0) {
+        transformEl.style.transform = `translateY(${dy * RESISTANCE}px)`;
+      } else if ((b === "bottom" || b === "both") && dy < 0) {
         pulling.current = true;
-        el.style.transform = `translateY(${dy * RESISTANCE}px)`;
+        transformEl.style.transform = `translateY(${dy * RESISTANCE}px)`;
       } else if (pulling.current) {
-        el.style.transform = "";
+        transformEl.style.transform = "";
         pulling.current = false;
       }
     };
@@ -90,14 +88,16 @@ export function useOverscrollNavigation(
       }
     };
 
-    el.addEventListener("touchstart", handleTouchStart, { passive: true });
-    el.addEventListener("touchmove", handleTouchMove, { passive: true });
-    el.addEventListener("touchend", handleTouchEnd, { passive: true });
+    scrollEl.addEventListener("touchstart", handleTouchStart, {
+      passive: true,
+    });
+    scrollEl.addEventListener("touchmove", handleTouchMove, { passive: true });
+    scrollEl.addEventListener("touchend", handleTouchEnd, { passive: true });
 
     return () => {
-      el.removeEventListener("touchstart", handleTouchStart);
-      el.removeEventListener("touchmove", handleTouchMove);
-      el.removeEventListener("touchend", handleTouchEnd);
+      scrollEl.removeEventListener("touchstart", handleTouchStart);
+      scrollEl.removeEventListener("touchmove", handleTouchMove);
+      scrollEl.removeEventListener("touchend", handleTouchEnd);
     };
-  }, [el, onOverscrollUp, onOverscrollDown]);
+  }, [scrollEl, transformEl, onOverscrollUp, onOverscrollDown]);
 }

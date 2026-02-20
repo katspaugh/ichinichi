@@ -61,27 +61,26 @@ export function NoteModal({
     },
     [],
   );
+
+  const [modalWrapper, setModalWrapper] = useState<HTMLDivElement | null>(null);
+  const modalWrapperRef = useCallback(
+    (node: HTMLDivElement | null) => setModalWrapper(node),
+    [],
+  );
+
   const prevDateRef = useRef(date);
 
   useEffect(() => {
     if (date && prevDateRef.current && date !== prevDateRef.current) {
-      const el = editorWrapperDomRef.current;
-      if (el) {
-        el.scrollTop = 0;
-
-        const cls =
-          date < prevDateRef.current
-            ? styles.slideInFromTop
-            : styles.slideInFromBottom;
-        el.classList.add(cls);
-        const onEnd = () => el.classList.remove(cls);
-        el.addEventListener("animationend", onEnd, { once: true });
-      }
+      requestAnimationFrame(() => {
+        const el = editorWrapperDomRef.current;
+        if (el) el.scrollTop = 0;
+      });
     }
     prevDateRef.current = date;
   }, [date]);
 
-  useOverscrollNavigation(editorWrapper, {
+  useOverscrollNavigation(editorWrapper, modalWrapper, {
     onOverscrollUp: canNavigatePrev ? navigateToPrevious : undefined,
     onOverscrollDown: canNavigateNext ? navigateToNext : undefined,
   });
@@ -89,7 +88,9 @@ export function NoteModal({
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
       {date && shouldRenderNoteEditor && (
-        <div className={styles.modalWrapper}>
+        <div className={styles.modalWrapper} ref={modalWrapperRef}>
+          {canNavigatePrev && <div className={styles.ghostNote} />}
+
           <div className={styles.editorWrapper} ref={editorWrapperRef}>
             <ErrorBoundary
               title="Note editor crashed"
@@ -111,6 +112,8 @@ export function NoteModal({
               />
             </ErrorBoundary>
           </div>
+
+          {canNavigateNext && <div className={styles.ghostNote} />}
 
           <div className={`${styles.nav} ${isCurrentDate ? styles.navCurrentDate : ""}`}>
             <div className={styles.leftArrow}>
