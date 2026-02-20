@@ -1,7 +1,9 @@
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Modal } from "../Modal";
 import { NavigationArrow } from "../NavigationArrow";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { NoteEditor } from "../NoteEditor";
+import { useOverscrollNavigation } from "../../hooks/useOverscrollNavigation";
 import type { HabitValues } from "../../types";
 import styles from "./NoteModal.module.css";
 
@@ -48,11 +50,53 @@ export function NoteModal({
   navigateToPrevious,
   navigateToNext,
 }: NoteModalProps) {
+  const [editorWrapper, setEditorWrapper] = useState<HTMLDivElement | null>(
+    null,
+  );
+  const editorWrapperDomRef = useRef<HTMLDivElement | null>(null);
+  const editorWrapperRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      editorWrapperDomRef.current = node;
+      setEditorWrapper(node);
+    },
+    [],
+  );
+
+  const prevDateRef = useRef(date);
+
+  useEffect(() => {
+    if (date && prevDateRef.current && date !== prevDateRef.current) {
+      const el = editorWrapperDomRef.current;
+      if (el) {
+        const cls =
+          date < prevDateRef.current
+            ? styles.slidePrev
+            : styles.slideNext;
+        el.classList.remove(styles.slidePrev, styles.slideNext);
+        // Force reflow so re-adding the same class restarts the animation
+        void el.offsetWidth;
+        el.classList.add(cls);
+        const onEnd = () => el.classList.remove(cls);
+        el.addEventListener("animationend", onEnd, { once: true });
+      }
+      requestAnimationFrame(() => {
+        const el = editorWrapperDomRef.current;
+        if (el) el.scrollTop = 0;
+      });
+    }
+    prevDateRef.current = date;
+  }, [date]);
+
+  useOverscrollNavigation(editorWrapper, {
+    onOverscrollUp: canNavigatePrev ? navigateToPrevious : undefined,
+    onOverscrollDown: canNavigateNext ? navigateToNext : undefined,
+  });
+
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
       {date && shouldRenderNoteEditor && (
         <div className={styles.modalWrapper}>
-          <div className={styles.editorWrapper}>
+          <div className={styles.editorWrapper} ref={editorWrapperRef}>
             <ErrorBoundary
               title="Note editor crashed"
               description="You can reopen the note or continue from the calendar."
