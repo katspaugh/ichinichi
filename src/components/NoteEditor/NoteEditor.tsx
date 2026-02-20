@@ -9,6 +9,7 @@ import { useSavingIndicator } from "./useSavingIndicator";
 import { useInlineImageUpload, useInlineImageUrls } from "./useInlineImages";
 import { useImageDragState } from "./useImageDragState";
 import { useDropIndicator } from "./useDropIndicator";
+import { useShareTarget } from "../../hooks/useShareTarget";
 import { LocationPrompt } from "../LocationPrompt/LocationPrompt";
 import { useWeatherContext } from "../../contexts/weatherContext";
 import { HabitTracker } from "../../features/habits/HabitTracker";
@@ -95,6 +96,7 @@ export function NoteEditor({
     handleDragOver,
     handleClick,
     handleKeyDown,
+    handleFileInput,
   } = useContentEditableEditor({
     content,
     isEditable,
@@ -153,6 +155,9 @@ export function NoteEditor({
     editorRef,
   });
 
+  // Auto-insert images shared via Web Share Target API
+  useShareTarget(onImageDrop ? handleFileInput : undefined, isEditable);
+
   const { definitions, addHabit, renameHabit } =
     useHabitDefinitions(habits, onHabitChange);
 
@@ -190,6 +195,7 @@ export function NoteEditor({
         onDragOver={handleDragOverWithIndicator}
         onClick={handleClick}
         onKeyDown={handleKeyDown}
+        onImageSelect={onImageDrop ? handleFileInput : undefined}
         isDraggingImage={isDraggingImage}
         dropIndicatorPosition={indicatorPosition}
         isBlurred={isBlurred}

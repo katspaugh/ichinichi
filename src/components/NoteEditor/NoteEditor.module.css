@@ -56,12 +56,47 @@
   border-radius: var(--radius-sm);
 }
 
+.toolbar {
+  position: sticky;
+  bottom: var(--spacing-md);
+  display: flex;
+  gap: var(--spacing-xs);
+  align-self: flex-end;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--spacing-xs);
+  box-shadow: none;
+  z-index: 10;
+}
+
+.toolbarButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: var(--spacing-xs);
+  border-radius: var(--radius-sm);
+}
+
+.toolbarButton:hover {
+  color: var(--color-text);
+  background-color: var(--color-bg);
+}
+
+.imageInput {
+  display: none;
+}
+
 .saving {
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
   opacity: 0;
   visibility: hidden;
-  margin-left: auto;
+  margin-left: 0;
 }
 
 .savingVisible {

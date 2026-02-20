@@ -26,6 +26,21 @@ export function resolveUrlState(search: string): ResolvedUrlState {
   const today = getTodayString();
   const currentYear = new Date().getFullYear();
 
+  // Web Share Target: open today's note so the editor can read shared files from cache
+  if (params.has("share-target")) {
+    return {
+      state: {
+        view: ViewType.Note,
+        date: today,
+        year: currentYear,
+        month: null,
+        monthDate: null,
+      },
+      canonicalSearch: `?${URL_PARAMS.DATE}=${today}`,
+      needsRedirect: false,
+    };
+  }
+
   // Check if there's a month param first (combined month+date takes priority)
   if (!params.has(URL_PARAMS.MONTH) && params.has(URL_PARAMS.DATE)) {
     const dateParam = params.get(URL_PARAMS.DATE) ?? "";
