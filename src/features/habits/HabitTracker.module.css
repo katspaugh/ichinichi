@@ -1,7 +1,9 @@
 .tracker {
   border-top: 1px solid var(--color-border);
   margin-top: var(--spacing-xl);
-  padding-top: var(--spacing-md);
+  margin-left: calc(-1 * var(--spacing-xl));
+  margin-right: calc(-1 * var(--spacing-xl));
+  padding: var(--spacing-md) var(--spacing-xl) 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
