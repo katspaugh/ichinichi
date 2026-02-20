@@ -1,3 +1,10 @@
+.content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
 .title {
   font-size: var(--font-size-xl);
   font-weight: var(--font-weight-semibold);
@@ -11,11 +18,12 @@
 
 .list {
   margin: var(--spacing-md) 0;
-  padding-left: var(--spacing-lg);
   color: var(--color-text-muted);
   display: flex;
   flex-direction: column;
   gap: var(--spacing-xs);
+  list-style: none;
+  padding: 0;
 }
 
 .builder {

@@ -2,6 +2,7 @@ import { Github } from "lucide-react";
 import { Modal } from "../Modal";
 import { ModalCard } from "../ModalCard";
 import { Button } from "../Button";
+import { IntroPreview } from "./IntroPreview";
 import styles from "./AboutModal.module.css";
 
 interface AboutModalProps {
@@ -12,13 +13,15 @@ interface AboutModalProps {
 export function AboutModal({ isOpen, onClose }: AboutModalProps) {
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
-      <ModalCard maxWidth="md">
-        <h2 className={styles.title}>About Ichinichi</h2>
-        <p className={styles.subtitle}>A calm place for one note per day.</p>
+      <ModalCard maxWidth="md" className={styles.content}>
+        <h2 className={styles.title}>Welcome to Ichinichi</h2>
+        <p className={styles.subtitle}>
+          A calm place for one note per day. No account required to start.
+        </p>
+        <IntroPreview />
         <ul className={styles.list}>
           <li>Your notes are encrypted on this device before storage.</li>
           <li>Sync is optional and keeps encrypted backups in the cloud.</li>
-          <li>No account required. No tracking. No ads.</li>
         </ul>
         <a
           className={styles.builder}
