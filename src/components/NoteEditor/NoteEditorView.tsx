@@ -1,4 +1,6 @@
+import { useCallback, useRef } from "react";
 import type {
+  ChangeEvent,
   ClipboardEvent,
   DragEvent,
   FormEvent,
@@ -7,6 +9,7 @@ import type {
   ReactNode,
   RefObject,
 } from "react";
+import { ImagePlus } from "lucide-react";
 import { NoteEditorHeader } from "./NoteEditorHeader";
 import { NoteEditorContent } from "./NoteEditorContent";
 import type { DropIndicatorPosition } from "./useDropIndicator";
@@ -51,7 +54,25 @@ export function NoteEditorView({
   isBlurred = false,
   footer,
 }: NoteEditorViewProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const bodyClassName = `${styles.body} ${isBlurred ? styles.blurred : ""}`;
+
+  const handleButtonClick = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleFileChange = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (file && onImageSelect) {
+        onImageSelect(file);
+      }
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    },
+    [onImageSelect],
+  );
 
   return (
     <div className={styles.editor}>
@@ -73,7 +94,6 @@ export function NoteEditorView({
         formattedDate={formattedDate}
         showReadonlyBadge={showReadonlyBadge}
         statusText={statusText}
-        onImageSelect={onImageSelect}
       />
       <div className={bodyClassName}>
         <NoteEditorContent
@@ -88,6 +108,26 @@ export function NoteEditorView({
           onKeyDown={onKeyDown}
         />
       </div>
+      {onImageSelect && (
+        <div className={styles.toolbar}>
+          <button
+            type="button"
+            className={styles.toolbarButton}
+            onClick={handleButtonClick}
+            aria-label="Insert image"
+            title="Insert image"
+          >
+            <ImagePlus size={18} />
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className={styles.imageInput}
+            onChange={handleFileChange}
+          />
+        </div>
+      )}
       {footer}
     </div>
   );

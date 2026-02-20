@@ -32,10 +32,6 @@
   align-items: center;
   justify-content: space-between;
   margin-bottom: var(--spacing-xl);
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  background-color: var(--color-surface);
 }
 
 .headerTitle {
@@ -60,7 +56,21 @@
   border-radius: var(--radius-sm);
 }
 
-.imageButton {
+.toolbar {
+  position: sticky;
+  bottom: var(--spacing-md);
+  display: flex;
+  gap: var(--spacing-xs);
+  align-self: flex-end;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--spacing-xs);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  z-index: 10;
+}
+
+.toolbarButton {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -70,13 +80,11 @@
   cursor: pointer;
   padding: var(--spacing-xs);
   border-radius: var(--radius-sm);
-  margin-left: auto;
-  flex-shrink: 0;
 }
 
-.imageButton:hover {
+.toolbarButton:hover {
   color: var(--color-text);
-  background-color: var(--color-surface);
+  background-color: var(--color-bg);
 }
 
 .imageInput {
