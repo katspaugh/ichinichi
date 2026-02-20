@@ -62,16 +62,23 @@ export function NoteModal({
     [],
   );
 
-  const [modalWrapper, setModalWrapper] = useState<HTMLDivElement | null>(null);
-  const modalWrapperRef = useCallback(
-    (node: HTMLDivElement | null) => setModalWrapper(node),
-    [],
-  );
-
   const prevDateRef = useRef(date);
 
   useEffect(() => {
     if (date && prevDateRef.current && date !== prevDateRef.current) {
+      const el = editorWrapperDomRef.current;
+      if (el) {
+        const cls =
+          date < prevDateRef.current
+            ? styles.slideDown
+            : styles.slideUp;
+        el.classList.remove(styles.slideDown, styles.slideUp);
+        // Force reflow so re-adding the same class restarts the animation
+        void el.offsetWidth;
+        el.classList.add(cls);
+        const onEnd = () => el.classList.remove(cls);
+        el.addEventListener("animationend", onEnd, { once: true });
+      }
       requestAnimationFrame(() => {
         const el = editorWrapperDomRef.current;
         if (el) el.scrollTop = 0;
@@ -80,7 +87,7 @@ export function NoteModal({
     prevDateRef.current = date;
   }, [date]);
 
-  useOverscrollNavigation(editorWrapper, modalWrapper, {
+  useOverscrollNavigation(editorWrapper, {
     onOverscrollUp: canNavigatePrev ? navigateToPrevious : undefined,
     onOverscrollDown: canNavigateNext ? navigateToNext : undefined,
   });
@@ -88,10 +95,7 @@ export function NoteModal({
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
       {date && shouldRenderNoteEditor && (
-        <div className={styles.modalWrapper} ref={modalWrapperRef}>
-          {canNavigatePrev && <div className={styles.ghostNoteTop} />}
-          {canNavigateNext && <div className={styles.ghostNoteBottom} />}
-
+        <div className={styles.modalWrapper}>
           <div className={styles.editorWrapper} ref={editorWrapperRef}>
             <ErrorBoundary
               title="Note editor crashed"
