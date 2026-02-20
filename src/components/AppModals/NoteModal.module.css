@@ -22,7 +22,7 @@
 @keyframes slideDown {
   from {
     opacity: 0;
-    transform: translateY(-40px);
+    transform: translateY(-100%);
   }
   to {
     opacity: 1;
@@ -33,7 +33,7 @@
 @keyframes slideUp {
   from {
     opacity: 0;
-    transform: translateY(40px);
+    transform: translateY(100%);
   }
   to {
     opacity: 1;
