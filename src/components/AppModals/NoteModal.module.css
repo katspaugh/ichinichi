@@ -23,7 +23,7 @@
 @keyframes slidePrev {
   from {
     opacity: 0;
-    transform: translateX(100%);
+    transform: translateX(-100%);
   }
   to {
     opacity: 1;
@@ -34,7 +34,7 @@
 @keyframes slideNext {
   from {
     opacity: 0;
-    transform: translateX(-100%);
+    transform: translateX(100%);
   }
   to {
     opacity: 1;
