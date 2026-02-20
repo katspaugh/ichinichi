@@ -14,7 +14,7 @@ export function PrivacyPolicyModal({
 }: PrivacyPolicyModalProps) {
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
-      <ModalCard maxWidth="md">
+      <ModalCard maxWidth="md" className={styles.content}>
         <h2 className={styles.title}>Privacy Policy</h2>
         <p className={styles.subtitle}>
           Ichinichi stores your notes locally and encrypts them before
