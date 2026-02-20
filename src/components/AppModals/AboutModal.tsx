@@ -14,7 +14,7 @@ export function AboutModal({ isOpen, onClose }: AboutModalProps) {
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
       <ModalCard maxWidth="md" className={styles.content}>
-        <h2 className={styles.title}>Welcome to Ichinichi</h2>
+        <h2 className={styles.title}>About Ichinichi</h2>
         <p className={styles.subtitle}>
           A calm place for one note per day. No account required to start.
         </p>
