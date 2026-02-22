@@ -24,8 +24,9 @@
   bottom: 0;
   right: 0;
   width: 320px;
-  background: linear-gradient(to bottom, var(--color-bg), var(--color-surface) 48px);
-  border-left: none;
+  background-color: var(--color-surface);
+  border-left: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
   color: var(--color-text);
   display: flex;
   flex-direction: column;
@@ -33,16 +34,6 @@
   transition: transform 200ms ease;
 }
 
-.panel::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  bottom: 0;
-  width: 1px;
-  background: linear-gradient(to bottom, transparent, var(--color-border) 48px);
-  pointer-events: none;
-}
 
 .panel[data-open="true"] {
   transform: translateX(0);
@@ -98,7 +89,7 @@
 .separator {
   height: 1px;
   width: 100%;
-  background-color: var(--color-bg);
+  background-color: var(--color-control);
 }
 
 .userRow {
@@ -208,7 +199,7 @@
   grid-template-columns: repeat(3, 1fr);
   gap: 4px;
   padding: 4px;
-  background-color: var(--color-bg);
+  background-color: var(--color-control);
   border-radius: 10px;
 }
 
@@ -253,7 +244,7 @@
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  background-color: var(--color-bg);
+  background-color: var(--color-control);
   border-radius: 10px;
 }
 
@@ -272,7 +263,7 @@
   height: 36px;
   border-radius: 10px;
   border: none;
-  background-color: var(--color-bg);
+  background-color: var(--color-control);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -314,7 +305,7 @@
   display: inline-flex;
   gap: 4px;
   padding: 4px;
-  background-color: var(--color-bg);
+  background-color: var(--color-control);
   border-radius: 8px;
 }
 
@@ -344,7 +335,7 @@
   height: 20px;
   border-radius: 999px;
   border: none;
-  background-color: var(--color-bg);
+  background-color: var(--color-control);
   position: relative;
   cursor: pointer;
   transition: background-color var(--transition-fast);

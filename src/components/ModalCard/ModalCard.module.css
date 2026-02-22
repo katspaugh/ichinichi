@@ -10,10 +10,12 @@
 .card {
   width: 100%;
   padding: var(--spacing-xl);
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
-  background-color: var(--color-surface);
-  box-shadow: var(--modal-shadow);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-shadow), var(--glass-highlight);
   pointer-events: auto;
 }
 

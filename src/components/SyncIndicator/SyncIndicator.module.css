@@ -7,8 +7,11 @@
   color: var(--color-text-muted);
   padding: var(--spacing-xs) var(--spacing-sm);
   border-radius: var(--radius);
-  background-color: transparent;
-  border: 1px solid var(--color-border);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-highlight);
   min-width: 90px;
   height: 28px;
   cursor: default;

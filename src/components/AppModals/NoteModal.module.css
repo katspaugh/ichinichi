@@ -13,8 +13,11 @@
   width: 80vw;
   min-width: 400px;
   max-width: 720px;
-  border: 1px solid var(--color-border);
-  background-color: var(--color-surface);
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-shadow), var(--glass-highlight);
   border-radius: var(--radius-lg);
   margin: 10px;
 }

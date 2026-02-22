@@ -1,26 +1,27 @@
 :root {
   /* Color primitives - Light palette (warm natural tones) */
   --palette-light-bg: #F7F8F9;
-  --palette-light-surface: #FFFBF5;
-  --palette-light-surface-hover: #F5F0EB;
+  --palette-light-surface: #FFFBF6;
+  --palette-light-surface-hover: #F7F2EC;
   --palette-light-text: rgb(29, 45, 53);
-  --palette-light-text-muted: #AAAAAA;
-  --palette-light-border: #E8E4DF;
+  --palette-light-text-muted: #999590;
+  --palette-light-border: #DDD8D0;
   --palette-light-primary: #007AFF;
   --palette-light-primary-hover: #0066DD;
-  --palette-light-today: #FFF8E8;
-  --palette-light-today-hover: #FFF0D4;
-  --palette-light-today-border: #E8C97A;
-  --palette-light-note-indicator: #D4A574;
+  --palette-light-today: #FFF6DC;
+  --palette-light-today-hover: #FFEED0;
+  --palette-light-today-border: #E0BE68;
+  --palette-light-note-indicator: #C89A60;
   --palette-light-link: #007AFF;
   --palette-light-sync-success: #34C759;
   --palette-light-sync-error: #FF3B30;
   --palette-light-sync-offline: #FF9500;
   --palette-light-sync-pending: #007AFF;
+  --palette-light-control: #F8F6F2;
   --palette-light-nav-arrow-bg: transparent;
-  --palette-light-nav-arrow-bg-hover: rgba(0, 0, 0, 0.04);
-  --palette-light-nav-arrow-text: #AAAAAA;
-  --palette-light-overlay-bg: rgba(250, 249, 246, 0.8);
+  --palette-light-nav-arrow-bg-hover: rgba(0, 0, 0, 0.05);
+  --palette-light-nav-arrow-text: #999590;
+  --palette-light-overlay-bg: rgba(247, 248, 249, 0.75);
 
   /* Color primitives - Dark palette */
   --palette-dark-bg: #0a0a0a;
@@ -40,6 +41,7 @@
   --palette-dark-sync-error: #e07b7b;
   --palette-dark-sync-offline: #d9a461;
   --palette-dark-sync-pending: #8db0e6;
+  --palette-dark-control: #111111;
   --palette-dark-nav-arrow-bg: rgba(255, 255, 255, 0.06);
   --palette-dark-nav-arrow-bg-hover: rgba(255, 255, 255, 0.12);
   --palette-dark-nav-arrow-text: rgba(255, 255, 255, 0.5);
@@ -63,6 +65,7 @@
   --color-sync-error: var(--palette-light-sync-error);
   --color-sync-offline: var(--palette-light-sync-offline);
   --color-sync-pending: var(--palette-light-sync-pending);
+  --color-control: var(--palette-light-control);
   --color-nav-arrow-bg: var(--palette-light-nav-arrow-bg);
   --color-nav-arrow-bg-hover: var(--palette-light-nav-arrow-bg-hover);
   --color-nav-arrow-text: var(--palette-light-nav-arrow-text);
@@ -102,6 +105,13 @@
   --radius: 8px;
   --radius-lg: 12px;
 
+  /* Glass — light */
+  --glass-bg: rgba(255, 251, 246, 0.6);
+  --glass-border: rgba(255, 255, 250, 0.65);
+  --glass-blur: blur(16px) saturate(180%);
+  --glass-shadow: 0 1px 8px rgba(0, 0, 0, 0.03);
+  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+
   /* Transitions */
   --transition-fast: 150ms ease;
   --transition-normal: 200ms ease;
@@ -131,6 +141,11 @@ html.no-transition body * {
 
 /* Explicit dark mode - overrides system preference */
 :root[data-theme="dark"] {
+  --glass-bg: rgba(26, 26, 26, 0.55);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-blur: blur(16px) saturate(180%);
+  --glass-shadow: 0 2px 16px rgba(0, 0, 0, 0.25);
+  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.06);
   --color-bg: var(--palette-dark-bg);
   --color-surface: var(--palette-dark-surface);
   --color-surface-hover: var(--palette-dark-surface-hover);
@@ -148,6 +163,7 @@ html.no-transition body * {
   --color-sync-error: var(--palette-dark-sync-error);
   --color-sync-offline: var(--palette-dark-sync-offline);
   --color-sync-pending: var(--palette-dark-sync-pending);
+  --color-control: var(--palette-dark-control);
   --color-nav-arrow-bg: var(--palette-dark-nav-arrow-bg);
   --color-nav-arrow-bg-hover: var(--palette-dark-nav-arrow-bg-hover);
   --color-nav-arrow-text: var(--palette-dark-nav-arrow-text);
@@ -157,6 +173,11 @@ html.no-transition body * {
 /* System preference fallback when no explicit theme is set */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
+    --glass-bg: rgba(26, 26, 26, 0.55);
+    --glass-border: rgba(255, 255, 255, 0.08);
+    --glass-blur: blur(16px) saturate(180%);
+    --glass-shadow: 0 2px 16px rgba(0, 0, 0, 0.25);
+    --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.06);
     --color-bg: var(--palette-dark-bg);
     --color-surface: var(--palette-dark-surface);
     --color-surface-hover: var(--palette-dark-surface-hover);
@@ -174,6 +195,7 @@ html.no-transition body * {
     --color-sync-error: var(--palette-dark-sync-error);
     --color-sync-offline: var(--palette-dark-sync-offline);
     --color-sync-pending: var(--palette-dark-sync-pending);
+    --color-control: var(--palette-dark-control);
     --color-nav-arrow-bg: var(--palette-dark-nav-arrow-bg);
     --color-nav-arrow-bg-hover: var(--palette-dark-nav-arrow-bg-hover);
     --color-nav-arrow-text: var(--palette-dark-nav-arrow-text);

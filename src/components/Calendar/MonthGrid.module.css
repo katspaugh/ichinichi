@@ -1,5 +1,7 @@
 .monthGrid {
   background-color: var(--color-surface);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow), var(--glass-highlight);
   border-radius: var(--radius-lg);
   padding: var(--spacing-md);
   width: 100%;

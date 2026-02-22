@@ -62,11 +62,13 @@
   display: flex;
   gap: var(--spacing-xs);
   align-self: flex-end;
-  background-color: var(--color-surface);
-  border: 1px solid var(--color-border);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius);
   padding: var(--spacing-xs);
-  box-shadow: none;
+  box-shadow: var(--glass-shadow), var(--glass-highlight);
   z-index: 10;
 }
 
