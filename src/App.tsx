@@ -157,6 +157,8 @@ function App() {
                     isDecrypting={notes.isDecrypting}
                     isContentReady={notes.isContentReady}
                     isOfflineStub={notes.isOfflineStub}
+                    habits={notes.habits}
+                    onHabitChange={notes.setHabits}
                     syncStatus={canSync ? notes.syncStatus : undefined}
                     syncError={canSync ? notes.syncError : undefined}
                     pendingOps={canSync ? notes.pendingOps : undefined}
