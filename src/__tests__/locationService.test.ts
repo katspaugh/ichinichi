@@ -294,5 +294,47 @@ describe("locationService", () => {
       const pos = await service!.getCurrentPosition();
       expect(pos).toBeNull();
     });
+
+    it("caches permission as granted after successful getCurrentPosition", async () => {
+      let service: typeof import("../services/locationService").locationService;
+      await jest.isolateModulesAsync(async () => {
+        Object.defineProperty(global, "navigator", {
+          value: {
+            language: "en",
+            geolocation: {
+              getCurrentPosition: (success: PositionCallback) => {
+                success({
+                  coords: { latitude: 32.67, longitude: -16.92 },
+                } as GeolocationPosition);
+              },
+            },
+          },
+          writable: true,
+          configurable: true,
+        });
+        const mod = await import("../services/locationService");
+        service = mod.locationService;
+      });
+
+      await service!.getCurrentPosition();
+      const state = await service!.getPermissionState();
+      expect(state).toBe("granted");
+    });
+  });
+
+  describe("Atlantic timezone support", () => {
+    it("returns Funchal for Atlantic/Madeira timezone", async () => {
+      let service: typeof import("../services/locationService").locationService;
+      await jest.isolateModulesAsync(async () => {
+        mockTimezone("Atlantic/Madeira");
+        const mod = await import("../services/locationService");
+        service = mod.locationService;
+      });
+
+      const loc = await service!.getApproxLocation();
+      expect(loc).not.toBeNull();
+      expect(loc!.city).toBe("Funchal");
+      expect(loc!.country).toBe("Portugal");
+    });
   });
 });

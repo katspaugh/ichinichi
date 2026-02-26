@@ -7,12 +7,17 @@ import {
   setLocationLabel,
   getLocationKind,
   setLocationKind,
+  getLocationCoords,
+  setLocationCoords,
+  clearLocationCoords,
 } from "../features/weather/WeatherPreferences";
 import {
   SHOW_WEATHER_KEY,
   TEMP_UNIT_KEY,
   LOCATION_LABEL_KEY,
   LOCATION_KIND_KEY,
+  LOCATION_LAT_KEY,
+  LOCATION_LON_KEY,
 } from "../utils/constants";
 
 beforeEach(() => {
@@ -139,6 +144,39 @@ describe("WeatherPreferences", () => {
       setLocationKind("approx");
       setLocationKind(null);
       expect(localStorage.getItem(LOCATION_KIND_KEY)).toBeNull();
+    });
+  });
+
+  describe("locationCoords", () => {
+    it("returns null when nothing stored", () => {
+      expect(getLocationCoords()).toBeNull();
+    });
+
+    it("stores and retrieves coordinates", () => {
+      setLocationCoords(52.52, 13.41);
+      const coords = getLocationCoords();
+      expect(coords).not.toBeNull();
+      expect(coords!.lat).toBe(52.52);
+      expect(coords!.lon).toBe(13.41);
+    });
+
+    it("returns null when only lat is stored", () => {
+      localStorage.setItem(LOCATION_LAT_KEY, "52.52");
+      expect(getLocationCoords()).toBeNull();
+    });
+
+    it("returns null for non-numeric values", () => {
+      localStorage.setItem(LOCATION_LAT_KEY, "abc");
+      localStorage.setItem(LOCATION_LON_KEY, "13.41");
+      expect(getLocationCoords()).toBeNull();
+    });
+
+    it("clears stored coordinates", () => {
+      setLocationCoords(52.52, 13.41);
+      clearLocationCoords();
+      expect(getLocationCoords()).toBeNull();
+      expect(localStorage.getItem(LOCATION_LAT_KEY)).toBeNull();
+      expect(localStorage.getItem(LOCATION_LON_KEY)).toBeNull();
     });
   });
 });
