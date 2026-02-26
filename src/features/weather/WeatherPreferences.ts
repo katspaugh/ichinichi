@@ -1,6 +1,8 @@
 import {
   LOCATION_KIND_KEY,
   LOCATION_LABEL_KEY,
+  LOCATION_LAT_KEY,
+  LOCATION_LON_KEY,
   SHOW_WEATHER_KEY,
   TEMP_UNIT_KEY,
 } from "../../utils/constants";
@@ -60,4 +62,27 @@ export function setLocationKind(value: LocationKind | null): void {
     return;
   }
   localStorage.setItem(LOCATION_KIND_KEY, value);
+}
+
+export function getLocationCoords(): { lat: number; lon: number } | null {
+  if (typeof window === "undefined") return null;
+  const lat = localStorage.getItem(LOCATION_LAT_KEY);
+  const lon = localStorage.getItem(LOCATION_LON_KEY);
+  if (lat === null || lon === null) return null;
+  const parsedLat = parseFloat(lat);
+  const parsedLon = parseFloat(lon);
+  if (Number.isNaN(parsedLat) || Number.isNaN(parsedLon)) return null;
+  return { lat: parsedLat, lon: parsedLon };
+}
+
+export function setLocationCoords(lat: number, lon: number): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(LOCATION_LAT_KEY, String(lat));
+  localStorage.setItem(LOCATION_LON_KEY, String(lon));
+}
+
+export function clearLocationCoords(): void {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(LOCATION_LAT_KEY);
+  localStorage.removeItem(LOCATION_LON_KEY);
 }

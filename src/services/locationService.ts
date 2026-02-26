@@ -142,6 +142,9 @@ const TIMEZONE_TO_COUNTRY: Record<string, string> = {
   "Africa/Johannesburg": "ZA",
   "Africa/Cairo": "EG",
   "Africa/Lagos": "NG",
+  "Atlantic/Madeira": "PT",
+  "Atlantic/Azores": "PT",
+  "Atlantic/Canary": "ES",
 };
 
 // Approximate coordinates for major timezones (primary heuristic)
@@ -210,6 +213,9 @@ const TIMEZONE_TO_COORDS: Record<
   "Africa/Johannesburg": { lat: -26.2, lon: 28.04, city: "Johannesburg" },
   "Africa/Cairo": { lat: 30.04, lon: 31.24, city: "Cairo" },
   "Africa/Lagos": { lat: 6.52, lon: 3.38, city: "Lagos" },
+  "Atlantic/Madeira": { lat: 32.67, lon: -16.92, city: "Funchal" },
+  "Atlantic/Azores": { lat: 37.75, lon: -25.67, city: "Ponta Delgada" },
+  "Atlantic/Canary": { lat: 28.12, lon: -15.44, city: "Las Palmas" },
 };
 
 // Fallback timezone mappings for less common zones
@@ -374,6 +380,8 @@ class LocationService {
           });
         }
       );
+
+      this.cachedPermissionState = "granted";
 
       return {
         lat: position.coords.latitude,

@@ -8,10 +8,12 @@ import {
   hasWeather,
 } from "./WeatherDom";
 import {
+  getLocationCoords,
   getLocationKind,
   getLocationLabel,
   getShowWeatherPreference,
   getUnitPreference,
+  setLocationCoords,
   setLocationKind,
   setLocationLabel,
   setShowWeatherPreference,
@@ -79,12 +81,15 @@ export function useWeatherFeature() {
   }));
 
   const commitLocation = useCallback(
-    (label: string | null, kind: LocationKind | null) => {
+    (label: string | null, kind: LocationKind | null, coords?: { lat: number; lon: number }) => {
       if (label !== state.locationLabel) {
         setLocationLabel(label);
       }
       if (kind !== state.locationKind) {
         setLocationKind(kind);
+      }
+      if (coords) {
+        setLocationCoords(coords.lat, coords.lon);
       }
       if (label !== state.locationLabel || kind !== state.locationKind) {
         dispatch({ type: "SET_LOCATION", label, kind });
@@ -107,6 +112,7 @@ export function useWeatherFeature() {
     const precise = await locationProvider.getPreciseLocation();
     if (!precise) return;
 
+    const coords = { lat: precise.lat, lon: precise.lon };
     const weather = await weatherRepository.getCurrentWeather(
       precise.lat,
       precise.lon,
@@ -114,11 +120,11 @@ export function useWeatherFeature() {
     );
 
     if (weather?.city) {
-      commitLocation(weather.city, "precise");
+      commitLocation(weather.city, "precise", coords);
       return;
     }
 
-    commitLocation(state.locationLabel, "precise");
+    commitLocation(state.locationLabel, "precise", coords);
   }, [commitLocation, locationProvider, state.locationLabel, state.unitPreference, weatherRepository]);
 
   const applyWeatherToEditor = useCallback(
@@ -133,25 +139,35 @@ export function useWeatherFeature() {
       let lon: number | null = null;
       let usedPrecise = false;
 
+      // Try precise geolocation when user has opted in (skip permission check —
+      // getCurrentPosition handles denied gracefully, and the Permissions API
+      // is unreliable on mobile Safari)
       if (state.locationKind === "precise") {
-        const permission = await locationProvider.getPermissionState();
-        if (permission === "granted") {
-          const precise = await locationProvider.getPreciseLocation();
-          if (precise) {
-            lat = precise.lat;
-            lon = precise.lon;
-            usedPrecise = true;
-          }
+        const precise = await locationProvider.getPreciseLocation();
+        if (precise) {
+          lat = precise.lat;
+          lon = precise.lon;
+          usedPrecise = true;
         }
       }
 
+      // Fall back to stored coordinates from last successful location
+      if (lat === null || lon === null) {
+        const stored = getLocationCoords();
+        if (stored) {
+          lat = stored.lat;
+          lon = stored.lon;
+        }
+      }
+
+      // Last resort: approximate location from timezone heuristic (first-time only)
       if (lat === null || lon === null) {
         const approx = await locationProvider.getApproxLocation();
         if (!approx) return false;
         lat = approx.lat;
         lon = approx.lon;
         const label = formatApproxLabel(approx.city, approx.country);
-        commitLocation(label || null, "approx");
+        commitLocation(label || null, "approx", { lat, lon });
       }
 
       const weather = await weatherRepository.getCurrentWeather(
@@ -163,7 +179,7 @@ export function useWeatherFeature() {
 
       if (usedPrecise) {
         const nextLabel = weather.city || state.locationLabel || null;
-        commitLocation(nextLabel, "precise");
+        commitLocation(nextLabel, "precise", { lat, lon });
       }
 
       for (const hr of pending) {
@@ -187,6 +203,7 @@ export function useWeatherFeature() {
       const precise = await locationProvider.getPreciseLocation();
       if (!precise) return false;
 
+      const coords = { lat: precise.lat, lon: precise.lon };
       const weather = await weatherRepository.getCurrentWeather(
         precise.lat,
         precise.lon,
@@ -197,7 +214,7 @@ export function useWeatherFeature() {
 
       applyWeatherToHr(hr, weather);
       const nextLabel = weather.city || state.locationLabel || null;
-      commitLocation(nextLabel, "precise");
+      commitLocation(nextLabel, "precise", coords);
       return true;
     },
     [
