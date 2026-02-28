@@ -723,31 +723,6 @@ export function useContentEditableEditor({
       if (hasWeather?.(hr)) {
         event.preventDefault();
         onWeatherClickRef.current?.(hr);
-        return;
-      }
-    }
-
-    // Coordinate-based weather HR detection for mobile.
-    // On mobile browsers in contenteditable, tapping on an HR's ::before
-    // pseudo-element may not resolve the HR as the event target.
-    const el = editorRef.current;
-    if (el) {
-      const weatherHrs = el.querySelectorAll<HTMLHRElement>(
-        "hr[data-weather]",
-      );
-      for (const hr of weatherHrs) {
-        const rect = hr.getBoundingClientRect();
-        // Expand hit area to cover the ::before label above the HR line
-        if (
-          event.clientY >= rect.top - 28 &&
-          event.clientY <= rect.bottom + 8 &&
-          event.clientX >= rect.left &&
-          event.clientX <= rect.right
-        ) {
-          event.preventDefault();
-          onWeatherClickRef.current?.(hr);
-          return;
-        }
       }
     }
   }, [hasWeather]);

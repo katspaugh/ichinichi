@@ -139,15 +139,19 @@ export function useWeatherFeature() {
       let lon: number | null = null;
       let usedPrecise = false;
 
-      // Try precise geolocation when user has opted in (skip permission check —
-      // getCurrentPosition handles denied gracefully, and the Permissions API
-      // is unreliable on mobile Safari)
+      // Try precise geolocation only when permission is confirmed granted.
+      // Calling getCurrentPosition without confirmed permission triggers the
+      // browser's permission prompt (which expires between sessions on mobile
+      // Safari). Stored coords cover the gap when permission state is unknown.
       if (state.locationKind === "precise") {
-        const precise = await locationProvider.getPreciseLocation();
-        if (precise) {
-          lat = precise.lat;
-          lon = precise.lon;
-          usedPrecise = true;
+        const permission = await locationProvider.getPermissionState();
+        if (permission === "granted") {
+          const precise = await locationProvider.getPreciseLocation();
+          if (precise) {
+            lat = precise.lat;
+            lon = precise.lon;
+            usedPrecise = true;
+          }
         }
       }
 
