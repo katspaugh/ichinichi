@@ -13,11 +13,31 @@
 .closeButton {
   background-color: transparent;
   color: var(--color-text);
-  font-size: 24px;
-  width: 48px;
-  height: 48px;
+  font-size: 20px;
+  width: 36px;
+  height: 36px;
   position: fixed;
-  top: 8px;
-  right: 8px;
+  top: var(--spacing-xl);
+  right: var(--spacing-xl);
   z-index: 101;
+}
+
+@media (min-width: 1200px) {
+  .closeButton {
+    top: var(--spacing-md);
+    right: var(--spacing-md);
+  }
+}
+
+@media (max-width: 768px) {
+  .closeButton {
+    top: var(--spacing-md);
+    right: var(--spacing-md);
+  }
+}
+
+@media (display-mode: standalone) and (min-width: 769px) {
+  .closeButton {
+    top: 0;
+  }
 }

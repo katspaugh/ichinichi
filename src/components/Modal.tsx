@@ -10,6 +10,7 @@ interface ModalProps {
   isCompact?: boolean;
   isDismissable?: boolean;
   variant?: "default" | "overlay";
+  className?: string;
 }
 
 export function Modal({
@@ -19,6 +20,7 @@ export function Modal({
   isCompact = false,
   isDismissable = true,
   variant = "default",
+  className,
 }: ModalProps) {
   useVisualViewport(isOpen);
 
@@ -75,7 +77,7 @@ export function Modal({
 
   return (
     <div
-      className={styles.backdrop}
+      className={`${styles.backdrop}${className ? ` ${className}` : ""}`}
       data-variant={variant}
       onClick={handleBackdropClick}
     >

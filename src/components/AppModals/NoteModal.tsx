@@ -4,6 +4,7 @@ import { NavigationArrow } from "../NavigationArrow";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { NoteEditor } from "../NoteEditor";
 import { useOverscrollNavigation } from "../../hooks/useOverscrollNavigation";
+import { parseDate } from "../../utils/date";
 import type { HabitValues } from "../../types";
 import styles from "./NoteModal.module.css";
 
@@ -70,8 +71,10 @@ export function NoteModal({
     if (date && prevDateRef.current && date !== prevDateRef.current) {
       const el = editorWrapperDomRef.current;
       if (el) {
+        const curr = parseDate(date);
+        const prev = parseDate(prevDateRef.current);
         const cls =
-          date < prevDateRef.current
+          curr && prev && curr < prev
             ? styles.slidePrev
             : styles.slideNext;
         el.classList.remove(styles.slidePrev, styles.slideNext);

@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactNode, Ref } from "react";
 import styles from "./ModalCard.module.css";
 
 interface ModalCardProps {
@@ -6,6 +6,7 @@ interface ModalCardProps {
   className?: string;
   maxWidth?: "sm" | "md" | "lg";
   fullScreenMobile?: boolean;
+  cardRef?: Ref<HTMLDivElement>;
 }
 
 export function ModalCard({
@@ -13,6 +14,7 @@ export function ModalCard({
   className,
   maxWidth = "md",
   fullScreenMobile = false,
+  cardRef,
 }: ModalCardProps) {
   return (
     <div
@@ -20,6 +22,7 @@ export function ModalCard({
       data-full-screen-mobile={fullScreenMobile || undefined}
     >
       <div
+        ref={cardRef}
         className={`${styles.card} ${className ?? ""}`}
         data-max-width={maxWidth}
         data-full-screen-mobile={fullScreenMobile || undefined}
