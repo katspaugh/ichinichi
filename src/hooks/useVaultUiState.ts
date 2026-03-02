@@ -1,6 +1,4 @@
-import { useEffect } from "react";
-import { useMachine } from "@xstate/react";
-import { assign, setup } from "xstate";
+import { useMemo } from "react";
 import { AppMode } from "./useAppMode";
 import { AuthState } from "../types";
 
@@ -65,64 +63,51 @@ function deriveUiState(inputs: VaultUiInputs): VaultUiState {
   return "none";
 }
 
-type VaultUiEvent = { type: "SYNC"; payload: VaultUiInputs };
-
-interface VaultUiContext {
-  value: VaultUiState;
-}
-
-export const vaultUiMachine = setup({
-  types: {
-    context: {} as VaultUiContext,
-    events: {} as VaultUiEvent,
-  },
-  actions: {
-    applyInputs: assign((args: { event: VaultUiEvent }) => {
-      const { event } = args;
-      if (event.type !== "SYNC") {
-        return {};
-      }
-      return { value: deriveUiState(event.payload) };
-    }),
-  },
-}).createMachine({
-  id: "vaultUi",
-  initial: "idle",
-  context: {
-    value: "none",
-  },
-  states: {
-    idle: {
-      on: {
-        SYNC: {
-          actions: "applyInputs",
-        },
-      },
-    },
-  },
-});
-
 export function useVaultUiState(inputs: VaultUiInputs): VaultUiState {
-  const [state, send] = useMachine(vaultUiMachine);
+  const {
+    showIntro,
+    isModeChoiceOpen,
+    mode,
+    authState,
+    isSigningIn,
+    isVaultReady,
+    isVaultLocked,
+    isVaultBusy,
+    hasPasswordPending,
+    vaultError,
+    localVaultReady,
+    localRequiresPassword,
+  } = inputs;
 
-  useEffect(() => {
-    send({ type: "SYNC", payload: inputs });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- Spread individual properties to avoid infinite loop from object reference changes
-  }, [
-    send,
-    inputs.showIntro,
-    inputs.isModeChoiceOpen,
-    inputs.mode,
-    inputs.authState,
-    inputs.isSigningIn,
-    inputs.isVaultReady,
-    inputs.isVaultLocked,
-    inputs.isVaultBusy,
-    inputs.hasPasswordPending,
-    inputs.vaultError,
-    inputs.localVaultReady,
-    inputs.localRequiresPassword,
-  ]);
-
-  return state.context.value;
+  return useMemo(
+    () =>
+      deriveUiState({
+        showIntro,
+        isModeChoiceOpen,
+        mode,
+        authState,
+        isSigningIn,
+        isVaultReady,
+        isVaultLocked,
+        isVaultBusy,
+        hasPasswordPending,
+        vaultError,
+        localVaultReady,
+        localRequiresPassword,
+      }),
+    [
+      showIntro,
+      isModeChoiceOpen,
+      mode,
+      authState,
+      isSigningIn,
+      isVaultReady,
+      isVaultLocked,
+      isVaultBusy,
+      hasPasswordPending,
+      vaultError,
+      localVaultReady,
+      localRequiresPassword,
+    ],
+  );
 }
