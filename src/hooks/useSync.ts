@@ -1,11 +1,9 @@
-import { useCallback, useEffect } from "react";
-import { useMachine } from "@xstate/react";
+import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { SyncStatus } from "../types";
 import type { UnifiedSyncedNoteRepository } from "../domain/notes/hydratingSyncedNoteRepository";
 import type { PendingOpsSummary } from "../domain/sync";
-import { useConnectivity } from "./useConnectivity";
-import { syncMachine } from "./useSyncMachine";
+import { syncStore } from "../stores/syncStore";
 
 interface UseSyncReturn {
   syncStatus: SyncStatus;
@@ -23,6 +21,14 @@ interface UseSyncReturn {
   syncCompletionCount: number;
 }
 
+function useStoreSel<T>(selector: (state: ReturnType<typeof syncStore.getState>) => T): T {
+  return useSyncExternalStore(
+    syncStore.subscribe,
+    () => selector(syncStore.getState()),
+    () => selector(syncStore.getState()),
+  );
+}
+
 export function useSync(
   repository: UnifiedSyncedNoteRepository | null,
   options?: {
@@ -31,68 +37,74 @@ export function useSync(
     supabase?: SupabaseClient | null;
   },
 ): UseSyncReturn {
-  const online = useConnectivity();
   const syncEnabled = options?.enabled ?? !!repository;
   const userId = options?.userId ?? null;
   const supabase = options?.supabase ?? null;
-  const [state, send] = useMachine(syncMachine);
+
+  const prevRepoRef = useRef<UnifiedSyncedNoteRepository | null>(null);
+  const prevEnabledRef = useRef(false);
 
   useEffect(() => {
-    send({
-      type: "INPUTS_CHANGED",
-      repository,
-      enabled: syncEnabled,
-      online,
-      userId,
-      supabase,
-    });
-  }, [send, repository, syncEnabled, online, userId, supabase]);
+    const repoChanged = repository !== prevRepoRef.current;
+    const enabledChanged = syncEnabled !== prevEnabledRef.current;
+    prevRepoRef.current = repository;
+    prevEnabledRef.current = syncEnabled;
 
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        send({ type: "WINDOW_FOCUSED" });
+    if (syncEnabled && repository && userId && supabase) {
+      if (repoChanged || enabledChanged) {
+        syncStore.getState().init({ repository, userId, supabase });
+      }
+    } else {
+      // Disable
+      if (!syncStore.getState()._disposed) {
+        syncStore.getState().dispose();
+      }
+    }
+
+    return () => {
+      if (!syncStore.getState()._disposed) {
+        syncStore.getState().dispose();
       }
     };
-    const handleFocus = () => {
-      send({ type: "WINDOW_FOCUSED" });
-    };
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    window.addEventListener("focus", handleFocus);
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener("focus", handleFocus);
-    };
-  }, [send]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [repository, syncEnabled, userId, supabase]);
+
+  const syncStatus = useStoreSel((s) => s.status);
+  const syncError = useStoreSel((s) => s.syncError);
+  const lastSynced = useStoreSel((s) => s.lastSynced);
+  const pendingOps = useStoreSel((s) => s.pendingOps);
+  const realtimeConnected = useStoreSel((s) => s.realtimeConnected);
+  const lastRealtimeChangedDate = useStoreSel((s) => s.lastRealtimeChangedDate);
+  const syncCompletionCount = useStoreSel((s) => s.syncCompletionCount);
 
   const triggerSync = useCallback(
-    (options?: { immediate?: boolean }) => {
-      send({ type: "REQUEST_SYNC", immediate: Boolean(options?.immediate) });
+    (opts?: { immediate?: boolean }) => {
+      syncStore.getState().requestSync(opts);
     },
-    [send],
+    [],
   );
 
   const queueIdleSync = useCallback(
-    (options?: { delayMs?: number }) => {
-      send({ type: "REQUEST_IDLE_SYNC", delayMs: options?.delayMs });
+    (opts?: { delayMs?: number }) => {
+      syncStore.getState().queueIdleSync(opts);
     },
-    [send],
+    [],
   );
 
   const clearRealtimeChanged = useCallback(() => {
-    send({ type: "CLEAR_REALTIME_CHANGED" });
-  }, [send]);
+    syncStore.getState().clearRealtimeChanged();
+  }, []);
 
   return {
-    syncStatus: state.context.status,
-    syncError: state.context.syncError,
-    lastSynced: state.context.lastSynced,
+    syncStatus,
+    syncError,
+    lastSynced,
     triggerSync,
     queueIdleSync,
-    pendingOps: state.context.pendingOps,
-    realtimeConnected: state.context.realtimeConnected,
-    lastRealtimeChangedDate: state.context.lastRealtimeChangedDate,
+    pendingOps,
+    realtimeConnected,
+    lastRealtimeChangedDate,
     clearRealtimeChanged,
-    syncCompletionCount: state.context.syncCompletionCount,
+    syncCompletionCount,
   };
 }

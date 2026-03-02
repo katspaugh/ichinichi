@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { useNoteContent } from "./useNoteContent";
 import { useNoteDates } from "./useNoteDates";
@@ -21,7 +21,8 @@ import { createUnifiedSyncedNoteEnvelopeRepository } from "../storage/unifiedSyn
 import { runtimeClock, runtimeConnectivity } from "../storage/runtimeAdapters";
 import { syncStateStore } from "../storage/syncStateStore";
 import { useServiceContext } from "../contexts/serviceContext";
-import { useNoteRepositoryMachine } from "./useNoteRepositoryMachine";
+import { noteContentStore } from "../stores/noteContentStore";
+import { syncStore } from "../stores/syncStore";
 
 interface UseNoteRepositoryProps {
   mode: AppMode;
@@ -167,14 +168,9 @@ export function useNoteRepository({
     triggerSync,
     queueIdleSync,
     pendingOps,
-    lastRealtimeChangedDate,
-    clearRealtimeChanged,
-    syncCompletionCount,
   } = useSync(syncedRepo, { enabled: syncEnabled, userId, supabase });
-  const { hasNote, noteDates, refreshNoteDates, applyNoteChange } = useNoteDates(
-    repository,
-    year,
-  );
+  const { hasNote, noteDates, refreshNoteDates, applyNoteChange } =
+    useNoteDates(repository, year);
   const capabilities = useMemo(
     () => ({
       canSync: !!syncedRepo,
@@ -183,37 +179,13 @@ export function useNoteRepository({
     [syncedRepo, imageRepository],
   );
 
-  const [state, send] = useNoteRepositoryMachine();
-  const timerRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    send({
-      type: "UPDATE_INPUTS",
-      applyNoteChange,
-      queueIdleSync,
-    });
-  }, [send, applyNoteChange, queueIdleSync]);
-
-  useEffect(() => {
-    if (state.context.timerId !== null) {
-      timerRef.current = state.context.timerId;
-    }
-  }, [state.context.timerId]);
-
+  // After-save callback: apply note change to calendar + queue idle sync
   const handleAfterSave = useCallback(
     (snapshot: { date: string; isEmpty: boolean }) => {
-      if (timerRef.current !== null) {
-        window.clearTimeout(timerRef.current);
-        timerRef.current = null;
-      }
-      send({
-        type: "AFTER_SAVE",
-        date: snapshot.date,
-        isEmpty: snapshot.isEmpty,
-      });
+      applyNoteChange(snapshot.date, snapshot.isEmpty);
       queueIdleSync();
     },
-    [send, queueIdleSync],
+    [applyNoteChange, queueIdleSync],
   );
 
   const {
@@ -227,40 +199,44 @@ export function useNoteRepository({
     isContentReady,
     isOfflineStub,
     error: noteError,
-    forceRefresh,
   } = useNoteContent(date, repository, hasNote, handleAfterSave);
 
-  // After background sync completes, refresh current note to pick up any pulled data.
-  // Uses a monotonic counter instead of status transitions to be immune to React 18 batching
-  // (status can go Synced→Syncing→Synced between renders, making prev === current).
-  const prevSyncCountRef = useRef(syncCompletionCount);
+  // Cross-concern coordination via Zustand subscribe()
+  // When sync completes or realtime changes arrive, refresh current note
   useEffect(() => {
-    const prev = prevSyncCountRef.current;
-    prevSyncCountRef.current = syncCompletionCount;
-    if (prev !== syncCompletionCount && date && !hasEdits && isContentReady) {
-      forceRefresh();
-    }
-  }, [syncCompletionCount, date, hasEdits, isContentReady, forceRefresh]);
+    // Sync completion → refresh current note
+    const unsubSync = syncStore.subscribe(
+      (s) => s.syncCompletionCount,
+      () => {
+        const ns = noteContentStore.getState();
+        if (ns.date && !ns.hasEdits && (ns.status === "ready" || ns.status === "error")) {
+          ns.forceRefresh();
+        }
+      },
+    );
 
-  // When a realtime update arrives for the current note and user isn't editing, refresh content
-  useEffect(() => {
-    if (
-      lastRealtimeChangedDate &&
-      lastRealtimeChangedDate === date &&
-      !hasEdits &&
-      isContentReady
-    ) {
-      forceRefresh();
-      clearRealtimeChanged();
-    }
-  }, [
-    lastRealtimeChangedDate,
-    date,
-    hasEdits,
-    isContentReady,
-    forceRefresh,
-    clearRealtimeChanged,
-  ]);
+    // Realtime change → refresh if it's our current note
+    const unsubRealtime = syncStore.subscribe(
+      (s) => s.lastRealtimeChangedDate,
+      (changedDate) => {
+        if (!changedDate) return;
+        const ns = noteContentStore.getState();
+        if (
+          changedDate === ns.date &&
+          !ns.hasEdits &&
+          (ns.status === "ready" || ns.status === "error")
+        ) {
+          ns.forceRefresh();
+          syncStore.getState().clearRealtimeChanged();
+        }
+      },
+    );
+
+    return () => {
+      unsubSync();
+      unsubRealtime();
+    };
+  }, []);
 
   return {
     repository,

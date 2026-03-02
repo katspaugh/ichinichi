@@ -14,14 +14,13 @@
 
 ## Key Concerns
 
-### 1. Fragmented State Management
+### 1. Fragmented State Management (Partially Resolved)
 
-The codebase mixes three paradigms without clear rationale:
-- XState for vault (`activeVaultMachine`)
-- Custom reducer for sync (`syncMachineReducer`)
-- Ad-hoc hook state for note content
+~~The codebase mixes three paradigms without clear rationale.~~
 
-**Problem**: No unified mental model. Debugging requires tracing through XState actors, reducer dispatches, and hook state updates simultaneously.
+**March 2026 update**: Hook orchestration layer rewritten to Zustand stores (`src/stores/`). Note content, sync, and calendar state now use a single pattern. XState remains only for vault/auth flows.
+
+Remaining: XState for vault (`activeVaultMachine`) — could be migrated to Zustand in future.
 
 ### 2. Deep Hook Dependency Chains
 
@@ -45,13 +44,12 @@ const cacheKey = `${vaultKeyId}-${keyringToken}-${activeKeyId}-${supabaseSignatu
 
 This relies on object identity and string concatenation. No TTL, no explicit invalidation, no cleanup. If identity tracking fails silently, stale repos persist.
 
-### 4. 400+ Line God Hooks
+### 4. 400+ Line God Hooks (Partially Resolved)
 
-- `useSync.ts` (428 lines)
-- `useActiveVault.ts` (486 lines)
-- `useNoteRepository.ts` (439 lines)
+**March 2026 update**: `useSync.ts` and `useNoteRepository.ts` are now thin wrappers (~100 lines each) over Zustand stores. Logic lives in `src/stores/`.
 
-These are doing too much. Each combines state machine logic, side effects, caching, and context wiring.
+Remaining:
+- `useActiveVault.ts` (486 lines) — still a god hook
 
 ### 5. Missing Error Boundaries
 
@@ -65,31 +63,11 @@ Some async operations have cancellation (`localKeyringLoader`), others don't. No
 
 ## Concrete Improvement Proposals
 
-### 1. Unify State Management on XState
+### 1. ~~Unify State Management on XState~~ → Done via Zustand (March 2026)
 
-**Current**: Mixed XState + custom reducers + hook state
-**Proposed**: All complex orchestration uses XState with consistent patterns
+Hook orchestration rewritten to Zustand vanilla stores. XState remains for vault/auth only.
 
-```typescript
-// Before: Custom reducer in useSync.ts
-const [state, dispatch] = useReducer(syncMachineReducer, initialState)
-
-// After: XState machine with typed events
-const syncMachine = createMachine({
-  id: 'sync',
-  initial: 'disabled',
-  states: {
-    disabled: { id: 'disabled' },
-    offline: { id: 'offline' },
-    ready: { id: 'ready' },
-    syncing: { id: 'syncing' },
-    error: { id: 'error' }
-  }
-})
-```
-
-**Files to change**: `src/hooks/useSync.ts`, `src/domain/sync/syncMachineReducer.ts`
-**Effort**: Medium (sync logic already structured as state machine)
+**Completed**: `noteContentStore`, `syncStore`, `noteDatesStore` in `src/stores/`.
 
 ### 2. Flatten Hook Dependencies with Context Injection
 
@@ -157,22 +135,13 @@ const repository = useMemo(() => {
 **Files to change**: `src/hooks/useNoteRepository.ts`, `src/contexts/NoteRepositoryContext.tsx`
 **Effort**: Low-Medium
 
-### 4. Split God Hooks into Focused Units
+### 4. Split God Hooks into Focused Units (Partially Done)
 
-**Example split for `useActiveVault.ts` (486 lines)**:
+**March 2026**: `useSync.ts`, `useNoteContent.ts`, `useNoteDates.ts`, `useNoteRepository.ts` are now thin wrappers. Logic in `src/stores/`.
 
-```
-useActiveVault.ts (486 lines)
-  ↓ split into ↓
-useVaultMachine.ts       - XState machine definition + interpretation
-useLocalVaultUnlock.ts   - Local vault unlock flow
-useCloudVaultUnlock.ts   - Cloud vault unlock flow
-useVaultKeyring.ts       - Keyring management + caching
-```
+**Remaining**: `useActiveVault.ts` (486 lines) still a god hook. Could split into vault machine + unlock flows + keyring management.
 
-Each hook under 150 lines, single responsibility.
-
-**Files to change**: `src/hooks/useActiveVault.ts` → 4 new files
+**Files to change**: `src/hooks/useActiveVault.ts` → multiple files
 **Effort**: Medium
 
 ### 5. Add Error Boundary + Recovery
@@ -272,15 +241,15 @@ Focus on:
 
 ## Priority Matrix
 
-| Improvement | Impact | Effort | Priority |
-|-------------|--------|--------|----------|
-| Error Boundary | High (stability) | Low | **P0** |
-| Explicit cache invalidation | High (correctness) | Low-Med | **P1** |
-| Standardize async patterns | Medium (reliability) | Medium | **P1** |
-| Split god hooks | Medium (maintainability) | Medium | **P2** |
-| Unify on XState | Medium (consistency) | Medium | **P2** |
-| Flatten hook dependencies | High (testability) | High | **P2** |
-| Integration tests | High (confidence) | High | **P3** |
+| Improvement | Impact | Effort | Priority | Status |
+|-------------|--------|--------|----------|--------|
+| Error Boundary | High (stability) | Low | **P0** | Open |
+| Explicit cache invalidation | High (correctness) | Low-Med | **P1** | Open |
+| Standardize async patterns | Medium (reliability) | Medium | **P1** | **Done** (Zustand stores) |
+| Split god hooks | Medium (maintainability) | Medium | **P2** | **Partial** (vault remaining) |
+| Unify state management | Medium (consistency) | Medium | **P2** | **Done** (Zustand) |
+| Flatten hook dependencies | High (testability) | High | **P2** | Open |
+| Integration tests | High (confidence) | High | **P3** | Open |
 
 ---
 

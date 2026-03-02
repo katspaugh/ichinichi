@@ -1,15 +1,14 @@
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import type { NoteRepository } from "../storage/noteRepository";
 import type { HabitValues } from "../types";
 import { useConnectivity } from "./useConnectivity";
-import { useLocalNoteContent } from "./useLocalNoteContent";
-import { useNoteRemoteSync } from "./useNoteRemoteSync";
+import {
+  noteContentStore,
+  type SaveSnapshot,
+  type NoteContentState as StoreState,
+} from "../stores/noteContentStore";
 
-interface SaveSnapshot {
-  date: string;
-  content: string;
-  isEmpty: boolean;
-}
+export type { SaveSnapshot };
 
 export interface UseNoteContentReturn {
   content: string;
@@ -29,7 +28,6 @@ export interface UseNoteContentReturn {
 }
 
 // Legacy types and reducer for backward compatibility with tests
-// These map to the old interface that included isDecrypting/isContentReady/isOfflineStub
 export type NoteContentState =
   | {
       status: "idle";
@@ -105,7 +103,6 @@ export const initialNoteContentState: NoteContentState = {
 
 /**
  * Legacy reducer for backward compatibility with existing tests.
- * The actual hook implementation uses a simpler internal state machine.
  */
 export function noteContentReducer(
   state: NoteContentState,
@@ -211,17 +208,20 @@ export function noteContentReducer(
   }
 }
 
+// Zustand selectors for fine-grained re-renders
+function useStoreSelector<T>(selector: (state: StoreState) => T): T {
+  return useSyncExternalStore(
+    noteContentStore.subscribe,
+    () => selector(noteContentStore.getState()),
+    () => selector(noteContentStore.getState()),
+  );
+}
+
 /**
  * Main hook for note content management.
  *
- * This hook composes:
- * - useLocalNoteContent: Handles reading/writing from local storage (IDB)
- * - useNoteRemoteSync: Handles background sync with remote server
- *
- * Architecture benefits:
- * - Local reads never fail due to network issues
- * - Going offline doesn't trigger unnecessary reloads
- * - Clear separation between local state and sync concerns
+ * Thin wrapper over noteContentStore (Zustand vanilla store).
+ * Composes local storage + remote refresh in a single store.
  */
 export function useNoteContent(
   date: string | null,
@@ -230,51 +230,100 @@ export function useNoteContent(
   onAfterSave?: (snapshot: SaveSnapshot) => void,
 ): UseNoteContentReturn {
   const online = useConnectivity();
+  const store = noteContentStore;
 
-  // Local storage operations (no network awareness)
-  const local = useLocalNoteContent(date, repository, onAfterSave);
+  // Track previous date/repository to detect changes
+  const prevDateRef = useRef<string | null>(null);
+  const prevRepoRef = useRef<NoteRepository | null>(null);
 
-  // Handle remote updates by applying them to local state
-  const handleRemoteUpdate = useCallback(
-    (content: string) => {
-      local.applyRemoteUpdate(content);
-    },
-    [local],
-  );
+  // Keep afterSave callback in sync
+  useEffect(() => {
+    store.getState().setAfterSave(onAfterSave);
+  }, [onAfterSave, store]);
 
-  // Remote sync operations (network aware)
-  const remote = useNoteRemoteSync(date, repository, {
-    onRemoteUpdate: handleRemoteUpdate,
-    localContent: local.content,
-    hasLocalEdits: local.hasEdits,
-    isLocalReady: local.isReady,
-  });
+  // Init / switchNote / dispose lifecycle
+  useEffect(() => {
+    if (!date || !repository) {
+      // Dispose if we had something before
+      if (prevDateRef.current || prevRepoRef.current) {
+        void store.getState().dispose();
+      }
+      prevDateRef.current = null;
+      prevRepoRef.current = null;
+      return;
+    }
 
-  // Determine if this is an offline stub:
-  // - Local content is empty (no local copy)
-  // - AND we're not still loading
-  // - AND either:
-  //   - hasNoteForDate says it exists (calendar shows a dot)
-  //   - OR remote sync says we know it's remote-only
+    const dateChanged = date !== prevDateRef.current;
+    const repoChanged = repository !== prevRepoRef.current;
+
+    if (repoChanged) {
+      // Repository changed — full re-init
+      store.getState().init(date, repository, onAfterSave);
+    } else if (dateChanged) {
+      // Same repo, different date — switch note (flushes save first)
+      void store.getState().switchNote(date);
+    }
+
+    prevDateRef.current = date;
+    prevRepoRef.current = repository;
+
+    return () => {
+      void store.getState().dispose();
+      prevDateRef.current = null;
+      prevRepoRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [date, repository]);
+
+  // Subscribe to store slices for fine-grained re-renders
+  const content = useStoreSelector((s) => s.content);
+  const habits = useStoreSelector((s) => s.habits);
+  const hasEdits = useStoreSelector((s) => s.hasEdits);
+  const isSaving = useStoreSelector((s) => s.isSaving);
+  const status = useStoreSelector((s) => s.status);
+  const error = useStoreSelector((s) => s.error);
+  const remoteCacheResult = useStoreSelector((s) => s.remoteCacheResult);
+
+  const isReady =
+    status === "ready" || status === "error";
+  const isLoading = status === "loading";
+
+  // Determine offline stub
   const isOfflineStub =
-    local.isReady &&
-    local.content === "" &&
-    !local.hasEdits &&
+    isReady &&
+    content === "" &&
+    !hasEdits &&
     !online &&
     ((date !== null && hasNoteForDate?.(date) === true) ||
-      remote.isKnownRemoteOnly);
+      (!online &&
+        remoteCacheResult !== null &&
+        remoteCacheResult.date === date &&
+        remoteCacheResult.hasRemote));
+
+  const setContent = useCallback(
+    (newContent: string) => store.getState().setContent(newContent),
+    [store],
+  );
+  const setHabits = useCallback(
+    (newHabits: HabitValues) => store.getState().setHabits(newHabits),
+    [store],
+  );
+  const forceRefresh = useCallback(
+    () => store.getState().forceRefresh(),
+    [store],
+  );
 
   return {
-    content: local.content,
-    setContent: local.setContent,
-    habits: local.habits,
-    setHabits: local.setHabits,
-    isDecrypting: local.isLoading,
-    hasEdits: local.hasEdits,
-    isSaving: local.isSaving,
-    isContentReady: local.isReady,
+    content,
+    setContent,
+    habits,
+    setHabits,
+    isDecrypting: isLoading,
+    hasEdits,
+    isSaving,
+    isContentReady: isReady,
     isOfflineStub,
-    error: local.error,
-    forceRefresh: remote.forceRefresh,
+    error,
+    forceRefresh,
   };
 }

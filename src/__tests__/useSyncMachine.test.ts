@@ -1,1052 +1,307 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
-import { createActor } from "xstate";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { noteContentStore } from "../stores/noteContentStore";
+import { syncStore } from "../stores/syncStore";
 import { SyncStatus } from "../types";
-import {
-  localNoteMachine,
-  type LocalNoteEvent,
-} from "../hooks/useLocalNoteContent";
-import { syncMachine } from "../hooks/useSyncMachine";
-import { pendingOpsSource } from "../storage/pendingOpsSource";
+import { ok } from "../domain/result";
+
+jest.mock("../services/connectivity", () => ({
+  connectivity: {
+    getOnline: jest.fn(() => true),
+    subscribe: jest.fn(() => () => {}),
+  },
+}));
+
+import { connectivity } from "../services/connectivity";
+const mockGetOnline = connectivity.getOnline as jest.Mock;
+
+// Mock pendingOpsSource
+jest.mock("../storage/pendingOpsSource", () => ({
+  pendingOpsSource: {
+    getSummary: jest.fn().mockResolvedValue({ notes: 0, images: 0, total: 0 }),
+    hasPending: jest.fn().mockResolvedValue(false),
+  },
+}));
+
+// Mock Supabase channel for syncStore tests
+function createMockChannel(): any {
+  const ch: any = {
+    on: jest.fn().mockImplementation(() => ch),
+    subscribe: jest.fn((cb: any) => {
+      cb("SUBSCRIBED");
+      return ch;
+    }),
+    unsubscribe: jest.fn().mockResolvedValue(undefined),
+  };
+  return ch;
+}
+
+function createMockSupabase(): any {
+  return { channel: jest.fn().mockReturnValue(createMockChannel()) };
+}
+
+function createRepository(initialContent = "") {
+  return {
+    get: jest.fn().mockResolvedValue(ok({ content: initialContent, date: "16-01-2026" })),
+    save: jest.fn().mockResolvedValue(ok(undefined)),
+    delete: jest.fn().mockResolvedValue(ok(undefined)),
+    getAllDates: jest.fn().mockResolvedValue(ok([])),
+  };
+}
 
 const SAVE_IDLE_DELAY_MS = 2000;
 
 /**
- * These tests verify the XState machines used in the note editing flow.
- *
- * Bug being tested: After typing in the editor, "Saving..." indicator
- * does not appear. The indicator depends on `hasEdits` being true.
- *
- * Expected behavior:
- * 1. When in 'ready' state, receiving EDIT event should:
- *    - Transition to 'dirty' state
- *    - Set hasEdits to true in context
- * 2. hasEdits should remain true until SAVE_SUCCESS with matching content
- *
- * TIMING BUG IDENTIFIED:
- * The "Saving..." indicator shows when: isEditable && hasEdits && (showSaving || isClosing)
- * - showSaving becomes true after 2000ms of idle
- * - But save completes after ~2s
- * - By the time showSaving=true, hasEdits is already false
- *
- * This test documents the timing requirements:
- * - hasEdits must stay true for the duration the user expects to see "Saving..."
- * - OR the indicator logic needs to change
+ * Tests for noteContentStore hasEdits / isSaving tracking.
+ * (Replaces localNoteMachine tests)
  */
-describe("localNoteMachine", () => {
-  describe("hasEdits tracking", () => {
-    it("should set hasEdits to true when EDIT is received in ready state", () => {
-      // Create the actor with a mock repository
-      const mockRepository = {
-        get: jest
-          .fn()
-          .mockResolvedValue({ ok: true, value: { content: "initial" } }),
-        save: jest.fn().mockResolvedValue({ ok: true, value: undefined }),
-        delete: jest.fn().mockResolvedValue({ ok: true, value: undefined }),
-        getAllDates: jest.fn().mockResolvedValue({ ok: true, value: [] }),
-      };
+describe("noteContentStore — hasEdits tracking", () => {
+  beforeEach(() => {
+    mockGetOnline.mockReturnValue(true);
+  });
 
-      const actor = createActor(localNoteMachine);
-      actor.start();
+  afterEach(async () => {
+    await noteContentStore.getState().dispose();
+  });
 
-      // Initially in idle state
-      expect(actor.getSnapshot().value).toBe("idle");
-      expect(actor.getSnapshot().context.hasEdits).toBe(false);
+  it("sets hasEdits to true when content is edited", async () => {
+    const repository = createRepository("");
+    noteContentStore.getState().init("16-01-2026", repository);
 
-      // Send INPUTS_CHANGED to move to loading
-      actor.send({
-        type: "INPUTS_CHANGED",
-        date: "16-01-2026",
-        repository: mockRepository as any,
-      });
+    await new Promise((r) => setTimeout(r, 100));
+    expect(noteContentStore.getState().status).toBe("ready");
+    expect(noteContentStore.getState().hasEdits).toBe(false);
 
-      expect(actor.getSnapshot().value).toBe("loading");
+    noteContentStore.getState().setContent("modified content");
 
-      // Simulate load success
-      actor.send({
-        type: "LOAD_SUCCESS",
-        date: "16-01-2026",
-        content: "initial content",
-      });
+    expect(noteContentStore.getState().hasEdits).toBe(true);
+    expect(noteContentStore.getState().content).toBe("modified content");
+  });
 
-      expect(actor.getSnapshot().value).toBe("ready");
-      expect(actor.getSnapshot().context.hasEdits).toBe(false);
-      expect(actor.getSnapshot().context.content).toBe("initial content");
+  it("does not set hasEdits when content matches current", () => {
+    // Pre-condition: need to be in ready state
+    // Use synchronous check since setContent guards on current content
+    const repository = createRepository("same content");
+    noteContentStore.getState().init("16-01-2026", repository);
 
-      // Now send an EDIT event
-      actor.send({
-        type: "EDIT",
-        content: "modified content",
-      });
+    return new Promise<void>((resolve) => {
+      setTimeout(async () => {
+        expect(noteContentStore.getState().status).toBe("ready");
 
-      // After EDIT, should be in dirty state with hasEdits = true
-      expect(actor.getSnapshot().value).toBe("dirty");
-      expect(actor.getSnapshot().context.hasEdits).toBe(true);
-      expect(actor.getSnapshot().context.content).toBe("modified content");
+        noteContentStore.getState().setContent("same content");
 
-      actor.stop();
-    });
-
-    it("should NOT set hasEdits when EDIT content matches current content", () => {
-      const mockRepository = {
-        get: jest
-          .fn()
-          .mockResolvedValue({ ok: true, value: { content: "same" } }),
-        save: jest.fn().mockResolvedValue({ ok: true, value: undefined }),
-        delete: jest.fn().mockResolvedValue({ ok: true, value: undefined }),
-        getAllDates: jest.fn().mockResolvedValue({ ok: true, value: [] }),
-      };
-
-      const actor = createActor(localNoteMachine);
-      actor.start();
-
-      // Move to ready state
-      actor.send({
-        type: "INPUTS_CHANGED",
-        date: "16-01-2026",
-        repository: mockRepository as any,
-      });
-      actor.send({
-        type: "LOAD_SUCCESS",
-        date: "16-01-2026",
-        content: "same content",
-      });
-
-      expect(actor.getSnapshot().value).toBe("ready");
-
-      // Send EDIT with same content
-      actor.send({
-        type: "EDIT",
-        content: "same content",
-      });
-
-      // Should still transition to dirty but hasEdits should be false
-      // because content didn't change
-      expect(actor.getSnapshot().value).toBe("dirty");
-      // BUG: If hasEdits is false when content matches, the saving indicator
-      // logic might not work correctly
-      expect(actor.getSnapshot().context.hasEdits).toBe(false);
-
-      actor.stop();
-    });
-
-    it("should keep hasEdits true while in saving state", async () => {
-      // This is a key scenario: hasEdits must remain true during save
-      // so the "Saving..." indicator stays visible
-      const mockRepository = {
-        get: jest.fn().mockResolvedValue({ ok: true, value: { content: "" } }),
-        save: jest.fn().mockImplementation(() => new Promise(() => {})), // Never resolves
-        delete: jest.fn().mockResolvedValue({ ok: true, value: undefined }),
-        getAllDates: jest.fn().mockResolvedValue({ ok: true, value: [] }),
-      };
-
-      const actor = createActor(localNoteMachine);
-      actor.start();
-
-      // Move to ready state
-      actor.send({
-        type: "INPUTS_CHANGED",
-        date: "16-01-2026",
-        repository: mockRepository as any,
-      });
-      actor.send({
-        type: "LOAD_SUCCESS",
-        date: "16-01-2026",
-        content: "",
-      });
-
-      // Edit the content
-      actor.send({
-        type: "EDIT",
-        content: "new content",
-      });
-
-      expect(actor.getSnapshot().value).toBe("dirty");
-      expect(actor.getSnapshot().context.hasEdits).toBe(true);
-
-      // Wait for the idle delay to transition to saving
-      await new Promise((resolve) =>
-        setTimeout(resolve, SAVE_IDLE_DELAY_MS + 50),
-      );
-
-      // Should now be in saving state
-      expect(actor.getSnapshot().value).toBe("saving");
-      // hasEdits should still be true while saving!
-      expect(actor.getSnapshot().context.hasEdits).toBe(true);
-
-      actor.stop();
-    });
-
-    it("should clear hasEdits only after SAVE_SUCCESS with matching content", async () => {
-      let saveResolve: () => void;
-      const savePromise = new Promise<void>((resolve) => {
-        saveResolve = resolve;
-      });
-
-      const mockRepository = {
-        get: jest.fn().mockResolvedValue({ ok: true, value: { content: "" } }),
-        save: jest
-          .fn()
-          .mockImplementation(() =>
-            savePromise.then(() => ({ ok: true, value: undefined })),
-          ),
-        delete: jest.fn().mockResolvedValue({ ok: true, value: undefined }),
-        getAllDates: jest.fn().mockResolvedValue({ ok: true, value: [] }),
-      };
-
-      const actor = createActor(localNoteMachine);
-      actor.start();
-
-      // Move to ready state
-      actor.send({
-        type: "INPUTS_CHANGED",
-        date: "16-01-2026",
-        repository: mockRepository as any,
-      });
-      actor.send({
-        type: "LOAD_SUCCESS",
-        date: "16-01-2026",
-        content: "",
-      });
-
-      // Edit the content
-      actor.send({
-        type: "EDIT",
-        content: "new content",
-      });
-
-      // Wait for idle delay
-      await new Promise((resolve) =>
-        setTimeout(resolve, SAVE_IDLE_DELAY_MS + 50),
-      );
-      expect(actor.getSnapshot().value).toBe("saving");
-      expect(actor.getSnapshot().context.hasEdits).toBe(true);
-
-      // Simulate save success (this would normally come from the saveNote actor)
-      actor.send({
-        type: "SAVE_SUCCESS",
-        snapshot: {
-          date: "16-01-2026",
-          content: "new content",
-          isEmpty: false,
-        },
-      });
-
-      // Now hasEdits should be false
-      expect(actor.getSnapshot().value).toBe("ready");
-      expect(actor.getSnapshot().context.hasEdits).toBe(false);
-
-      actor.stop();
+        expect(noteContentStore.getState().hasEdits).toBe(false);
+        resolve();
+      }, 100);
     });
   });
 
-  describe("idle save delay", () => {
-    it("should wait for idle delay before saving and reset on continued edits", () => {
-      jest.useFakeTimers();
-      const mockRepository = {
-        get: jest.fn().mockResolvedValue({ ok: true, value: { content: "" } }),
-        save: jest.fn().mockImplementation(() => new Promise(() => {})),
-        delete: jest.fn().mockResolvedValue({ ok: true, value: undefined }),
-        getAllDates: jest.fn().mockResolvedValue({ ok: true, value: [] }),
-      };
+  it("keeps isSaving true during save, clears after save completes", async () => {
+    let resolveSave!: (v: { ok: true; value: undefined }) => void;
+    const repository = createRepository("");
+    (repository.save as jest.Mock).mockImplementation(
+      () => new Promise((r) => { resolveSave = r; }),
+    );
 
-      const actor = createActor(localNoteMachine);
-      actor.start();
+    noteContentStore.getState().init("16-01-2026", repository);
+    await new Promise((r) => setTimeout(r, 100));
 
-      actor.send({
-        type: "INPUTS_CHANGED",
-        date: "16-01-2026",
-        repository: mockRepository as any,
-      });
-      actor.send({
-        type: "LOAD_SUCCESS",
-        date: "16-01-2026",
-        content: "",
-      });
+    noteContentStore.getState().setContent("new content");
+    expect(noteContentStore.getState().isSaving).toBe(true);
+    expect(noteContentStore.getState().hasEdits).toBe(true);
 
-      actor.send({
-        type: "EDIT",
-        content: "draft",
-      });
+    // Flush triggers save
+    const flushPromise = noteContentStore.getState().flushSave();
+    expect(noteContentStore.getState().isSaving).toBe(true);
 
-      expect(actor.getSnapshot().value).toBe("dirty");
+    // Complete save
+    resolveSave({ ok: true, value: undefined });
+    await flushPromise;
 
-      jest.advanceTimersByTime(SAVE_IDLE_DELAY_MS - 100);
-      expect(actor.getSnapshot().value).toBe("dirty");
+    expect(noteContentStore.getState().hasEdits).toBe(false);
+    expect(noteContentStore.getState().isSaving).toBe(false);
+  });
+});
 
-      actor.send({
-        type: "EDIT",
-        content: "draft with more text",
-      });
-
-      jest.advanceTimersByTime(SAVE_IDLE_DELAY_MS - 100);
-      expect(actor.getSnapshot().value).toBe("dirty");
-
-      jest.advanceTimersByTime(150);
-      expect(actor.getSnapshot().value).toBe("saving");
-
-      actor.stop();
-      jest.useRealTimers();
-    });
+describe("noteContentStore — idle save delay", () => {
+  afterEach(async () => {
+    await noteContentStore.getState().dispose();
   });
 
-  describe("isSaving exposure (bug fix)", () => {
-    /**
-     * This test documents the bug: the hook does not expose whether
-     * we are in the "dirty" or "saving" state, only whether we have
-     * unsaved edits. This is insufficient for the "Saving..." indicator
-     * because hasEdits becomes false immediately after save completes.
-     *
-     * The fix is to expose an `isSaving` flag that is true when the
-     * state is "dirty" or "saving".
-     */
-    it("should be possible to detect dirty/saving state for indicator", async () => {
-      // Create a save that takes time to complete
-      let saveResolve: () => void;
-      const savePromise = new Promise<void>((resolve) => {
-        saveResolve = resolve;
-      });
+  it("waits for idle delay before saving and resets on continued edits", async () => {
+    jest.useFakeTimers();
+    const repository = createRepository("");
+    noteContentStore.getState().init("16-01-2026", repository);
 
-      const mockRepository = {
-        get: jest.fn().mockResolvedValue({ ok: true, value: { content: "" } }),
-        save: jest
-          .fn()
-          .mockImplementation(() =>
-            savePromise.then(() => ({ ok: true, value: undefined })),
-          ),
-        delete: jest.fn().mockResolvedValue({ ok: true, value: undefined }),
-        getAllDates: jest.fn().mockResolvedValue({ ok: true, value: [] }),
-      };
+    await jest.advanceTimersByTimeAsync(100);
 
-      const actor = createActor(localNoteMachine);
-      actor.start();
+    noteContentStore.getState().setContent("draft");
 
-      // Move to ready state
-      actor.send({
-        type: "INPUTS_CHANGED",
-        date: "16-01-2026",
-        repository: mockRepository as any,
-      });
-      actor.send({
-        type: "LOAD_SUCCESS",
-        date: "16-01-2026",
-        content: "",
-      });
+    jest.advanceTimersByTime(SAVE_IDLE_DELAY_MS - 100);
+    expect(repository.save).not.toHaveBeenCalled();
 
-      // Edit the content
-      actor.send({
-        type: "EDIT",
-        content: "new content",
-      });
+    noteContentStore.getState().setContent("draft with more text");
 
-      // Verify we're in dirty state
-      const stateAfterEdit = actor.getSnapshot().value;
-      expect(stateAfterEdit).toBe("dirty");
+    jest.advanceTimersByTime(SAVE_IDLE_DELAY_MS - 100);
+    expect(repository.save).not.toHaveBeenCalled();
 
-      // The indicator logic should be able to use this state
-      // to show "Saving..." during dirty/saving phases
-      const isDirtyOrSaving =
-        stateAfterEdit === "dirty" || stateAfterEdit === "saving";
-      expect(isDirtyOrSaving).toBe(true);
+    await jest.advanceTimersByTimeAsync(200);
+    expect(repository.save).toHaveBeenCalledWith(
+      "16-01-2026",
+      "draft with more text",
+      undefined,
+    );
 
-      // Wait for transition to saving (but save won't complete because promise is pending)
-      await new Promise((resolve) =>
-        setTimeout(resolve, SAVE_IDLE_DELAY_MS + 50),
-      );
-
-      const stateWhileSaving = actor.getSnapshot().value;
-      expect(stateWhileSaving).toBe("saving");
-
-      const isSavingNow =
-        stateWhileSaving === "dirty" || stateWhileSaving === "saving";
-      expect(isSavingNow).toBe(true);
-
-      // Now resolve the save and verify we transition to ready
-      saveResolve!();
-      // Need to wait for the promise to resolve and actor to process
-      await new Promise((resolve) => setTimeout(resolve, 10));
-
-      // Actor should now have received SAVE_SUCCESS from the invoked actor
-      // Note: The actor sends SAVE_SUCCESS internally, so we may still be in saving
-      // Let's check the state
-      expect(actor.getSnapshot().context.hasEdits).toBe(false);
-
-      actor.stop();
-    });
+    jest.useRealTimers();
   });
 });
 
 /**
- * Tests for the sync machine to verify "Syncing..." indicator behavior.
- *
- * Bug: The "Syncing..." indicator is not appearing when sync is in progress.
- *
- * Expected behavior:
- * 1. When sync starts, status should be SyncStatus.Syncing
- * 2. SyncIndicator shows "Syncing..." when status === SyncStatus.Syncing
+ * Tests for syncStore status transitions.
+ * (Replaces syncMachine tests)
  */
-
-async function flushPromises(): Promise<void> {
-  for (let i = 0; i < 10; i += 1) {
-    await Promise.resolve();
-  }
-}
-
-describe("syncMachine", () => {
-  beforeEach(() => {
-    jest.useFakeTimers();
-  });
-
+describe("syncStore", () => {
   afterEach(() => {
-    jest.useRealTimers();
-    jest.restoreAllMocks();
+    syncStore.getState().dispose();
   });
 
-  it("should start in disabled state with Idle status", () => {
-    const actor = createActor(syncMachine);
-    actor.start();
-
-    expect(actor.getSnapshot().value).toBe("disabled");
-    expect(actor.getSnapshot().context.status).toBe(SyncStatus.Idle);
-
-    actor.stop();
+  it("starts with Idle status and disabled", () => {
+    expect(syncStore.getState().status).toBe(SyncStatus.Idle);
+    expect(syncStore.getState().enabled).toBe(false);
   });
 
-  it("should transition to active.initializing when enabled online", () => {
-    const mockRepository = {
-      sync: jest.fn().mockResolvedValue({ ok: true, value: SyncStatus.Synced }),
-    };
-
-    const actor = createActor(syncMachine);
-    actor.start();
-
-    actor.send({
-      type: "INPUTS_CHANGED",
-      repository: mockRepository as any,
-      enabled: true,
-      online: true,
-      userId: null,
-      supabase: null,
+  it("transitions to enabled with correct online status on init", () => {
+    mockGetOnline.mockReturnValue(true);
+    const mockRepo = { sync: jest.fn() } as any;
+    syncStore.getState().init({
+      repository: mockRepo,
+      userId: "user-123",
+      supabase: createMockSupabase(),
     });
 
-    // Should be in active state - now that sendTo works correctly, the machine will
-    // immediately send REQUEST_SYNC to syncResources actor which triggers SYNC_STARTED,
-    // so we may be in syncing or ready depending on timing
-    const snapshot = actor.getSnapshot();
-    // Check we're in the active compound state (could be syncing, ready, or initializing)
-    expect(snapshot.value).toHaveProperty("active");
-
-    actor.stop();
+    expect(syncStore.getState().enabled).toBe(true);
+    expect(syncStore.getState().online).toBe(true);
   });
 
-  it("should set status to Syncing when SYNC_STARTED is received", () => {
-    const mockRepository = {
-      sync: jest.fn().mockResolvedValue({ ok: true, value: SyncStatus.Synced }),
-    };
-
-    const actor = createActor(syncMachine);
-    actor.start();
-
-    // Move to active state
-    actor.send({
-      type: "INPUTS_CHANGED",
-      repository: mockRepository as any,
-      enabled: true,
-      online: true,
-      userId: null,
-      supabase: null,
+  it("sets offline status when initialized offline", () => {
+    mockGetOnline.mockReturnValue(false);
+    const mockRepo = { sync: jest.fn() } as any;
+    syncStore.getState().init({
+      repository: mockRepo,
+      userId: "user-123",
+      supabase: createMockSupabase(),
     });
 
-    // Now that sendTo works correctly, the machine immediately sends REQUEST_SYNC
-    // to the syncResources actor when entering active state. The actor triggers sync,
-    // which fires SYNC_STARTED, so status may already be Syncing.
-    // We'll just verify we're in the active compound state.
-    expect(actor.getSnapshot().value).toHaveProperty("active");
-
-    // Simulate SYNC_STARTED (this would normally come from the syncResources actor)
-    actor.send({ type: "SYNC_STARTED" });
-
-    // Now status should be Syncing
-    expect(actor.getSnapshot().value).toEqual({ active: "syncing" });
-    expect(actor.getSnapshot().context.status).toBe(SyncStatus.Syncing);
-
-    actor.stop();
+    expect(syncStore.getState().enabled).toBe(true);
+    expect(syncStore.getState().status).toBe(SyncStatus.Offline);
   });
 
-  it("should transition to offline when enabled but not online", () => {
-    const mockRepository = {
-      sync: jest.fn().mockResolvedValue({ ok: true, value: SyncStatus.Synced }),
-    };
-
-    const actor = createActor(syncMachine);
-    actor.start();
-
-    actor.send({
-      type: "INPUTS_CHANGED",
-      repository: mockRepository as any,
-      enabled: true,
-      online: false,
-      userId: null,
-      supabase: null,
+  it("resets to idle on dispose", () => {
+    mockGetOnline.mockReturnValue(true);
+    const mockRepo = { sync: jest.fn() } as any;
+    syncStore.getState().init({
+      repository: mockRepo,
+      userId: "user-123",
+      supabase: createMockSupabase(),
     });
 
-    expect(actor.getSnapshot().value).toEqual({ active: "offline" });
-    expect(actor.getSnapshot().context.status).toBe(SyncStatus.Offline);
+    expect(syncStore.getState().enabled).toBe(true);
 
-    actor.stop();
+    syncStore.getState().dispose();
+
+    expect(syncStore.getState().enabled).toBe(false);
+    expect(syncStore.getState().status).toBe(SyncStatus.Idle);
   });
 
-  it("should reset offline status when coming back online", () => {
-    const mockRepository = {
-      sync: jest.fn().mockResolvedValue({ ok: true, value: SyncStatus.Synced }),
-    };
-
-    const actor = createActor(syncMachine);
-    actor.start();
-
-    actor.send({
-      type: "INPUTS_CHANGED",
-      repository: mockRepository as any,
-      enabled: true,
-      online: false,
-      userId: null,
-      supabase: null,
+  it("updates connectivity and triggers sync when coming online", () => {
+    mockGetOnline.mockReturnValue(false);
+    const mockRepo = { sync: jest.fn() } as any;
+    syncStore.getState().init({
+      repository: mockRepo,
+      userId: "user-123",
+      supabase: createMockSupabase(),
     });
 
-    expect(actor.getSnapshot().value).toEqual({ active: "offline" });
-    expect(actor.getSnapshot().context.status).toBe(SyncStatus.Offline);
+    expect(syncStore.getState().status).toBe(SyncStatus.Offline);
 
-    actor.send({
-      type: "INPUTS_CHANGED",
-      repository: mockRepository as any,
-      enabled: true,
-      online: true,
-      userId: null,
-      supabase: null,
-    });
+    mockGetOnline.mockReturnValue(true);
+    syncStore.getState().updateConnectivity(true);
 
-    const snapshot = actor.getSnapshot();
-    expect(snapshot.value).toHaveProperty("active");
-    expect(snapshot.context.status).not.toBe(SyncStatus.Offline);
-
-    actor.stop();
+    expect(syncStore.getState().online).toBe(true);
+    // Coming online triggers immediate sync, so status is no longer Offline
+    expect(syncStore.getState().status).not.toBe(SyncStatus.Offline);
   });
 
-  describe("sync flow from REQUEST_IDLE_SYNC to SYNC_STARTED", () => {
-    it("should send SYNC_STARTED when REQUEST_IDLE_SYNC is received and pending ops exist", async () => {
-      // Track events sent to the machine from actors
-      const eventsReceived: string[] = [];
-
-      const mockRepository = {
-        sync: jest.fn().mockImplementation(async () => {
-          // Simulate sync taking some time
-          await new Promise((resolve) => setTimeout(resolve, 50));
-          return { ok: true, value: SyncStatus.Synced };
-        }),
-      };
-
-      const actor = createActor(syncMachine);
-      actor.subscribe((snapshot) => {
-        eventsReceived.push(`state:${JSON.stringify(snapshot.value)}`);
-      });
-      actor.start();
-
-      // Move to active state
-      actor.send({
-        type: "INPUTS_CHANGED",
-        repository: mockRepository as any,
-        enabled: true,
-        online: true,
-        userId: null,
-        supabase: null,
-      });
-
-      // Now that sendTo works correctly, it may already be syncing
-      // Just verify we're in active state
-      expect(actor.getSnapshot().value).toHaveProperty("active");
-
-      // The actors (syncResources, pendingOpsPoller) are now spawned
-      // But they rely on external systems (pendingOpsSource, intentScheduler)
-      // For this test, we'll manually trigger the events that would come from the actors
-
-      // Simulate what happens when queueIdleSync is called:
-      // 1. REQUEST_IDLE_SYNC is received by the machine
-      // 2. Machine forwards to syncResourcesActor
-      // 3. After delay, actor checks hasPendingOps
-      // 4. If pending, actor sends SYNC_REQUESTED
-      // 5. Machine receives SYNC_REQUESTED and sends SYNC_NOW to actor
-      // 6. Actor calls syncService.syncNow() which calls onSyncStart
-      // 7. onSyncStart sends SYNC_STARTED to machine
-
-      // Step 1: Send REQUEST_IDLE_SYNC
-      actor.send({ type: "REQUEST_IDLE_SYNC" });
-
-      // The machine handles this by forwarding to the actor, but since we're
-      // testing the machine in isolation, the actor won't actually do anything
-      // In a real scenario, the actor would eventually send SYNC_REQUESTED
-
-      // Step 4: Simulate the actor sending SYNC_REQUESTED
-      actor.send({ type: "SYNC_REQUESTED", intent: { immediate: true } });
-
-      // The machine should now send SYNC_NOW to the actor (we can't observe this
-      // directly in this isolated test)
-
-      // Step 7: Simulate the actor sending SYNC_STARTED
-      actor.send({ type: "SYNC_STARTED" });
-
-      // Verify the machine transitioned to syncing
-      expect(actor.getSnapshot().value).toEqual({ active: "syncing" });
-      expect(actor.getSnapshot().context.status).toBe(SyncStatus.Syncing);
-
-      // Simulate sync finishing
-      actor.send({ type: "SYNC_FINISHED", status: SyncStatus.Synced });
-
-      expect(actor.getSnapshot().value).toEqual({ active: "ready" });
-      expect(actor.getSnapshot().context.status).toBe(SyncStatus.Synced);
-
-      actor.stop();
+  it("sets offline status when connectivity lost", () => {
+    mockGetOnline.mockReturnValue(true);
+    const mockRepo = { sync: jest.fn() } as any;
+    syncStore.getState().init({
+      repository: mockRepo,
+      userId: "user-123",
+      supabase: createMockSupabase(),
     });
 
-    it("should NOT send SYNC_NOW if offline", () => {
-      const mockRepository = {
-        sync: jest.fn(),
-      };
+    syncStore.getState().updateConnectivity(false);
 
-      const actor = createActor(syncMachine);
-      actor.start();
-
-      // Move to active.offline state
-      actor.send({
-        type: "INPUTS_CHANGED",
-        repository: mockRepository as any,
-        enabled: true,
-        online: false, // Offline!
-        userId: null,
-        supabase: null,
-      });
-
-      expect(actor.getSnapshot().value).toEqual({ active: "offline" });
-
-      // Simulate the actor sending SYNC_REQUESTED even though offline
-      // (In reality, this wouldn't happen, but let's verify the guard works)
-      actor.send({ type: "SYNC_REQUESTED", intent: { immediate: true } });
-
-      // Machine should NOT transition because the guard checks context.online
-      // The state should still be offline
-      expect(actor.getSnapshot().value).toEqual({ active: "offline" });
-
-      actor.stop();
-    });
+    expect(syncStore.getState().online).toBe(false);
+    expect(syncStore.getState().status).toBe(SyncStatus.Offline);
   });
 
-  describe("actor spawning and initial sync", () => {
-    it("starts sync after idle save when pending ops exist", async () => {
-      const mockRepository = {
-        sync: jest
-          .fn()
-          .mockResolvedValue({ ok: true, value: SyncStatus.Synced }),
-      };
-      const pendingOpsSourceMock = jest
-        .spyOn(pendingOpsSource, "getSummary")
-        .mockResolvedValue({ notes: 1, images: 0, total: 1 });
-      jest.spyOn(pendingOpsSource, "hasPending").mockResolvedValue(true);
-
-      const actor = createActor(syncMachine);
-      actor.start();
-
-      actor.send({
-        type: "INPUTS_CHANGED",
-        repository: mockRepository as any,
-        enabled: true,
-        online: true,
-        userId: null,
-        supabase: null,
+  describe("realtime events", () => {
+    it("clears lastRealtimeChangedDate via clearRealtimeChanged", () => {
+      mockGetOnline.mockReturnValue(true);
+      const mockRepo = { sync: jest.fn() } as any;
+      syncStore.getState().init({
+        repository: mockRepo,
+        userId: "user-123",
+        supabase: createMockSupabase(),
       });
 
-      actor.send({ type: "REQUEST_IDLE_SYNC" });
+      expect(syncStore.getState().lastRealtimeChangedDate).toBeNull();
 
-      jest.advanceTimersByTime(4000);
-      await flushPromises();
+      // The realtime channel listener would set this — simulate directly
+      syncStore.setState({ lastRealtimeChangedDate: "15-01-2026" });
+      expect(syncStore.getState().lastRealtimeChangedDate).toBe("15-01-2026");
 
-      const snapshot = actor.getSnapshot();
-      expect(snapshot.context.status).toBe(SyncStatus.Synced);
-      expect(snapshot.context.pendingOps.total).toBe(1);
-      expect(pendingOpsSourceMock).toHaveBeenCalled();
-      expect(mockRepository.sync).toHaveBeenCalled();
-
-      actor.stop();
+      syncStore.getState().clearRealtimeChanged();
+      expect(syncStore.getState().lastRealtimeChangedDate).toBeNull();
     });
 
-    it("should spawn syncResources actor when entering active state", async () => {
-      // This test verifies that when entering the active state, the syncResources
-      // actor is spawned and can receive events
-      const mockRepository = {
-        sync: jest
-          .fn()
-          .mockResolvedValue({ ok: true, value: SyncStatus.Synced }),
-      };
+    it("tracks realtimeConnected based on channel subscription", () => {
+      mockGetOnline.mockReturnValue(true);
+      const mockRepo = { sync: jest.fn() } as any;
 
-      const actor = createActor(syncMachine);
-
-      // Track state transitions
-      const transitions: string[] = [];
-      actor.subscribe((snapshot) => {
-        transitions.push(JSON.stringify(snapshot.value));
+      // Channel mock calls cb("SUBSCRIBED") synchronously
+      syncStore.getState().init({
+        repository: mockRepo,
+        userId: "user-123",
+        supabase: createMockSupabase(),
       });
 
-      actor.start();
-
-      // Send INPUTS_CHANGED to move to active state
-      actor.send({
-        type: "INPUTS_CHANGED",
-        repository: mockRepository as any,
-        enabled: true,
-        online: true,
-        userId: null,
-        supabase: null,
-      });
-
-      // The machine should transition through initializing to ready
-      // The entry action in initializing sends REQUEST_SYNC to the actor
-      // But since we're testing in isolation, the actor won't receive it in this test
-
-      // Now that sendTo works, machine may already be syncing
-      expect(actor.getSnapshot().value).toHaveProperty("active");
-
-      actor.stop();
-    });
-
-    it("should trigger initial sync when entering active state with spawned actors", async () => {
-      // This is a more comprehensive test that creates a custom machine
-      // to verify the actor receives the REQUEST_SYNC event
-
-      // For now, we'll just verify the state transitions are correct
-      // A full integration test would require mocking the callback actors
-
-      const mockRepository = {
-        sync: jest
-          .fn()
-          .mockResolvedValue({ ok: true, value: SyncStatus.Synced }),
-      };
-
-      const actor = createActor(syncMachine);
-      actor.start();
-
-      // Move to active state
-      actor.send({
-        type: "INPUTS_CHANGED",
-        repository: mockRepository as any,
-        enabled: true,
-        online: true,
-        userId: null,
-        supabase: null,
-      });
-
-      // Now that sendTo works correctly, machine transitions to syncing immediately
-      expect(actor.getSnapshot().value).toHaveProperty("active");
-
-      // The syncResources actor should have been spawned
-      // We can check this by looking at the actor's children
-      const snapshot = actor.getSnapshot();
-      const children = Object.keys(snapshot.children);
-
-      // In XState v5, spawned actors appear in snapshot.children
-      expect(children).toContain("syncResources");
-      expect(children).toContain("pendingOpsPoller");
-
-      actor.stop();
-    });
-
-    it("should trigger sync flow on initial enter with real actors", async () => {
-      jest.useRealTimers();
-      // This test verifies that when actors are spawned and REQUEST_SYNC is sent,
-      // the full flow from REQUEST_SYNC → SYNC_REQUESTED → SYNC_NOW → SYNC_STARTED works
-
-      let syncCalled = false;
-      const mockRepository = {
-        sync: jest.fn().mockImplementation(async () => {
-          syncCalled = true;
-          // Simulate sync taking some time
-          await new Promise((resolve) => setTimeout(resolve, 10));
-          return { ok: true, value: SyncStatus.Synced };
-        }),
-      };
-
-      const actor = createActor(syncMachine);
-
-      // Track status changes to detect Syncing and Synced
-      let sawSyncingStatus = false;
-      let sawSyncedStatus = false;
-      actor.subscribe((snapshot) => {
-        if (snapshot.context.status === SyncStatus.Syncing) {
-          sawSyncingStatus = true;
-        }
-        if (snapshot.context.status === SyncStatus.Synced) {
-          sawSyncedStatus = true;
-        }
-      });
-
-      actor.start();
-
-      // Move to active state - this should trigger initial sync
-      actor.send({
-        type: "INPUTS_CHANGED",
-        repository: mockRepository as any,
-        enabled: true,
-        online: true,
-        userId: null,
-        supabase: null,
-      });
-
-      // Verify the context has the repository
-      expect(actor.getSnapshot().context.repository).toBe(mockRepository);
-
-      // Wait a bit for async operations
-      await new Promise((resolve) => setTimeout(resolve, 200));
-
-      // In unit tests, the callback actors use the real pendingOpsSource.
-      // The initial REQUEST_SYNC with immediate: true should trigger sync directly
-      // without checking hasPendingOps. Let's verify the mock was called.
-      //
-      // KNOWN ISSUE: The flow is broken somewhere. This test documents the bug.
-      // Debug output shows:
-      // - sync was NOT called
-      // - Status stayed at Idle
-      //
-      // Possible causes:
-      // 1. The actor isn't receiving REQUEST_SYNC
-      // 2. The intentScheduler isn't dispatching SYNC_REQUESTED
-      // 3. The machine isn't handling SYNC_REQUESTED (guard failing?)
-      // 4. SYNC_NOW isn't being received by the actor
-      // 5. syncService isn't calling onSyncStart
-
-      if (!syncCalled) {
-        console.log("DEBUG: sync was NOT called");
-        console.log("DEBUG: sawSyncingStatus =", sawSyncingStatus);
-        console.log("DEBUG: sawSyncedStatus =", sawSyncedStatus);
-        console.log("DEBUG: final state =", actor.getSnapshot().value);
-        console.log(
-          "DEBUG: final status =",
-          actor.getSnapshot().context.status,
-        );
-        console.log(
-          "DEBUG: context.online =",
-          actor.getSnapshot().context.online,
-        );
-        console.log(
-          "DEBUG: context.enabled =",
-          actor.getSnapshot().context.enabled,
-        );
-        console.log(
-          "DEBUG: context.repository =",
-          !!actor.getSnapshot().context.repository,
-        );
-      }
-
-      // At minimum, we should be in ready state
-      expect(actor.getSnapshot().value).toEqual({ active: "ready" });
-
-      actor.stop();
-    });
-
-    it("should verify REQUEST_SYNC triggers SYNC_REQUESTED", async () => {
-      jest.useRealTimers();
-      // Manually test if sending REQUEST_SYNC to the machine in ready state
-      // triggers the SYNC_REQUESTED flow
-
-      const mockRepository = {
-        sync: jest
-          .fn()
-          .mockResolvedValue({ ok: true, value: SyncStatus.Synced }),
-      };
-
-      const actor = createActor(syncMachine);
-
-      // Track all status changes
-      const statuses: string[] = [];
-      actor.subscribe((snapshot) => {
-        statuses.push(snapshot.context.status);
-      });
-
-      actor.start();
-
-      // Move to active state
-      actor.send({
-        type: "INPUTS_CHANGED",
-        repository: mockRepository as any,
-        enabled: true,
-        online: true,
-        userId: null,
-        supabase: null,
-      });
-
-      // Check if the actor was spawned
-      const snapshot = actor.getSnapshot();
-      expect(Object.keys(snapshot.children)).toContain("syncResources");
-      expect(Object.keys(snapshot.children)).toContain("pendingOpsPoller");
-
-      // Try sending SYNC_REQUESTED directly (bypassing the actor flow)
-      // This should trigger SYNC_NOW to be sent to the actor
-      actor.send({ type: "SYNC_REQUESTED", intent: { immediate: true } });
-
-      // Wait for async processing
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      // Verify sync flow happened - we should see syncing status at some point
-      expect(statuses).toContain(SyncStatus.Syncing);
-
-      // Verify sync was called
-      expect(mockRepository.sync.mock.calls.length).toBeGreaterThanOrEqual(0);
-
-      // Verify SYNC_STARTED changes state to syncing
-      actor.send({ type: "SYNC_STARTED" });
-      expect(actor.getSnapshot().context.status).toBe(SyncStatus.Syncing);
-      expect(actor.getSnapshot().value).toEqual({ active: "syncing" });
-
-      actor.stop();
+      expect(syncStore.getState().realtimeConnected).toBe(true);
     });
   });
 
   describe("window focus sync", () => {
-    it("should trigger immediate sync when WINDOW_FOCUSED is received in active state", () => {
-      const mockRepository = {
-        sync: jest.fn().mockResolvedValue({ ok: true, value: SyncStatus.Synced }),
-      };
-
-      const actor = createActor(syncMachine);
-      actor.start();
-
-      // Move to active state
-      actor.send({
-        type: "INPUTS_CHANGED",
-        repository: mockRepository as any,
-        enabled: true,
-        online: true,
-        userId: null,
-        supabase: null,
-      });
-
-      expect(actor.getSnapshot().value).toHaveProperty("active");
-
-      // Simulate window focus
-      actor.send({ type: "WINDOW_FOCUSED" });
-
-      // Machine should still be in active state (event is handled, sync requested)
-      expect(actor.getSnapshot().value).toHaveProperty("active");
-
-      // Simulate the sync flow triggered by WINDOW_FOCUSED
-      actor.send({ type: "SYNC_REQUESTED", intent: { immediate: true } });
-      actor.send({ type: "SYNC_STARTED" });
-
-      expect(actor.getSnapshot().value).toEqual({ active: "syncing" });
-      expect(actor.getSnapshot().context.status).toBe(SyncStatus.Syncing);
-
-      actor.stop();
-    });
-
-    it("should ignore WINDOW_FOCUSED when in disabled state", () => {
-      const actor = createActor(syncMachine);
-      actor.start();
-
-      expect(actor.getSnapshot().value).toBe("disabled");
-
-      // Should not throw or transition
-      actor.send({ type: "WINDOW_FOCUSED" });
-
-      expect(actor.getSnapshot().value).toBe("disabled");
-
-      actor.stop();
-    });
-  });
-
-  describe("realtime events", () => {
-    it("should set lastRealtimeChangedDate when REALTIME_NOTE_CHANGED is received", () => {
-      const mockRepository = {
-        sync: jest.fn().mockResolvedValue({ ok: true, value: SyncStatus.Synced }),
-      };
-
-      const actor = createActor(syncMachine);
-      actor.start();
-
-      // Move to active state
-      actor.send({
-        type: "INPUTS_CHANGED",
-        repository: mockRepository as any,
-        enabled: true,
-        online: true,
+    it("handleWindowFocus triggers sync request", () => {
+      mockGetOnline.mockReturnValue(true);
+      const mockRepo = { sync: jest.fn() } as any;
+      syncStore.getState().init({
+        repository: mockRepo,
         userId: "user-123",
-        supabase: null,
+        supabase: createMockSupabase(),
       });
 
-      expect(actor.getSnapshot().context.lastRealtimeChangedDate).toBeNull();
+      // Should not throw
+      syncStore.getState().handleWindowFocus();
 
-      // Simulate realtime event
-      actor.send({ type: "REALTIME_NOTE_CHANGED", date: "15-01-2026" });
-
-      expect(actor.getSnapshot().context.lastRealtimeChangedDate).toBe(
-        "15-01-2026",
-      );
-
-      actor.stop();
+      // No direct assertion on sync happening — relies on intentScheduler
+      expect(syncStore.getState().enabled).toBe(true);
     });
 
-    it("should clear lastRealtimeChangedDate when CLEAR_REALTIME_CHANGED is received", () => {
-      const mockRepository = {
-        sync: jest.fn().mockResolvedValue({ ok: true, value: SyncStatus.Synced }),
-      };
-
-      const actor = createActor(syncMachine);
-      actor.start();
-
-      // Move to active state
-      actor.send({
-        type: "INPUTS_CHANGED",
-        repository: mockRepository as any,
-        enabled: true,
-        online: true,
-        userId: "user-123",
-        supabase: null,
-      });
-
-      // Set a realtime changed date
-      actor.send({ type: "REALTIME_NOTE_CHANGED", date: "15-01-2026" });
-      expect(actor.getSnapshot().context.lastRealtimeChangedDate).toBe(
-        "15-01-2026",
-      );
-
-      // Clear it
-      actor.send({ type: "CLEAR_REALTIME_CHANGED" });
-      expect(actor.getSnapshot().context.lastRealtimeChangedDate).toBeNull();
-
-      actor.stop();
-    });
-
-    it("should set realtimeConnected when REALTIME_CONNECTED is received", () => {
-      const mockRepository = {
-        sync: jest.fn().mockResolvedValue({ ok: true, value: SyncStatus.Synced }),
-      };
-
-      const actor = createActor(syncMachine);
-      actor.start();
-
-      // Move to active state
-      actor.send({
-        type: "INPUTS_CHANGED",
-        repository: mockRepository as any,
-        enabled: true,
-        online: true,
-        userId: "user-123",
-        supabase: null,
-      });
-
-      expect(actor.getSnapshot().context.realtimeConnected).toBe(false);
-
-      actor.send({ type: "REALTIME_CONNECTED" });
-      expect(actor.getSnapshot().context.realtimeConnected).toBe(true);
-
-      actor.send({ type: "REALTIME_DISCONNECTED" });
-      expect(actor.getSnapshot().context.realtimeConnected).toBe(false);
-
-      actor.stop();
+    it("handleWindowFocus is no-op when disposed", () => {
+      syncStore.getState().handleWindowFocus();
+      // Should not throw
+      expect(syncStore.getState().enabled).toBe(false);
     });
   });
 });

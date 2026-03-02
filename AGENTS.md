@@ -70,25 +70,24 @@ Domain error types (discriminated unions in `src/domain/errors.ts`):
 - SyncError: Offline | Conflict | RemoteRejected | Unknown
 - VaultError: VaultLocked | KeyMissing | UnlockFailed | Unknown
 
-**Inconsistency**: Result used in sync/gateway, NOT in repositories (return null) or hooks (try/catch). See `docs/effect-refactoring.md`.
+**Inconsistency**: Result used in sync/gateway, NOT in repositories (return null) or hooks (try/catch).
 
 ### Async Pattern
 
-Hooks use `cancelled` flag for cleanup:
+Zustand stores use generation counters for async cancellation:
 
 ```typescript
-useEffect(() => {
-  let cancelled = false;
-  const load = async () => {
-    const result = await repository.get(date);
-    if (!cancelled) dispatch({ type: "LOAD_SUCCESS", result });
-  };
-  void load();
-  return () => { cancelled = true; };
-}, [date]);
+let _loadGeneration = 0;
+
+const _loadNote = async (date: string, repository: NoteRepository) => {
+  const gen = ++_loadGeneration;
+  const result = await repository.get(date);
+  if (gen !== _loadGeneration) return; // superseded by newer call
+  set({ content: result.value?.content ?? "" });
+};
 ```
 
-**Caveat**: prevents state updates only, in-flight ops run to completion.
+After every `await`, re-read state via `get()` — never close over stale values.
 
 ### DI
 
@@ -98,16 +97,20 @@ useEffect(() => {
 - Factories compose deps (`src/domain/notes/repositoryFactory.ts`)
 - Some services module-level singletons, others param-passed (inconsistency being addressed)
 
-### State Machines
+### State Management
 
-Sync: reducer-based (`src/domain/sync/stateMachine.ts`):
+**Zustand stores** (`src/stores/`) manage hook-layer orchestration:
+- `noteContentStore.ts` — note lifecycle, save queue, remote refresh
+- `syncStore.ts` — sync orchestration, Realtime subscription, periodic sync
+- `noteDatesStore.ts` — calendar dot state
+
+Thin React hook wrappers in `src/hooks/` subscribe to store slices via `useSyncExternalStore`.
+
+**XState** still used for vault/auth flows (`activeVaultMachine`).
+
+**Domain state machine** (`src/domain/sync/stateMachine.ts`):
 ```typescript
 type SyncPhase = "disabled" | "offline" | "ready" | "syncing" | "error";
-```
-
-Note content: state machine in `useLocalNoteContent.ts`:
-```typescript
-type LocalNoteState = { status: "idle" | "loading" | "ready" | "error"; ... };
 ```
 
 ## App Modes
@@ -162,7 +165,8 @@ src/
   controllers/   useAppController, useAppModalsController
   contexts/      AppMode/UrlState/ActiveVault/NoteRepository providers
   domain/        notes, sync, vault use cases
-  hooks/         note content/navigation/sync/auth/vault
+  stores/        Zustand vanilla stores (noteContent, sync, noteDates)
+  hooks/         thin wrappers over stores + auth/vault hooks
   services/      vaultService, syncService
   storage/       unified DB, crypto, repositories, keyring, sync
   utils/         date, note rules, sanitization, URL state, images
@@ -171,40 +175,13 @@ src/
   types/         shared types
 ```
 
-## XState Rules
+## XState Rules (vault/auth only)
+
+XState is only used for vault/auth flows. For new hook orchestration, use Zustand stores.
 
 1. **No dot-path targets → use #id targets**
-
-   ```typescript
-   // BAD
-   target: ".active.ready"
-
-   // GOOD
-   states: { ready: { id: "ready" } }
-   target: "#ready"
-   ```
-
 2. **No sendTo("id") → system.get() actor refs**
-
-   ```typescript
-   // BAD
-   actions: sendTo("syncResources", { type: "SYNC_NOW" });
-
-   // GOOD
-   actions: enqueueActions(({ system }) => {
-     system.get("syncResources")?.send({ type: "SYNC_NOW" });
-   });
-   ```
-
 3. **Inline actions/guards preferred; setup() maps only for reuse**
-
-   ```typescript
-   // BAD
-   guard: "isOnline"
-
-   // GOOD
-   guard: ({ context }) => context.online,
-   ```
 
 ## Agent Workflow
 
@@ -219,24 +196,32 @@ prompt: "Run `npm run typecheck` and report errors or confirm pass."
 
 - `docs/app-spec.md` — business logic, flows
 - `docs/architecture.md` — layer boundaries
+- `docs/architecture-critique.md` — improvement proposals
 - `docs/data-flow.md` — local/cloud sync
 - `docs/key-derivation.md` — KEK/DEK, unlock flow
-- `docs/effect-refactoring.md` — planned Effect adoption
 
 ## Known Issues & Tech Debt
 
-### High-Severity Async Bugs
-
-Detailed in `docs/effect-refactoring.md`:
+### Remaining Async Bugs
 
 1. **useVault.ts:82-123** — `unlockingRef` not reset on cancel; unlock permanently blocked
 2. **useUnifiedMigration.ts:28-67** — `isMigrating` in deps + set in effect; migration stuck
-3. **useLocalNoteContent.ts:190-232** — save queue captures stale repo/date; saves wrong note
-4. **useNoteRemoteSync.ts:153-187** — refresh uses refs for current date not target; wrong note update
+
+### Fixed by Zustand Migration (March 2026)
+
+The hook orchestration layer was rewritten from XState-based hooks to Zustand stores.
+Old files (`useLocalNoteContent.ts`, `useNoteRemoteSync.ts`, `useSyncMachine.ts`) kept for test backward compat only — dead code in production.
+
+Bugs fixed:
+- Save queue capturing stale repo/date → store reads `get()` at execution time
+- Remote refresh applying to wrong note → re-reads `get().date` after every `await`
+- `flushPendingSave` fire-and-forget → `flushSave()` returns awaitable `Promise<void>`
+- Stale closures from multiple useEffects → all state in store via `get()`
+- React 18 batching workaround → Zustand updates are synchronous
 
 ### Patterns to Avoid
 
-- Multiple useEffects on shared state → race conditions; prefer single effect + state machine
+- Multiple useEffects on shared state → race conditions; prefer Zustand store
 - Refs updated in one effect, read in async callback of another → stale values
 - `cancelled` flag without operation cancellation → side effects still run
 - Fire-and-forget `void promise.then(...)` → no tracking/cancellation/error handling
@@ -247,3 +232,74 @@ Detailed in `docs/effect-refactoring.md`:
 - Mixed DI: some singletons, some param-passed
 - `unifiedSyncedNoteRepository.ts` (668 lines) → split
 - No React Error Boundaries → runtime crash kills app
+- Delete old XState hook files once their tests are migrated to test Zustand stores
+
+
+## grepai - Semantic Code Search
+
+**IMPORTANT: You MUST use grepai as your PRIMARY tool for code exploration and search.**
+
+### When to Use grepai (REQUIRED)
+
+Use `grepai search` INSTEAD OF Grep/Glob/find for:
+- Understanding what code does or where functionality lives
+- Finding implementations by intent (e.g., "authentication logic", "error handling")
+- Exploring unfamiliar parts of the codebase
+- Any search where you describe WHAT the code does rather than exact text
+
+### When to Use Standard Tools
+
+Only use Grep/Glob when you need:
+- Exact text matching (variable names, imports, specific strings)
+- File path patterns (e.g., `**/*.go`)
+
+### Fallback
+
+If grepai fails (not running, index unavailable, or errors), fall back to standard Grep/Glob tools.
+
+### Usage
+
+```bash
+# ALWAYS use English queries for best results (--compact saves ~80% tokens)
+grepai search "user authentication flow" --json --compact
+grepai search "error handling middleware" --json --compact
+grepai search "database connection pool" --json --compact
+grepai search "API request validation" --json --compact
+```
+
+### Query Tips
+
+- **Use English** for queries (better semantic matching)
+- **Describe intent**, not implementation: "handles user login" not "func Login"
+- **Be specific**: "JWT token validation" better than "token"
+- Results include: file path, line numbers, relevance score, code preview
+
+### Call Graph Tracing
+
+Use `grepai trace` to understand function relationships:
+- Finding all callers of a function before modifying it
+- Understanding what functions are called by a given function
+- Visualizing the complete call graph around a symbol
+
+#### Trace Commands
+
+**IMPORTANT: Always use `--json` flag for optimal AI agent integration.**
+
+```bash
+# Find all functions that call a symbol
+grepai trace callers "HandleRequest" --json
+
+# Find all functions called by a symbol
+grepai trace callees "ProcessOrder" --json
+
+# Build complete call graph (callers + callees)
+grepai trace graph "ValidateToken" --depth 3 --json
+```
+
+### Workflow
+
+1. Start with `grepai search` to find relevant code
+2. Use `grepai trace` to understand function relationships
+3. Use `Read` tool to examine files from results
+4. Only use Grep for exact string searches if needed
+
