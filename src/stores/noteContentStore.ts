@@ -462,5 +462,3 @@ export const noteContentStore = createStore<NoteContentState>()((set, get) => {
     },
   };
 });
-
-export const useNoteContentStore = noteContentStore;
