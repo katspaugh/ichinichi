@@ -39,5 +39,8 @@ jobs:
       - name: Lint
         run: yarn lint
 
+      - name: Knip
+        run: yarn knip
+
       - name: Tests
         run: yarn test
