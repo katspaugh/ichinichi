@@ -70,11 +70,16 @@ function toLocalMeta(remote: RemoteNote, now: string): NoteMetaRecord {
   return {
     date: remote.date,
     revision: remote.revision,
+    serverRevision: remote.revision,
     remoteId: remote.id,
     serverUpdatedAt: remote.serverUpdatedAt,
     lastSyncedAt: now,
     pendingOp: null,
   };
+}
+
+function expectedServerRevision(meta: NoteMetaRecord): number {
+  return meta.serverRevision ?? (meta.remoteId ? meta.revision : 0);
 }
 
 function isSyncError(error: unknown): error is SyncError {
@@ -100,78 +105,6 @@ function toUnknownSyncError(error: unknown): SyncError {
   return { type: "Unknown", message: "Sync failed." };
 }
 
-interface ConflictResolutionContext {
-  gateway: RemoteNotesGateway;
-  activeKeyId: string;
-  localRecord: NoteRecord;
-  localMeta: NoteMetaRecord;
-  remote: RemoteNote;
-}
-
-async function resolveConflict(
-  ctx: ConflictResolutionContext,
-): Promise<RemoteNote> {
-  const { gateway, activeKeyId, localRecord, localMeta, remote } = ctx;
-  const localRevision = localMeta.revision;
-  const remoteRevision = remote.revision;
-  const localUpdatedAt = new Date(localRecord.updatedAt).getTime();
-  const remoteUpdatedAt = new Date(remote.updatedAt).getTime();
-  const hasRemoteLink =
-    localMeta.remoteId != null || localMeta.serverUpdatedAt != null;
-  const isFreshLocal = !hasRemoteLink;
-  const hasUnsyncedEdits = localMeta.pendingOp === "upsert";
-
-  // Determine winner: higher revision wins, tie-break by timestamp
-  const localWins =
-    localRevision > remoteRevision ||
-    (localRevision === remoteRevision &&
-      localUpdatedAt >= remoteUpdatedAt) ||
-    (isFreshLocal && localUpdatedAt >= remoteUpdatedAt) ||
-    (hasUnsyncedEdits && localUpdatedAt >= remoteUpdatedAt);
-
-  if (!localWins) {
-    return remote;
-  }
-
-  // Local wins - try to push with rebased revision
-  try {
-    const rebasedRevision =
-      localRevision > remoteRevision ? localRevision : remoteRevision + 1;
-
-    const pushed = await gateway.pushNote({
-      id: localMeta.remoteId ?? remote.id,
-      date: localRecord.date,
-      ciphertext: localRecord.ciphertext,
-      nonce: localRecord.nonce,
-      keyId: localRecord.keyId ?? activeKeyId,
-      revision: rebasedRevision,
-      updatedAt: localRecord.updatedAt,
-      serverUpdatedAt: remote.serverUpdatedAt,
-      deleted: false,
-    });
-    return unwrapOrThrow(pushed);
-  } catch (rebaseError) {
-    // Rebased push failed, accept remote version as fallback
-    console.warn("Rebased push failed, accepting remote version:", rebaseError);
-    return remote;
-  }
-}
-
-function localWinsRemote(
-  localRecord: NoteRecord,
-  localMeta: NoteMetaRecord,
-  remote: RemoteNote,
-): boolean {
-  const localRevision = localMeta.revision;
-  const remoteRevision = remote.revision;
-  return (
-    localRevision > remoteRevision ||
-    (localRevision === remoteRevision &&
-      new Date(localRecord.updatedAt).getTime() >=
-        new Date(remote.updatedAt).getTime())
-  );
-}
-
 export function createUnifiedSyncedNoteEnvelopeRepository(
   gateway: RemoteNotesGateway,
   activeKeyId: string,
@@ -188,6 +121,183 @@ export function createUnifiedSyncedNoteEnvelopeRepository(
     listeners.forEach((cb) => cb(status));
   };
 
+  const pushUpsert = async (
+    record: NoteRecord,
+    meta: NoteMetaRecord,
+  ): Promise<void> => {
+    const serverRev = expectedServerRevision(meta);
+
+    const pushed = await gateway.pushNote({
+      id: meta.remoteId,
+      date: record.date,
+      ciphertext: record.ciphertext,
+      nonce: record.nonce,
+      keyId: record.keyId ?? activeKeyId,
+      revision: serverRev,
+      updatedAt: record.updatedAt,
+      deleted: false,
+    });
+
+    if (pushed.ok) {
+      await applyPushSuccess(record.date, meta, pushed.value);
+      return;
+    }
+
+    if (pushed.error.type !== "Conflict") {
+      throw pushed.error;
+    }
+
+    // Conflict: fetch remote, update metadata, retry once
+    const remoteResult = await gateway.fetchNoteByDate(record.date);
+    const remote = unwrapOrThrow(remoteResult);
+
+    if (remote) {
+      // Update meta with fresh server state, then retry
+      const updatedMeta: NoteMetaRecord = {
+        ...meta,
+        remoteId: remote.id,
+        serverRevision: remote.revision,
+        serverUpdatedAt: remote.serverUpdatedAt,
+      };
+      await setNoteMeta(updatedMeta);
+
+      const retry = await gateway.pushNote({
+        id: remote.id,
+        date: record.date,
+        ciphertext: record.ciphertext,
+        nonce: record.nonce,
+        keyId: record.keyId ?? activeKeyId,
+        revision: remote.revision,
+        updatedAt: record.updatedAt,
+        deleted: false,
+      });
+
+      if (retry.ok) {
+        await applyPushSuccess(record.date, updatedMeta, retry.value);
+        return;
+      }
+    }
+
+    // Retry failed or no remote — leave pendingOp for next cycle
+  };
+
+  const applyPushSuccess = async (
+    date: string,
+    originalMeta: NoteMetaRecord,
+    remote: RemoteNote,
+  ): Promise<void> => {
+    const now = clock.now().toISOString();
+    const currentMeta = (await getNoteEnvelopeState(date)).meta;
+    const newEditsOccurred =
+      currentMeta && currentMeta.revision > originalMeta.revision;
+
+    if (newEditsOccurred) {
+      // New edits during sync — only update server metadata, keep pendingOp
+      await setNoteMeta({
+        ...currentMeta,
+        remoteId: remote.id,
+        serverRevision: remote.revision,
+        serverUpdatedAt: remote.serverUpdatedAt,
+      });
+    } else {
+      await setNoteAndMeta(toLocalRecord(remote), toLocalMeta(remote, now));
+    }
+  };
+
+  const pushDelete = async (meta: NoteMetaRecord): Promise<void> => {
+    if (!meta.remoteId) {
+      // Never synced — just delete locally
+      await deleteNoteAndMeta(meta.date);
+      await deleteRemoteDate(meta.date);
+      return;
+    }
+
+    const serverRev = expectedServerRevision(meta);
+
+    const deleted = await gateway.deleteNote({
+      id: meta.remoteId,
+      date: meta.date,
+      revision: serverRev,
+    });
+
+    if (deleted.ok) {
+      await deleteNoteAndMeta(meta.date);
+      await deleteRemoteDate(meta.date);
+      return;
+    }
+
+    if (deleted.error.type !== "Conflict") {
+      throw deleted.error;
+    }
+
+    // Conflict on delete: fetch remote to see current state
+    const remoteResult = await gateway.fetchNoteByDate(meta.date);
+    const remote = unwrapOrThrow(remoteResult);
+
+    if (!remote || remote.deleted) {
+      // Remote already deleted or gone — clean up locally
+      await deleteNoteAndMeta(meta.date);
+      await deleteRemoteDate(meta.date);
+      return;
+    }
+
+    // Remote exists and not deleted — cancel our delete, accept remote content
+    const now = clock.now().toISOString();
+    await setNoteAndMeta(toLocalRecord(remote), toLocalMeta(remote, now));
+  };
+
+  const applyRemoteUpdate = async (remote: RemoteNote): Promise<void> => {
+    const state = await getNoteEnvelopeState(remote.date);
+    const localRecord = state.record;
+    const localMeta = state.meta;
+
+    // Local delete pending — skip, will be pushed next
+    if (localMeta?.pendingOp === "delete") {
+      return;
+    }
+
+    // Already synced to this version, no local pending
+    if (
+      localMeta?.serverUpdatedAt === remote.serverUpdatedAt &&
+      !localMeta?.pendingOp
+    ) {
+      return;
+    }
+
+    const now = clock.now().toISOString();
+
+    if (remote.deleted) {
+      if (localMeta?.pendingOp === "upsert" && localRecord) {
+        // Local edit pending — keep local content, update server metadata only
+        await setNoteMeta({
+          ...localMeta,
+          remoteId: remote.id,
+          serverRevision: remote.revision,
+          serverUpdatedAt: remote.serverUpdatedAt,
+        });
+        return;
+      }
+      // No local pending — accept deletion
+      await deleteNoteAndMeta(remote.date);
+      await deleteRemoteDate(remote.date);
+      return;
+    }
+
+    if (localMeta?.pendingOp === "upsert" && localRecord) {
+      // Local edit pending — keep local content, update server metadata only
+      await setNoteMeta({
+        ...localMeta,
+        remoteId: remote.id,
+        serverRevision: remote.revision,
+        serverUpdatedAt: remote.serverUpdatedAt,
+      });
+      return;
+    }
+
+    // No local pending — accept remote content
+    await setNoteAndMeta(toLocalRecord(remote), toLocalMeta(remote, now));
+  };
+
   const sync = async (): Promise<Result<SyncStatus, SyncError>> => {
     if (!connectivity.isOnline()) {
       setSyncStatus(SyncStatus.Offline);
@@ -199,84 +309,24 @@ export function createUnifiedSyncedNoteEnvelopeRepository(
     try {
       const states = await getAllNoteEnvelopeStates();
 
-      // Push pending local changes.
+      // Push pending local changes
       for (const state of states) {
         const meta = state.meta;
         if (!meta?.pendingOp) continue;
         const record = state.record;
-        const now = clock.now().toISOString();
 
         if (meta.pendingOp === "delete") {
-          const deleted = await gateway.deleteNote({
-            id: meta.remoteId ?? undefined,
-            date: meta.date,
-          });
-          unwrapOrThrow(deleted);
-          await deleteRemoteDate(meta.date);
-          await deleteNoteAndMeta(meta.date);
+          await pushDelete(meta);
           continue;
         }
 
         if (!record) continue;
-
-        const pushed = await gateway.pushNote({
-          id: meta.remoteId,
-          date: record.date,
-          ciphertext: record.ciphertext,
-          nonce: record.nonce,
-          keyId: record.keyId ?? activeKeyId,
-          revision: meta.revision,
-          updatedAt: record.updatedAt,
-          serverUpdatedAt: meta.serverUpdatedAt ?? null,
-          deleted: false,
-        });
-
-        if (pushed.ok) {
-          // Re-read current meta to check if new edits happened during sync
-          const currentMeta = (await getNoteEnvelopeState(record.date)).meta;
-          const newEditsOccurred =
-            currentMeta && currentMeta.revision > meta.revision;
-
-          if (newEditsOccurred) {
-            // New edits happened during sync - only update server metadata,
-            // keep local content and pendingOp for next sync
-            await setNoteMeta({
-              ...currentMeta,
-              remoteId: pushed.value.id,
-              serverUpdatedAt: pushed.value.serverUpdatedAt,
-            });
-          } else {
-            // No new edits - safe to overwrite with pushed content
-            await setNoteAndMeta(toLocalRecord(pushed.value), {
-              ...toLocalMeta(pushed.value, now),
-              lastSyncedAt: now,
-            });
-          }
-        } else if (pushed.error.type === "Conflict") {
-          const remoteResult = await gateway.fetchNoteByDate(record.date);
-          const remote = unwrapOrThrow(remoteResult);
-          if (!remote) {
-            throw { type: "Conflict", message: "Remote note missing." };
-          }
-
-          const resolved = await resolveConflict({
-            gateway,
-            activeKeyId,
-            localRecord: record,
-            localMeta: meta,
-            remote,
-          });
-          await setNoteAndMeta(toLocalRecord(resolved), {
-            ...toLocalMeta(resolved, now),
-            lastSyncedAt: now,
-          });
-        } else {
-          throw pushed.error;
-        }
+        await pushUpsert(record, meta);
       }
 
       await syncImages();
 
+      // Pull remote updates
       const syncStateResult = await syncStateStore.getState();
       const syncState = unwrapOrThrow(syncStateResult);
       const remoteUpdatesResult = await gateway.fetchNotesSince(
@@ -363,278 +413,6 @@ export function createUnifiedSyncedNoteEnvelopeRepository(
     return { record, meta, envelope };
   };
 
-  const pushLocal = async (
-    record: NoteRecord,
-    meta: NoteMetaRecord,
-  ): Promise<RemoteNote | null> => {
-    const pushed = await gateway.pushNote({
-      id: meta.remoteId,
-      date: record.date,
-      ciphertext: record.ciphertext,
-      nonce: record.nonce,
-      keyId: record.keyId ?? activeKeyId,
-      revision: meta.revision,
-      updatedAt: record.updatedAt,
-      serverUpdatedAt: meta.serverUpdatedAt ?? null,
-      deleted: false,
-    });
-
-    if (pushed.ok) {
-      return pushed.value;
-    }
-
-    if (pushed.error.type !== "Conflict") {
-      throw new Error(pushed.error.message);
-    }
-
-    const remoteResult = await gateway.fetchNoteByDate(record.date);
-    const remote = unwrapOrThrow(remoteResult);
-    if (!remote) {
-      return null;
-    }
-
-    return await resolveConflict({
-      gateway,
-      activeKeyId,
-      localRecord: record,
-      localMeta: meta,
-      remote,
-    });
-  };
-
-  const applyRemoteUpdate = async (remote: RemoteNote): Promise<void> => {
-    const state = await getNoteEnvelopeState(remote.date);
-    const localRecord = state.record;
-    const localMeta = state.meta;
-
-    const meta: NoteMetaRecord | null =
-      localMeta ??
-      (localRecord
-        ? {
-            date: remote.date,
-            revision: 1,
-            remoteId: null,
-            serverUpdatedAt: null,
-            lastSyncedAt: null,
-            pendingOp: "upsert",
-          }
-        : null);
-
-    if (meta?.pendingOp === "delete") {
-      return;
-    }
-
-    if (remote.deleted) {
-      if (!localRecord || !meta) {
-        await deleteNoteAndMeta(remote.date);
-        await deleteRemoteDate(remote.date);
-        return;
-      }
-
-      const shouldPushLocal =
-        meta.pendingOp === "upsert" ||
-        localWinsRemote(localRecord, meta, remote);
-      if (shouldPushLocal) {
-        const pushed = await pushLocal(localRecord, meta);
-        if (pushed?.deleted) {
-          await deleteNoteAndMeta(remote.date);
-          await deleteRemoteDate(remote.date);
-          return;
-        }
-        if (pushed) {
-          await setNoteAndMeta(
-            toLocalRecord(pushed),
-            toLocalMeta(pushed, clock.now().toISOString()),
-          );
-        }
-        return;
-      }
-
-      await deleteNoteAndMeta(remote.date);
-      await deleteRemoteDate(remote.date);
-      return;
-    }
-
-    if (!localRecord || !meta) {
-      await setNoteAndMeta(
-        toLocalRecord(remote),
-        toLocalMeta(remote, clock.now().toISOString()),
-      );
-      return;
-    }
-
-    if (meta.serverUpdatedAt === remote.serverUpdatedAt && !meta.pendingOp) {
-      return;
-    }
-
-    if (meta.pendingOp === "upsert") {
-      const pushed = await pushLocal(localRecord, meta);
-      if (pushed?.deleted) {
-        await deleteNoteAndMeta(remote.date);
-        await deleteRemoteDate(remote.date);
-        return;
-      }
-      if (pushed) {
-        await setNoteAndMeta(
-          toLocalRecord(pushed),
-          toLocalMeta(pushed, clock.now().toISOString()),
-        );
-      }
-      return;
-    }
-
-    const resolved = await resolveConflict({
-      gateway,
-      activeKeyId,
-      localRecord,
-      localMeta: meta,
-      remote,
-    });
-
-    if (resolved.deleted) {
-      await deleteNoteAndMeta(remote.date);
-      await deleteRemoteDate(remote.date);
-      return;
-    }
-
-    await setNoteAndMeta(
-      toLocalRecord(resolved),
-      toLocalMeta(resolved, clock.now().toISOString()),
-    );
-  };
-
-  const reconcileRemote = async (
-    date: string,
-    localRecord: NoteRecord | null,
-    localMeta: NoteMetaRecord | null,
-  ): Promise<NoteEnvelope | null> => {
-    let remote: RemoteNote | null = null;
-    const remoteResult = await gateway.fetchNoteByDate(date);
-    if (!remoteResult.ok) {
-      return localRecord ? toNoteEnvelope(localRecord, localMeta) : null;
-    }
-    remote = remoteResult.value;
-
-    const meta: NoteMetaRecord | null =
-      localMeta ??
-      (localRecord
-        ? {
-            date,
-            revision: 1,
-            remoteId: null,
-            serverUpdatedAt: null,
-            lastSyncedAt: null,
-            pendingOp: "upsert",
-          }
-        : null);
-
-    if (meta?.pendingOp === "delete") {
-      if (remote) {
-        const deleted = await gateway.deleteNote({
-          id: meta.remoteId ?? undefined,
-          date,
-        });
-        unwrapOrThrow(deleted);
-      }
-      await deleteRemoteDate(date);
-      await deleteNoteAndMeta(date);
-      return null;
-    }
-
-    if (!remote || remote.deleted) {
-      if (!localRecord || !meta) {
-        return null;
-      }
-
-      if (meta.pendingOp === "upsert") {
-        const pushed = await pushLocal(localRecord, meta);
-        if (pushed) {
-          const now = clock.now().toISOString();
-          // Re-read current state to check if new edits happened during push
-          const currentState = await getNoteEnvelopeState(date);
-          const currentMeta = currentState.meta;
-          const currentRecord = currentState.record;
-          const newEditsOccurred =
-            currentMeta && currentMeta.revision > meta.revision;
-
-          if (newEditsOccurred && currentRecord) {
-            // New edits happened during push - only update server metadata,
-            // keep local content and pendingOp for next sync
-            await setNoteMeta({
-              ...currentMeta,
-              remoteId: pushed.id,
-              serverUpdatedAt: pushed.serverUpdatedAt,
-            });
-            return toNoteEnvelope(currentRecord, {
-              ...currentMeta,
-              remoteId: pushed.id,
-              serverUpdatedAt: pushed.serverUpdatedAt,
-            });
-          } else {
-            // No new edits - safe to overwrite with pushed content
-            const record = toLocalRecord(pushed);
-            const metaRecord = toLocalMeta(pushed, now);
-            await setNoteAndMeta(record, metaRecord);
-            return toNoteEnvelope(record, metaRecord);
-          }
-        }
-        return toNoteEnvelope(localRecord, meta);
-      }
-
-      await deleteRemoteDate(localRecord.date);
-      await deleteNoteAndMeta(localRecord.date);
-      return null;
-    }
-
-    if (!localRecord || !meta) {
-      const record = toLocalRecord(remote);
-      const metaRecord = toLocalMeta(remote, clock.now().toISOString());
-      await setNoteAndMeta(record, metaRecord);
-      return toNoteEnvelope(record, metaRecord);
-    }
-
-    // Skip conflict resolution if local is already synced with this remote version
-    if (meta.serverUpdatedAt === remote.serverUpdatedAt && !meta.pendingOp) {
-      return toNoteEnvelope(localRecord, meta);
-    }
-
-    if (meta.pendingOp === "upsert") {
-      const pushed = await pushLocal(localRecord, meta);
-      if (pushed?.deleted) {
-        await deleteNoteAndMeta(remote.date);
-        await deleteRemoteDate(remote.date);
-        return null;
-      }
-      if (pushed) {
-        const record = toLocalRecord(pushed);
-        const metaRecord = toLocalMeta(pushed, clock.now().toISOString());
-        await setNoteAndMeta(record, metaRecord);
-        return toNoteEnvelope(record, metaRecord);
-      }
-      return toNoteEnvelope(localRecord, meta);
-    }
-
-    // Resolve conflict between local and remote
-    const resolved = await resolveConflict({
-      gateway,
-      activeKeyId,
-      localRecord,
-      localMeta: meta,
-      remote,
-    });
-
-    if (resolved.deleted) {
-      await deleteNoteAndMeta(remote.date);
-      await deleteRemoteDate(remote.date);
-      return null;
-    }
-
-    const record = toLocalRecord(resolved);
-    const metaRecord = toLocalMeta(resolved, clock.now().toISOString());
-    await setNoteAndMeta(record, metaRecord);
-    return toNoteEnvelope(record, metaRecord);
-  };
-
   return {
     async getEnvelope(date: string): Promise<NoteEnvelope | null> {
       const snapshot = await getLocalSnapshot(date);
@@ -646,7 +424,66 @@ export function createUnifiedSyncedNoteEnvelopeRepository(
       }
       const snapshot = await getLocalSnapshot(date);
       try {
-        return await reconcileRemote(date, snapshot.record, snapshot.meta);
+        const remoteResult = await gateway.fetchNoteByDate(date);
+        if (!remoteResult.ok) {
+          return snapshot.envelope;
+        }
+        const remote = remoteResult.value;
+        const localRecord = snapshot.record;
+        const localMeta = snapshot.meta;
+        const now = clock.now().toISOString();
+
+        if (localMeta?.pendingOp === "delete") {
+          // Local delete pending — keep it, will push next sync
+          return snapshot.envelope;
+        }
+
+        if (!remote || remote.deleted) {
+          if (localMeta?.pendingOp === "upsert" && localRecord) {
+            // Local edit pending — keep local, update server metadata
+            const updatedMeta: NoteMetaRecord = {
+              ...localMeta,
+              remoteId: remote?.id ?? localMeta.remoteId,
+              serverRevision: remote?.revision ?? localMeta.serverRevision,
+              serverUpdatedAt:
+                remote?.serverUpdatedAt ?? localMeta.serverUpdatedAt,
+            };
+            await setNoteMeta(updatedMeta);
+            return toNoteEnvelope(localRecord, updatedMeta);
+          }
+          // No local edits — accept deletion
+          if (localRecord) {
+            await deleteNoteAndMeta(date);
+            await deleteRemoteDate(date);
+          }
+          return null;
+        }
+
+        if (!localRecord || !localMeta) {
+          // No local — accept remote
+          const record = toLocalRecord(remote);
+          const metaRecord = toLocalMeta(remote, now);
+          await setNoteAndMeta(record, metaRecord);
+          return toNoteEnvelope(record, metaRecord);
+        }
+
+        if (localMeta.pendingOp === "upsert") {
+          // Local edit pending — keep local content, update server metadata
+          const updatedMeta: NoteMetaRecord = {
+            ...localMeta,
+            remoteId: remote.id,
+            serverRevision: remote.revision,
+            serverUpdatedAt: remote.serverUpdatedAt,
+          };
+          await setNoteMeta(updatedMeta);
+          return toNoteEnvelope(localRecord, updatedMeta);
+        }
+
+        // No local pending — accept remote content
+        const record = toLocalRecord(remote);
+        const metaRecord = toLocalMeta(remote, now);
+        await setNoteAndMeta(record, metaRecord);
+        return toNoteEnvelope(record, metaRecord);
       } catch {
         return snapshot.envelope;
       }
@@ -674,6 +511,7 @@ export function createUnifiedSyncedNoteEnvelopeRepository(
       const meta: NoteMetaRecord = {
         date: payload.date,
         revision: (existingMeta?.revision ?? 0) + 1,
+        serverRevision: existingMeta?.serverRevision,
         remoteId: existingMeta?.remoteId ?? null,
         serverUpdatedAt: existingMeta?.serverUpdatedAt ?? null,
         lastSyncedAt: existingMeta?.lastSyncedAt ?? null,
@@ -686,6 +524,7 @@ export function createUnifiedSyncedNoteEnvelopeRepository(
       const meta: NoteMetaRecord = {
         date,
         revision: (existingMeta?.revision ?? 0) + 1,
+        serverRevision: existingMeta?.serverRevision,
         remoteId: existingMeta?.remoteId ?? null,
         serverUpdatedAt: existingMeta?.serverUpdatedAt ?? null,
         lastSyncedAt: existingMeta?.lastSyncedAt ?? null,

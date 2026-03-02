@@ -44,13 +44,18 @@ function toSyncError(
   return { type: fallback, message: "Remote request failed." };
 }
 
-function isConflictError(error: unknown): boolean {
+function isVersionConflict(error: unknown): boolean {
   if (error && typeof error === "object") {
-    const record = error as { code?: string; status?: number };
-    if (record.code === "23505" || record.code === "PGRST116") {
+    const record = error as { code?: string; message?: string };
+    // P0002 = custom raise from push_note/delete_note
+    // 23505 = unique constraint violation on insert
+    if (record.code === "P0002" || record.code === "23505") {
       return true;
     }
-    if (record.status === 404 || record.status === 406 || record.status === 409) {
+    if (
+      typeof record.message === "string" &&
+      record.message.includes("VERSION_CONFLICT")
+    ) {
       return true;
     }
   }
@@ -137,57 +142,22 @@ async function pushRemoteNote(
   userId: string,
   note: RemoteNotePayload,
 ): Promise<Result<RemoteNote, SyncError>> {
-  const payload = {
-    user_id: userId,
-    date: note.date,
-    ciphertext: note.ciphertext,
-    nonce: note.nonce,
-    key_id: note.keyId,
-    revision: note.revision,
-    updated_at: note.updatedAt,
-    deleted: note.deleted,
-  };
-
-  if (note.id) {
-    try {
-      let query = supabase
-        .from("notes")
-        .update(payload)
-        .eq("id", note.id)
-        .eq("user_id", userId);
-
-      if (note.serverUpdatedAt) {
-        query = query.eq("server_updated_at", note.serverUpdatedAt);
-      } else {
-        query = query.is("server_updated_at", null);
-      }
-
-      const { data, error } = await query.select().maybeSingle();
-      if (error) {
-        if (isConflictError(error)) {
-          return err({ type: "Conflict", message: "Revision conflict." });
-        }
-        return err(toSyncError(error, "RemoteRejected"));
-      }
-      if (!data) {
-        return err({ type: "Conflict", message: "Revision conflict." });
-      }
-      return ok(mapRemoteRow(data as RemoteNoteRow));
-    } catch (error) {
-      return err(toSyncError(error));
-    }
-  }
-
   try {
-    const { data, error } = await supabase
-      .from("notes")
-      .insert(payload)
-      .select()
-      .single();
+    const { data, error } = await supabase.rpc("push_note", {
+      p_id: note.id ?? null,
+      p_user_id: userId,
+      p_date: note.date,
+      p_key_id: note.keyId,
+      p_ciphertext: note.ciphertext,
+      p_nonce: note.nonce,
+      p_revision: note.revision,
+      p_updated_at: note.updatedAt,
+      p_deleted: note.deleted,
+    });
 
     if (error) {
-      if (isConflictError(error)) {
-        return err({ type: "Conflict", message: "Revision conflict." });
+      if (isVersionConflict(error)) {
+        return err({ type: "Conflict", message: "Version conflict." });
       }
       return err(toSyncError(error, "RemoteRejected"));
     }
@@ -200,24 +170,22 @@ async function pushRemoteNote(
 async function deleteRemoteNote(
   supabase: SupabaseClient,
   userId: string,
-  options: { id?: string | null; date: string },
-): Promise<Result<void, SyncError>> {
+  options: { id: string; date: string; revision: number },
+): Promise<Result<RemoteNote, SyncError>> {
   try {
-    let query = supabase
-      .from("notes")
-      .update({ deleted: true })
-      .eq("user_id", userId)
-      .eq("date", options.date);
+    const { data, error } = await supabase.rpc("delete_note", {
+      p_id: options.id,
+      p_user_id: userId,
+      p_revision: options.revision,
+    });
 
-    if (options.id) {
-      query = query.eq("id", options.id);
-    }
-
-    const { error } = await query;
     if (error) {
+      if (isVersionConflict(error)) {
+        return err({ type: "Conflict", message: "Version conflict." });
+      }
       return err(toSyncError(error, "RemoteRejected"));
     }
-    return ok(undefined);
+    return ok(mapRemoteRow(data as RemoteNoteRow));
   } catch (error) {
     return err(toSyncError(error));
   }

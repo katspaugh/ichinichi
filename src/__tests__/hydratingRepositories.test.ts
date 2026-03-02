@@ -121,36 +121,12 @@ describe("hydrating repositories", () => {
     const dates = await repository.getAllDates();
     expect(dates).toEqual(["05-01-2025"]);
   });
-  it("preserves pending edits made during refreshEnvelope push", async () => {
-    let pushCallCount = 0;
-    let saveEnvelopeDuringPush: (() => Promise<void>) | null = null;
-
+  it("refreshEnvelope keeps local content when pending upsert and no remote", async () => {
     const gateway: RemoteNotesGateway = {
       fetchNoteByDate: jest.fn().mockResolvedValue({ ok: true, value: null }),
       fetchNoteDates: jest.fn().mockResolvedValue({ ok: true, value: [] }),
       fetchNotesSince: jest.fn().mockResolvedValue({ ok: true, value: [] }),
-      pushNote: jest.fn().mockImplementation(async (note) => {
-        pushCallCount++;
-        // Simulate a concurrent edit happening during the push
-        if (saveEnvelopeDuringPush) {
-          await saveEnvelopeDuringPush();
-          saveEnvelopeDuringPush = null;
-        }
-        return {
-          ok: true,
-          value: {
-            id: "remote-id-1",
-            date: note.date,
-            ciphertext: note.ciphertext,
-            nonce: note.nonce,
-            keyId: note.keyId,
-            revision: note.revision,
-            updatedAt: note.updatedAt,
-            serverUpdatedAt: `2025-01-05T10:00:0${pushCallCount}.000Z`,
-            deleted: false,
-          },
-        };
-      }),
+      pushNote: jest.fn(),
       deleteNote: jest.fn().mockResolvedValue({ ok: true, value: undefined }),
     };
     const connectivity: Connectivity = { isOnline: () => true };
@@ -170,7 +146,7 @@ describe("hydrating repositories", () => {
       syncStateStore,
     );
 
-    // Initial save - this creates a pending upsert
+    // Save locally — creates pending upsert
     await repository.saveEnvelope({
       date: "05-01-2025",
       ciphertext: "content-v1",
@@ -179,32 +155,19 @@ describe("hydrating repositories", () => {
       updatedAt: "2025-01-05T10:00:00.000Z",
     });
 
-    // Set up a concurrent edit to happen during refreshEnvelope's push
-    saveEnvelopeDuringPush = async () => {
-      await repository.saveEnvelope({
-        date: "05-01-2025",
-        ciphertext: "content-v2",
-        nonce: "nonce-v2",
-        keyId: "key-1",
-        updatedAt: "2025-01-05T10:00:01.000Z",
-      });
-    };
-
-    // refreshEnvelope will call reconcileRemote which pushes since no remote exists
-    // During the push, v2 is saved
+    // refreshEnvelope fetches remote (null) — should keep local content
     await repository.refreshEnvelope("05-01-2025");
 
-    // The envelope should have v2 content (the edit made during push)
     const envelope = await repository.getEnvelope("05-01-2025");
-    expect(envelope?.ciphertext).toBe("content-v2");
-    expect(envelope?.nonce).toBe("nonce-v2");
+    expect(envelope?.ciphertext).toBe("content-v1");
+    expect(envelope?.nonce).toBe("nonce-v1");
 
-    // There should still be a pending op since v2 hasn't been synced yet
+    // pendingOp still set — push happens during sync, not refresh
     const hasPending = await repository.hasPendingOp("05-01-2025");
     expect(hasPending).toBe(true);
 
-    // Push should have been called once (for v1)
-    expect(pushCallCount).toBe(1);
+    // pushNote should NOT be called during refreshEnvelope
+    expect(gateway.pushNote).not.toHaveBeenCalled();
   });
 
   it("preserves pending edits made during sync", async () => {

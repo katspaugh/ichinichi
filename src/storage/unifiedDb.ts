@@ -22,6 +22,7 @@ export interface NoteRecord {
 export interface NoteMetaRecord {
   date: string;
   revision: number;
+  serverRevision?: number;
   remoteId?: string | null;
   serverUpdatedAt?: string | null;
   lastSyncedAt?: string | null;

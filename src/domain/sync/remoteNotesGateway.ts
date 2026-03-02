@@ -21,7 +21,6 @@ export interface RemoteNotePayload {
   keyId: string;
   revision: number;
   updatedAt: string;
-  serverUpdatedAt?: string | null;
   deleted: boolean;
 }
 
@@ -35,6 +34,6 @@ export interface RemoteNotesGateway {
   ): Promise<Result<RemoteNote[], SyncError>>;
   pushNote(note: RemoteNotePayload): Promise<Result<RemoteNote, SyncError>>;
   deleteNote(
-    options: { id?: string | null; date: string },
-  ): Promise<Result<void, SyncError>>;
+    options: { id: string; date: string; revision: number },
+  ): Promise<Result<RemoteNote, SyncError>>;
 }
