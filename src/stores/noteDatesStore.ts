@@ -49,6 +49,7 @@ export interface NoteDatesState {
   isRefreshing: boolean;
   _refreshTimer: number | null;
   _refreshGeneration: number;
+  _disposed: boolean;
 
   // Actions
   init: (repository: NoteRepository, year: number) => void;
@@ -77,7 +78,7 @@ export const noteDatesStore = createStore<NoteDatesState>()((set, get) => {
     const { repository, year } = get();
     const online = connectivity.getOnline();
 
-    if (!repository) {
+    if (!repository || get()._disposed) {
       set({ noteDates: new Set(), isRefreshing: false });
       return;
     }
@@ -90,7 +91,7 @@ export const noteDatesStore = createStore<NoteDatesState>()((set, get) => {
       const localResult = supportsYearDates(repository)
         ? await repository.getAllLocalDatesForYear(year)
         : await repository.getAllLocalDates();
-      if (gen !== _refreshGeneration) return; // superseded
+      if (gen !== _refreshGeneration || get()._disposed) return; // superseded or disposed
       if (localResult.ok) {
         hasLocalSnapshot = true;
         set({ noteDates: new Set(localResult.value) });
@@ -102,7 +103,7 @@ export const noteDatesStore = createStore<NoteDatesState>()((set, get) => {
     // Refresh from remote if online
     if (online && supportsDateRefresh(repository)) {
       await repository.refreshDates(year);
-      if (gen !== _refreshGeneration) return; // superseded
+      if (gen !== _refreshGeneration || get()._disposed) return; // superseded or disposed
     }
 
     // Load full dates (local + remote merged)
@@ -110,7 +111,7 @@ export const noteDatesStore = createStore<NoteDatesState>()((set, get) => {
       ? await repository.getAllDatesForYear(year)
       : await repository.getAllDates();
 
-    if (gen !== _refreshGeneration) return; // superseded
+    if (gen !== _refreshGeneration || get()._disposed) return; // superseded or disposed
 
     if (datesResult.ok) {
       set({ noteDates: new Set(datesResult.value) });
@@ -130,9 +131,10 @@ export const noteDatesStore = createStore<NoteDatesState>()((set, get) => {
     isRefreshing: false,
     _refreshTimer: null,
     _refreshGeneration: 0,
+    _disposed: true,
 
     init: (repository, year) => {
-      set({ repository, year });
+      set({ repository, year, _disposed: false });
       void _doRefresh();
     },
 
@@ -144,6 +146,7 @@ export const noteDatesStore = createStore<NoteDatesState>()((set, get) => {
         noteDates: new Set(),
         isRefreshing: false,
         _refreshTimer: null,
+        _disposed: true,
       });
     },
 

@@ -89,6 +89,8 @@ const _loadNote = async (date: string, repository: NoteRepository) => {
 
 After every `await`, re-read state via `get()` — never close over stale values.
 
+Stores also use a `_disposed` flag (checked after each `await`) to prevent post-dispose state updates from in-flight async operations.
+
 ### DI
 
 - Domain defines interfaces (Clock, Connectivity, KeyringProvider, SyncStateStore)
@@ -199,6 +201,7 @@ prompt: "Run `npm run typecheck` and report errors or confirm pass."
 - `docs/architecture-critique.md` — improvement proposals
 - `docs/data-flow.md` — local/cloud sync
 - `docs/key-derivation.md` — KEK/DEK, unlock flow
+- ~~`docs/effect-refactoring.md`~~ — deleted, superseded by Zustand migration
 
 ## Known Issues & Tech Debt
 
@@ -210,7 +213,7 @@ prompt: "Run `npm run typecheck` and report errors or confirm pass."
 ### Fixed by Zustand Migration (March 2026)
 
 The hook orchestration layer was rewritten from XState-based hooks to Zustand stores.
-Old files (`useLocalNoteContent.ts`, `useNoteRemoteSync.ts`, `useSyncMachine.ts`) kept for test backward compat only — dead code in production.
+Old XState hook files (`useLocalNoteContent.ts`, `useNoteRemoteSync.ts`, `useSyncMachine.ts`, `useNoteRepositoryMachine.ts`) and their tests have been deleted.
 
 Bugs fixed:
 - Save queue capturing stale repo/date → store reads `get()` at execution time
@@ -232,7 +235,6 @@ Bugs fixed:
 - Mixed DI: some singletons, some param-passed
 - `unifiedSyncedNoteRepository.ts` (668 lines) → split
 - No React Error Boundaries → runtime crash kills app
-- Delete old XState hook files once their tests are migrated to test Zustand stores
 
 
 ## grepai - Semantic Code Search

@@ -124,8 +124,7 @@ export const noteContentStore = createStore<NoteContentState>()((set, get) => {
   };
 
   const _doSave = async (): Promise<void> => {
-    const { date, content, habits, repository, loadedWithContent, afterSave } =
-      get();
+    const { date, content, habits, repository, loadedWithContent } = get();
     if (!date || !repository) return;
 
     const isEmpty = isNoteEmpty(content, habits);
@@ -144,13 +143,21 @@ export const noteContentStore = createStore<NoteContentState>()((set, get) => {
     const current = get();
 
     if (result.ok) {
-      // If the user edited while save was in flight, stay dirty
-      if (current.date === date && current.content === content) {
+      // Only clear dirty state if content hasn't changed AND no new save is pending
+      if (
+        current.date === date &&
+        current.content === content &&
+        current._saveTimer === null
+      ) {
         set({ hasEdits: false, isSaving: false });
-      } else {
+      } else if (current._saveTimer === null) {
+        // Content changed but no new save scheduled
         set({ isSaving: false });
       }
-      afterSave?.({ date, content, isEmpty });
+      // else: new save timer pending — leave isSaving true
+
+      // Re-read afterSave after await to avoid calling a stale/disposed callback
+      current.afterSave?.({ date, content, isEmpty });
     } else {
       console.error("Failed to save note:", result.error);
       set({ isSaving: false });
@@ -254,6 +261,8 @@ export const noteContentStore = createStore<NoteContentState>()((set, get) => {
     afterSave: null,
 
     init: (date, repository, afterSave) => {
+      // Remove previous listener to avoid duplicates on re-init
+      document.removeEventListener("visibilitychange", _handleVisibilityChange);
       document.addEventListener("visibilitychange", _handleVisibilityChange);
       set({ repository, afterSave: afterSave ?? null });
       void _loadNote(date, repository);

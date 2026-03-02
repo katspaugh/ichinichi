@@ -44,12 +44,12 @@ const cacheKey = `${vaultKeyId}-${keyringToken}-${activeKeyId}-${supabaseSignatu
 
 This relies on object identity and string concatenation. No TTL, no explicit invalidation, no cleanup. If identity tracking fails silently, stale repos persist.
 
-### 4. 400+ Line God Hooks (Partially Resolved)
+### 4. 400+ Line God Hooks (Mostly Resolved)
 
-**March 2026 update**: `useSync.ts` and `useNoteRepository.ts` are now thin wrappers (~100 lines each) over Zustand stores. Logic lives in `src/stores/`.
+**March 2026 update**: `useSync.ts`, `useNoteRepository.ts`, `useNoteContent.ts`, `useNoteDates.ts` are now thin wrappers (~50-100 lines each) over Zustand stores. Logic lives in `src/stores/`. Old XState hook files have been deleted.
 
 Remaining:
-- `useActiveVault.ts` (486 lines) — still a god hook
+- `useActiveVault.ts` (~190 lines) — reduced but could be further split
 
 ### 5. Missing Error Boundaries
 
@@ -137,12 +137,12 @@ const repository = useMemo(() => {
 
 ### 4. Split God Hooks into Focused Units (Partially Done)
 
-**March 2026**: `useSync.ts`, `useNoteContent.ts`, `useNoteDates.ts`, `useNoteRepository.ts` are now thin wrappers. Logic in `src/stores/`.
+**March 2026**: `useSync.ts`, `useNoteContent.ts`, `useNoteDates.ts`, `useNoteRepository.ts` are now thin wrappers. Logic in `src/stores/`. Old XState hook files have been deleted.
 
-**Remaining**: `useActiveVault.ts` (486 lines) still a god hook. Could split into vault machine + unlock flows + keyring management.
+**Remaining**: `useActiveVault.ts` (~190 lines) — significantly reduced from 486 lines but could still be split into vault machine + unlock flows + keyring management.
 
 **Files to change**: `src/hooks/useActiveVault.ts` → multiple files
-**Effort**: Medium
+**Effort**: Low-Medium
 
 ### 5. Add Error Boundary + Recovery
 
@@ -177,35 +177,9 @@ Wrap at multiple levels:
 **Files to change**: Create `src/components/ErrorBoundary.tsx`, wrap in `App.tsx`
 **Effort**: Low
 
-### 6. Standardize Async Operations with AbortController
+### 6. ~~Standardize Async Operations with AbortController~~ → Done (March 2026)
 
-```typescript
-// src/utils/asyncHelpers.ts
-export function createCancellableOperation<T>(
-  operation: (signal: AbortSignal) => Promise<T>,
-  timeoutMs: number = 30000
-): { promise: Promise<T>, cancel: () => void } {
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
-
-  const promise = operation(controller.signal).finally(() => {
-    clearTimeout(timeoutId)
-  })
-
-  return { promise, cancel: () => controller.abort() }
-}
-
-// Usage in sync:
-const { promise, cancel } = createCancellableOperation(
-  (signal) => syncService.sync(signal),
-  60000
-)
-```
-
-Apply to all async loaders in `useActiveVault.ts` and sync operations.
-
-**Files to change**: Create `src/utils/asyncHelpers.ts`, update `useSync.ts`, `useActiveVault.ts`
-**Effort**: Medium
+`src/utils/asyncHelpers.ts` implements `createCancellableOperation` with AbortController and timeout support. Used by `syncStore.ts` for sync operations. Zustand stores also use generation counters and `_disposed` flags for async cancellation.
 
 ### 7. Add Integration Test Harness
 
@@ -245,8 +219,8 @@ Focus on:
 |-------------|--------|--------|----------|--------|
 | Error Boundary | High (stability) | Low | **P0** | Open |
 | Explicit cache invalidation | High (correctness) | Low-Med | **P1** | Open |
-| Standardize async patterns | Medium (reliability) | Medium | **P1** | **Done** (Zustand stores) |
-| Split god hooks | Medium (maintainability) | Medium | **P2** | **Partial** (vault remaining) |
+| Standardize async patterns | Medium (reliability) | Medium | **P1** | **Done** (asyncHelpers + Zustand stores) |
+| Split god hooks | Medium (maintainability) | Low-Med | **P2** | **Mostly done** (vault ~190 lines remaining) |
 | Unify state management | Medium (consistency) | Medium | **P2** | **Done** (Zustand) |
 | Flatten hook dependencies | High (testability) | High | **P2** | Open |
 | Integration tests | High (confidence) | High | **P3** | Open |
@@ -255,11 +229,12 @@ Focus on:
 
 ## Summary
 
-The architecture is fundamentally sound—local-first, E2EE, clean domain boundaries. The main issues are:
+The architecture is fundamentally sound—local-first, E2EE, clean domain boundaries. The remaining issues are:
 
-1. **Organic complexity** in state management (fix: standardize on XState)
+1. ~~**Organic complexity** in state management~~ → **Done**: Zustand stores standardized hook orchestration
 2. **Tight coupling** via deep hook chains (fix: context-injected services)
 3. **Implicit invalidation** in caching (fix: explicit version signals)
 4. **No error recovery** (fix: error boundaries)
+5. ~~**Inconsistent async patterns**~~ → **Done**: `asyncHelpers.ts` + generation counters + disposed flags
 
 Start with the error boundary (P0), then tackle caching correctness (P1). The larger refactors (P2-P3) can be done incrementally as the codebase evolves.

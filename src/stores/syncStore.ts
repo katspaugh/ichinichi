@@ -107,9 +107,17 @@ export const syncStore = createStore<SyncStoreState>()(subscribeWithSelector((se
     supabase: SupabaseClient,
     userId: string,
   ) => {
-    // Clean up previous
+    // Clean up previous channel and pending timers
     const prev = get()._realtimeChannel;
     if (prev) void prev.unsubscribe();
+    if (_realtimeDebounceTimer) {
+      window.clearTimeout(_realtimeDebounceTimer);
+      _realtimeDebounceTimer = null;
+    }
+    if (_realtimeRetryTimer) {
+      window.clearTimeout(_realtimeRetryTimer);
+      _realtimeRetryTimer = null;
+    }
 
     const channel = supabase
       .channel(`notes:${userId}`)
