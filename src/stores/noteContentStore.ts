@@ -11,60 +11,6 @@ export interface SaveSnapshot {
   isEmpty: boolean;
 }
 
-type NoteRefreshResult =
-  | { ok: true; value: { content?: string; habits?: HabitValues } | null }
-  | { ok: false; error: { message: string } }
-  | { content?: string; habits?: HabitValues }
-  | null;
-
-interface RefreshableNoteRepository {
-  refreshNote: (date: string) => Promise<NoteRefreshResult>;
-}
-
-interface RemoteIndexRepository {
-  hasRemoteDateCached: (date: string) => Promise<boolean>;
-}
-
-interface PendingOpRepository {
-  hasPendingOp: (date: string) => Promise<boolean>;
-}
-
-function canRefresh(
-  repository: NoteRepository,
-): repository is NoteRepository & RefreshableNoteRepository {
-  return (
-    "refreshNote" in repository && typeof repository.refreshNote === "function"
-  );
-}
-
-function hasRemoteIndex(
-  repository: NoteRepository,
-): repository is NoteRepository & RemoteIndexRepository {
-  return (
-    "hasRemoteDateCached" in repository &&
-    typeof repository.hasRemoteDateCached === "function"
-  );
-}
-
-function hasPendingOps(
-  repository: NoteRepository,
-): repository is NoteRepository & PendingOpRepository {
-  return (
-    "hasPendingOp" in repository &&
-    typeof repository.hasPendingOp === "function"
-  );
-}
-
-function unwrapRefreshResult(
-  result: NoteRefreshResult,
-): { content?: string; habits?: HabitValues } | null {
-  if (!result) return null;
-  if (typeof result === "object" && "ok" in result) {
-    return result.ok ? result.value : null;
-  }
-  return result;
-}
-
 const SAVE_IDLE_DELAY_MS = 2000;
 
 export interface NoteContentState {
@@ -368,7 +314,7 @@ export const noteContentStore = createStore<NoteContentState>()((set, get) => {
       if (
         !date ||
         !repository ||
-        !canRefresh(repository) ||
+        !repository.syncCapable ||
         !online ||
         state.hasRefreshedForDate === date
       ) {
@@ -383,34 +329,28 @@ export const noteContentStore = createStore<NoteContentState>()((set, get) => {
         const remoteResult = await repository.refreshNote(date);
         if (gen !== _refreshGeneration) return; // superseded
 
-        // Log decryption errors
-        if (
-          remoteResult &&
-          typeof remoteResult === "object" &&
-          "ok" in remoteResult &&
-          !remoteResult.ok
-        ) {
+        if (!remoteResult.ok) {
           console.warn(
             "refreshNote returned error for",
             date,
             remoteResult.error,
           );
+          set({ isRefreshing: false, hasRefreshedForDate: date });
+          return;
         }
 
-        const remoteNote = unwrapRefreshResult(remoteResult);
+        const remoteNote = remoteResult.value;
         if (!remoteNote) {
           set({ isRefreshing: false, hasRefreshedForDate: date });
           return;
         }
 
         // Re-read after await — check pending ops
-        if (hasPendingOps(repository)) {
-          const hasPending = await repository.hasPendingOp(date);
-          if (gen !== _refreshGeneration) return;
-          if (hasPending) {
-            set({ isRefreshing: false });
-            return;
-          }
+        const hasPending = await repository.hasPendingOp(date);
+        if (gen !== _refreshGeneration) return;
+        if (hasPending) {
+          set({ isRefreshing: false });
+          return;
         }
 
         // Re-read after await — check edits again
@@ -454,7 +394,7 @@ export const noteContentStore = createStore<NoteContentState>()((set, get) => {
         !date ||
         !repository ||
         online ||
-        !hasRemoteIndex(repository) ||
+        !repository.syncCapable ||
         get().content !== "" ||
         get().status !== "ready"
       ) {

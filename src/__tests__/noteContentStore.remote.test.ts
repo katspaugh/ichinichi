@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { noteContentStore } from "../stores/noteContentStore";
 import { ok } from "../domain/result";
-import type { NoteRepository } from "../storage/noteRepository";
+import { syncDefaults } from "./helpers/mockNoteRepository";
 
 let mockOnline = true;
 jest.mock("../services/connectivity", () => ({
@@ -11,14 +11,10 @@ jest.mock("../services/connectivity", () => ({
   },
 }));
 
-interface RefreshableRepository extends NoteRepository {
-  refreshNote: jest.Mock;
-  hasRemoteDateCached: jest.Mock;
-  hasPendingOp: jest.Mock;
-}
-
-function createRepository(initialContent = ""): RefreshableRepository {
+function createRepository(initialContent = ""): any {
   return {
+    ...syncDefaults,
+    syncCapable: true,
     get: jest.fn().mockResolvedValue(
       ok({
         date: "10-01-2026",
@@ -30,7 +26,7 @@ function createRepository(initialContent = ""): RefreshableRepository {
     delete: jest.fn().mockResolvedValue(ok(undefined)),
     getAllDates: jest.fn().mockResolvedValue(ok([])),
     refreshNote: jest.fn().mockResolvedValue(
-      ok({ date: "10-01-2026", content: "remote-content" }),
+      ok({ date: "10-01-2026", content: "remote-content", updatedAt: "2026-01-10T11:00:00.000Z" }),
     ),
     hasRemoteDateCached: jest.fn().mockResolvedValue(true),
     hasPendingOp: jest.fn().mockResolvedValue(false),
@@ -98,7 +94,7 @@ describe("noteContentStore remote refresh", () => {
 
     repository.refreshNote.mockClear();
     repository.refreshNote.mockResolvedValue(
-      ok({ date: "10-01-2026", content: "refreshed-again" }),
+      ok({ date: "10-01-2026", content: "refreshed-again", updatedAt: "2026-01-10T12:00:00.000Z" }),
     );
 
     noteContentStore.getState().forceRefresh();
@@ -118,7 +114,7 @@ describe("noteContentStore remote refresh", () => {
     // Clear and set up for second refresh
     repository.refreshNote.mockClear();
     repository.refreshNote.mockResolvedValue(
-      ok({ date: "10-01-2026", content: "should-not-apply" }),
+      ok({ date: "10-01-2026", content: "should-not-apply", updatedAt: "2026-01-10T12:00:00.000Z" }),
     );
 
     // Make local edits
@@ -148,7 +144,7 @@ describe("noteContentStore remote refresh", () => {
 
     // Force refresh should retry
     repository.refreshNote.mockResolvedValueOnce(
-      ok({ date: "10-01-2026", content: "remote-content" }),
+      ok({ date: "10-01-2026", content: "remote-content", updatedAt: "2026-01-10T11:00:00.000Z" }),
     );
 
     noteContentStore.getState().forceRefresh();
@@ -174,7 +170,7 @@ describe("noteContentStore remote refresh", () => {
 
     // Force refresh should retry
     repository.refreshNote.mockResolvedValueOnce(
-      ok({ date: "10-01-2026", content: "remote-content" }),
+      ok({ date: "10-01-2026", content: "remote-content", updatedAt: "2026-01-10T11:00:00.000Z" }),
     );
 
     noteContentStore.getState().forceRefresh();

@@ -1,6 +1,10 @@
-import { createUnifiedSyncedNoteEnvelopeRepository } from "../storage/unifiedSyncedNoteRepository";
+import { createNoteSyncEngine } from "../domain/sync/noteSyncEngine";
 import { closeUnifiedDb } from "../storage/unifiedDb";
 import { getAllAccountDbNames } from "../storage/accountStore";
+import { getNoteEnvelopeState, toNoteEnvelope } from "../storage/unifiedNoteEnvelopeRepository";
+import { setNoteAndMeta, setNoteMeta, deleteNoteRecord } from "../storage/unifiedNoteStore";
+import { deleteRemoteDate } from "../storage/remoteNoteIndexStore";
+import type { NoteMetaRecord, NoteRecord } from "../storage/unifiedDb";
 import type { RemoteNotesGateway } from "../domain/sync/remoteNotesGateway";
 import type { Clock } from "../domain/runtime/clock";
 import type { Connectivity } from "../domain/runtime/connectivity";
@@ -20,6 +24,57 @@ async function deleteUnifiedDb(): Promise<void> {
         }),
     ),
   );
+}
+
+// Storage helpers matching the old envelope repo API
+async function saveEnvelope(payload: {
+  date: string;
+  ciphertext: string;
+  nonce: string;
+  keyId: string;
+  updatedAt: string;
+}): Promise<void> {
+  const existingMeta = (await getNoteEnvelopeState(payload.date)).meta;
+  const record: NoteRecord = {
+    version: 1,
+    date: payload.date,
+    keyId: payload.keyId,
+    ciphertext: payload.ciphertext,
+    nonce: payload.nonce,
+    updatedAt: payload.updatedAt,
+  };
+  const meta: NoteMetaRecord = {
+    date: payload.date,
+    revision: (existingMeta?.revision ?? 0) + 1,
+    serverRevision: existingMeta?.serverRevision,
+    remoteId: existingMeta?.remoteId ?? null,
+    serverUpdatedAt: existingMeta?.serverUpdatedAt ?? null,
+    lastSyncedAt: existingMeta?.lastSyncedAt ?? null,
+    pendingOp: "upsert",
+  };
+  await setNoteAndMeta(record, meta);
+}
+
+async function getEnvelope(date: string) {
+  const state = await getNoteEnvelopeState(date);
+  if (!state.record) return null;
+  return toNoteEnvelope(state.record, state.meta);
+}
+
+async function deleteEnvelope(date: string): Promise<void> {
+  const existingMeta = (await getNoteEnvelopeState(date)).meta;
+  const meta: NoteMetaRecord = {
+    date,
+    revision: (existingMeta?.revision ?? 0) + 1,
+    serverRevision: existingMeta?.serverRevision,
+    remoteId: existingMeta?.remoteId ?? null,
+    serverUpdatedAt: existingMeta?.serverUpdatedAt ?? null,
+    lastSyncedAt: existingMeta?.lastSyncedAt ?? null,
+    pendingOp: "delete",
+  };
+  await setNoteMeta(meta);
+  await deleteNoteRecord(date);
+  await deleteRemoteDate(date);
 }
 
 function makeRemoteNote(overrides: Partial<{
@@ -77,7 +132,7 @@ function makeDeps() {
   return { connectivity, clock, syncStateStore };
 }
 
-describe("unifiedSyncedNoteRepository", () => {
+describe("noteSyncEngine", () => {
   beforeEach(async () => {
     await deleteUnifiedDb();
   });
@@ -92,11 +147,11 @@ describe("unifiedSyncedNoteRepository", () => {
       });
       const { connectivity, clock, syncStateStore } = makeDeps();
 
-      const repo = createUnifiedSyncedNoteEnvelopeRepository(
+      const engine = createNoteSyncEngine(
         gateway, "key-1", async () => undefined, connectivity, clock, syncStateStore,
       );
 
-      await repo.saveEnvelope({
+      await saveEnvelope({
         date: "10-01-2026",
         ciphertext: "local",
         nonce: "nonce-local",
@@ -104,14 +159,14 @@ describe("unifiedSyncedNoteRepository", () => {
         updatedAt: "2026-01-10T12:00:00.000Z",
       });
 
-      await repo.sync();
+      await engine.sync();
 
       // Should push with revision 0 (no serverRevision, no remoteId)
       expect(gateway.pushNote).toHaveBeenCalledWith(
         expect.objectContaining({ revision: 0 }),
       );
 
-      const envelope = await repo.getEnvelope("10-01-2026");
+      const envelope = await getEnvelope("10-01-2026");
       expect(envelope?.revision).toBe(1);
     });
 
@@ -135,11 +190,11 @@ describe("unifiedSyncedNoteRepository", () => {
       });
       const { connectivity, clock, syncStateStore } = makeDeps();
 
-      const repo = createUnifiedSyncedNoteEnvelopeRepository(
+      const engine = createNoteSyncEngine(
         gateway, "key-1", async () => undefined, connectivity, clock, syncStateStore,
       );
 
-      await repo.saveEnvelope({
+      await saveEnvelope({
         date: "10-01-2026",
         ciphertext: "local",
         nonce: "nonce-local",
@@ -147,7 +202,7 @@ describe("unifiedSyncedNoteRepository", () => {
         updatedAt: "2026-01-10T12:00:00.000Z",
       });
 
-      await repo.sync();
+      await engine.sync();
 
       expect(pushCount).toBe(2);
       // Second push should use the remote's revision (3)
@@ -155,7 +210,7 @@ describe("unifiedSyncedNoteRepository", () => {
         expect.objectContaining({ revision: 3, id: "remote-1" }),
       );
 
-      const envelope = await repo.getEnvelope("10-01-2026");
+      const envelope = await getEnvelope("10-01-2026");
       expect(envelope?.revision).toBe(4);
     });
 
@@ -172,11 +227,11 @@ describe("unifiedSyncedNoteRepository", () => {
       });
       const { connectivity, clock, syncStateStore } = makeDeps();
 
-      const repo = createUnifiedSyncedNoteEnvelopeRepository(
+      const engine = createNoteSyncEngine(
         gateway, "key-1", async () => undefined, connectivity, clock, syncStateStore,
       );
 
-      await repo.saveEnvelope({
+      await saveEnvelope({
         date: "10-01-2026",
         ciphertext: "local",
         nonce: "nonce-local",
@@ -184,10 +239,10 @@ describe("unifiedSyncedNoteRepository", () => {
         updatedAt: "2026-01-10T12:00:00.000Z",
       });
 
-      await repo.sync();
+      await engine.sync();
 
       // pendingOp should still be set for next cycle
-      expect(await repo.hasPendingOp("10-01-2026")).toBe(true);
+      expect(await engine.hasPendingOp("10-01-2026")).toBe(true);
     });
   });
 
@@ -205,29 +260,29 @@ describe("unifiedSyncedNoteRepository", () => {
       });
       const { connectivity, clock, syncStateStore } = makeDeps();
 
-      const repo = createUnifiedSyncedNoteEnvelopeRepository(
+      const engine = createNoteSyncEngine(
         gateway, "key-1", async () => undefined, connectivity, clock, syncStateStore,
       );
 
       // Save + sync to establish server link
-      await repo.saveEnvelope({
+      await saveEnvelope({
         date: "10-01-2026",
         ciphertext: "local",
         nonce: "nonce-local",
         keyId: "key-1",
         updatedAt: "2026-01-10T12:00:00.000Z",
       });
-      await repo.sync();
+      await engine.sync();
 
       // Delete + sync
-      await repo.deleteEnvelope("10-01-2026");
-      await repo.sync();
+      await deleteEnvelope("10-01-2026");
+      await engine.sync();
 
       expect(gateway.deleteNote).toHaveBeenCalledWith(
         expect.objectContaining({ id: "remote-1", revision: 1 }),
       );
 
-      const envelope = await repo.getEnvelope("10-01-2026");
+      const envelope = await getEnvelope("10-01-2026");
       expect(envelope).toBeNull();
     });
 
@@ -235,11 +290,11 @@ describe("unifiedSyncedNoteRepository", () => {
       const gateway = makeGateway();
       const { connectivity, clock, syncStateStore } = makeDeps();
 
-      const repo = createUnifiedSyncedNoteEnvelopeRepository(
+      const engine = createNoteSyncEngine(
         gateway, "key-1", async () => undefined, connectivity, clock, syncStateStore,
       );
 
-      await repo.saveEnvelope({
+      await saveEnvelope({
         date: "10-01-2026",
         ciphertext: "local",
         nonce: "nonce-local",
@@ -248,11 +303,11 @@ describe("unifiedSyncedNoteRepository", () => {
       });
 
       // Delete before ever syncing
-      await repo.deleteEnvelope("10-01-2026");
-      await repo.sync();
+      await deleteEnvelope("10-01-2026");
+      await engine.sync();
 
       expect(gateway.deleteNote).not.toHaveBeenCalled();
-      const envelope = await repo.getEnvelope("10-01-2026");
+      const envelope = await getEnvelope("10-01-2026");
       expect(envelope).toBeNull();
     });
 
@@ -274,26 +329,26 @@ describe("unifiedSyncedNoteRepository", () => {
       });
       const { connectivity, clock, syncStateStore } = makeDeps();
 
-      const repo = createUnifiedSyncedNoteEnvelopeRepository(
+      const engine = createNoteSyncEngine(
         gateway, "key-1", async () => undefined, connectivity, clock, syncStateStore,
       );
 
       // Save + sync to establish link
-      await repo.saveEnvelope({
+      await saveEnvelope({
         date: "10-01-2026",
         ciphertext: "local",
         nonce: "nonce-local",
         keyId: "key-1",
         updatedAt: "2026-01-10T12:00:00.000Z",
       });
-      await repo.sync();
+      await engine.sync();
 
       // Delete
-      await repo.deleteEnvelope("10-01-2026");
-      await repo.sync();
+      await deleteEnvelope("10-01-2026");
+      await engine.sync();
 
       // Should accept remote content instead of deleting
-      const envelope = await repo.getEnvelope("10-01-2026");
+      const envelope = await getEnvelope("10-01-2026");
       expect(envelope?.ciphertext).toBe("remote-new");
     });
   });
@@ -316,23 +371,23 @@ describe("unifiedSyncedNoteRepository", () => {
       });
       const { connectivity, clock, syncStateStore } = makeDeps();
 
-      const repo = createUnifiedSyncedNoteEnvelopeRepository(
+      const engine = createNoteSyncEngine(
         gateway, "key-1", async () => undefined, connectivity, clock, syncStateStore,
       );
 
       // Save + sync to establish link, then delete locally
-      await repo.saveEnvelope({
+      await saveEnvelope({
         date: "10-01-2026",
         ciphertext: "local",
         nonce: "nonce-local",
         keyId: "key-1",
         updatedAt: "2026-01-10T12:00:00.000Z",
       });
-      await repo.sync();
-      await repo.deleteEnvelope("10-01-2026");
+      await engine.sync();
+      await deleteEnvelope("10-01-2026");
 
       // Sync again — should push delete, not accept remote update
-      await repo.sync();
+      await engine.sync();
       expect(gateway.deleteNote).toHaveBeenCalled();
     });
 
@@ -354,11 +409,11 @@ describe("unifiedSyncedNoteRepository", () => {
       });
       const { connectivity, clock, syncStateStore } = makeDeps();
 
-      const repo = createUnifiedSyncedNoteEnvelopeRepository(
+      const engine = createNoteSyncEngine(
         gateway, "key-1", async () => undefined, connectivity, clock, syncStateStore,
       );
 
-      await repo.saveEnvelope({
+      await saveEnvelope({
         date: "10-01-2026",
         ciphertext: "local-edit",
         nonce: "nonce-local",
@@ -367,9 +422,9 @@ describe("unifiedSyncedNoteRepository", () => {
       });
 
       // Push conflicts (pendingOp stays), pull sees deleted remote → keeps local
-      await repo.sync();
+      await engine.sync();
 
-      const envelope = await repo.getEnvelope("10-01-2026");
+      const envelope = await getEnvelope("10-01-2026");
       expect(envelope?.ciphertext).toBe("local-edit");
     });
 
@@ -382,13 +437,13 @@ describe("unifiedSyncedNoteRepository", () => {
       });
       const { connectivity, clock, syncStateStore } = makeDeps();
 
-      const repo = createUnifiedSyncedNoteEnvelopeRepository(
+      const engine = createNoteSyncEngine(
         gateway, "key-1", async () => undefined, connectivity, clock, syncStateStore,
       );
 
-      await repo.sync();
+      await engine.sync();
 
-      const envelope = await repo.getEnvelope("10-01-2026");
+      const envelope = await getEnvelope("10-01-2026");
       expect(envelope?.ciphertext).toBe("from-server");
       expect(envelope?.revision).toBe(5);
     });
@@ -425,22 +480,22 @@ describe("unifiedSyncedNoteRepository", () => {
       });
       const { connectivity, clock, syncStateStore } = makeDeps();
 
-      const repo = createUnifiedSyncedNoteEnvelopeRepository(
+      const engine = createNoteSyncEngine(
         gateway, "key-1", async () => undefined, connectivity, clock, syncStateStore,
       );
 
       // Save + sync to establish link
-      await repo.saveEnvelope({
+      await saveEnvelope({
         date: "10-01-2026",
         ciphertext: "local",
         nonce: "nonce-local",
         keyId: "key-1",
         updatedAt: "2026-01-10T12:00:00.000Z",
       });
-      await repo.sync();
+      await engine.sync();
 
       // Make a new local edit, then sync again
-      await repo.saveEnvelope({
+      await saveEnvelope({
         date: "10-01-2026",
         ciphertext: "local-v2",
         nonce: "nonce-local-2",
@@ -449,9 +504,9 @@ describe("unifiedSyncedNoteRepository", () => {
       });
 
       // Second sync: push conflicts (pendingOp stays), pull has remote-v2
-      await repo.sync();
+      await engine.sync();
 
-      const envelope = await repo.getEnvelope("10-01-2026");
+      const envelope = await getEnvelope("10-01-2026");
       // Local content preserved (pending upsert takes priority over remote pull)
       expect(envelope?.ciphertext).toBe("local-v2");
     });
@@ -467,11 +522,11 @@ describe("unifiedSyncedNoteRepository", () => {
       });
       const { connectivity, clock, syncStateStore } = makeDeps();
 
-      const repo = createUnifiedSyncedNoteEnvelopeRepository(
+      const engine = createNoteSyncEngine(
         gateway, "key-1", async () => undefined, connectivity, clock, syncStateStore,
       );
 
-      const envelope = await repo.refreshEnvelope("10-01-2026");
+      const envelope = await engine.refreshEnvelope("10-01-2026");
       expect(envelope?.ciphertext).toBe("from-server");
       expect(envelope?.revision).toBe(3);
     });
@@ -485,11 +540,11 @@ describe("unifiedSyncedNoteRepository", () => {
       });
       const { connectivity, clock, syncStateStore } = makeDeps();
 
-      const repo = createUnifiedSyncedNoteEnvelopeRepository(
+      const engine = createNoteSyncEngine(
         gateway, "key-1", async () => undefined, connectivity, clock, syncStateStore,
       );
 
-      await repo.saveEnvelope({
+      await saveEnvelope({
         date: "10-01-2026",
         ciphertext: "local-edit",
         nonce: "nonce-local",
@@ -497,7 +552,7 @@ describe("unifiedSyncedNoteRepository", () => {
         updatedAt: "2026-01-10T12:00:00.000Z",
       });
 
-      const envelope = await repo.refreshEnvelope("10-01-2026");
+      const envelope = await engine.refreshEnvelope("10-01-2026");
       expect(envelope?.ciphertext).toBe("local-edit");
     });
 
@@ -515,22 +570,22 @@ describe("unifiedSyncedNoteRepository", () => {
       });
       const { connectivity, clock, syncStateStore } = makeDeps();
 
-      const repo = createUnifiedSyncedNoteEnvelopeRepository(
+      const engine = createNoteSyncEngine(
         gateway, "key-1", async () => undefined, connectivity, clock, syncStateStore,
       );
 
       // Save + sync to establish link (no pending after sync)
-      await repo.saveEnvelope({
+      await saveEnvelope({
         date: "10-01-2026",
         ciphertext: "local",
         nonce: "nonce-local",
         keyId: "key-1",
         updatedAt: "2026-01-10T12:00:00.000Z",
       });
-      await repo.sync();
+      await engine.sync();
 
       // Refresh finds remote deleted
-      const envelope = await repo.refreshEnvelope("10-01-2026");
+      const envelope = await engine.refreshEnvelope("10-01-2026");
       expect(envelope).toBeNull();
     });
   });
@@ -546,22 +601,22 @@ describe("unifiedSyncedNoteRepository", () => {
       });
       const { connectivity, clock, syncStateStore } = makeDeps();
 
-      const repo = createUnifiedSyncedNoteEnvelopeRepository(
+      const engine = createNoteSyncEngine(
         gateway, "key-1", async () => undefined, connectivity, clock, syncStateStore,
       );
 
       // Save + sync → serverRevision = 1
-      await repo.saveEnvelope({
+      await saveEnvelope({
         date: "10-01-2026",
         ciphertext: "v1",
         nonce: "nonce-1",
         keyId: "key-1",
         updatedAt: "2026-01-10T12:00:00.000Z",
       });
-      await repo.sync();
+      await engine.sync();
 
       // Local edit → should push with serverRevision 1 on next sync
-      await repo.saveEnvelope({
+      await saveEnvelope({
         date: "10-01-2026",
         ciphertext: "v2",
         nonce: "nonce-2",
@@ -575,7 +630,7 @@ describe("unifiedSyncedNoteRepository", () => {
         value: makeRemoteNote({ ciphertext: "v2", revision: 2 }),
       });
 
-      await repo.sync();
+      await engine.sync();
 
       // Second push should use serverRevision 1 (not local revision)
       expect(gateway.pushNote).toHaveBeenLastCalledWith(
@@ -588,13 +643,13 @@ describe("unifiedSyncedNoteRepository", () => {
     const gateway = makeGateway();
     const { connectivity, clock, syncStateStore } = makeDeps();
 
-    const repo = createUnifiedSyncedNoteEnvelopeRepository(
+    const engine = createNoteSyncEngine(
       gateway, "key-1", async () => undefined, connectivity, clock, syncStateStore,
     );
 
     await Promise.all([
-      repo.refreshDates(2026),
-      repo.refreshDates(2026),
+      engine.refreshDates(2026),
+      engine.refreshDates(2026),
     ]);
 
     expect(gateway.fetchNoteDates).toHaveBeenCalledTimes(1);

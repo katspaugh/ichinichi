@@ -1,10 +1,10 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { renderHook, act } from "@testing-library/react";
 import { noteContentStore } from "../stores/noteContentStore";
 import { syncStore } from "../stores/syncStore";
 import { useSavingIndicator } from "../components/NoteEditor/useSavingIndicator";
 import { SyncStatus } from "../types";
 import { ok } from "../domain/result";
+import { syncDefaults } from "./helpers/mockNoteRepository";
 
 const MIN_SAVING_DISPLAY_MS = 800;
 
@@ -53,6 +53,7 @@ describe("Saving status data flow (noteContentStore)", () => {
 
   it("noteContentStore exposes isSaving=true when content is edited", async () => {
     const repository = {
+      ...syncDefaults,
       get: jest.fn().mockResolvedValue(ok({ content: "initial", date: "16-01-2026" })),
       save: jest.fn().mockResolvedValue(ok(undefined)),
       delete: jest.fn().mockResolvedValue(ok(undefined)),
@@ -77,6 +78,7 @@ describe("Saving status data flow (noteContentStore)", () => {
     const savePromise = new Promise<void>((r) => { resolveSave = r; });
 
     const repository = {
+      ...syncDefaults,
       get: jest.fn().mockResolvedValue(ok({ content: "initial", date: "16-01-2026" })),
       save: jest.fn().mockReturnValue(savePromise.then(() => ok(undefined))),
       delete: jest.fn().mockResolvedValue(ok(undefined)),
@@ -104,6 +106,7 @@ describe("Saving status data flow (noteContentStore)", () => {
 
   it("noteContentStore exposes isSaving=false when in ready state without edits", async () => {
     const repository = {
+      ...syncDefaults,
       get: jest.fn().mockResolvedValue(ok({ content: "initial", date: "16-01-2026" })),
       save: jest.fn().mockResolvedValue(ok(undefined)),
       delete: jest.fn().mockResolvedValue(ok(undefined)),

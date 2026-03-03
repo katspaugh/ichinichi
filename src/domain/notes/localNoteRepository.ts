@@ -1,25 +1,21 @@
-import type { Note, HabitValues } from "../types";
-import type { NoteRepository } from "./noteRepository";
-import type { NoteMetaRecord, NoteRecord } from "./unifiedDb";
-import {
-  setNoteAndMeta,
-  deleteNoteAndMeta,
-} from "./unifiedNoteStore";
-import { createE2eeService } from "../services/e2eeService";
-import type { KeyringProvider } from "../domain/crypto/keyring";
+import type { NoteCrypto } from "../crypto/noteCrypto";
+import type { RepositoryError, SyncError } from "../errors";
+import { ok, err, type Result } from "../result";
+import type { Note, HabitValues, SyncStatus } from "../../types";
+import type { NoteRepository } from "../../storage/noteRepository";
+import type { NoteMetaRecord, NoteRecord } from "../../storage/unifiedDb";
 import {
   getAllNoteEnvelopeStates,
   getNoteEnvelopeState,
-} from "./unifiedNoteEnvelopeRepository";
-import type { RepositoryError } from "../domain/errors";
-import { ok, err, type Result } from "../domain/result";
+} from "../../storage/unifiedNoteEnvelopeRepository";
+import { deleteNoteAndMeta, setNoteAndMeta } from "../../storage/unifiedNoteStore";
 
-export function createUnifiedNoteRepository(
-  keyring: KeyringProvider,
-): UnifiedNoteRepository {
-  const e2ee = createE2eeService(keyring);
-
+export function createLocalNoteRepository(
+  crypto: NoteCrypto,
+): NoteRepository {
   return {
+    syncCapable: false,
+
     async get(date: string): Promise<Result<Note | null, RepositoryError>> {
       try {
         const state = await getNoteEnvelopeState(date);
@@ -27,14 +23,12 @@ export function createUnifiedNoteRepository(
         if (!record || record.version !== 1) {
           return ok(null);
         }
-        const payload = await e2ee.decryptNoteRecord(record);
-        if (!payload) {
-          return err({ type: "DecryptFailed", message: "Failed to decrypt note" });
-        }
+        const decrypted = await crypto.decrypt(record);
+        if (!decrypted.ok) return decrypted;
         return ok({
           date: record.date,
-          content: payload.content,
-          habits: payload.habits,
+          content: decrypted.value.content,
+          habits: decrypted.value.habits,
           updatedAt: record.updatedAt,
         });
       } catch (error) {
@@ -47,32 +41,27 @@ export function createUnifiedNoteRepository(
 
     async save(date: string, content: string, habits?: HabitValues): Promise<Result<void, RepositoryError>> {
       try {
-        const existingMeta = (await getNoteEnvelopeState(date)).meta;
-        const encrypted = await e2ee.encryptNoteContent({ content, habits });
-        if (!encrypted) {
-          return err({ type: "EncryptFailed", message: "Failed to encrypt note" });
-        }
-        const { ciphertext, nonce, keyId } = encrypted;
+        const state = await getNoteEnvelopeState(date);
+        const encrypted = await crypto.encrypt(content, habits);
+        if (!encrypted.ok) return encrypted;
         const updatedAt = new Date().toISOString();
-
         const record: NoteRecord = {
           version: 1,
           date,
-          keyId,
-          ciphertext,
-          nonce,
+          keyId: encrypted.value.keyId,
+          ciphertext: encrypted.value.ciphertext,
+          nonce: encrypted.value.nonce,
           updatedAt,
         };
-
+        const existingMeta = state.meta;
         const meta: NoteMetaRecord = {
           date,
           revision: (existingMeta?.revision ?? 0) + 1,
           remoteId: existingMeta?.remoteId ?? null,
           serverUpdatedAt: existingMeta?.serverUpdatedAt ?? null,
           lastSyncedAt: existingMeta?.lastSyncedAt ?? null,
-          pendingOp: "upsert",
+          pendingOp: null,
         };
-
         await setNoteAndMeta(record, meta);
         return ok(undefined);
       } catch (error) {
@@ -101,7 +90,7 @@ export function createUnifiedNoteRepository(
         return ok(
           states
             .map((state) => state.record?.date)
-            .filter((date): date is string => Boolean(date))
+            .filter((value): value is string => Boolean(value)),
         );
       } catch (error) {
         return err({
@@ -119,7 +108,7 @@ export function createUnifiedNoteRepository(
           states
             .map((state) => state.record?.date)
             .filter((date): date is string => Boolean(date))
-            .filter((date) => date.endsWith(suffix))
+            .filter((date) => date.endsWith(suffix)),
         );
       } catch (error) {
         return err({
@@ -128,9 +117,28 @@ export function createUnifiedNoteRepository(
         });
       }
     },
-  };
-}
 
-export interface UnifiedNoteRepository extends NoteRepository {
-  getAllDatesForYear(year: number): Promise<Result<string[], RepositoryError>>;
+    // Sync-aware no-ops
+    async refreshNote(): Promise<Result<Note | null, RepositoryError>> {
+      return ok(null);
+    },
+    async hasPendingOp(): Promise<boolean> {
+      return false;
+    },
+    async refreshDates(): Promise<void> {
+      // no-op
+    },
+    async hasRemoteDateCached(): Promise<boolean> {
+      return false;
+    },
+    async getAllLocalDates(): Promise<Result<string[], RepositoryError>> {
+      return this.getAllDates();
+    },
+    async getAllLocalDatesForYear(year: number): Promise<Result<string[], RepositoryError>> {
+      return this.getAllDatesForYear(year);
+    },
+    async sync(): Promise<Result<SyncStatus, SyncError>> {
+      return ok("idle" as SyncStatus);
+    },
+  };
 }

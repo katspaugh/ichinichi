@@ -1,5 +1,6 @@
-import { createHydratingNoteRepository } from "../domain/notes/hydratingNoteRepository";
-import { createUnifiedSyncedNoteEnvelopeRepository } from "../storage/unifiedSyncedNoteRepository";
+import { createLocalNoteRepository } from "../domain/notes/localNoteRepository";
+import { createNoteCrypto } from "../domain/crypto/noteCrypto";
+import { createNoteSyncEngine } from "../domain/sync/noteSyncEngine";
 import { createE2eeService } from "../services/e2eeService";
 import { closeUnifiedDb } from "../storage/unifiedDb";
 import { getAllAccountDbNames } from "../storage/accountStore";
@@ -54,7 +55,9 @@ describe("account switch resets cloud sync state", () => {
     const keyring = createKeyring(keyId, vaultKey);
     const e2eeFactory: E2eeServiceFactory = { create: createE2eeService };
 
-    const localRepository = createHydratingNoteRepository(keyring, e2eeFactory);
+    const localRepository = createLocalNoteRepository(
+      createNoteCrypto(e2eeFactory.create(keyring)),
+    );
     await localRepository.save("05-01-2026", "Local only note");
 
     await handleCloudAccountSwitch("user-a");
@@ -83,7 +86,7 @@ describe("account switch resets cloud sync state", () => {
       setState: jest.fn().mockResolvedValue({ ok: true, value: undefined }),
     };
 
-    const envelopeRepo = createUnifiedSyncedNoteEnvelopeRepository(
+    const engine = createNoteSyncEngine(
       gateway,
       "cloud-key-1",
       async () => undefined,
@@ -92,7 +95,7 @@ describe("account switch resets cloud sync state", () => {
       syncStateStore,
     );
 
-    await envelopeRepo.sync();
+    await engine.sync();
     expect(gateway.pushNote).not.toHaveBeenCalled();
   });
 });

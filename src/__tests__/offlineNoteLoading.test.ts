@@ -1,8 +1,9 @@
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { useNoteContent } from "../hooks/useNoteContent";
-import { createHydratingSyncedNoteRepository } from "../domain/notes/hydratingSyncedNoteRepository";
-import { createHydratingNoteRepository } from "../domain/notes/hydratingNoteRepository";
-import { createUnifiedSyncedNoteEnvelopeRepository } from "../storage/unifiedSyncedNoteRepository";
+import { createSyncedNoteRepository } from "../domain/notes/syncedNoteRepository";
+import { createLocalNoteRepository } from "../domain/notes/localNoteRepository";
+import { createNoteSyncEngine } from "../domain/sync/noteSyncEngine";
+import { createNoteCrypto } from "../domain/crypto/noteCrypto";
 import { createE2eeService } from "../services/e2eeService";
 import { closeUnifiedDb } from "../storage/unifiedDb";
 import { getAllAccountDbNames } from "../storage/accountStore";
@@ -99,7 +100,7 @@ function createMockSyncStateStore(): SyncStateStore {
 }
 
 interface CloudRepositorySetup {
-  repository: ReturnType<typeof createHydratingSyncedNoteRepository>;
+  repository: NoteRepository;
   gateway: RemoteNotesGateway;
   keyring: KeyringProvider;
   vaultKey: CryptoKey;
@@ -118,7 +119,8 @@ async function setupCloudRepository(
   const syncStateStore = createMockSyncStateStore();
   const e2eeFactory: E2eeServiceFactory = { create: createE2eeService };
 
-  const envelopeRepo = createUnifiedSyncedNoteEnvelopeRepository(
+  const crypto = createNoteCrypto(e2eeFactory.create(keyring));
+  const engine = createNoteSyncEngine(
     gateway,
     keyId,
     async () => undefined,
@@ -127,11 +129,7 @@ async function setupCloudRepository(
     syncStateStore,
   );
 
-  const repository = createHydratingSyncedNoteRepository(
-    envelopeRepo,
-    keyring,
-    e2eeFactory,
-  );
+  const repository = createSyncedNoteRepository(crypto, engine);
 
   return { repository, gateway, keyring, vaultKey, keyId };
 }
@@ -149,7 +147,9 @@ async function setupLocalRepository(): Promise<LocalRepositorySetup> {
   const keyring = createKeyring(keyId, vaultKey);
   const e2eeFactory: E2eeServiceFactory = { create: createE2eeService };
 
-  const repository = createHydratingNoteRepository(keyring, e2eeFactory);
+  const repository = createLocalNoteRepository(
+    createNoteCrypto(e2eeFactory.create(keyring)),
+  );
 
   return { repository, keyring, vaultKey, keyId };
 }

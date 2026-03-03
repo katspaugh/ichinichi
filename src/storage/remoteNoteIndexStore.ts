@@ -3,6 +3,15 @@ import {
   openUnifiedDb,
   type RemoteNoteIndexRecord,
 } from "./unifiedDb";
+import type { StorageError } from "../domain/errors";
+import { ok, err, type Result } from "../domain/result";
+
+function toStorageError(error: unknown): StorageError {
+  if (error instanceof Error) {
+    return { type: "IO", message: error.message };
+  }
+  return { type: "Unknown", message: "Storage operation failed" };
+}
 
 function getYearKeyRange(year: number): IDBKeyRange {
   return IDBKeyRange.only(year);
@@ -82,6 +91,51 @@ export async function setRemoteDatesForYear(
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });
+}
+
+// --- Result-returning wrappers ---
+
+export async function getRemoteDatesForYearResult(
+  year: number,
+): Promise<Result<string[], StorageError>> {
+  try {
+    return ok(await getRemoteDatesForYear(year));
+  } catch (error) {
+    return err(toStorageError(error));
+  }
+}
+
+export async function hasRemoteDateResult(
+  date: string,
+): Promise<Result<boolean, StorageError>> {
+  try {
+    return ok(await hasRemoteDate(date));
+  } catch (error) {
+    return err(toStorageError(error));
+  }
+}
+
+export async function deleteRemoteDateResult(
+  date: string,
+): Promise<Result<void, StorageError>> {
+  try {
+    await deleteRemoteDate(date);
+    return ok(undefined);
+  } catch (error) {
+    return err(toStorageError(error));
+  }
+}
+
+export async function setRemoteDatesForYearResult(
+  year: number,
+  dates: string[],
+): Promise<Result<void, StorageError>> {
+  try {
+    await setRemoteDatesForYear(year, dates);
+    return ok(undefined);
+  } catch (error) {
+    return err(toStorageError(error));
+  }
 }
 
 export async function clearRemoteNoteIndex(): Promise<void> {

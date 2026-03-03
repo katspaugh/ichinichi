@@ -8,16 +8,16 @@ import {
   createImageRepository,
   type SyncedRepositoryFactories,
 } from "../domain/notes/repositoryFactory";
-import type { UnifiedSyncedNoteRepository } from "../domain/notes/hydratingSyncedNoteRepository";
 import type { NoteRepository } from "../storage/noteRepository";
 import type { ImageRepository } from "../storage/imageRepository";
 import type { HabitValues } from "../types";
 import { AppMode } from "./useAppMode";
-import { createHydratingSyncedNoteRepository } from "../domain/notes/hydratingSyncedNoteRepository";
+import { createSyncedNoteRepository } from "../domain/notes/syncedNoteRepository";
+import { createNoteCrypto } from "../domain/crypto/noteCrypto";
+import { createNoteSyncEngine } from "../domain/sync/noteSyncEngine";
 import { createRemoteNotesGateway } from "../storage/remoteNotesGateway";
 import { syncEncryptedImages } from "../storage/unifiedImageSyncService";
 import { createUnifiedSyncedImageRepository } from "../storage/unifiedSyncedImageRepository";
-import { createUnifiedSyncedNoteEnvelopeRepository } from "../storage/unifiedSyncedNoteRepository";
 import { runtimeClock, runtimeConnectivity } from "../storage/runtimeAdapters";
 import { syncStateStore } from "../storage/syncStateStore";
 import { useServiceContext } from "../contexts/serviceContext";
@@ -35,9 +35,9 @@ interface UseNoteRepositoryProps {
 }
 
 export interface UseNoteRepositoryReturn {
-  repository: NoteRepository | UnifiedSyncedNoteRepository | null;
+  repository: NoteRepository | null;
   imageRepository: ImageRepository | null;
-  syncedRepo: UnifiedSyncedNoteRepository | null;
+  syncedRepo: NoteRepository | null;
   syncStatus: ReturnType<typeof useSync>["syncStatus"];
   syncError: ReturnType<typeof useSync>["syncError"];
   triggerSync: ReturnType<typeof useSync>["triggerSync"];
@@ -86,7 +86,9 @@ export function useNoteRepository({
     () => ({
       createSyncedNoteRepository: ({ userId, keyProvider }) => {
         const gateway = createRemoteNotesGateway(supabase, userId);
-        const envelopeRepo = createUnifiedSyncedNoteEnvelopeRepository(
+        const e2ee = e2eeFactory.create(keyProvider);
+        const crypto = createNoteCrypto(e2ee);
+        const engine = createNoteSyncEngine(
           gateway,
           keyProvider.activeKeyId,
           () => syncEncryptedImages(supabase, userId),
@@ -94,11 +96,7 @@ export function useNoteRepository({
           runtimeClock,
           syncStateStore,
         );
-        return createHydratingSyncedNoteRepository(
-          envelopeRepo,
-          keyProvider,
-          e2eeFactory,
-        );
+        return createSyncedNoteRepository(crypto, engine);
       },
       createSyncedImageRepository: ({ userId, keyProvider }) =>
         createUnifiedSyncedImageRepository(supabase, userId, keyProvider),
@@ -107,9 +105,7 @@ export function useNoteRepository({
     [e2eeFactory, supabase],
   );
 
-  const repository = useMemo<
-    NoteRepository | UnifiedSyncedNoteRepository | null
-  >(() => {
+  const repository = useMemo<NoteRepository | null>(() => {
     if (!vaultKey || !activeKeyId) return null;
     void repositoryVersion;
     const keyProvider = {
@@ -157,8 +153,8 @@ export function useNoteRepository({
   ]);
 
   const syncedRepo =
-    mode === AppMode.Cloud && userId
-      ? (repository as UnifiedSyncedNoteRepository)
+    mode === AppMode.Cloud && userId && repository?.syncCapable
+      ? repository
       : null;
   const syncEnabled =
     mode === AppMode.Cloud && !!userId && !!vaultKey && !!activeKeyId;

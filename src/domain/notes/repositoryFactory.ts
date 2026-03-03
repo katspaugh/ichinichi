@@ -1,6 +1,6 @@
-import { createHydratingNoteRepository } from "./hydratingNoteRepository";
+import { createLocalNoteRepository } from "./localNoteRepository";
 import { createHydratingImageRepository } from "../images/hydratingImageRepository";
-import type { UnifiedSyncedNoteRepository } from "./hydratingSyncedNoteRepository";
+import { createNoteCrypto } from "../crypto/noteCrypto";
 import type { E2eeServiceFactory } from "../crypto/e2eeService";
 import type { KeyringProvider } from "../crypto/keyring";
 import type { NoteRepository } from "../../storage/noteRepository";
@@ -11,7 +11,7 @@ export interface SyncedRepositoryFactories {
   createSyncedNoteRepository: (options: {
     userId: string;
     keyProvider: KeyringProvider;
-  }) => UnifiedSyncedNoteRepository;
+  }) => NoteRepository;
   createSyncedImageRepository: (options: {
     userId: string;
     keyProvider: KeyringProvider;
@@ -38,7 +38,7 @@ export function createNoteRepository({
   userId,
   keyProvider,
   syncedFactories,
-}: NoteRepositoryOptions): NoteRepository | UnifiedSyncedNoteRepository {
+}: NoteRepositoryOptions): NoteRepository {
   if (mode === AppMode.Cloud && userId && syncedFactories) {
     return syncedFactories.createSyncedNoteRepository({
       userId,
@@ -48,7 +48,8 @@ export function createNoteRepository({
   if (!syncedFactories) {
     throw new Error("Missing synced repository factories.");
   }
-  return createHydratingNoteRepository(keyProvider, syncedFactories.e2eeFactory);
+  const crypto = createNoteCrypto(syncedFactories.e2eeFactory.create(keyProvider));
+  return createLocalNoteRepository(crypto);
 }
 
 export function createImageRepository({

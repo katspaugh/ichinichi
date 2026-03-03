@@ -2,12 +2,14 @@ import { findLatestHabitDefinitions } from "../features/habits/findLatestHabitDe
 import { ok, err } from "../domain/result";
 import type { NoteRepository } from "../storage/noteRepository";
 import type { Note, HabitValues } from "../types";
+import { syncDefaults } from "./helpers/mockNoteRepository";
 
 function createMockRepository(
   notes: Record<string, Note | null>,
   dates?: string[],
 ): NoteRepository {
   return {
+    ...syncDefaults,
     get: jest.fn((date: string) =>
       Promise.resolve(ok(notes[date] ?? null)),
     ),

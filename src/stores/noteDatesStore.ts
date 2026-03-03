@@ -1,43 +1,6 @@
 import { createStore } from "zustand/vanilla";
 import type { NoteRepository } from "../storage/noteRepository";
-import type { RepositoryError } from "../domain/errors";
-import type { Result } from "../domain/result";
 import { connectivity } from "../services/connectivity";
-
-interface YearDateRepository {
-  getAllDatesForYear: (
-    year: number,
-  ) => Promise<Result<string[], RepositoryError>>;
-}
-
-interface LocalDateRepository {
-  getAllLocalDates: () => Promise<Result<string[], RepositoryError>>;
-  getAllLocalDatesForYear: (
-    year: number,
-  ) => Promise<Result<string[], RepositoryError>>;
-}
-
-interface RefreshableDateRepository {
-  refreshDates: (year: number) => Promise<void>;
-}
-
-function supportsYearDates(
-  repository: NoteRepository | null,
-): repository is NoteRepository & YearDateRepository {
-  return !!repository && "getAllDatesForYear" in repository;
-}
-
-function supportsLocalDates(
-  repository: NoteRepository | null,
-): repository is NoteRepository & LocalDateRepository {
-  return !!repository && "getAllLocalDates" in repository;
-}
-
-function supportsDateRefresh(
-  repository: NoteRepository | null,
-): repository is NoteRepository & RefreshableDateRepository {
-  return !!repository && "refreshDates" in repository;
-}
 
 const DEBOUNCE_MS = 400;
 
@@ -87,10 +50,8 @@ export const noteDatesStore = createStore<NoteDatesState>()((set, get) => {
 
     // Load local dates first (instant)
     let hasLocalSnapshot = false;
-    if (supportsLocalDates(repository)) {
-      const localResult = supportsYearDates(repository)
-        ? await repository.getAllLocalDatesForYear(year)
-        : await repository.getAllLocalDates();
+    if (repository.syncCapable) {
+      const localResult = await repository.getAllLocalDatesForYear(year);
       if (gen !== _refreshGeneration || get()._disposed) return; // superseded or disposed
       if (localResult.ok) {
         hasLocalSnapshot = true;
@@ -101,15 +62,13 @@ export const noteDatesStore = createStore<NoteDatesState>()((set, get) => {
     }
 
     // Refresh from remote if online
-    if (online && supportsDateRefresh(repository)) {
+    if (online && repository.syncCapable) {
       await repository.refreshDates(year);
       if (gen !== _refreshGeneration || get()._disposed) return; // superseded or disposed
     }
 
     // Load full dates (local + remote merged)
-    const datesResult = supportsYearDates(repository)
-      ? await repository.getAllDatesForYear(year)
-      : await repository.getAllDates();
+    const datesResult = await repository.getAllDatesForYear(year);
 
     if (gen !== _refreshGeneration || get()._disposed) return; // superseded or disposed
 

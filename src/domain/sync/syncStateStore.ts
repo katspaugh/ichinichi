@@ -1,5 +1,5 @@
 import type { Result } from "../result";
-import type { SyncError } from "../errors";
+import type { StorageError } from "../errors";
 
 export interface SyncStateRecord {
   id: "state";
@@ -8,6 +8,6 @@ export interface SyncStateRecord {
 }
 
 export interface SyncStateStore {
-  getState(): Promise<Result<SyncStateRecord, SyncError>>;
-  setState(state: SyncStateRecord): Promise<Result<void, SyncError>>;
+  getState(): Promise<Result<SyncStateRecord, StorageError>>;
+  setState(state: SyncStateRecord): Promise<Result<void, StorageError>>;
 }

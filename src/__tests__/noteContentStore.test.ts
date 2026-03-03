@@ -1,8 +1,8 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { noteContentStore } from "../stores/noteContentStore";
 import { ok, err } from "../domain/result";
 import type { NoteRepository } from "../storage/noteRepository";
 import type { RepositoryError } from "../domain/errors";
+import { syncDefaults } from "./helpers/mockNoteRepository";
 
 // Mock connectivity as online by default
 let mockOnline = true;
@@ -15,6 +15,7 @@ jest.mock("../services/connectivity", () => ({
 
 function createRepository(initialContent = ""): NoteRepository {
   return {
+    ...syncDefaults,
     get: jest.fn().mockResolvedValue(
       ok({
         date: "10-01-2026",
@@ -33,6 +34,7 @@ function createRepositoryWithHabitInheritance(): NoteRepository {
     h1: { name: "Exercise", type: "text" as const, order: 0, value: "done" },
   };
   return {
+    ...syncDefaults,
     get: jest.fn((date: string) => {
       if (date === "09-01-2026") {
         return Promise.resolve(
@@ -178,6 +180,7 @@ describe("noteContentStore", () => {
       },
     };
     const repository: NoteRepository = {
+      ...syncDefaults,
       get: jest.fn((date: string) => {
         if (date === "09-01-2026") {
           return Promise.resolve(
@@ -219,6 +222,7 @@ describe("noteContentStore", () => {
       message: "Failed to decrypt note",
     };
     const repository: NoteRepository = {
+      ...syncDefaults,
       get: jest.fn().mockResolvedValue(err(decryptError)),
       save: jest.fn().mockResolvedValue(ok(undefined)),
       delete: jest.fn().mockResolvedValue(ok(undefined)),

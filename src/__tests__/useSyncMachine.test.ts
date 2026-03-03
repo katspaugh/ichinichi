@@ -3,6 +3,7 @@ import { noteContentStore } from "../stores/noteContentStore";
 import { syncStore } from "../stores/syncStore";
 import { SyncStatus } from "../types";
 import { ok } from "../domain/result";
+import { syncDefaults } from "./helpers/mockNoteRepository";
 
 jest.mock("../services/connectivity", () => ({
   connectivity: {
@@ -41,6 +42,7 @@ function createMockSupabase(): any {
 
 function createRepository(initialContent = "") {
   return {
+    ...syncDefaults,
     get: jest.fn().mockResolvedValue(ok({ content: initialContent, date: "16-01-2026" })),
     save: jest.fn().mockResolvedValue(ok(undefined)),
     delete: jest.fn().mockResolvedValue(ok(undefined)),

@@ -1,50 +1,41 @@
-import type { Clock } from "../domain/runtime/clock";
-import type { Connectivity } from "../domain/runtime/connectivity";
-import type { SyncStateStore } from "../domain/sync/syncStateStore";
-import { SyncStatus, type NoteEnvelope } from "../types";
-import {
-  setNoteAndMeta,
-  setNoteMeta,
-  deleteNoteRecord,
-  deleteNoteAndMeta,
-} from "./unifiedNoteStore";
-import type { NoteMetaRecord, NoteRecord } from "./unifiedDb";
-import type { SyncError } from "../domain/errors";
-import { err, ok, type Result } from "../domain/result";
+import type { Clock } from "../runtime/clock";
+import type { Connectivity } from "../runtime/connectivity";
+import type { SyncStateStore } from "./syncStateStore";
+import type { SyncError } from "../errors";
+import { err, ok, type Result } from "../result";
 import type {
   RemoteNote,
   RemoteNotesGateway,
-} from "../domain/sync/remoteNotesGateway";
+} from "./remoteNotesGateway";
+import type { NoteMetaRecord, NoteRecord } from "../../storage/unifiedDb";
+import type { NoteEnvelope } from "../../types";
+import { SyncStatus } from "../../types";
+import {
+  setNoteAndMeta,
+  setNoteMeta,
+  deleteNoteAndMeta,
+} from "../../storage/unifiedNoteStore";
 import {
   deleteRemoteDate,
   getRemoteDatesForYear,
   hasRemoteDate,
   setRemoteDatesForYear,
-} from "./remoteNoteIndexStore";
+} from "../../storage/remoteNoteIndexStore";
 import {
   getAllNoteEnvelopeStates,
   getNoteEnvelopeState,
   toNoteEnvelope,
-} from "./unifiedNoteEnvelopeRepository";
+} from "../../storage/unifiedNoteEnvelopeRepository";
 
 // Module-level deduplication for refreshDates calls with cooldown
 const refreshDatesInFlight = new Map<number, Promise<void>>();
 const refreshDatesLastCompleted = new Map<number, number>();
 const REFRESH_DATES_COOLDOWN_MS = 2000;
 
-export interface UnifiedSyncedNoteEnvelopeRepository {
+export interface NoteSyncEngine {
   sync(): Promise<Result<SyncStatus, SyncError>>;
-  getEnvelope(date: string): Promise<NoteEnvelope | null>;
   refreshEnvelope(date: string): Promise<NoteEnvelope | null>;
   hasPendingOp(date: string): Promise<boolean>;
-  saveEnvelope(payload: {
-    date: string;
-    ciphertext: string;
-    nonce: string;
-    keyId: string;
-    updatedAt: string;
-  }): Promise<void>;
-  deleteEnvelope(date: string): Promise<void>;
   getAllDates(): Promise<string[]>;
   getAllDatesForYear(year: number): Promise<string[]>;
   getAllLocalDates(): Promise<string[]>;
@@ -86,7 +77,7 @@ function isSyncError(error: unknown): error is SyncError {
   return typeof record.type === "string" && typeof record.message === "string";
 }
 
-function unwrapOrThrow<T>(result: Result<T, SyncError>): T {
+function unwrapOrThrow<T, E>(result: Result<T, E>): T {
   if (!result.ok) {
     throw result.error;
   }
@@ -103,14 +94,14 @@ function toUnknownSyncError(error: unknown): SyncError {
   return { type: "Unknown", message: "Sync failed." };
 }
 
-export function createUnifiedSyncedNoteEnvelopeRepository(
+export function createNoteSyncEngine(
   gateway: RemoteNotesGateway,
   activeKeyId: string,
   syncImages: () => Promise<void>,
   connectivity: Connectivity,
   clock: Clock,
   syncStateStore: SyncStateStore,
-): UnifiedSyncedNoteEnvelopeRepository {
+): NoteSyncEngine {
 
   const pushUpsert = async (
     record: NoteRecord,
@@ -400,10 +391,6 @@ export function createUnifiedSyncedNoteEnvelopeRepository(
   };
 
   return {
-    async getEnvelope(date: string): Promise<NoteEnvelope | null> {
-      const snapshot = await getLocalSnapshot(date);
-      return snapshot.envelope;
-    },
     async refreshEnvelope(date: string): Promise<NoteEnvelope | null> {
       if (!connectivity.isOnline()) {
         return null;
@@ -477,49 +464,6 @@ export function createUnifiedSyncedNoteEnvelopeRepository(
     async hasPendingOp(date: string): Promise<boolean> {
       const state = await getNoteEnvelopeState(date);
       return Boolean(state.meta?.pendingOp);
-    },
-    async saveEnvelope(payload: {
-      date: string;
-      ciphertext: string;
-      nonce: string;
-      keyId: string;
-      updatedAt: string;
-    }): Promise<void> {
-      const existingMeta = (await getNoteEnvelopeState(payload.date)).meta;
-      const record: NoteRecord = {
-        version: 1,
-        date: payload.date,
-        keyId: payload.keyId,
-        ciphertext: payload.ciphertext,
-        nonce: payload.nonce,
-        updatedAt: payload.updatedAt,
-      };
-      const meta: NoteMetaRecord = {
-        date: payload.date,
-        revision: (existingMeta?.revision ?? 0) + 1,
-        serverRevision: existingMeta?.serverRevision,
-        remoteId: existingMeta?.remoteId ?? null,
-        serverUpdatedAt: existingMeta?.serverUpdatedAt ?? null,
-        lastSyncedAt: existingMeta?.lastSyncedAt ?? null,
-        pendingOp: "upsert",
-      };
-      await setNoteAndMeta(record, meta);
-    },
-    async deleteEnvelope(date: string): Promise<void> {
-      const existingMeta = (await getNoteEnvelopeState(date)).meta;
-      const meta: NoteMetaRecord = {
-        date,
-        revision: (existingMeta?.revision ?? 0) + 1,
-        serverRevision: existingMeta?.serverRevision,
-        remoteId: existingMeta?.remoteId ?? null,
-        serverUpdatedAt: existingMeta?.serverUpdatedAt ?? null,
-        lastSyncedAt: existingMeta?.lastSyncedAt ?? null,
-        pendingOp: "delete",
-      };
-
-      await setNoteMeta(meta);
-      await deleteNoteRecord(date);
-      await deleteRemoteDate(date);
     },
     async getAllDates(): Promise<string[]> {
       return await getLocalDates();

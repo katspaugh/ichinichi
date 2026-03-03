@@ -1,7 +1,11 @@
-import type { UnifiedSyncedNoteRepository } from "../notes/hydratingSyncedNoteRepository";
 import type { SyncError } from "../errors";
+import type { Result } from "../result";
 import type { SyncStatus } from "../../types";
 import type { PendingOpsSource } from "./pendingOpsSource";
+
+export interface Syncable {
+  sync(): Promise<Result<SyncStatus, SyncError>>;
+}
 
 export interface SyncService {
   syncNow: () => Promise<void>;
@@ -9,7 +13,7 @@ export interface SyncService {
 }
 
 export function createSyncService(
-  repository: UnifiedSyncedNoteRepository,
+  repository: Syncable,
   pendingOpsSource: PendingOpsSource,
   options?: {
     onSyncStart?: () => void;

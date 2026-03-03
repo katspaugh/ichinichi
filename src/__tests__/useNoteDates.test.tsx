@@ -1,10 +1,13 @@
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { useNoteDates } from "../hooks/useNoteDates";
 import { ok } from "../domain/result";
+import { syncDefaults } from "./helpers/mockNoteRepository";
 
 describe("useNoteDates", () => {
   it("adds a note date immediately when a note is saved", async () => {
     const repository = {
+      ...syncDefaults,
+      syncCapable: true,
       get: jest.fn(),
       save: jest.fn(),
       delete: jest.fn(),
@@ -27,6 +30,8 @@ describe("useNoteDates", () => {
 
   it("removes a note date immediately when a note is deleted", async () => {
     const repository = {
+      ...syncDefaults,
+      syncCapable: true,
       get: jest.fn(),
       save: jest.fn(),
       delete: jest.fn(),

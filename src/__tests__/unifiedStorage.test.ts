@@ -1,4 +1,6 @@
-import { createUnifiedNoteRepository } from "../storage/unifiedNoteRepository";
+import { createLocalNoteRepository } from "../domain/notes/localNoteRepository";
+import { createNoteCrypto } from "../domain/crypto/noteCrypto";
+import { createE2eeService } from "../services/e2eeService";
 import { createUnifiedImageRepository } from "../storage/unifiedImageRepository";
 import { closeUnifiedDb } from "../storage/unifiedDb";
 import { getAllAccountDbNames } from "../storage/accountStore";
@@ -33,10 +35,13 @@ describe("unified storage", () => {
 
   it("stores and retrieves notes", async () => {
     const vaultKey = await createVaultKey();
-    const repository = createUnifiedNoteRepository({
+    const keyring = {
       activeKeyId: "key-1",
       getKey: () => vaultKey,
-    });
+    };
+    const repository = createLocalNoteRepository(
+      createNoteCrypto(createE2eeService(keyring)),
+    );
 
     await repository.save("01-01-2025", "hello");
 
@@ -50,10 +55,13 @@ describe("unified storage", () => {
 
   it("deletes notes and hides them from lists", async () => {
     const vaultKey = await createVaultKey();
-    const repository = createUnifiedNoteRepository({
+    const keyring = {
       activeKeyId: "key-1",
       getKey: () => vaultKey,
-    });
+    };
+    const repository = createLocalNoteRepository(
+      createNoteCrypto(createE2eeService(keyring)),
+    );
 
     await repository.save("02-01-2025", "bye");
     await repository.delete("02-01-2025");

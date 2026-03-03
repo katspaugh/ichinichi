@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { SyncStatus } from "../types";
-import type { UnifiedSyncedNoteRepository } from "../domain/notes/hydratingSyncedNoteRepository";
+import type { NoteRepository } from "../storage/noteRepository";
 import type { PendingOpsSummary } from "../domain/sync";
 import { syncStore } from "../stores/syncStore";
 
@@ -30,7 +30,7 @@ function useStoreSel<T>(selector: (state: ReturnType<typeof syncStore.getState>)
 }
 
 export function useSync(
-  repository: UnifiedSyncedNoteRepository | null,
+  repository: NoteRepository | null,
   options?: {
     enabled?: boolean;
     userId?: string | null;
@@ -41,7 +41,7 @@ export function useSync(
   const userId = options?.userId ?? null;
   const supabase = options?.supabase ?? null;
 
-  const prevRepoRef = useRef<UnifiedSyncedNoteRepository | null>(null);
+  const prevRepoRef = useRef<NoteRepository | null>(null);
   const prevEnabledRef = useRef(false);
 
   useEffect(() => {
@@ -66,7 +66,6 @@ export function useSync(
         syncStore.getState().dispose();
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [repository, syncEnabled, userId, supabase]);
 
   const syncStatus = useStoreSel((s) => s.status);
