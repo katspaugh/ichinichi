@@ -137,30 +137,17 @@ export function useWeatherFeature() {
 
       let lat: number | null = null;
       let lon: number | null = null;
-      let usedPrecise = false;
 
-      // Try precise geolocation when user has opted in (skip permission check —
-      // getCurrentPosition handles denied gracefully, and the Permissions API
-      // is unreliable on mobile Safari)
-      if (state.locationKind === "precise") {
-        const precise = await locationProvider.getPreciseLocation();
-        if (precise) {
-          lat = precise.lat;
-          lon = precise.lon;
-          usedPrecise = true;
-        }
+      // Use cached coordinates from last successful location (precise or approx).
+      // Never call getPreciseLocation() here — geolocation should only be
+      // triggered by explicit user action (HR click or sidebar refresh).
+      const stored = getLocationCoords();
+      if (stored) {
+        lat = stored.lat;
+        lon = stored.lon;
       }
 
-      // Fall back to stored coordinates from last successful location
-      if (lat === null || lon === null) {
-        const stored = getLocationCoords();
-        if (stored) {
-          lat = stored.lat;
-          lon = stored.lon;
-        }
-      }
-
-      // Last resort: approximate location from timezone heuristic (first-time only)
+      // Fall back to approximate location from timezone heuristic (first-time only)
       if (lat === null || lon === null) {
         const approx = await locationProvider.getApproxLocation();
         if (!approx) return false;
@@ -177,11 +164,6 @@ export function useWeatherFeature() {
       );
       if (!weather || !editor.isConnected) return false;
 
-      if (usedPrecise) {
-        const nextLabel = weather.city || state.locationLabel || null;
-        commitLocation(nextLabel, "precise", { lat, lon });
-      }
-
       for (const hr of pending) {
         applyWeatherToHr(hr, weather);
       }
@@ -190,8 +172,6 @@ export function useWeatherFeature() {
     [
       commitLocation,
       locationProvider,
-      state.locationKind,
-      state.locationLabel,
       state.showWeather,
       state.unitPreference,
       weatherRepository,
