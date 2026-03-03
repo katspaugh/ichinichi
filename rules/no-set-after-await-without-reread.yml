@@ -1,0 +1,18 @@
+id: no-set-after-await-without-reread
+language: typescript
+rule:
+  all:
+    - pattern: set($$$ARGS)
+    - follows:
+        pattern: await $EXPR
+        stopBy: end
+    - inside:
+        kind: statement_block
+        stopBy: end
+message: |
+  set() after await — possible stale closure.
+  Call get() to re-read current state before set().
+severity: warning
+note: |
+  In Zustand store callbacks, values captured before an await may be stale
+  by the time set() runs. Always re-read via get() after awaiting.

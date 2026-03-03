@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "typescript-lsp": {
+      "command": "cclsp",
+      "args": ["--", "typescript-language-server", "--stdio"]
+    }
+  }
+}

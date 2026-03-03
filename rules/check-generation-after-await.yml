@@ -1,0 +1,18 @@
+id: check-generation-after-await
+language: typescript
+rule:
+  all:
+    - pattern: await $EXPR
+    - inside:
+        kind: statement_block
+        has:
+          pattern: ++$GEN
+        stopBy: end
+message: |
+  Await inside function with generation counter.
+  Verify generation check (if (gen !== $GEN) return) follows this await.
+severity: hint
+note: |
+  Async functions using generation counters (++_loadGeneration etc.) must
+  re-check the generation after every await to detect superseded calls.
+  Missing checks cause stale data overwrites.

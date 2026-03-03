@@ -1,0 +1,12 @@
+id: no-void-dispose-without-guard
+language: typescript
+rule:
+  pattern: void $STORE.getState().dispose()
+message: |
+  Avoid fire-and-forget dispose — races with init.
+  Use await or guard with _disposed flag.
+severity: warning
+note: |
+  This pattern caused a bug where dispose() ran concurrently with init(),
+  leaving the store in a broken state. Either await the dispose, or check
+  _disposed after each await in the init path.
