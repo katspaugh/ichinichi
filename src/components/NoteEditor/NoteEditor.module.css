@@ -304,6 +304,37 @@
   cursor: pointer;
 }
 
+/* Structured sections */
+.content [data-section-type] {
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-sm);
+  color: hsl(var(--section-hue, 200) 40% 45%);
+  background: hsl(var(--section-hue, 200) 50% 95%);
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: var(--radius-sm);
+  margin: var(--spacing-sm) 0 var(--spacing-xs) 0;
+}
+
+.content [data-section-type] + div,
+.content [data-section-type] + p {
+  border-left: 3px solid hsl(var(--section-hue, 200) 45% 65%);
+  padding-left: var(--spacing-md);
+  margin-bottom: var(--spacing-sm);
+}
+
+@media (prefers-color-scheme: dark) {
+  .content [data-section-type] {
+    color: hsl(var(--section-hue, 200) 50% 75%);
+    background: hsl(var(--section-hue, 200) 30% 20%);
+  }
+
+  .content [data-section-type] + div,
+  .content [data-section-type] + p {
+    border-left-color: hsl(var(--section-hue, 200) 40% 45%);
+  }
+}
+
 .content img {
   max-width: 100%;
   height: auto;
