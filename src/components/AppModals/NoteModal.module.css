@@ -69,27 +69,10 @@
 }
 
 @media (max-width: 768px) {
-  /* Mobile: vertical slide */
-  @keyframes slidePrev {
-    from {
-      opacity: 0;
-      transform: translateY(-100%);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
-  @keyframes slideNext {
-    from {
-      opacity: 0;
-      transform: translateY(100%);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
+  /* Disable vertical slide on mobile — overscroll gesture provides the cue */
+  .slidePrev,
+  .slideNext {
+    animation: none;
   }
 
   .editorWrapper {
