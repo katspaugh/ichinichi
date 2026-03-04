@@ -107,6 +107,13 @@ function App() {
       ? activeVault.handleSignOut
       : undefined;
 
+  // Enable CSS transitions after the app has rendered (prevents FOUC during hydration swap)
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      document.documentElement.classList.remove("no-transition");
+    });
+  }, []);
+
   useEffect(() => {
     if (typeof document === "undefined") return;
     const root = document.documentElement;
@@ -158,8 +165,6 @@ function App() {
                     isContentReady={notes.isContentReady}
                     isOfflineStub={notes.isOfflineStub}
                     noteError={notes.noteError}
-                    habits={notes.habits}
-                    onHabitChange={notes.setHabits}
                     syncStatus={canSync ? notes.syncStatus : undefined}
                     syncError={canSync ? notes.syncError : undefined}
                     pendingOps={canSync ? notes.pendingOps : undefined}

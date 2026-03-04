@@ -5,6 +5,7 @@ describe("NoteEditorHeader error display", () => {
   it("shows error text with error styling", () => {
     const { container } = render(
       <NoteEditorHeader
+        date="10-01-2026"
         formattedDate="January 10, 2026"
         showReadonlyBadge={false}
         statusText="Unable to decrypt note"
@@ -21,6 +22,7 @@ describe("NoteEditorHeader error display", () => {
   it("does not apply error class for normal saving status", () => {
     const { container } = render(
       <NoteEditorHeader
+        date="10-01-2026"
         formattedDate="January 10, 2026"
         showReadonlyBadge={false}
         statusText="Saving..."
@@ -37,6 +39,7 @@ describe("NoteEditorHeader error display", () => {
   it("hides status text when there is no status", () => {
     const { container } = render(
       <NoteEditorHeader
+        date="10-01-2026"
         formattedDate="January 10, 2026"
         showReadonlyBadge={false}
         statusText={null}

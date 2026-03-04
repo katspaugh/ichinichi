@@ -5,7 +5,6 @@ import { CloudAuthModal } from "./CloudAuthModal";
 import { VaultErrorModal } from "./VaultErrorModal";
 import { NoteModal } from "./NoteModal";
 import type { AppMode } from "../../hooks/useAppMode";
-import type { HabitValues } from "../../types";
 
 interface AppModalsViewProps {
   introModal: {
@@ -60,8 +59,6 @@ interface AppModalsViewProps {
     noteError?: Error | null;
     content: string;
     onChange: (content: string) => void;
-    habits?: HabitValues;
-    onHabitChange?: (habits: HabitValues) => void;
     canNavigatePrev: boolean;
     canNavigateNext: boolean;
     navigateToPrevious: () => void;
@@ -136,8 +133,6 @@ export function AppModalsView({
         noteError={noteModal.noteError}
         content={noteModal.content}
         onChange={noteModal.onChange}
-        habits={noteModal.habits}
-        onHabitChange={noteModal.onHabitChange}
         canNavigatePrev={noteModal.canNavigatePrev}
         canNavigateNext={noteModal.canNavigateNext}
         navigateToPrevious={noteModal.navigateToPrevious}

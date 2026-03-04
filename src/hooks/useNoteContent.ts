@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import type { NoteRepository } from "../storage/noteRepository";
-import type { HabitValues } from "../types";
 import { useConnectivity } from "./useConnectivity";
 import {
   noteContentStore,
@@ -13,8 +12,6 @@ export type { SaveSnapshot };
 export interface UseNoteContentReturn {
   content: string;
   setContent: (content: string) => void;
-  habits: HabitValues | undefined;
-  setHabits: (habits: HabitValues) => void;
   isDecrypting: boolean;
   hasEdits: boolean;
   /** True when the note is being saved (dirty or saving state) */
@@ -277,7 +274,6 @@ export function useNoteContent(
 
   // Subscribe to store slices for fine-grained re-renders
   const content = useStoreSelector((s) => s.content);
-  const habits = useStoreSelector((s) => s.habits);
   const hasEdits = useStoreSelector((s) => s.hasEdits);
   const isSaving = useStoreSelector((s) => s.isSaving);
   const status = useStoreSelector((s) => s.status);
@@ -304,10 +300,6 @@ export function useNoteContent(
     (newContent: string) => store.getState().setContent(newContent),
     [store],
   );
-  const setHabits = useCallback(
-    (newHabits: HabitValues) => store.getState().setHabits(newHabits),
-    [store],
-  );
   const forceRefresh = useCallback(
     () => store.getState().forceRefresh(),
     [store],
@@ -316,8 +308,6 @@ export function useNoteContent(
   return {
     content,
     setContent,
-    habits,
-    setHabits,
     isDecrypting: isLoading,
     hasEdits,
     isSaving,

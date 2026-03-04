@@ -1,4 +1,4 @@
-import { useEffect, useSyncExternalStore } from "react";
+import { useLayoutEffect, useSyncExternalStore } from "react";
 import App from "../App";
 import { Calendar } from "./Calendar";
 import { ServiceProvider } from "../contexts/ServiceProvider";
@@ -41,7 +41,7 @@ export function AppBootstrap({ shouldHydrate, year, now }: AppBootstrapProps) {
     hydrationStore.getSnapshot,
   );
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (shouldHydrate) {
       hydrationStore.markHydrated();
     }

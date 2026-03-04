@@ -1,7 +1,8 @@
 import type { NoteCrypto } from "../crypto/noteCrypto";
 import type { RepositoryError, SyncError } from "../errors";
 import { ok, err, type Result } from "../result";
-import type { Note, HabitValues, SyncStatus } from "../../types";
+import type { Note, SyncStatus } from "../../types";
+import { extractSectionTypes } from "../../utils/sectionTypes";
 import type { NoteRepository } from "../../storage/noteRepository";
 import type { NoteMetaRecord, NoteRecord } from "../../storage/unifiedDb";
 import {
@@ -28,7 +29,7 @@ export function createLocalNoteRepository(
         return ok({
           date: record.date,
           content: decrypted.value.content,
-          habits: decrypted.value.habits,
+          sectionTypes: extractSectionTypes(decrypted.value.content),
           updatedAt: record.updatedAt,
         });
       } catch (error) {
@@ -39,10 +40,10 @@ export function createLocalNoteRepository(
       }
     },
 
-    async save(date: string, content: string, habits?: HabitValues): Promise<Result<void, RepositoryError>> {
+    async save(date: string, content: string): Promise<Result<void, RepositoryError>> {
       try {
         const state = await getNoteEnvelopeState(date);
-        const encrypted = await crypto.encrypt(content, habits);
+        const encrypted = await crypto.encrypt(content);
         if (!encrypted.ok) return encrypted;
         const updatedAt = new Date().toISOString();
         const record: NoteRecord = {

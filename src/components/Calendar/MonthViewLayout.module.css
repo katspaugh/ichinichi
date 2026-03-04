@@ -70,7 +70,7 @@
 
   .monthGridPane {
     flex: 0 0 auto;
-    height: 60vh;
+    height: 100%;
     width: 45%;
     max-width: 500px;
     min-width: 320px;
@@ -84,14 +84,18 @@
 
 /* Large desktop: better proportions */
 @media (min-width: 1200px) {
+  .layout {
+    gap: var(--spacing-md);
+  }
+
   .monthGridPane {
     width: 40%;
     max-width: 550px;
   }
 
   .monthGridWrap {
-    flex: 1;
-    min-height: 0;
+    min-height: 440px;
+    max-height: 60vh;
   }
 
   .editorPane {

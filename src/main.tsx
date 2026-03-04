@@ -1,7 +1,14 @@
 import { StrictMode } from "react";
 import { createRoot, hydrateRoot } from "react-dom/client";
 import { AppBootstrap } from "./components/AppBootstrap";
+import { THEME_KEY } from "./utils/constants";
 import "./index.css";
+
+// Apply theme before first paint to prevent FOUC
+const savedTheme = localStorage.getItem(THEME_KEY);
+if (savedTheme === "dark" || savedTheme === "light") {
+  document.documentElement.setAttribute("data-theme", savedTheme);
+}
 
 const rootEl = document.getElementById("root");
 

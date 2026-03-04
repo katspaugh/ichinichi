@@ -102,7 +102,7 @@ export const noteDatesStore = createStore<NoteDatesState>()((set, get) => {
       _refreshGeneration++;
       set({
         repository: null,
-        noteDates: new Set(),
+        // Preserve noteDates to avoid flash — next init/refresh will replace them
         isRefreshing: false,
         _refreshTimer: null,
         _disposed: true,

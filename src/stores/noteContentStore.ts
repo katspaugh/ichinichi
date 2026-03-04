@@ -1,7 +1,5 @@
 import { createStore } from "zustand/vanilla";
 import type { NoteRepository } from "../storage/noteRepository";
-import type { HabitValues } from "../types";
-import { findLatestHabitDefinitions } from "../features/habits/findLatestHabitDefinitions";
 import { isNoteEmpty, isContentEmpty } from "../utils/sanitize";
 import { connectivity } from "../services/connectivity";
 
@@ -18,7 +16,6 @@ export interface NoteContentState {
   status: "idle" | "loading" | "ready" | "error";
   date: string | null;
   content: string;
-  habits: HabitValues | undefined;
   hasEdits: boolean;
   error: Error | null;
   loadedWithContent: boolean;
@@ -46,9 +43,8 @@ export interface NoteContentState {
   switchNote: (date: string) => Promise<void>;
   dispose: () => Promise<void>;
   setContent: (content: string) => void;
-  setHabits: (habits: HabitValues) => void;
   flushSave: () => Promise<void>;
-  applyRemoteUpdate: (content: string, habits?: HabitValues) => void;
+  applyRemoteUpdate: (content: string) => void;
   refreshFromRemote: () => Promise<void>;
   forceRefresh: () => void;
   checkRemoteCache: () => Promise<void>;
@@ -71,10 +67,10 @@ export const noteContentStore = createStore<NoteContentState>()((set, get) => {
   };
 
   const _doSave = async (): Promise<void> => {
-    const { date, content, habits, repository, loadedWithContent } = get();
+    const { date, content, repository, loadedWithContent } = get();
     if (!date || !repository) return;
 
-    const isEmpty = isNoteEmpty(content, habits);
+    const isEmpty = isNoteEmpty(content);
 
     // Guard: never delete a note that was loaded with content
     if (isEmpty && loadedWithContent) {
@@ -84,7 +80,7 @@ export const noteContentStore = createStore<NoteContentState>()((set, get) => {
 
     const result = isEmpty
       ? await repository.delete(date)
-      : await repository.save(date, content, habits);
+      : await repository.save(date, content);
 
     // Re-read current state after await
     const current = get();
@@ -136,7 +132,6 @@ export const noteContentStore = createStore<NoteContentState>()((set, get) => {
       status: "loading",
       date,
       content: "",
-      habits: undefined,
       hasEdits: false,
       error: null,
       loadedWithContent: false,
@@ -149,20 +144,10 @@ export const noteContentStore = createStore<NoteContentState>()((set, get) => {
     if (gen !== _loadGeneration) return; // superseded
 
     if (result.ok) {
-      let habits = result.value?.habits;
-
-      // Inherit habit definitions from most recent previous note
-      if (!habits || Object.keys(habits).length === 0) {
-        const inherited = await findLatestHabitDefinitions(repository, date);
-        if (gen !== _loadGeneration) return; // superseded
-        habits = inherited;
-      }
-
       const content = result.value?.content ?? "";
       set({
         status: "ready",
         content,
-        habits,
         hasEdits: false,
         error: null,
         loadedWithContent: !isContentEmpty(content),
@@ -175,7 +160,6 @@ export const noteContentStore = createStore<NoteContentState>()((set, get) => {
       set({
         status: "error",
         content: "",
-        habits: undefined,
         hasEdits: false,
         error: new Error(result.error.message),
       });
@@ -194,7 +178,6 @@ export const noteContentStore = createStore<NoteContentState>()((set, get) => {
     status: "idle",
     date: null,
     content: "",
-    habits: undefined,
     hasEdits: false,
     error: null,
     loadedWithContent: false,
@@ -237,7 +220,6 @@ export const noteContentStore = createStore<NoteContentState>()((set, get) => {
         status: "idle",
         date: null,
         content: "",
-        habits: undefined,
         hasEdits: false,
         error: null,
         loadedWithContent: false,
@@ -264,13 +246,6 @@ export const noteContentStore = createStore<NoteContentState>()((set, get) => {
       _scheduleSave();
     },
 
-    setHabits: (habits) => {
-      const { status } = get();
-      if (status !== "ready" && status !== "error") return;
-      set({ habits, hasEdits: true, error: null, isSaving: true });
-      _scheduleSave();
-    },
-
     flushSave: async () => {
       const { _saveTimer, hasEdits, _savePromise } = get();
 
@@ -294,12 +269,11 @@ export const noteContentStore = createStore<NoteContentState>()((set, get) => {
       }
     },
 
-    applyRemoteUpdate: (content, habits) => {
+    applyRemoteUpdate: (content) => {
       const { hasEdits } = get();
       if (hasEdits) return;
       set({
         content,
-        habits: habits ?? get().habits,
         hasEdits: false,
         error: null,
       });
@@ -364,7 +338,6 @@ export const noteContentStore = createStore<NoteContentState>()((set, get) => {
         if (remoteContent !== current.content) {
           set({
             content: remoteContent,
-            habits: remoteNote.habits ?? current.habits,
             hasEdits: false,
             error: null,
             isRefreshing: false,

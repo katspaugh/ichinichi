@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dev",
+      "runtimeExecutable": "yarn",
+      "runtimeArgs": ["dev"],
+      "port": 5173
+    },
+    {
+      "name": "preview",
+      "runtimeExecutable": "yarn",
+      "runtimeArgs": ["preview"],
+      "port": 4173
+    }
+  ]
+}

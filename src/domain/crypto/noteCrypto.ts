@@ -2,7 +2,6 @@ import type { CryptoError } from "../errors";
 import type { Result } from "../result";
 import { ok, err } from "../result";
 import type { E2eeService, NotePayload } from "./e2eeService";
-import type { HabitValues } from "../../types";
 
 export interface EncryptedNote {
   ciphertext: string;
@@ -13,7 +12,6 @@ export interface EncryptedNote {
 export interface NoteCrypto {
   encrypt(
     content: string,
-    habits?: HabitValues,
   ): Promise<Result<EncryptedNote, CryptoError>>;
   decrypt(record: {
     keyId?: string | null;
@@ -26,10 +24,9 @@ export function createNoteCrypto(e2ee: E2eeService): NoteCrypto {
   return {
     async encrypt(
       content: string,
-      habits?: HabitValues,
     ): Promise<Result<EncryptedNote, CryptoError>> {
       try {
-        const result = await e2ee.encryptNoteContent({ content, habits });
+        const result = await e2ee.encryptNoteContent({ content });
         if (!result) {
           return err({
             type: "EncryptFailed",

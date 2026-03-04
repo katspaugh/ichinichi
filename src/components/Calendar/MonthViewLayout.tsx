@@ -3,7 +3,7 @@ import { ErrorBoundary } from "../ErrorBoundary";
 import { NavigationArrow } from "../NavigationArrow";
 import { NoteEditor } from "../NoteEditor";
 import { MonthGrid } from "./MonthGrid";
-import type { HabitValues } from "../../types";
+import { PromptCard } from "./PromptCard";
 import styles from "./MonthViewLayout.module.css";
 
 const BLUR_INACTIVITY_MS = 2 * 60 * 1000; // 2 minutes
@@ -30,8 +30,6 @@ interface MonthViewLayoutProps {
   isContentReady: boolean;
   isOfflineStub: boolean;
   noteError?: Error | null;
-  habits?: HabitValues;
-  onHabitChange?: (habits: HabitValues) => void;
 }
 
 function usePrivacyBlur() {
@@ -95,8 +93,6 @@ export function MonthViewLayout({
   isContentReady,
   isOfflineStub,
   noteError,
-  habits,
-  onHabitChange,
 }: MonthViewLayoutProps) {
   const { isBlurred, resetBlur } = usePrivacyBlur();
 
@@ -139,6 +135,8 @@ export function MonthViewLayout({
             ariaLabel="Next note"
           />
         </div>
+
+        <PromptCard />
       </div>
 
       <div className={styles.editorPane}>
@@ -160,8 +158,6 @@ export function MonthViewLayout({
               isOfflineStub={isOfflineStub}
               isBlurred={isBlurred}
               error={noteError}
-              habits={habits}
-              onHabitChange={onHabitChange}
             />
           </ErrorBoundary>
         ) : (

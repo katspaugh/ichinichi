@@ -5,7 +5,6 @@ import { ErrorBoundary } from "../ErrorBoundary";
 import { NoteEditor } from "../NoteEditor";
 import { useOverscrollNavigation } from "../../hooks/useOverscrollNavigation";
 import { parseDate } from "../../utils/date";
-import type { HabitValues } from "../../types";
 import styles from "./NoteModal.module.css";
 
 interface NoteModalProps {
@@ -23,8 +22,6 @@ interface NoteModalProps {
   noteError?: Error | null;
   content: string;
   onChange: (content: string) => void;
-  habits?: HabitValues;
-  onHabitChange?: (habits: HabitValues) => void;
   canNavigatePrev: boolean;
   canNavigateNext: boolean;
   navigateToPrevious: () => void;
@@ -46,8 +43,6 @@ export function NoteModal({
   noteError,
   content,
   onChange,
-  habits,
-  onHabitChange,
   canNavigatePrev,
   canNavigateNext,
   navigateToPrevious,
@@ -118,8 +113,6 @@ export function NoteModal({
                 isContentReady={isContentReady}
                 isOfflineStub={isOfflineStub}
                 error={noteError}
-                habits={habits}
-                onHabitChange={onHabitChange}
               />
             </ErrorBoundary>
           </div>

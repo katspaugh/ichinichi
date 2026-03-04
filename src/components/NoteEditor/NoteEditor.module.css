@@ -48,6 +48,10 @@
   font-weight: var(--font-weight-semibold);
 }
 
+.moonEmoji {
+  filter: saturate(0.25) contrast(0.5) brightness(1.3);
+}
+
 .readonlyBadge {
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
@@ -98,7 +102,7 @@
   color: var(--color-text-muted);
   opacity: 0;
   visibility: hidden;
-  margin-left: 0;
+  flex-shrink: 0;
 }
 
 .savingVisible {
@@ -123,6 +127,7 @@
   flex-direction: column;
   position: relative;
   min-height: 0;
+  max-width: 65ch;
   transition: filter 0.3s ease;
 }
 
@@ -304,6 +309,53 @@
   cursor: pointer;
 }
 
+/* Structured sections */
+.content [data-section-type] {
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-sm);
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: var(--radius-sm);
+  margin: var(--spacing-sm) 0 var(--spacing-xs) 0;
+}
+
+.content [data-section-type] + div,
+.content [data-section-type] + p {
+  padding-left: var(--spacing-md);
+  margin-bottom: var(--spacing-sm);
+  border-left: 3px solid;
+}
+
+/* Section color palette (8 hues, light mode) */
+.content :global(.section-hue-0) { --sh: 0; }
+.content :global(.section-hue-1) { --sh: 45; }
+.content :global(.section-hue-2) { --sh: 90; }
+.content :global(.section-hue-3) { --sh: 135; }
+.content :global(.section-hue-4) { --sh: 180; }
+.content :global(.section-hue-5) { --sh: 225; }
+.content :global(.section-hue-6) { --sh: 270; }
+.content :global(.section-hue-7) { --sh: 315; }
+
+.content [data-section-type][class*="section-hue-"] {
+  color: hsl(var(--sh) 40% 45%);
+  background: hsl(var(--sh) 50% 95%);
+}
+
+.content [data-section-type] + [class*="section-hue-"] {
+  border-left-color: hsl(var(--sh) 45% 65%);
+}
+
+@media (prefers-color-scheme: dark) {
+  .content [data-section-type][class*="section-hue-"] {
+    color: hsl(var(--sh) 50% 75%);
+    background: hsl(var(--sh) 30% 20%);
+  }
+
+  .content [data-section-type] + [class*="section-hue-"] {
+    border-left-color: hsl(var(--sh) 40% 45%);
+  }
+}
+
 .content img {
   max-width: 100%;
   height: auto;
@@ -375,9 +427,6 @@
   }
 
   .saving {
-    position: absolute;
-    left: 0;
-    top: 100%;
     align-self: flex-start;
   }
 

@@ -1,10 +1,8 @@
 import type { KeyringProvider } from "./keyring";
-import type { HabitValues } from "../../types";
 import type { AiMeta } from "../ai/aiTypes";
 
 export interface NotePayload {
   content: string;
-  habits?: HabitValues;
 }
 
 export interface E2eeService {

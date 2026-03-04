@@ -1,8 +1,8 @@
 import { useCallback } from "react";
 import type { DragEvent } from "react";
-import type { HabitValues } from "../../types";
 import { formatDateDisplay } from "../../utils/date";
 import { canEditNote } from "../../utils/noteRules";
+import { getPlaceholderText } from "../../utils/placeholderText";
 import { NoteEditorView } from "./NoteEditorView";
 import { useContentEditableEditor } from "./useContentEditableEditor";
 import { useSavingIndicator } from "./useSavingIndicator";
@@ -12,8 +12,6 @@ import { useDropIndicator } from "./useDropIndicator";
 import { useShareTarget } from "../../hooks/useShareTarget";
 import { LocationPrompt } from "../LocationPrompt/LocationPrompt";
 import { useWeatherContext } from "../../contexts/weatherContext";
-import { HabitTracker } from "../../features/habits/HabitTracker";
-import { useHabitDefinitions } from "../../features/habits/useHabitDefinitions";
 import { useLocalAi } from "../../hooks/useLocalAi";
 import { NoteModline } from "../NoteModline/NoteModline";
 
@@ -32,8 +30,6 @@ interface NoteEditorProps {
   isBlurred?: boolean;
   /** Error from loading/decrypting the note */
   error?: Error | null;
-  habits?: HabitValues;
-  onHabitChange?: (habits: HabitValues) => void;
 }
 
 export function NoteEditor({
@@ -48,8 +44,6 @@ export function NoteEditor({
   isOfflineStub = false,
   isBlurred = false,
   error,
-  habits,
-  onHabitChange,
 }: NoteEditorProps) {
   const canEdit = canEditNote(date);
   const isEditable = canEdit && !isDecrypting && isContentReady;
@@ -71,14 +65,13 @@ export function NoteEditor({
       : shouldShowSaving
         ? "Saving..."
         : null;
-  const placeholderText =
-    !isContentReady || isDecrypting
-      ? "Loading..."
-      : isOfflineStub
-        ? "This note can't be loaded while offline. Go online to view it."
-        : isEditable
-          ? "Write your note for today..."
-          : "No note for this day";
+  const placeholderText = getPlaceholderText({
+    isContentReady,
+    isDecrypting,
+    isOfflineStub,
+    isEditable,
+    date,
+  });
 
   const { isDraggingImage, endImageDrag } = useImageDragState();
   const weather = useWeatherContext();
@@ -166,41 +159,13 @@ export function NoteEditor({
   // Auto-insert images shared via Web Share Target API
   useShareTarget(onImageDrop ? handleFileInput : undefined, isEditable);
 
-  const { definitions, addHabit, removeHabit, renameHabit } =
-    useHabitDefinitions(habits, onHabitChange);
-
-  const handleHabitChange = useCallback(
-    (newValues: HabitValues) => {
-      onHabitChange?.(newValues);
-    },
-    [onHabitChange],
-  );
-
   const localAi = useLocalAi(date);
 
-  const habitFooter =
-    (definitions.length > 0 || isEditable) && isContentReady ? (
-      <HabitTracker
-        definitions={definitions}
-        values={habits}
-        onChange={handleHabitChange}
-        isEditable={isEditable}
-        onAddHabit={addHabit}
-        onRenameHabit={renameHabit}
-        onRemoveHabit={removeHabit}
-      />
-    ) : null;
-
-  const footer = (
-    <>
-      {habitFooter}
-      <NoteModline aiMeta={localAi.aiMeta} />
-    </>
-  );
-
+  const footer = <NoteModline aiMeta={localAi.aiMeta} />;
   return (
     <>
       <NoteEditorView
+        date={date}
         formattedDate={formattedDate}
         isEditable={isEditable}
         showReadonlyBadge={!canEdit}
