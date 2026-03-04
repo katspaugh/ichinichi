@@ -104,31 +104,4 @@ describe("Structured section transform", () => {
     });
   });
 
-  it("Shift+Enter inside section body inserts br, stays in same div", async () => {
-    const { getByTestId } = render(
-      <EditorHarness
-        content='<div data-section-type="dream">+dream</div><div>body text</div>'
-      />,
-    );
-    const editor = getByTestId("editor") as HTMLDivElement;
-
-    await waitFor(() => {
-      expect(editor.querySelector("[data-section-type]")).not.toBeNull();
-    });
-
-    const body = editor.querySelector(
-      "[data-section-type] + div",
-    ) as HTMLDivElement;
-    setCaretAtEnd(body);
-
-    fireEvent.keyDown(editor, { key: "Enter", shiftKey: true });
-
-    // Body should still be a single div with a <br> inside
-    const header = editor.querySelector("[data-section-type]");
-    const bodyAfter = header?.nextElementSibling;
-    expect(bodyAfter?.tagName).toBe("DIV");
-    expect(bodyAfter?.querySelector("br")).not.toBeNull();
-    // Should not have created a new sibling div
-    expect(bodyAfter?.nextElementSibling).toBeNull();
-  });
 });

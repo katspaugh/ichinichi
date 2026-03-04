@@ -834,29 +834,6 @@ export function useContentEditableEditor({
       }
     }
 
-    // Normalize Shift+Enter to <br> for Safari compat
-    if (event.key === "Enter" && event.shiftKey) {
-      event.preventDefault();
-      const br = document.createElement("br");
-      insertNodeAtCursor(br);
-      // A trailing <br> in a block is invisible; add a sentinel <br> so the
-      // break renders.  Use lastElementChild (ignores empty text nodes left
-      // by Range.insertNode splitting the text node).
-      const block = br.parentElement;
-      if (block && block.lastElementChild === br) {
-        block.appendChild(document.createElement("br"));
-      }
-      // Persist the DOM change to React state
-      const el = editorRef.current;
-      if (el) {
-        const html = serializeEditorContent(el);
-        lastContentRef.current = html;
-        isLocalEditRef.current = true;
-        onChangeRef.current(html);
-      }
-      return;
-    }
-
     // Delegate to hotkey service
     hotkeyHandleKeyDown(event.nativeEvent);
   }, []);
