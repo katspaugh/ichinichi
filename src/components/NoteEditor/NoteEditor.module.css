@@ -102,7 +102,7 @@
   color: var(--color-text-muted);
   opacity: 0;
   visibility: hidden;
-  margin-left: 0;
+  flex-shrink: 0;
 }
 
 .savingVisible {
@@ -424,7 +424,6 @@
     flex-direction: column;
     align-items: flex-start;
     gap: var(--spacing-xs);
-    position: relative;
   }
 
   .header {
@@ -434,9 +433,6 @@
   }
 
   .saving {
-    position: absolute;
-    left: 0;
-    top: 100%;
     align-self: flex-start;
   }
 

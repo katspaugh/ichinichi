@@ -775,14 +775,16 @@ export function useContentEditableEditor({
   const handleKeyDown = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
     if (!isEditableRef.current) return;
 
-    // Section transform: +typename on Enter
-    if (event.key === "Enter" && !event.shiftKey) {
+    // Section transform: +typename on Enter or Shift+Enter
+    if (event.key === "Enter") {
       const el = editorRef.current;
       if (el) {
         const selection = window.getSelection();
         if (selection && selection.rangeCount > 0) {
           const range = selection.getRangeAt(0);
           let container: Node | null = range.startContainer;
+          const textNode =
+            container.nodeType === Node.TEXT_NODE ? container : null;
           if (container.nodeType === Node.TEXT_NODE) {
             container = container.parentNode;
           }
@@ -797,6 +799,31 @@ export function useContentEditableEditor({
               break;
             }
             current = current.parentNode;
+          }
+          // If text is a bare text node directly inside the editor (no wrapping div),
+          // wrap it in a div so the section transform can proceed
+          if (!block && container === el) {
+            // Find the text node near the cursor
+            const targetNode = textNode ?? (() => {
+              for (const child of Array.from(el.childNodes)) {
+                if (
+                  child.nodeType === Node.TEXT_NODE &&
+                  (child.textContent ?? "").trim().match(SECTION_TYPE_RE)
+                ) {
+                  return child;
+                }
+              }
+              return null;
+            })();
+            if (targetNode && targetNode.parentNode === el) {
+              const text = (targetNode.textContent ?? "").trim();
+              if (text.match(SECTION_TYPE_RE)) {
+                const wrapper = document.createElement("div");
+                el.insertBefore(wrapper, targetNode);
+                wrapper.appendChild(targetNode);
+                block = wrapper;
+              }
+            }
           }
           if (block) {
             const text = (block.textContent ?? "").trim();

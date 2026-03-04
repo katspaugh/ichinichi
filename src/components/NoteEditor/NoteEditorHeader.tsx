@@ -32,19 +32,19 @@ export function NoteEditorHeader({
         {showReadonlyBadge && (
           <span className={styles.readonlyBadge}>Read only</span>
         )}
-        <span
-          className={[
-            styles.saving,
-            statusText ? styles.savingVisible : "",
-            isStatusError ? styles.savingError : "",
-          ]
-            .filter(Boolean)
-            .join(" ")}
-          aria-live="polite"
-        >
-          {statusText ?? ""}
-        </span>
       </div>
+      <span
+        className={[
+          styles.saving,
+          statusText ? styles.savingVisible : "",
+          isStatusError ? styles.savingError : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+        aria-live="polite"
+      >
+        {statusText ?? ""}
+      </span>
     </div>
   );
 }
