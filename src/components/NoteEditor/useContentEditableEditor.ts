@@ -832,6 +832,13 @@ export function useContentEditableEditor({
       }
     }
 
+    // Normalize Shift+Enter to <br> for Safari compat
+    if (event.key === "Enter" && event.shiftKey) {
+      event.preventDefault();
+      insertNodeAtCursor(document.createElement("br"));
+      return;
+    }
+
     // Delegate to hotkey service
     hotkeyHandleKeyDown(event.nativeEvent);
   }, []);
