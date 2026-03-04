@@ -18,6 +18,7 @@ export interface Note {
   date: string; // "DD-MM-YYYY"
   content: string;
   habits?: HabitValues;
+  sectionTypes?: string[];
   updatedAt: string; // ISO timestamp
 }
 

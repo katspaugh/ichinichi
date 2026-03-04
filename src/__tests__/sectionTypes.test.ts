@@ -39,6 +39,16 @@ describe("sanitizeHtml preserves section attributes", () => {
   });
 });
 
+describe("Note sectionTypes integration", () => {
+  it("extractSectionTypes returns types matching Note.sectionTypes contract", () => {
+    const html =
+      '<div data-section-type="dream">+dream</div><div>content</div>' +
+      '<div data-section-type="gratitude">+gratitude</div><div>more</div>';
+    const types = extractSectionTypes(html);
+    expect(types).toEqual(["dream", "gratitude"]);
+  });
+});
+
 describe("stringToHue", () => {
   it("returns a number between 0 and 360", () => {
     const hue = stringToHue("dream");

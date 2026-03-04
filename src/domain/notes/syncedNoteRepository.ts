@@ -3,6 +3,7 @@ import type { NoteSyncEngine } from "../sync/noteSyncEngine";
 import type { RepositoryError } from "../errors";
 import { ok, err, type Result } from "../result";
 import type { Note, HabitValues } from "../../types";
+import { extractSectionTypes } from "../../utils/sectionTypes";
 import type { NoteRepository } from "../../storage/noteRepository";
 import type { NoteMetaRecord, NoteRecord } from "../../storage/unifiedDb";
 import {
@@ -35,6 +36,7 @@ export function createSyncedNoteRepository(
           date: record.date,
           content: decrypted.value.content,
           habits: decrypted.value.habits,
+          sectionTypes: extractSectionTypes(decrypted.value.content),
           updatedAt: record.updatedAt,
         });
       } catch (error) {
@@ -139,6 +141,7 @@ export function createSyncedNoteRepository(
           date: envelope.date,
           content: decrypted.value.content,
           habits: decrypted.value.habits,
+          sectionTypes: extractSectionTypes(decrypted.value.content),
           updatedAt: envelope.updatedAt,
         });
       } catch (error) {
