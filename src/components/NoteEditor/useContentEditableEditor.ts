@@ -449,6 +449,7 @@ export function useContentEditableEditor({
     if (content === lastContentRef.current) {
       updateEmptyState();
       updateTimestampLabels(el);
+      applySectionColors(el);
       return;
     }
     const nextContent = content || "";
@@ -456,12 +457,14 @@ export function useContentEditableEditor({
       lastContentRef.current = nextContent;
       updateEmptyState();
       updateTimestampLabels(el);
+      applySectionColors(el);
       return;
     }
     el.innerHTML = nextContent;
     lastContentRef.current = nextContent;
     updateEmptyState();
     updateTimestampLabels(el);
+    applySectionColors(el);
   }, [content, updateEmptyState, updateTimestampLabels]);
 
   useEffect(() => {
@@ -523,6 +526,19 @@ export function useContentEditableEditor({
 
     // Apply text transforms (HR insertion, linkify) with cursor preservation
     applyTextTransforms(el);
+
+    // Apply section header colors
+    applySectionColors(el);
+
+    // Clean up stale section headers whose text no longer matches +typename
+    const sectionHeaders = el.querySelectorAll<HTMLElement>("[data-section-type]");
+    for (const header of sectionHeaders) {
+      const text = (header.textContent ?? "").trim();
+      if (!text.match(/^\+[a-z][a-z-]*$/)) {
+        header.removeAttribute("data-section-type");
+        header.style.removeProperty("--section-hue");
+      }
+    }
 
     // Update pending HRs with weather using approximate location (no prompt needed)
     if (isWeatherEnabledRef.current && applyWeatherToEditor) {
