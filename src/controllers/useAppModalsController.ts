@@ -82,8 +82,6 @@ export function useAppModalsController() {
   const {
     content,
     setContent,
-    habits,
-    setHabits,
     isDecrypting,
     isContentReady,
     isOfflineStub,
@@ -267,8 +265,6 @@ export function useAppModalsController() {
       noteError,
       content,
       onChange: setContent,
-      habits,
-      onHabitChange: setHabits,
       canNavigatePrev,
       canNavigateNext,
       navigateToPrevious,

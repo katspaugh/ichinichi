@@ -1,9 +1,7 @@
 import type { KeyringProvider } from "./keyring";
-import type { HabitValues } from "../../types";
 
 export interface NotePayload {
   content: string;
-  habits?: HabitValues;
 }
 
 export interface E2eeService {

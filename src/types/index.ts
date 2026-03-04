@@ -1,23 +1,6 @@
-export interface HabitDefinition {
-  id: string;
-  name: string;
-  type: "text";
-  order: number;
-}
-
-export interface HabitEntry {
-  name: string;
-  type: "text";
-  order: number;
-  value: string;
-}
-
-export type HabitValues = Record<string, HabitEntry>;
-
 export interface Note {
   date: string; // "DD-MM-YYYY"
   content: string;
-  habits?: HabitValues;
   sectionTypes?: string[];
   updatedAt: string; // ISO timestamp
 }

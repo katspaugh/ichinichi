@@ -1,5 +1,4 @@
 import DOMPurify from "dompurify";
-import type { HabitValues } from "../types";
 
 /**
  * Configuration for DOMPurify
@@ -80,20 +79,8 @@ export function isContentEmpty(html: string): boolean {
 }
 
 /**
- * Checks if a note is empty (no text content and no habit values).
- * A note with habit values but no text should be preserved.
+ * Checks if a note is empty (no text content).
  */
-export function isNoteEmpty(
-  html: string,
-  habits?: HabitValues,
-): boolean {
-  if (
-    habits &&
-    Object.values(habits).some(
-      (entry) => entry.value !== "",
-    )
-  ) {
-    return false;
-  }
+export function isNoteEmpty(html: string): boolean {
   return isContentEmpty(html);
 }

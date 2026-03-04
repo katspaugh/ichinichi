@@ -10,7 +10,6 @@ import {
 } from "../domain/notes/repositoryFactory";
 import type { NoteRepository } from "../storage/noteRepository";
 import type { ImageRepository } from "../storage/imageRepository";
-import type { HabitValues } from "../types";
 import { AppMode } from "./useAppMode";
 import { createSyncedNoteRepository } from "../domain/notes/syncedNoteRepository";
 import { createNoteCrypto } from "../domain/crypto/noteCrypto";
@@ -49,8 +48,6 @@ export interface UseNoteRepositoryReturn {
   };
   content: string;
   setContent: (content: string) => void;
-  habits: HabitValues | undefined;
-  setHabits: (habits: HabitValues) => void;
   hasEdits: boolean;
   /** True when the note is being saved (dirty or saving state) */
   isSaving: boolean;
@@ -187,8 +184,6 @@ export function useNoteRepository({
   const {
     content,
     setContent,
-    habits,
-    setHabits,
     isDecrypting,
     hasEdits,
     isSaving,
@@ -246,8 +241,6 @@ export function useNoteRepository({
     capabilities,
     content,
     setContent,
-    habits,
-    setHabits,
     hasEdits,
     isSaving,
     hasNote,

@@ -1,6 +1,5 @@
 import type { E2eeService, NotePayload } from "../domain/crypto/e2eeService";
 import type { KeyringProvider } from "../domain/crypto/keyring";
-import type { HabitValues } from "../types";
 import { sanitizeHtml } from "../utils/sanitize";
 import {
   base64ToBytes,
@@ -71,10 +70,7 @@ export function createE2eeService(keyring: KeyringProvider): E2eeService {
     if (!key) return null;
     const iv = randomBytes(NOTE_IV_BYTES);
     const sanitized = sanitizeHtml(payload.content);
-    const envelope: { content: string; habits?: HabitValues } = { content: sanitized };
-    if (payload.habits && Object.keys(payload.habits).length > 0) {
-      envelope.habits = payload.habits;
-    }
+    const envelope = { content: sanitized };
     const plaintext = encodeUtf8(JSON.stringify(envelope));
     const encrypted = await crypto.subtle.encrypt(
       { name: "AES-GCM", iv },
@@ -103,11 +99,9 @@ export function createE2eeService(keyring: KeyringProvider): E2eeService {
     );
     const parsed = JSON.parse(decodeUtf8(new Uint8Array(decrypted))) as {
       content: string;
-      habits?: HabitValues;
     };
     return {
       content: sanitizeHtml(parsed.content),
-      habits: parsed.habits,
     };
   };
 

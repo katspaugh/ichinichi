@@ -3,7 +3,7 @@ import { CalendarHeader } from "./CalendarHeader";
 import { MonthViewLayout } from "./MonthViewLayout";
 import { useNoteNavigation } from "../../hooks/useNoteNavigation";
 import { useNoteKeyboardNav } from "../../hooks/useNoteKeyboardNav";
-import type { SyncStatus, HabitValues } from "../../types";
+import type { SyncStatus } from "../../types";
 import type { PendingOpsSummary } from "../../domain/sync";
 import styles from "./Calendar.module.css";
 
@@ -26,8 +26,6 @@ interface MonthViewProps {
   isContentReady: boolean;
   isOfflineStub: boolean;
   noteError?: Error | null;
-  habits?: HabitValues;
-  onHabitChange?: (habits: HabitValues) => void;
   // Sync props
   syncStatus?: SyncStatus;
   syncError?: string | null;
@@ -57,8 +55,6 @@ export function MonthView({
   isContentReady,
   isOfflineStub,
   noteError,
-  habits,
-  onHabitChange,
   syncStatus,
   syncError,
   pendingOps,
@@ -133,8 +129,6 @@ export function MonthView({
         isContentReady={isContentReady}
         isOfflineStub={isOfflineStub}
         noteError={noteError}
-        habits={habits}
-        onHabitChange={onHabitChange}
       />
     </div>
   );

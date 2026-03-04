@@ -29,31 +29,6 @@ function createRepository(initialContent = ""): NoteRepository {
   };
 }
 
-function createRepositoryWithHabitInheritance(): NoteRepository {
-  const habits = {
-    h1: { name: "Exercise", type: "text" as const, order: 0, value: "done" },
-  };
-  return {
-    ...syncDefaults,
-    get: jest.fn((date: string) => {
-      if (date === "09-01-2026") {
-        return Promise.resolve(
-          ok({
-            date: "09-01-2026",
-            content: "note with habits",
-            habits,
-            updatedAt: "2026-01-09T10:00:00.000Z",
-          }),
-        );
-      }
-      return Promise.resolve(ok(null));
-    }),
-    save: jest.fn().mockResolvedValue(ok(undefined)),
-    delete: jest.fn().mockResolvedValue(ok(undefined)),
-    getAllDates: jest.fn().mockResolvedValue(ok(["09-01-2026"])),
-  };
-}
-
 /** Wait for store to reach a status */
 async function waitForStatus(
   status: string,
@@ -93,7 +68,6 @@ describe("noteContentStore", () => {
     expect(repository.save).toHaveBeenCalledWith(
       "10-01-2026",
       "draft",
-      undefined,
     );
   });
 
@@ -158,64 +132,6 @@ describe("noteContentStore", () => {
     expect(repository.delete).not.toHaveBeenCalled();
   });
 
-  it("inherits habit definitions from most recent previous note when note does not exist", async () => {
-    const repository = createRepositoryWithHabitInheritance();
-    noteContentStore.getState().init("10-01-2026", repository);
-
-    await waitForStatus("ready");
-
-    expect(noteContentStore.getState().content).toBe("");
-    expect(noteContentStore.getState().habits).toEqual({
-      h1: { name: "Exercise", type: "text", order: 0, value: "" },
-    });
-  });
-
-  it("inherits habit definitions when note exists but has no habits", async () => {
-    const habits = {
-      h1: {
-        name: "Exercise",
-        type: "text" as const,
-        order: 0,
-        value: "done",
-      },
-    };
-    const repository: NoteRepository = {
-      ...syncDefaults,
-      get: jest.fn((date: string) => {
-        if (date === "09-01-2026") {
-          return Promise.resolve(
-            ok({
-              date: "09-01-2026",
-              content: "note with habits",
-              habits,
-              updatedAt: "2026-01-09T10:00:00.000Z",
-            }),
-          );
-        }
-        return Promise.resolve(
-          ok({
-            date: "10-01-2026",
-            content: "some content",
-            updatedAt: "2026-01-10T10:00:00.000Z",
-          }),
-        );
-      }),
-      save: jest.fn().mockResolvedValue(ok(undefined)),
-      delete: jest.fn().mockResolvedValue(ok(undefined)),
-      getAllDates: jest
-        .fn()
-        .mockResolvedValue(ok(["09-01-2026", "10-01-2026"])),
-    };
-    noteContentStore.getState().init("10-01-2026", repository);
-
-    await waitForStatus("ready");
-
-    expect(noteContentStore.getState().content).toBe("some content");
-    expect(noteContentStore.getState().habits).toEqual({
-      h1: { name: "Exercise", type: "text", order: 0, value: "" },
-    });
-  });
-
   it("surfaces DecryptFailed error from repository.get", async () => {
     const decryptError: RepositoryError = {
       type: "DecryptFailed",
@@ -269,7 +185,6 @@ describe("noteContentStore", () => {
     expect(repository.save).toHaveBeenCalledWith(
       "10-01-2026",
       "draft",
-      undefined,
     );
   });
 
@@ -364,7 +279,6 @@ describe("noteContentStore", () => {
       expect(repository.save).toHaveBeenCalledWith(
         "10-01-2026",
         "draft",
-        undefined,
       );
 
       jest.useRealTimers();
@@ -390,7 +304,6 @@ describe("noteContentStore", () => {
       expect(repository.save).toHaveBeenCalledWith(
         "10-01-2026",
         "draft with more text",
-        undefined,
       );
 
       jest.useRealTimers();
