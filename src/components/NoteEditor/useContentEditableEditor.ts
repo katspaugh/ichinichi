@@ -834,6 +834,13 @@ export function useContentEditableEditor({
       }
     }
 
+    // Normalize Shift+Enter to insertLineBreak for cross-browser consistency
+    if (event.key === "Enter" && event.shiftKey) {
+      event.preventDefault();
+      document.execCommand("insertLineBreak");
+      return;
+    }
+
     // Delegate to hotkey service
     hotkeyHandleKeyDown(event.nativeEvent);
   }, []);
