@@ -536,7 +536,9 @@ export function useContentEditableEditor({
       const text = (header.textContent ?? "").trim();
       if (!text.match(/^\+[a-z][a-z-]*$/)) {
         header.removeAttribute("data-section-type");
-        header.style.removeProperty("--section-hue");
+        for (let i = 0; i < 8; i++) {
+          header.classList.remove(`section-hue-${i}`);
+        }
       }
     }
 
@@ -835,7 +837,12 @@ export function useContentEditableEditor({
     // Normalize Shift+Enter to <br> for Safari compat
     if (event.key === "Enter" && event.shiftKey) {
       event.preventDefault();
-      insertNodeAtCursor(document.createElement("br"));
+      const br = document.createElement("br");
+      insertNodeAtCursor(br);
+      // Trailing <br> inside a block is invisible; add a sentinel so the break renders
+      if (!br.nextSibling) {
+        br.after(document.createElement("br"));
+      }
       return;
     }
 

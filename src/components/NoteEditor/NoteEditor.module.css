@@ -308,8 +308,6 @@
 .content [data-section-type] {
   font-weight: var(--font-weight-semibold);
   font-size: var(--font-size-sm);
-  color: hsl(var(--section-hue, 200) 40% 45%);
-  background: hsl(var(--section-hue, 200) 50% 95%);
   display: inline-block;
   padding: 1px 8px;
   border-radius: var(--radius-sm);
@@ -318,20 +316,38 @@
 
 .content [data-section-type] + div,
 .content [data-section-type] + p {
-  border-left: 3px solid hsl(var(--section-hue, 200) 45% 65%);
   padding-left: var(--spacing-md);
   margin-bottom: var(--spacing-sm);
+  border-left: 3px solid;
+}
+
+/* Section color palette (8 hues, light mode) */
+.content :global(.section-hue-0) { --sh: 0; }
+.content :global(.section-hue-1) { --sh: 45; }
+.content :global(.section-hue-2) { --sh: 90; }
+.content :global(.section-hue-3) { --sh: 135; }
+.content :global(.section-hue-4) { --sh: 180; }
+.content :global(.section-hue-5) { --sh: 225; }
+.content :global(.section-hue-6) { --sh: 270; }
+.content :global(.section-hue-7) { --sh: 315; }
+
+.content [data-section-type][class*="section-hue-"] {
+  color: hsl(var(--sh) 40% 45%);
+  background: hsl(var(--sh) 50% 95%);
+}
+
+.content [data-section-type] + [class*="section-hue-"] {
+  border-left-color: hsl(var(--sh) 45% 65%);
 }
 
 @media (prefers-color-scheme: dark) {
-  .content [data-section-type] {
-    color: hsl(var(--section-hue, 200) 50% 75%);
-    background: hsl(var(--section-hue, 200) 30% 20%);
+  .content [data-section-type][class*="section-hue-"] {
+    color: hsl(var(--sh) 50% 75%);
+    background: hsl(var(--sh) 30% 20%);
   }
 
-  .content [data-section-type] + div,
-  .content [data-section-type] + p {
-    border-left-color: hsl(var(--section-hue, 200) 40% 45%);
+  .content [data-section-type] + [class*="section-hue-"] {
+    border-left-color: hsl(var(--sh) 40% 45%);
   }
 }
 
