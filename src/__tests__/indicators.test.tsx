@@ -112,6 +112,7 @@ describe("SyncIndicator component", () => {
 
 describe("NoteEditorView status text", () => {
   const defaultProps = {
+    date: "16-01-2026",
     formattedDate: "January 16, 2026",
     isEditable: true,
     showReadonlyBadge: false,

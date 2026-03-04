@@ -190,6 +190,7 @@ export function NoteEditor({
   return (
     <>
       <NoteEditorView
+        date={date}
         formattedDate={formattedDate}
         isEditable={isEditable}
         showReadonlyBadge={!canEdit}

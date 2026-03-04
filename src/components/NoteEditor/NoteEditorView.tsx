@@ -16,6 +16,7 @@ import type { DropIndicatorPosition } from "./useDropIndicator";
 import styles from "./NoteEditor.module.css";
 
 interface NoteEditorViewProps {
+  date: string;
   formattedDate: string;
   isEditable: boolean;
   showReadonlyBadge: boolean;
@@ -37,6 +38,7 @@ interface NoteEditorViewProps {
 }
 
 export function NoteEditorView({
+  date,
   formattedDate,
   isEditable,
   showReadonlyBadge,
@@ -93,6 +95,7 @@ export function NoteEditorView({
         />
       )}
       <NoteEditorHeader
+        date={date}
         formattedDate={formattedDate}
         showReadonlyBadge={showReadonlyBadge}
         statusText={statusText}
