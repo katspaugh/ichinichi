@@ -2,12 +2,12 @@
   all: unset;
   display: block;
   color: var(--color-text-muted);
-  font-size: var(--font-size-xl);
+  font-size: 1.2em;
   font-style: italic;
   text-align: center;
-  padding: var(--spacing-lg) var(--spacing-xl);
+  padding: var(--spacing-md) var(--spacing-xl);
   cursor: pointer;
-  flex-shrink: 0;
+  overflow: hidden;
   line-height: var(--line-height-relaxed);
   user-select: none;
   transition: opacity var(--transition-fast);
