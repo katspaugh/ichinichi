@@ -17,6 +17,10 @@ export interface NoteRecord {
   ciphertext: string;
   nonce: string;
   updatedAt: string;
+  // AI metadata (separately encrypted, optional)
+  aiCiphertext?: string;
+  aiNonce?: string;
+  aiKeyId?: string;
 }
 
 export interface NoteMetaRecord {

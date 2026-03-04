@@ -14,11 +14,14 @@ export interface HabitEntry {
 
 export type HabitValues = Record<string, HabitEntry>;
 
+import type { AiMeta } from "../domain/ai/aiTypes";
+
 export interface Note {
   date: string; // "DD-MM-YYYY"
   content: string;
   habits?: HabitValues;
   updatedAt: string; // ISO timestamp
+  aiMeta?: AiMeta; // decrypted AI metadata (local-only)
 }
 
 // Encrypted envelope for storage/sync layers (ciphertext only, no plaintext)

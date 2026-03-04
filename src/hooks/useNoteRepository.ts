@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { useNoteContent } from "./useNoteContent";
 import { useNoteDates } from "./useNoteDates";
@@ -23,6 +23,10 @@ import { syncStateStore } from "../storage/syncStateStore";
 import { useServiceContext } from "../contexts/serviceContext";
 import { noteContentStore } from "../stores/noteContentStore";
 import { syncStore } from "../stores/syncStore";
+import { triggerAiAnalysis } from "../domain/ai/triggerAiAnalysis";
+import { loadAiMetaForDate } from "../storage/aiMetaStore";
+import { localAiStore } from "../stores/localAiStore";
+import type { E2eeService } from "../domain/crypto/e2eeService";
 
 interface UseNoteRepositoryProps {
   mode: AppMode;
@@ -175,11 +179,27 @@ export function useNoteRepository({
     [syncedRepo, imageRepository],
   );
 
-  // After-save callback: apply note change to calendar + queue idle sync
+  // E2EE service for AI metadata encryption
+  const e2eeRef = useRef<E2eeService | null>(null);
+  e2eeRef.current = useMemo(() => {
+    if (!vaultKey || !activeKeyId) return null;
+    const keyProvider = {
+      activeKeyId,
+      getKey: (keyId: string) => keyring.get(keyId) ?? null,
+    };
+    return e2eeFactory.create(keyProvider);
+  }, [vaultKey, activeKeyId, keyring, e2eeFactory]);
+
+  // After-save callback: apply note change to calendar + queue idle sync + AI
   const handleAfterSave = useCallback(
-    (snapshot: { date: string; isEmpty: boolean }) => {
+    (snapshot: { date: string; content: string; isEmpty: boolean }) => {
       applyNoteChange(snapshot.date, snapshot.isEmpty);
       queueIdleSync();
+
+      // Trigger local AI analysis (fire-and-forget; errors logged internally)
+      if (!snapshot.isEmpty && e2eeRef.current) {
+        triggerAiAnalysis(snapshot.date, snapshot.content, e2eeRef.current);
+      }
     },
     [applyNoteChange, queueIdleSync],
   );
@@ -196,6 +216,21 @@ export function useNoteRepository({
     isOfflineStub,
     error: noteError,
   } = useNoteContent(date, repository, hasNote, handleAfterSave);
+
+  // Hydrate AI metadata cache from IndexedDB when viewing a note
+  useEffect(() => {
+    if (!date || !e2eeRef.current) return;
+    const e2ee = e2eeRef.current;
+
+    // Skip if already cached
+    if (localAiStore.getState().getAiMeta(date)) return;
+
+    void loadAiMetaForDate(date, e2ee).then((meta) => {
+      if (meta) {
+        localAiStore.getState().cacheAiMeta(date, meta);
+      }
+    });
+  }, [date]);
 
   // Cross-concern coordination via Zustand subscribe()
   // When sync completes or realtime changes arrive, refresh current note

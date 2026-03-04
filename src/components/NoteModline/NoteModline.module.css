@@ -1,0 +1,28 @@
+.root {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 16px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  border-top: 1px solid var(--color-border);
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.tag {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: var(--color-surface-hover);
+  color: var(--color-text-muted);
+  font-size: 11px;
+  line-height: 1.4;
+}

@@ -19,6 +19,8 @@ import { useTheme } from "@/hooks/useTheme";
 import type { ThemePreference } from "@/services/themePreferences";
 import { getWeekdayOptions, setWeekStartPreference } from "@/utils/date";
 import { useWeatherContext } from "@/contexts/weatherContext";
+import { useLocalAi } from "@/hooks/useLocalAi";
+import { LocalAiSection } from "./LocalAiSection";
 import styles from "./SettingsSidebar.module.css";
 
 interface SettingsSidebarProps {
@@ -363,6 +365,7 @@ export function SettingsSidebar({
 }: SettingsSidebarProps) {
   const { theme, setTheme } = useTheme();
   const weather = useWeatherContext();
+  const localAi = useLocalAi(null);
   const { state: weatherState } = weather;
   const [weekStart, setWeekStart] = useState(
     () => getWeekdayOptions()[0]?.dayIndex ?? 0,
@@ -467,6 +470,15 @@ export function SettingsSidebar({
             onRefreshLocation={handleRefreshLocation}
             onTempUnitChange={handleTempUnitChange}
             onShowWeatherChange={handleShowWeatherChange}
+          />
+
+          <div className={styles.separator} />
+
+          <LocalAiSection
+            enabled={localAi.enabled}
+            modelStatus={localAi.modelStatus}
+            modelError={localAi.modelError}
+            onToggle={localAi.toggleEnabled}
           />
 
           <div className={styles.separator} />

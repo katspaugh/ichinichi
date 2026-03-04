@@ -14,6 +14,8 @@ import { LocationPrompt } from "../LocationPrompt/LocationPrompt";
 import { useWeatherContext } from "../../contexts/weatherContext";
 import { HabitTracker } from "../../features/habits/HabitTracker";
 import { useHabitDefinitions } from "../../features/habits/useHabitDefinitions";
+import { useLocalAi } from "../../hooks/useLocalAi";
+import { NoteModline } from "../NoteModline/NoteModline";
 
 interface NoteEditorProps {
   date: string;
@@ -174,6 +176,8 @@ export function NoteEditor({
     [onHabitChange],
   );
 
+  const localAi = useLocalAi(date);
+
   const habitFooter =
     (definitions.length > 0 || isEditable) && isContentReady ? (
       <HabitTracker
@@ -186,6 +190,13 @@ export function NoteEditor({
         onRemoveHabit={removeHabit}
       />
     ) : null;
+
+  const footer = (
+    <>
+      {habitFooter}
+      <NoteModline aiMeta={localAi.aiMeta} />
+    </>
+  );
 
   return (
     <>
@@ -207,7 +218,7 @@ export function NoteEditor({
         isDraggingImage={isDraggingImage}
         dropIndicatorPosition={indicatorPosition}
         isBlurred={isBlurred}
-        footer={habitFooter}
+        footer={footer}
       />
       <LocationPrompt
         isOpen={weatherState.isPromptOpen}

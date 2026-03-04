@@ -105,6 +105,7 @@ export const test = base.extend<{ helpers: TestHelpers }>({
             'dailynotes-vault',
             'dailynotes-local',
             'dailynotes-synced',
+            'dailynotes-tag-index',
           ];
 
           // Delete databases and wait for completion

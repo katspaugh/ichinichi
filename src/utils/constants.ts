@@ -11,6 +11,7 @@ export const LOCATION_LON_KEY = `${STORAGE_PREFIX}location_lon_v1`;
 export const THEME_KEY = `${STORAGE_PREFIX}theme_v1`;
 export const LOCATION_PROMPT_SHOWN_KEY = `${STORAGE_PREFIX}location_prompt_shown_v1`;
 export const VIEW_PREFERENCE_KEY = `${STORAGE_PREFIX}view_preference_v1`;
+export const LOCAL_AI_ENABLED_KEY = `${STORAGE_PREFIX}local_ai_enabled_v1`;
 
 export const URL_PARAMS = {
   DATE: "date",

@@ -424,6 +424,26 @@
   height: 14px;
 }
 
+/* Local AI section */
+.aiDescription {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+.aiStatus {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.aiStatusError {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-sync-error);
+}
+
 @keyframes spin {
   from {
     transform: rotate(0deg);

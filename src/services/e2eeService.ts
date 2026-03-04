@@ -1,5 +1,6 @@
 import type { E2eeService, NotePayload } from "../domain/crypto/e2eeService";
 import type { KeyringProvider } from "../domain/crypto/keyring";
+import type { AiMeta } from "../domain/ai/aiTypes";
 import type { HabitValues } from "../types";
 import { sanitizeHtml } from "../utils/sanitize";
 import {
@@ -151,10 +152,49 @@ export function createE2eeService(keyring: KeyringProvider): E2eeService {
     return new Blob([decrypted], { type: mimeType });
   };
 
+  const encryptAiMeta = async (
+    meta: AiMeta,
+    keyId?: string | null,
+  ): Promise<{ ciphertext: string; nonce: string; keyId: string } | null> => {
+    const resolvedKeyId = keyId ?? keyring.activeKeyId;
+    const key = getKey(resolvedKeyId);
+    if (!key) return null;
+    const iv = randomBytes(NOTE_IV_BYTES);
+    const plaintext = encodeUtf8(JSON.stringify(meta));
+    const encrypted = await crypto.subtle.encrypt(
+      { name: "AES-GCM", iv },
+      key,
+      plaintext,
+    );
+    return {
+      ciphertext: bytesToBase64(new Uint8Array(encrypted)),
+      nonce: bytesToBase64(iv),
+      keyId: resolvedKeyId,
+    };
+  };
+
+  const decryptAiMeta = async (
+    record: { keyId?: string | null; ciphertext: string; nonce: string },
+  ): Promise<AiMeta | null> => {
+    const keyId = record.keyId ?? keyring.activeKeyId;
+    const key = getKey(keyId);
+    if (!key) return null;
+    const iv = base64ToBytes(record.nonce);
+    const ciphertext = base64ToBytes(record.ciphertext);
+    const decrypted = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv },
+      key,
+      ciphertext,
+    );
+    return JSON.parse(decodeUtf8(new Uint8Array(decrypted))) as AiMeta;
+  };
+
   return {
     encryptNoteContent,
     decryptNoteRecord,
     encryptImageBlob,
     decryptImageRecord,
+    encryptAiMeta,
+    decryptAiMeta,
   };
 }

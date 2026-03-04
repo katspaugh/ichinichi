@@ -30,6 +30,7 @@ const SANITIZE_CONFIG = {
     "h6",
     "hr",
     "blockquote",
+    "mark",
   ],
   ALLOWED_ATTR: [
     "data-image-id",
@@ -43,6 +44,7 @@ const SANITIZE_CONFIG = {
     "target",
     "rel",
     "contenteditable",
+    "data-ai-type",
   ], // Image attributes (src set dynamically)
   KEEP_CONTENT: true, // Keep text content even if tags are stripped
   RETURN_DOM: false,
