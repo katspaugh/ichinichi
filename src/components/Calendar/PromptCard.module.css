@@ -1,0 +1,18 @@
+.promptCard {
+  all: unset;
+  display: block;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xl);
+  font-style: italic;
+  text-align: center;
+  padding: var(--spacing-lg) var(--spacing-xl);
+  cursor: pointer;
+  flex-shrink: 0;
+  line-height: var(--line-height-relaxed);
+  user-select: none;
+  transition: opacity var(--transition-fast);
+}
+
+.promptCard:hover {
+  opacity: 0.6;
+}

@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import type { DragEvent } from "react";
 import { formatDateDisplay } from "../../utils/date";
 import { canEditNote } from "../../utils/noteRules";
+import { getPlaceholderText } from "../../utils/placeholderText";
 import { NoteEditorView } from "./NoteEditorView";
 import { useContentEditableEditor } from "./useContentEditableEditor";
 import { useSavingIndicator } from "./useSavingIndicator";
@@ -62,14 +63,13 @@ export function NoteEditor({
       : shouldShowSaving
         ? "Saving..."
         : null;
-  const placeholderText =
-    !isContentReady || isDecrypting
-      ? "Loading..."
-      : isOfflineStub
-        ? "This note can't be loaded while offline. Go online to view it."
-        : isEditable
-          ? "Write your note for today..."
-          : "No note for this day";
+  const placeholderText = getPlaceholderText({
+    isContentReady,
+    isDecrypting,
+    isOfflineStub,
+    isEditable,
+    date,
+  });
 
   const { isDraggingImage, endImageDrag } = useImageDragState();
   const weather = useWeatherContext();

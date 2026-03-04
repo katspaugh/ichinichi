@@ -336,9 +336,10 @@ describe("Local Mode User Flow", () => {
     const editor = getEditor();
     expect(editor.getAttribute("contenteditable")).toBe("true");
     expect(editor.getAttribute("aria-readonly")).toBe("false");
-    expect(editor.getAttribute("data-placeholder")).toBe(
-      "Write your note for today...",
-    );
+    // Placeholder should be a journaling prompt (not the old static text)
+    const placeholder = editor.getAttribute("data-placeholder") ?? "";
+    expect(placeholder.length).toBeGreaterThan(0);
+    expect(placeholder).not.toBe("Write your note for today...");
 
     // Verify date in header
     const today = new Date();
