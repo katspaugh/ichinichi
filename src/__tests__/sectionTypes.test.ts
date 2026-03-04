@@ -1,4 +1,5 @@
 import { extractSectionTypes, stringToHue } from "../utils/sectionTypes";
+import { sanitizeHtml } from "../utils/sanitize";
 
 describe("extractSectionTypes", () => {
   it("extracts section types from HTML", () => {
@@ -28,6 +29,13 @@ describe("extractSectionTypes", () => {
   it("handles hyphenated type names", () => {
     const html = '<div data-section-type="book-notes">+book-notes</div>';
     expect(extractSectionTypes(html)).toEqual(["book-notes"]);
+  });
+});
+
+describe("sanitizeHtml preserves section attributes", () => {
+  it("preserves data-section-type on divs", () => {
+    const html = '<div data-section-type="dream">+dream</div>';
+    expect(sanitizeHtml(html)).toBe(html);
   });
 });
 
