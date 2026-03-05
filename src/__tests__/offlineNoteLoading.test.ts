@@ -8,6 +8,8 @@ import { createE2eeService } from "../services/e2eeService";
 import { closeUnifiedDb } from "../storage/unifiedDb";
 import { getAllAccountDbNames } from "../storage/accountStore";
 import { setRemoteDatesForYear } from "../storage/remoteNoteIndexStore";
+import { createNoteEnvelopeAdapter } from "../storage/noteEnvelopeAdapter";
+import { createRemoteDateIndexAdapter } from "../storage/remoteDateIndexAdapter";
 import type {
   RemoteNotesGateway,
   RemoteNote,
@@ -120,6 +122,8 @@ async function setupCloudRepository(
   const e2eeFactory: E2eeServiceFactory = { create: createE2eeService };
 
   const crypto = createNoteCrypto(e2eeFactory.create(keyring));
+  const envelopePort = createNoteEnvelopeAdapter();
+  const remoteDateIndex = createRemoteDateIndexAdapter();
   const engine = createNoteSyncEngine(
     gateway,
     keyId,
@@ -127,9 +131,11 @@ async function setupCloudRepository(
     connectivity,
     clock,
     syncStateStore,
+    envelopePort,
+    remoteDateIndex,
   );
 
-  const repository = createSyncedNoteRepository(crypto, engine);
+  const repository = createSyncedNoteRepository(crypto, engine, envelopePort, remoteDateIndex);
 
   return { repository, gateway, keyring, vaultKey, keyId };
 }
@@ -149,6 +155,7 @@ async function setupLocalRepository(): Promise<LocalRepositorySetup> {
 
   const repository = createLocalNoteRepository(
     createNoteCrypto(e2eeFactory.create(keyring)),
+    createNoteEnvelopeAdapter(),
   );
 
   return { repository, keyring, vaultKey, keyId };

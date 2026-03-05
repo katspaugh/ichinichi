@@ -1,25 +1,20 @@
 import type { NoteCrypto } from "../crypto/noteCrypto";
-import type { RepositoryError, SyncError } from "../errors";
+import type { RepositoryError } from "../errors";
 import { ok, err, type Result } from "../result";
-import type { Note, SyncStatus } from "../../types";
+import type { Note } from "../../types";
 import { extractSectionTypes } from "../../utils/sectionTypes";
 import type { NoteRepository } from "../../storage/noteRepository";
-import type { NoteMetaRecord, NoteRecord } from "../../storage/unifiedDb";
-import {
-  getAllNoteEnvelopeStates,
-  getNoteEnvelopeState,
-} from "../../storage/unifiedNoteEnvelopeRepository";
-import { deleteNoteAndMeta, setNoteAndMeta } from "../../storage/unifiedNoteStore";
+import type { NoteMetaRecord, NoteRecord } from "./noteRecord";
+import type { NoteEnvelopePort } from "./noteEnvelopePort";
 
 export function createLocalNoteRepository(
   crypto: NoteCrypto,
+  envelopePort: NoteEnvelopePort,
 ): NoteRepository {
   return {
-    syncCapable: false,
-
     async get(date: string): Promise<Result<Note | null, RepositoryError>> {
       try {
-        const state = await getNoteEnvelopeState(date);
+        const state = await envelopePort.getState(date);
         const record = state.record;
         if (!record || record.version !== 1) {
           return ok(null);
@@ -42,7 +37,7 @@ export function createLocalNoteRepository(
 
     async save(date: string, content: string): Promise<Result<void, RepositoryError>> {
       try {
-        const state = await getNoteEnvelopeState(date);
+        const state = await envelopePort.getState(date);
         const encrypted = await crypto.encrypt(content);
         if (!encrypted.ok) return encrypted;
         const updatedAt = new Date().toISOString();
@@ -63,7 +58,7 @@ export function createLocalNoteRepository(
           lastSyncedAt: existingMeta?.lastSyncedAt ?? null,
           pendingOp: null,
         };
-        await setNoteAndMeta(record, meta);
+        await envelopePort.setNoteAndMeta(record, meta);
         return ok(undefined);
       } catch (error) {
         return err({
@@ -75,7 +70,7 @@ export function createLocalNoteRepository(
 
     async delete(date: string): Promise<Result<void, RepositoryError>> {
       try {
-        await deleteNoteAndMeta(date);
+        await envelopePort.deleteNoteAndMeta(date);
         return ok(undefined);
       } catch (error) {
         return err({
@@ -87,7 +82,7 @@ export function createLocalNoteRepository(
 
     async getAllDates(): Promise<Result<string[], RepositoryError>> {
       try {
-        const states = await getAllNoteEnvelopeStates();
+        const states = await envelopePort.getAllStates();
         return ok(
           states
             .map((state) => state.record?.date)
@@ -104,7 +99,7 @@ export function createLocalNoteRepository(
     async getAllDatesForYear(year: number): Promise<Result<string[], RepositoryError>> {
       try {
         const suffix = String(year);
-        const states = await getAllNoteEnvelopeStates();
+        const states = await envelopePort.getAllStates();
         return ok(
           states
             .map((state) => state.record?.date)
@@ -117,29 +112,6 @@ export function createLocalNoteRepository(
           message: error instanceof Error ? error.message : "Failed to get dates for year",
         });
       }
-    },
-
-    // Sync-aware no-ops
-    async refreshNote(): Promise<Result<Note | null, RepositoryError>> {
-      return ok(null);
-    },
-    async hasPendingOp(): Promise<boolean> {
-      return false;
-    },
-    async refreshDates(): Promise<void> {
-      // no-op
-    },
-    async hasRemoteDateCached(): Promise<boolean> {
-      return false;
-    },
-    async getAllLocalDates(): Promise<Result<string[], RepositoryError>> {
-      return this.getAllDates();
-    },
-    async getAllLocalDatesForYear(year: number): Promise<Result<string[], RepositoryError>> {
-      return this.getAllDatesForYear(year);
-    },
-    async sync(): Promise<Result<SyncStatus, SyncError>> {
-      return ok("idle" as SyncStatus);
     },
   };
 }

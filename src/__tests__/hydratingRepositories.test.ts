@@ -6,6 +6,8 @@ import type { Clock } from "../domain/runtime/clock";
 import type { Connectivity } from "../domain/runtime/connectivity";
 import type { SyncStateStore } from "../domain/sync/syncStateStore";
 import { createNoteSyncEngine } from "../domain/sync/noteSyncEngine";
+import { createNoteEnvelopeAdapter } from "../storage/noteEnvelopeAdapter";
+import { createRemoteDateIndexAdapter } from "../storage/remoteDateIndexAdapter";
 import { closeUnifiedDb } from "../storage/unifiedDb";
 import { getAllAccountDbNames } from "../storage/accountStore";
 import { getNoteEnvelopeState, toNoteEnvelope } from "../storage/unifiedNoteEnvelopeRepository";
@@ -134,6 +136,8 @@ describe("hydrating repositories", () => {
       connectivity,
       clock,
       syncStateStore,
+      createNoteEnvelopeAdapter(),
+      createRemoteDateIndexAdapter(),
     );
 
     await saveEnvelope({
@@ -182,6 +186,8 @@ describe("hydrating repositories", () => {
       connectivity,
       clock,
       syncStateStore,
+      createNoteEnvelopeAdapter(),
+      createRemoteDateIndexAdapter(),
     );
 
     // Save locally — creates pending upsert
@@ -255,6 +261,8 @@ describe("hydrating repositories", () => {
       connectivity,
       clock,
       syncStateStore,
+      createNoteEnvelopeAdapter(),
+      createRemoteDateIndexAdapter(),
     );
 
     // Initial save

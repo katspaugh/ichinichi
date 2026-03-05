@@ -10,24 +10,7 @@ export const IMAGE_META_STORE = "image_meta";
 export const SYNC_STATE_STORE = "sync_state";
 export const REMOTE_NOTE_INDEX_STORE = "remote_note_index";
 
-export interface NoteRecord {
-  version: 1;
-  date: string;
-  keyId: string;
-  ciphertext: string;
-  nonce: string;
-  updatedAt: string;
-}
-
-export interface NoteMetaRecord {
-  date: string;
-  revision: number;
-  serverRevision?: number;
-  remoteId?: string | null;
-  serverUpdatedAt?: string | null;
-  lastSyncedAt?: string | null;
-  pendingOp?: "upsert" | "delete" | null;
-}
+export type { NoteRecord, NoteMetaRecord } from "../domain/notes/noteRecord";
 
 export interface ImageRecord {
   version: 1;

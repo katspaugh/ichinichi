@@ -1,14 +1,15 @@
 import { ok } from "../../domain/result";
-import type { NoteRepository } from "../../storage/noteRepository";
+import type {
+  NoteRepository,
+  SyncCapableNoteRepository,
+} from "../../storage/noteRepository";
 
 /**
  * Default no-op implementations for sync-aware NoteRepository methods.
  * Spread into partial mocks to satisfy the full interface.
  */
-export const syncDefaults: Pick<
-  NoteRepository,
-  | "syncCapable"
-  | "getAllDatesForYear"
+type SyncDefaults = Pick<
+  SyncCapableNoteRepository,
   | "refreshNote"
   | "hasPendingOp"
   | "refreshDates"
@@ -16,7 +17,10 @@ export const syncDefaults: Pick<
   | "getAllLocalDates"
   | "getAllLocalDatesForYear"
   | "sync"
-> = {
+> &
+  Pick<NoteRepository, "getAllDatesForYear"> & { syncCapable: boolean };
+
+export const syncDefaults: SyncDefaults = {
   syncCapable: false,
   getAllDatesForYear: jest.fn().mockResolvedValue(ok([])),
   refreshNote: jest.fn().mockResolvedValue(ok(null)),

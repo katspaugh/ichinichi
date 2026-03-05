@@ -3,15 +3,22 @@ import { createHydratingImageRepository } from "../images/hydratingImageReposito
 import { createNoteCrypto } from "../crypto/noteCrypto";
 import type { E2eeServiceFactory } from "../crypto/e2eeService";
 import type { KeyringProvider } from "../crypto/keyring";
-import type { NoteRepository } from "../../storage/noteRepository";
+import type {
+  NoteRepository,
+  SyncCapableNoteRepository,
+} from "../../storage/noteRepository";
 import type { ImageRepository } from "../../storage/imageRepository";
 import { AppMode } from "../../types/appMode";
+import type { NoteEnvelopePort } from "./noteEnvelopePort";
+import type { RemoteDateIndexPort } from "./remoteDateIndexPort";
 
 export interface SyncedRepositoryFactories {
   createSyncedNoteRepository: (options: {
     userId: string;
     keyProvider: KeyringProvider;
-  }) => NoteRepository;
+    envelopePort: NoteEnvelopePort;
+    remoteDateIndex: RemoteDateIndexPort;
+  }) => SyncCapableNoteRepository;
   createSyncedImageRepository: (options: {
     userId: string;
     keyProvider: KeyringProvider;
@@ -23,6 +30,8 @@ interface NoteRepositoryOptions {
   mode: AppMode;
   userId: string | null;
   keyProvider: KeyringProvider;
+  envelopePort: NoteEnvelopePort;
+  remoteDateIndex: RemoteDateIndexPort;
   syncedFactories?: SyncedRepositoryFactories;
 }
 
@@ -37,19 +46,23 @@ export function createNoteRepository({
   mode,
   userId,
   keyProvider,
+  envelopePort,
+  remoteDateIndex,
   syncedFactories,
 }: NoteRepositoryOptions): NoteRepository {
   if (mode === AppMode.Cloud && userId && syncedFactories) {
     return syncedFactories.createSyncedNoteRepository({
       userId,
       keyProvider,
+      envelopePort,
+      remoteDateIndex,
     });
   }
   if (!syncedFactories) {
     throw new Error("Missing synced repository factories.");
   }
   const crypto = createNoteCrypto(syncedFactories.e2eeFactory.create(keyProvider));
-  return createLocalNoteRepository(crypto);
+  return createLocalNoteRepository(crypto, envelopePort);
 }
 
 export function createImageRepository({

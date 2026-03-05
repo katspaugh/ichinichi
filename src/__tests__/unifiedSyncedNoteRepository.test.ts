@@ -1,4 +1,6 @@
 import { createNoteSyncEngine } from "../domain/sync/noteSyncEngine";
+import { createNoteEnvelopeAdapter } from "../storage/noteEnvelopeAdapter";
+import { createRemoteDateIndexAdapter } from "../storage/remoteDateIndexAdapter";
 import { closeUnifiedDb } from "../storage/unifiedDb";
 import { getAllAccountDbNames } from "../storage/accountStore";
 import { getNoteEnvelopeState, toNoteEnvelope } from "../storage/unifiedNoteEnvelopeRepository";
@@ -149,6 +151,7 @@ describe("noteSyncEngine", () => {
 
       const engine = createNoteSyncEngine(
         gateway, "key-1", async () => undefined, connectivity, clock, syncStateStore,
+        createNoteEnvelopeAdapter(), createRemoteDateIndexAdapter(),
       );
 
       await saveEnvelope({
@@ -192,6 +195,7 @@ describe("noteSyncEngine", () => {
 
       const engine = createNoteSyncEngine(
         gateway, "key-1", async () => undefined, connectivity, clock, syncStateStore,
+        createNoteEnvelopeAdapter(), createRemoteDateIndexAdapter(),
       );
 
       await saveEnvelope({
@@ -229,6 +233,7 @@ describe("noteSyncEngine", () => {
 
       const engine = createNoteSyncEngine(
         gateway, "key-1", async () => undefined, connectivity, clock, syncStateStore,
+        createNoteEnvelopeAdapter(), createRemoteDateIndexAdapter(),
       );
 
       await saveEnvelope({
@@ -262,6 +267,7 @@ describe("noteSyncEngine", () => {
 
       const engine = createNoteSyncEngine(
         gateway, "key-1", async () => undefined, connectivity, clock, syncStateStore,
+        createNoteEnvelopeAdapter(), createRemoteDateIndexAdapter(),
       );
 
       // Save + sync to establish server link
@@ -292,6 +298,7 @@ describe("noteSyncEngine", () => {
 
       const engine = createNoteSyncEngine(
         gateway, "key-1", async () => undefined, connectivity, clock, syncStateStore,
+        createNoteEnvelopeAdapter(), createRemoteDateIndexAdapter(),
       );
 
       await saveEnvelope({
@@ -331,6 +338,7 @@ describe("noteSyncEngine", () => {
 
       const engine = createNoteSyncEngine(
         gateway, "key-1", async () => undefined, connectivity, clock, syncStateStore,
+        createNoteEnvelopeAdapter(), createRemoteDateIndexAdapter(),
       );
 
       // Save + sync to establish link
@@ -373,6 +381,7 @@ describe("noteSyncEngine", () => {
 
       const engine = createNoteSyncEngine(
         gateway, "key-1", async () => undefined, connectivity, clock, syncStateStore,
+        createNoteEnvelopeAdapter(), createRemoteDateIndexAdapter(),
       );
 
       // Save + sync to establish link, then delete locally
@@ -411,6 +420,7 @@ describe("noteSyncEngine", () => {
 
       const engine = createNoteSyncEngine(
         gateway, "key-1", async () => undefined, connectivity, clock, syncStateStore,
+        createNoteEnvelopeAdapter(), createRemoteDateIndexAdapter(),
       );
 
       await saveEnvelope({
@@ -439,6 +449,7 @@ describe("noteSyncEngine", () => {
 
       const engine = createNoteSyncEngine(
         gateway, "key-1", async () => undefined, connectivity, clock, syncStateStore,
+        createNoteEnvelopeAdapter(), createRemoteDateIndexAdapter(),
       );
 
       await engine.sync();
@@ -482,6 +493,7 @@ describe("noteSyncEngine", () => {
 
       const engine = createNoteSyncEngine(
         gateway, "key-1", async () => undefined, connectivity, clock, syncStateStore,
+        createNoteEnvelopeAdapter(), createRemoteDateIndexAdapter(),
       );
 
       // Save + sync to establish link
@@ -524,6 +536,7 @@ describe("noteSyncEngine", () => {
 
       const engine = createNoteSyncEngine(
         gateway, "key-1", async () => undefined, connectivity, clock, syncStateStore,
+        createNoteEnvelopeAdapter(), createRemoteDateIndexAdapter(),
       );
 
       const envelope = await engine.refreshEnvelope("10-01-2026");
@@ -542,6 +555,7 @@ describe("noteSyncEngine", () => {
 
       const engine = createNoteSyncEngine(
         gateway, "key-1", async () => undefined, connectivity, clock, syncStateStore,
+        createNoteEnvelopeAdapter(), createRemoteDateIndexAdapter(),
       );
 
       await saveEnvelope({
@@ -572,6 +586,7 @@ describe("noteSyncEngine", () => {
 
       const engine = createNoteSyncEngine(
         gateway, "key-1", async () => undefined, connectivity, clock, syncStateStore,
+        createNoteEnvelopeAdapter(), createRemoteDateIndexAdapter(),
       );
 
       // Save + sync to establish link (no pending after sync)
@@ -603,6 +618,7 @@ describe("noteSyncEngine", () => {
 
       const engine = createNoteSyncEngine(
         gateway, "key-1", async () => undefined, connectivity, clock, syncStateStore,
+        createNoteEnvelopeAdapter(), createRemoteDateIndexAdapter(),
       );
 
       // Save + sync → serverRevision = 1
@@ -645,6 +661,7 @@ describe("noteSyncEngine", () => {
 
     const engine = createNoteSyncEngine(
       gateway, "key-1", async () => undefined, connectivity, clock, syncStateStore,
+      createNoteEnvelopeAdapter(), createRemoteDateIndexAdapter(),
     );
 
     await Promise.all([
@@ -653,5 +670,38 @@ describe("noteSyncEngine", () => {
     ]);
 
     expect(gateway.fetchNoteDates).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not share refreshDates cooldown across engine instances", async () => {
+    const firstGateway = makeGateway();
+    const secondGateway = makeGateway();
+    const { connectivity, clock, syncStateStore } = makeDeps();
+
+    const firstEngine = createNoteSyncEngine(
+      firstGateway,
+      "key-1",
+      async () => undefined,
+      connectivity,
+      clock,
+      syncStateStore,
+      createNoteEnvelopeAdapter(),
+      createRemoteDateIndexAdapter(),
+    );
+    const secondEngine = createNoteSyncEngine(
+      secondGateway,
+      "key-1",
+      async () => undefined,
+      connectivity,
+      clock,
+      syncStateStore,
+      createNoteEnvelopeAdapter(),
+      createRemoteDateIndexAdapter(),
+    );
+
+    await firstEngine.refreshDates(2026);
+    await secondEngine.refreshDates(2026);
+
+    expect(firstGateway.fetchNoteDates).toHaveBeenCalledTimes(1);
+    expect(secondGateway.fetchNoteDates).toHaveBeenCalledTimes(1);
   });
 });

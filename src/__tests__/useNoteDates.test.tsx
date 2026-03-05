@@ -55,4 +55,42 @@ describe("useNoteDates", () => {
       expect(result.current.hasNote("05-01-2026")).toBe(false)
     );
   });
+
+  it("keeps separate state for separate hook instances", async () => {
+    const januaryRepository = {
+      ...syncDefaults,
+      syncCapable: true,
+      get: jest.fn(),
+      save: jest.fn(),
+      delete: jest.fn(),
+      getAllDates: jest.fn(),
+      getAllDatesForYear: jest.fn().mockResolvedValue(ok(["05-01-2026"])),
+      getAllLocalDatesForYear: jest.fn().mockResolvedValue(ok(["05-01-2026"])),
+      refreshDates: jest.fn().mockResolvedValue(undefined),
+    };
+    const februaryRepository = {
+      ...syncDefaults,
+      syncCapable: true,
+      get: jest.fn(),
+      save: jest.fn(),
+      delete: jest.fn(),
+      getAllDates: jest.fn(),
+      getAllDatesForYear: jest.fn().mockResolvedValue(ok(["07-02-2026"])),
+      getAllLocalDatesForYear: jest.fn().mockResolvedValue(ok(["07-02-2026"])),
+      refreshDates: jest.fn().mockResolvedValue(undefined),
+    };
+
+    const january = renderHook(() => useNoteDates(januaryRepository, 2026));
+    const february = renderHook(() => useNoteDates(februaryRepository, 2026));
+
+    await waitFor(() =>
+      expect(january.result.current.hasNote("05-01-2026")).toBe(true)
+    );
+    await waitFor(() =>
+      expect(february.result.current.hasNote("07-02-2026")).toBe(true)
+    );
+
+    expect(january.result.current.hasNote("07-02-2026")).toBe(false);
+    expect(february.result.current.hasNote("05-01-2026")).toBe(false);
+  });
 });

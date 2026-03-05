@@ -2,8 +2,7 @@ import { createStore } from "zustand/vanilla";
 import { subscribeWithSelector } from "zustand/middleware";
 import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
 import { SyncStatus } from "../types";
-import type { NoteRepository } from "../storage/noteRepository";
-import type { PendingOpsSummary, SyncService } from "../domain/sync";
+import type { PendingOpsSummary, SyncService, Syncable } from "../domain/sync";
 import {
   createSyncIntentScheduler,
   createSyncService,
@@ -38,7 +37,7 @@ export interface SyncStoreState {
 
   // Actions
   init: (config: {
-    repository: NoteRepository;
+    repository: Syncable;
     userId: string;
     supabase: SupabaseClient;
   }) => void;

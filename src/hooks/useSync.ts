@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { SyncStatus } from "../types";
-import type { NoteRepository } from "../storage/noteRepository";
-import type { PendingOpsSummary } from "../domain/sync";
+import type { PendingOpsSummary, Syncable } from "../domain/sync";
 import { syncStore } from "../stores/syncStore";
 
 interface UseSyncReturn {
@@ -30,7 +29,7 @@ function useStoreSel<T>(selector: (state: ReturnType<typeof syncStore.getState>)
 }
 
 export function useSync(
-  repository: NoteRepository | null,
+  repository: Syncable | null,
   options?: {
     enabled?: boolean;
     userId?: string | null;
@@ -41,7 +40,7 @@ export function useSync(
   const userId = options?.userId ?? null;
   const supabase = options?.supabase ?? null;
 
-  const prevRepoRef = useRef<NoteRepository | null>(null);
+  const prevRepoRef = useRef<Syncable | null>(null);
   const prevEnabledRef = useRef(false);
 
   useEffect(() => {

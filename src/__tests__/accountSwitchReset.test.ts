@@ -4,6 +4,8 @@ import { createNoteSyncEngine } from "../domain/sync/noteSyncEngine";
 import { createE2eeService } from "../services/e2eeService";
 import { closeUnifiedDb } from "../storage/unifiedDb";
 import { getAllAccountDbNames } from "../storage/accountStore";
+import { createNoteEnvelopeAdapter } from "../storage/noteEnvelopeAdapter";
+import { createRemoteDateIndexAdapter } from "../storage/remoteDateIndexAdapter";
 import type { Clock } from "../domain/runtime/clock";
 import type { Connectivity } from "../domain/runtime/connectivity";
 import type { SyncStateStore } from "../domain/sync/syncStateStore";
@@ -57,6 +59,7 @@ describe("account switch resets cloud sync state", () => {
 
     const localRepository = createLocalNoteRepository(
       createNoteCrypto(e2eeFactory.create(keyring)),
+      createNoteEnvelopeAdapter(),
     );
     await localRepository.save("05-01-2026", "Local only note");
 
@@ -93,6 +96,8 @@ describe("account switch resets cloud sync state", () => {
       connectivity,
       clock,
       syncStateStore,
+      createNoteEnvelopeAdapter(),
+      createRemoteDateIndexAdapter(),
     );
 
     await engine.sync();

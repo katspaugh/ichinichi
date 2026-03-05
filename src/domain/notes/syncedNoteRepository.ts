@@ -4,28 +4,25 @@ import type { RepositoryError } from "../errors";
 import { ok, err, type Result } from "../result";
 import type { Note } from "../../types";
 import { extractSectionTypes } from "../../utils/sectionTypes";
-import type { NoteRepository } from "../../storage/noteRepository";
-import type { NoteMetaRecord, NoteRecord } from "../../storage/unifiedDb";
-import {
-  getNoteEnvelopeState,
-} from "../../storage/unifiedNoteEnvelopeRepository";
-import {
-  setNoteAndMeta,
-  deleteNoteRecord,
-} from "../../storage/unifiedNoteStore";
-import { setNoteMeta } from "../../storage/unifiedNoteStore";
-import { deleteRemoteDate } from "../../storage/remoteNoteIndexStore";
+import type {
+  SyncCapableNoteRepository,
+} from "../../storage/noteRepository";
+import type { NoteMetaRecord, NoteRecord } from "./noteRecord";
+import type { NoteEnvelopePort } from "./noteEnvelopePort";
+import type { RemoteDateIndexPort } from "./remoteDateIndexPort";
 
 export function createSyncedNoteRepository(
   crypto: NoteCrypto,
   engine: NoteSyncEngine,
-): NoteRepository {
+  envelopePort: NoteEnvelopePort,
+  remoteDateIndex: RemoteDateIndexPort,
+): SyncCapableNoteRepository {
   return {
     syncCapable: true,
 
     async get(date: string): Promise<Result<Note | null, RepositoryError>> {
       try {
-        const state = await getNoteEnvelopeState(date);
+        const state = await envelopePort.getState(date);
         const record = state.record;
         if (!record || record.version !== 1) {
           return ok(null);
@@ -50,7 +47,7 @@ export function createSyncedNoteRepository(
       try {
         const encrypted = await crypto.encrypt(content);
         if (!encrypted.ok) return encrypted;
-        const state = await getNoteEnvelopeState(date);
+        const state = await envelopePort.getState(date);
         const existingMeta = state.meta;
         const updatedAt = new Date().toISOString();
         const record: NoteRecord = {
@@ -70,7 +67,7 @@ export function createSyncedNoteRepository(
           lastSyncedAt: existingMeta?.lastSyncedAt ?? null,
           pendingOp: "upsert",
         };
-        await setNoteAndMeta(record, meta);
+        await envelopePort.setNoteAndMeta(record, meta);
         return ok(undefined);
       } catch (error) {
         return err({
@@ -82,7 +79,7 @@ export function createSyncedNoteRepository(
 
     async delete(date: string): Promise<Result<void, RepositoryError>> {
       try {
-        const existingMeta = (await getNoteEnvelopeState(date)).meta;
+        const existingMeta = (await envelopePort.getState(date)).meta;
         const meta: NoteMetaRecord = {
           date,
           revision: (existingMeta?.revision ?? 0) + 1,
@@ -92,9 +89,9 @@ export function createSyncedNoteRepository(
           lastSyncedAt: existingMeta?.lastSyncedAt ?? null,
           pendingOp: "delete",
         };
-        await setNoteMeta(meta);
-        await deleteNoteRecord(date);
-        await deleteRemoteDate(date);
+        await envelopePort.setMeta(meta);
+        await envelopePort.deleteRecord(date);
+        await remoteDateIndex.deleteDate(date);
         return ok(undefined);
       } catch (error) {
         return err({

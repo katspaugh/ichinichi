@@ -4,6 +4,7 @@ import { createE2eeService } from "../services/e2eeService";
 import { createUnifiedImageRepository } from "../storage/unifiedImageRepository";
 import { closeUnifiedDb } from "../storage/unifiedDb";
 import { getAllAccountDbNames } from "../storage/accountStore";
+import { createNoteEnvelopeAdapter } from "../storage/noteEnvelopeAdapter";
 
 async function deleteUnifiedDb(): Promise<void> {
   closeUnifiedDb();
@@ -41,6 +42,7 @@ describe("unified storage", () => {
     };
     const repository = createLocalNoteRepository(
       createNoteCrypto(createE2eeService(keyring)),
+      createNoteEnvelopeAdapter(),
     );
 
     await repository.save("01-01-2025", "hello");
@@ -61,6 +63,7 @@ describe("unified storage", () => {
     };
     const repository = createLocalNoteRepository(
       createNoteCrypto(createE2eeService(keyring)),
+      createNoteEnvelopeAdapter(),
     );
 
     await repository.save("02-01-2025", "bye");
@@ -77,6 +80,24 @@ describe("unified storage", () => {
     if (datesResult.ok) {
       expect(datesResult.value).toEqual([]);
     }
+  });
+
+  it("does not expose sync-only methods on local note repository", async () => {
+    const vaultKey = await createVaultKey();
+    const keyring = {
+      activeKeyId: "key-1",
+      getKey: () => vaultKey,
+    };
+    const repository = createLocalNoteRepository(
+      createNoteCrypto(createE2eeService(keyring)),
+      createNoteEnvelopeAdapter(),
+    );
+
+    expect("sync" in repository).toBe(false);
+    expect("refreshNote" in repository).toBe(false);
+    expect("refreshDates" in repository).toBe(false);
+    expect("hasPendingOp" in repository).toBe(false);
+    expect("hasRemoteDateCached" in repository).toBe(false);
   });
 
   it("stores and retrieves encrypted images", async () => {

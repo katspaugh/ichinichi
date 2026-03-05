@@ -7,29 +7,12 @@ import type {
   RemoteNote,
   RemoteNotesGateway,
 } from "./remoteNotesGateway";
-import type { NoteMetaRecord, NoteRecord } from "../../storage/unifiedDb";
+import type { NoteMetaRecord, NoteRecord } from "../notes/noteRecord";
 import type { NoteEnvelope } from "../../types";
 import { SyncStatus } from "../../types";
-import {
-  setNoteAndMeta,
-  setNoteMeta,
-  deleteNoteAndMeta,
-} from "../../storage/unifiedNoteStore";
-import {
-  deleteRemoteDate,
-  getRemoteDatesForYear,
-  hasRemoteDate,
-  setRemoteDatesForYear,
-} from "../../storage/remoteNoteIndexStore";
-import {
-  getAllNoteEnvelopeStates,
-  getNoteEnvelopeState,
-  toNoteEnvelope,
-} from "../../storage/unifiedNoteEnvelopeRepository";
+import type { NoteEnvelopePort } from "../notes/noteEnvelopePort";
+import type { RemoteDateIndexPort } from "../notes/remoteDateIndexPort";
 
-// Module-level deduplication for refreshDates calls with cooldown
-const refreshDatesInFlight = new Map<number, Promise<void>>();
-const refreshDatesLastCompleted = new Map<number, number>();
 const REFRESH_DATES_COOLDOWN_MS = 2000;
 
 export interface NoteSyncEngine {
@@ -101,7 +84,11 @@ export function createNoteSyncEngine(
   connectivity: Connectivity,
   clock: Clock,
   syncStateStore: SyncStateStore,
+  envelopePort: NoteEnvelopePort,
+  remoteDateIndex: RemoteDateIndexPort,
 ): NoteSyncEngine {
+  const refreshDatesInFlight = new Map<number, Promise<void>>();
+  const refreshDatesLastCompleted = new Map<number, number>();
 
   const pushUpsert = async (
     record: NoteRecord,
@@ -141,7 +128,7 @@ export function createNoteSyncEngine(
         serverRevision: remote.revision,
         serverUpdatedAt: remote.serverUpdatedAt,
       };
-      await setNoteMeta(updatedMeta);
+      await envelopePort.setMeta(updatedMeta);
 
       const retry = await gateway.pushNote({
         id: remote.id,
@@ -169,28 +156,28 @@ export function createNoteSyncEngine(
     remote: RemoteNote,
   ): Promise<void> => {
     const now = clock.now().toISOString();
-    const currentMeta = (await getNoteEnvelopeState(date)).meta;
+    const currentMeta = (await envelopePort.getState(date)).meta;
     const newEditsOccurred =
       currentMeta && currentMeta.revision > originalMeta.revision;
 
     if (newEditsOccurred) {
       // New edits during sync — only update server metadata, keep pendingOp
-      await setNoteMeta({
+      await envelopePort.setMeta({
         ...currentMeta,
         remoteId: remote.id,
         serverRevision: remote.revision,
         serverUpdatedAt: remote.serverUpdatedAt,
       });
     } else {
-      await setNoteAndMeta(toLocalRecord(remote), toLocalMeta(remote, now));
+      await envelopePort.setNoteAndMeta(toLocalRecord(remote), toLocalMeta(remote, now));
     }
   };
 
   const pushDelete = async (meta: NoteMetaRecord): Promise<void> => {
     if (!meta.remoteId) {
       // Never synced — just delete locally
-      await deleteNoteAndMeta(meta.date);
-      await deleteRemoteDate(meta.date);
+      await envelopePort.deleteNoteAndMeta(meta.date);
+      await remoteDateIndex.deleteDate(meta.date);
       return;
     }
 
@@ -203,8 +190,8 @@ export function createNoteSyncEngine(
     });
 
     if (deleted.ok) {
-      await deleteNoteAndMeta(meta.date);
-      await deleteRemoteDate(meta.date);
+      await envelopePort.deleteNoteAndMeta(meta.date);
+      await remoteDateIndex.deleteDate(meta.date);
       return;
     }
 
@@ -218,18 +205,18 @@ export function createNoteSyncEngine(
 
     if (!remote || remote.deleted) {
       // Remote already deleted or gone — clean up locally
-      await deleteNoteAndMeta(meta.date);
-      await deleteRemoteDate(meta.date);
+      await envelopePort.deleteNoteAndMeta(meta.date);
+      await remoteDateIndex.deleteDate(meta.date);
       return;
     }
 
     // Remote exists and not deleted — cancel our delete, accept remote content
     const now = clock.now().toISOString();
-    await setNoteAndMeta(toLocalRecord(remote), toLocalMeta(remote, now));
+    await envelopePort.setNoteAndMeta(toLocalRecord(remote), toLocalMeta(remote, now));
   };
 
   const applyRemoteUpdate = async (remote: RemoteNote): Promise<void> => {
-    const state = await getNoteEnvelopeState(remote.date);
+    const state = await envelopePort.getState(remote.date);
     const localRecord = state.record;
     const localMeta = state.meta;
 
@@ -251,7 +238,7 @@ export function createNoteSyncEngine(
     if (remote.deleted) {
       if (localMeta?.pendingOp === "upsert" && localRecord) {
         // Local edit pending — keep local content, update server metadata only
-        await setNoteMeta({
+        await envelopePort.setMeta({
           ...localMeta,
           remoteId: remote.id,
           serverRevision: remote.revision,
@@ -260,14 +247,14 @@ export function createNoteSyncEngine(
         return;
       }
       // No local pending — accept deletion
-      await deleteNoteAndMeta(remote.date);
-      await deleteRemoteDate(remote.date);
+      await envelopePort.deleteNoteAndMeta(remote.date);
+      await remoteDateIndex.deleteDate(remote.date);
       return;
     }
 
     if (localMeta?.pendingOp === "upsert" && localRecord) {
       // Local edit pending — keep local content, update server metadata only
-      await setNoteMeta({
+      await envelopePort.setMeta({
         ...localMeta,
         remoteId: remote.id,
         serverRevision: remote.revision,
@@ -277,7 +264,7 @@ export function createNoteSyncEngine(
     }
 
     // No local pending — accept remote content
-    await setNoteAndMeta(toLocalRecord(remote), toLocalMeta(remote, now));
+    await envelopePort.setNoteAndMeta(toLocalRecord(remote), toLocalMeta(remote, now));
   };
 
   const sync = async (): Promise<Result<SyncStatus, SyncError>> => {
@@ -286,7 +273,7 @@ export function createNoteSyncEngine(
     }
 
     try {
-      const states = await getAllNoteEnvelopeStates();
+      const states = await envelopePort.getAllStates();
 
       // Push pending local changes
       for (const state of states) {
@@ -334,7 +321,7 @@ export function createNoteSyncEngine(
   };
 
   const getLocalDates = async (year?: number): Promise<string[]> => {
-    const states = await getAllNoteEnvelopeStates();
+    const states = await envelopePort.getAllStates();
     return states
       .map((state) => state.record?.date)
       .filter((date): date is string => Boolean(date))
@@ -347,6 +334,7 @@ export function createNoteSyncEngine(
     if (!connectivity.isOnline()) {
       return;
     }
+    const nowMs = clock.now().getTime();
     // Deduplicate concurrent calls for the same year
     const existing = refreshDatesInFlight.get(year);
     if (existing) {
@@ -356,7 +344,7 @@ export function createNoteSyncEngine(
     const lastCompleted = refreshDatesLastCompleted.get(year);
     if (
       lastCompleted &&
-      Date.now() - lastCompleted < REFRESH_DATES_COOLDOWN_MS
+      nowMs - lastCompleted < REFRESH_DATES_COOLDOWN_MS
     ) {
       return;
     }
@@ -364,12 +352,12 @@ export function createNoteSyncEngine(
       try {
         const remoteDatesResult = await gateway.fetchNoteDates(year);
         const remoteDates = unwrapOrThrow(remoteDatesResult);
-        await setRemoteDatesForYear(year, remoteDates);
+        await remoteDateIndex.setDatesForYear(year, remoteDates);
       } catch {
         return;
       } finally {
         refreshDatesInFlight.delete(year);
-        refreshDatesLastCompleted.set(year, Date.now());
+        refreshDatesLastCompleted.set(year, clock.now().getTime());
       }
     })();
     refreshDatesInFlight.set(year, promise);
@@ -383,10 +371,10 @@ export function createNoteSyncEngine(
     meta: NoteMetaRecord | null;
     envelope: NoteEnvelope | null;
   }> => {
-    const state = await getNoteEnvelopeState(date);
+    const state = await envelopePort.getState(date);
     const record = state.record;
     const meta = state.meta;
-    const envelope = record ? toNoteEnvelope(record, meta) : null;
+    const envelope = record ? envelopePort.toEnvelope(record, meta) : null;
     return { record, meta, envelope };
   };
 
@@ -421,13 +409,13 @@ export function createNoteSyncEngine(
               serverUpdatedAt:
                 remote?.serverUpdatedAt ?? localMeta.serverUpdatedAt,
             };
-            await setNoteMeta(updatedMeta);
-            return toNoteEnvelope(localRecord, updatedMeta);
+            await envelopePort.setMeta(updatedMeta);
+            return envelopePort.toEnvelope(localRecord, updatedMeta);
           }
           // No local edits — accept deletion
           if (localRecord) {
-            await deleteNoteAndMeta(date);
-            await deleteRemoteDate(date);
+            await envelopePort.deleteNoteAndMeta(date);
+            await remoteDateIndex.deleteDate(date);
           }
           return null;
         }
@@ -436,8 +424,8 @@ export function createNoteSyncEngine(
           // No local — accept remote
           const record = toLocalRecord(remote);
           const metaRecord = toLocalMeta(remote, now);
-          await setNoteAndMeta(record, metaRecord);
-          return toNoteEnvelope(record, metaRecord);
+          await envelopePort.setNoteAndMeta(record, metaRecord);
+          return envelopePort.toEnvelope(record, metaRecord);
         }
 
         if (localMeta.pendingOp === "upsert") {
@@ -448,21 +436,21 @@ export function createNoteSyncEngine(
             serverRevision: remote.revision,
             serverUpdatedAt: remote.serverUpdatedAt,
           };
-          await setNoteMeta(updatedMeta);
-          return toNoteEnvelope(localRecord, updatedMeta);
+          await envelopePort.setMeta(updatedMeta);
+          return envelopePort.toEnvelope(localRecord, updatedMeta);
         }
 
         // No local pending — accept remote content
         const record = toLocalRecord(remote);
         const metaRecord = toLocalMeta(remote, now);
-        await setNoteAndMeta(record, metaRecord);
-        return toNoteEnvelope(record, metaRecord);
+        await envelopePort.setNoteAndMeta(record, metaRecord);
+        return envelopePort.toEnvelope(record, metaRecord);
       } catch {
         return snapshot.envelope;
       }
     },
     async hasPendingOp(date: string): Promise<boolean> {
-      const state = await getNoteEnvelopeState(date);
+      const state = await envelopePort.getState(date);
       return Boolean(state.meta?.pendingOp);
     },
     async getAllDates(): Promise<string[]> {
@@ -471,7 +459,7 @@ export function createNoteSyncEngine(
     async getAllDatesForYear(year: number): Promise<string[]> {
       const localDates = await getLocalDates(year);
       try {
-        const remoteDates = await getRemoteDatesForYear(year);
+        const remoteDates = await remoteDateIndex.getDatesForYear(year);
         const merged = new Set<string>([...localDates, ...remoteDates]);
         return Array.from(merged);
       } catch {
@@ -488,7 +476,7 @@ export function createNoteSyncEngine(
       await refreshDates(year);
     },
     async hasRemoteDateCached(date: string): Promise<boolean> {
-      return await hasRemoteDate(date);
+      return await remoteDateIndex.hasDate(date);
     },
     sync,
   };

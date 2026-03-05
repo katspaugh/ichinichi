@@ -1,5 +1,8 @@
 import { createStore } from "zustand/vanilla";
-import type { NoteRepository } from "../storage/noteRepository";
+import {
+  isSyncCapableNoteRepository,
+  type NoteRepository,
+} from "../storage/noteRepository";
 import { isNoteEmpty, isContentEmpty } from "../utils/sanitize";
 import { connectivity } from "../services/connectivity";
 
@@ -284,11 +287,13 @@ export const noteContentStore = createStore<NoteContentState>()((set, get) => {
       const state = get();
       const { date, repository } = state;
       const online = connectivity.getOnline();
+      const syncRepository = isSyncCapableNoteRepository(repository)
+        ? repository
+        : null;
 
       if (
         !date ||
-        !repository ||
-        !repository.syncCapable ||
+        !syncRepository ||
         !online ||
         state.hasRefreshedForDate === date
       ) {
@@ -300,7 +305,7 @@ export const noteContentStore = createStore<NoteContentState>()((set, get) => {
       set({ isRefreshing: true });
 
       try {
-        const remoteResult = await repository.refreshNote(date);
+        const remoteResult = await syncRepository.refreshNote(date);
         if (gen !== _refreshGeneration) return; // superseded
 
         if (!remoteResult.ok) {
@@ -320,7 +325,7 @@ export const noteContentStore = createStore<NoteContentState>()((set, get) => {
         }
 
         // Re-read after await — check pending ops
-        const hasPending = await repository.hasPendingOp(date);
+        const hasPending = await syncRepository.hasPendingOp(date);
         if (gen !== _refreshGeneration) return;
         if (hasPending) {
           set({ isRefreshing: false });
@@ -362,12 +367,14 @@ export const noteContentStore = createStore<NoteContentState>()((set, get) => {
     checkRemoteCache: async () => {
       const { date, repository } = get();
       const online = connectivity.getOnline();
+      const syncRepository = isSyncCapableNoteRepository(repository)
+        ? repository
+        : null;
 
       if (
         !date ||
-        !repository ||
+        !syncRepository ||
         online ||
-        !repository.syncCapable ||
         get().content !== "" ||
         get().status !== "ready"
       ) {
@@ -375,7 +382,7 @@ export const noteContentStore = createStore<NoteContentState>()((set, get) => {
       }
 
       try {
-        const hasRemote = await repository.hasRemoteDateCached(date);
+        const hasRemote = await syncRepository.hasRemoteDateCached(date);
         // Re-read after await
         const current = get();
         if (current.date === date) {

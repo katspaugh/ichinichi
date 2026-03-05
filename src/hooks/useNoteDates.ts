@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import type { NoteRepository } from "../storage/noteRepository";
 import { useConnectivity } from "./useConnectivity";
-import { noteDatesStore } from "../stores/noteDatesStore";
+import {
+  createNoteDatesStore,
+  type NoteDatesState,
+  type NoteDatesStore,
+} from "../stores/noteDatesStore";
 
 interface UseNoteDatesReturn {
   hasNote: (date: string) => boolean;
@@ -10,11 +14,14 @@ interface UseNoteDatesReturn {
   applyNoteChange: (date: string, isEmpty: boolean) => void;
 }
 
-function useStoreSel<T>(selector: (state: ReturnType<typeof noteDatesStore.getState>) => T): T {
+function useStoreSel<T>(
+  store: NoteDatesStore,
+  selector: (state: NoteDatesState) => T,
+): T {
   return useSyncExternalStore(
-    noteDatesStore.subscribe,
-    () => selector(noteDatesStore.getState()),
-    () => selector(noteDatesStore.getState()),
+    store.subscribe,
+    () => selector(store.getState()),
+    () => selector(store.getState()),
   );
 }
 
@@ -23,7 +30,11 @@ export function useNoteDates(
   year: number,
 ): UseNoteDatesReturn {
   const online = useConnectivity();
-  const store = noteDatesStore;
+  const storeRef = useRef<NoteDatesStore | null>(null);
+  if (!storeRef.current) {
+    storeRef.current = createNoteDatesStore();
+  }
+  const store = storeRef.current;
   const prevRepoRef = useRef<NoteRepository | null>(null);
 
   // Init / update lifecycle
@@ -54,7 +65,7 @@ export function useNoteDates(
     store.getState().updateConnectivity(online);
   }, [online, store]);
 
-  const noteDates = useStoreSel((s) => s.noteDates);
+  const noteDates = useStoreSel(store, (s) => s.noteDates);
 
   const refreshNoteDates = useCallback(
     (options?: { immediate?: boolean }) => {
