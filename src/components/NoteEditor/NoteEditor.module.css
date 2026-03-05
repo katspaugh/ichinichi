@@ -70,6 +70,7 @@
   white-space: nowrap;
   flex-shrink: 0;
   margin-left: auto;
+  margin-right: -2rem;
 }
 
 .readonlyBadge {
@@ -119,13 +120,21 @@
 
 .saving {
   position: absolute;
-  top: 100%;
+  bottom: 0;
   right: 0;
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
   opacity: 0;
   visibility: hidden;
   text-align: right;
+}
+
+@media (min-width: 769px) {
+  .saving {
+    right: initial;
+    left: 0;
+    bottom: -1.5em;
+  }
 }
 
 .savingVisible {
@@ -441,6 +450,7 @@
 
   .weatherLabel {
     margin-left: 0;
+    margin-right: 0;
   }
 
   .editor {
