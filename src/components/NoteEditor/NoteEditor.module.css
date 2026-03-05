@@ -52,6 +52,12 @@
   filter: saturate(0.25) contrast(0.5) brightness(1.3);
 }
 
+.weatherLabel {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
 .readonlyBadge {
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
@@ -299,14 +305,6 @@
   max-width: calc(100% - 16px);
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.content hr[data-timestamp][data-label][data-weather]::before {
-  content: attr(data-label) " · " attr(data-weather);
-}
-
-.content hr[data-timestamp][data-weather] {
-  cursor: pointer;
 }
 
 /* Structured sections */

@@ -9,6 +9,15 @@ export interface WeatherData {
   unit: "C" | "F";
 }
 
+export interface DailyWeatherData {
+  temperatureHigh: number;
+  temperatureLow: number;
+  icon: string;
+  city: string;
+  timestamp: number;
+  unit: "C" | "F";
+}
+
 export type WeatherCacheKey = string;
 
 // WMO Weather interpretation codes to emoji icons
@@ -89,6 +98,7 @@ async function fetchGeocodingData(
 
 export class WeatherRepository {
   private cache = new Map<WeatherCacheKey, WeatherData>();
+  private dailyCache = new Map<WeatherCacheKey, DailyWeatherData>();
   private cacheExpiry = 10 * 60 * 1000; // 10 minutes
 
   private getCacheKey(
@@ -117,6 +127,7 @@ export class WeatherRepository {
 
   clearCache(): void {
     this.cache.clear();
+    this.dailyCache.clear();
   }
 
   async getCurrentWeather(
@@ -168,6 +179,62 @@ export class WeatherRepository {
         console.warn("Weather API request timed out");
       } else {
         console.warn("Failed to fetch weather:", error);
+      }
+      return null;
+    }
+  }
+
+  async getDailyWeather(
+    lat: number,
+    lon: number,
+    unitPreference: UnitPreference,
+  ): Promise<DailyWeatherData | null> {
+    try {
+      const geocoding = await fetchGeocodingData(lat, lon);
+      const unit = resolveUnitPreference(unitPreference, {
+        countryCode: geocoding.countryCode,
+      });
+
+      const dailyKey = `daily:${this.getCacheKey(lat, lon, unit)}`;
+      const cached = this.dailyCache.get(dailyKey);
+      if (cached && Date.now() - cached.timestamp < this.cacheExpiry) {
+        return cached;
+      }
+
+      const tempUnitQuery = unit === "F" ? "&temperature_unit=fahrenheit" : "";
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,temperature_2m_min,weather_code&timezone=auto&forecast_days=1${tempUnitQuery}`;
+
+      const response = await fetch(url, {
+        signal: AbortSignal.timeout(5000),
+      });
+
+      if (!response.ok) {
+        console.warn("Weather API returned error:", response.status);
+        return null;
+      }
+
+      const data = await response.json();
+      if (data.daily?.temperature_2m_max?.[0] == null) {
+        console.warn("Weather API response missing daily data");
+        return null;
+      }
+
+      const dailyData: DailyWeatherData = {
+        temperatureHigh: Math.round(data.daily.temperature_2m_max[0]),
+        temperatureLow: Math.round(data.daily.temperature_2m_min[0]),
+        icon: getWeatherIcon(data.daily.weather_code[0]),
+        city: geocoding.city,
+        timestamp: Date.now(),
+        unit,
+      };
+
+      this.dailyCache.set(dailyKey, dailyData);
+      return dailyData;
+    } catch (error) {
+      if (error instanceof Error && error.name === "TimeoutError") {
+        console.warn("Daily weather API request timed out");
+      } else {
+        console.warn("Failed to fetch daily weather:", error);
       }
       return null;
     }

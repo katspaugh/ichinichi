@@ -10,7 +10,6 @@ import { useInlineImageUpload, useInlineImageUrls } from "./useInlineImages";
 import { useImageDragState } from "./useImageDragState";
 import { useDropIndicator } from "./useDropIndicator";
 import { useShareTarget } from "../../hooks/useShareTarget";
-import { LocationPrompt } from "../LocationPrompt/LocationPrompt";
 import { useWeatherContext } from "../../contexts/weatherContext";
 
 interface NoteEditorProps {
@@ -80,13 +79,6 @@ export function NoteEditor({
     isEditable,
   });
 
-  const handleWeatherClick = useCallback(
-    (hr: HTMLHRElement) => {
-      weather.requestPreciseForHr(hr);
-    },
-    [weather],
-  );
-
   const {
     editorRef,
     handleInput,
@@ -104,26 +96,9 @@ export function NoteEditor({
     onUserInput: scheduleSavingIndicator,
     onImageDrop,
     onDropComplete: endImageDrag,
-    onWeatherClick: handleWeatherClick,
     showWeather: weatherState.showWeather,
-    applyWeatherToEditor: weather.applyWeatherToEditor,
     clearWeatherFromEditor: weather.clearWeatherFromEditor,
-    hasWeather: weather.hasWeather,
   });
-
-  const handleLocationConfirm = useCallback(async () => {
-    const applied = await weather.confirmPreciseForHr();
-    if (applied && editorRef.current) {
-      // Save content directly without triggering full input processing
-      // (which would insert a new timestamp HR)
-      onChange(editorRef.current.innerHTML);
-    }
-    return applied;
-  }, [editorRef, onChange, weather]);
-
-  const handleLocationDeny = useCallback(() => {
-    weather.dismissPrecisePrompt();
-  }, [weather]);
 
   const { indicatorPosition, updateIndicator, clearIndicator } =
     useDropIndicator({
@@ -158,33 +133,27 @@ export function NoteEditor({
   useShareTarget(onImageDrop ? handleFileInput : undefined, isEditable);
 
   return (
-    <>
-      <NoteEditorView
-        date={date}
-        formattedDate={formattedDate}
-        isEditable={isEditable}
-        showReadonlyBadge={!canEdit}
-        statusText={statusText}
-        isStatusError={hasError}
-        placeholderText={placeholderText}
-        editorRef={editorRef}
-        onInput={handleInput}
-        onPaste={handlePaste}
-        onDrop={handleDropWithIndicator}
-        onDragOver={handleDragOverWithIndicator}
-        onClick={handleClick}
-        onKeyDown={handleKeyDown}
-        onImageSelect={onImageDrop ? handleFileInput : undefined}
-        isDraggingImage={isDraggingImage}
-        dropIndicatorPosition={indicatorPosition}
-        isBlurred={isBlurred}
-        footer={null}
-      />
-      <LocationPrompt
-        isOpen={weatherState.isPromptOpen}
-        onConfirm={handleLocationConfirm}
-        onDeny={handleLocationDeny}
-      />
-    </>
+    <NoteEditorView
+      date={date}
+      formattedDate={formattedDate}
+      isEditable={isEditable}
+      showReadonlyBadge={!canEdit}
+      statusText={statusText}
+      isStatusError={hasError}
+      placeholderText={placeholderText}
+      editorRef={editorRef}
+      onInput={handleInput}
+      onPaste={handlePaste}
+      onDrop={handleDropWithIndicator}
+      onDragOver={handleDragOverWithIndicator}
+      onClick={handleClick}
+      onKeyDown={handleKeyDown}
+      onImageSelect={onImageDrop ? handleFileInput : undefined}
+      isDraggingImage={isDraggingImage}
+      dropIndicatorPosition={indicatorPosition}
+      isBlurred={isBlurred}
+      footer={null}
+      dailyWeather={weatherState.showWeather ? weatherState.dailyWeather : null}
+    />
   );
 }

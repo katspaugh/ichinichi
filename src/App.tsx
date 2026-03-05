@@ -179,7 +179,9 @@ function App() {
                     month={month}
                     hasNote={notes.hasNote}
                     onDayClick={
-                      activeVault.isVaultUnlocked ? navigateToDate : undefined
+                      activeVault.isVaultUnlocked
+                        ? isMobile ? navigateToDate : navigateToMonthDate
+                        : undefined
                     }
                     onYearChange={navigateToYear}
                     onMonthChange={handleMonthChange}

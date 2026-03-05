@@ -28,11 +28,8 @@ interface ContentEditableOptions {
     filename: string;
   }>;
   onDropComplete?: () => void;
-  onWeatherClick?: (hr: HTMLHRElement) => void;
   showWeather: boolean;
-  applyWeatherToEditor?: (editor: HTMLElement) => Promise<boolean>;
   clearWeatherFromEditor?: (editor: HTMLElement) => boolean;
-  hasWeather?: (hr: HTMLHRElement) => boolean;
 }
 
 function setCaretFromPoint(x: number, y: number): boolean {
@@ -158,11 +155,8 @@ export function useContentEditableEditor({
   onUserInput,
   onImageDrop,
   onDropComplete,
-  onWeatherClick,
   showWeather,
-  applyWeatherToEditor,
   clearWeatherFromEditor,
-  hasWeather,
 }: ContentEditableOptions) {
   const editorRef = useRef<HTMLDivElement>(null);
   const lastContentRef = useRef("");
@@ -172,12 +166,10 @@ export function useContentEditableEditor({
   const onUserInputRef = useRef(onUserInput);
   const onImageDropRef = useRef(onImageDrop);
   const onDropCompleteRef = useRef(onDropComplete);
-  const onWeatherClickRef = useRef(onWeatherClick);
   const lastUserInputRef = useRef<number | null>(null);
   const lastEditedBlockRef = useRef<Element | null>(null);
   const hasInsertedTimestampRef = useRef(false);
   const hasAutoFocusedRef = useRef(false);
-  const isWeatherEnabledRef = useRef(showWeather);
   const uploadInProgressRef = useRef(0);
 
   const syncEditorContent = useCallback(() => {
@@ -195,7 +187,6 @@ export function useContentEditableEditor({
   }, []);
 
   useEffect(() => {
-    isWeatherEnabledRef.current = showWeather;
     if (showWeather) return;
     const el = editorRef.current;
     if (!el) return;
@@ -421,8 +412,7 @@ export function useContentEditableEditor({
     onUserInputRef.current = onUserInput;
     onImageDropRef.current = onImageDrop;
     onDropCompleteRef.current = onDropComplete;
-    onWeatherClickRef.current = onWeatherClick;
-  }, [onChange, onUserInput, onImageDrop, onDropComplete, onWeatherClick]);
+  }, [onChange, onUserInput, onImageDrop, onDropComplete]);
 
   useEffect(() => {
     const el = editorRef.current;
@@ -542,11 +532,6 @@ export function useContentEditableEditor({
       }
     }
 
-    // Update pending HRs with weather using approximate location (no prompt needed)
-    if (isWeatherEnabledRef.current && applyWeatherToEditor) {
-      void applyWeatherToEditor(el);
-    }
-
     const hasText = (el.textContent ?? "").trim().length > 0;
     const hasImages = el.querySelector("img") !== null;
     const html = hasText || hasImages ? serializeEditorContent(el) : "";
@@ -559,7 +544,6 @@ export function useContentEditableEditor({
     onChangeRef.current(html);
     onUserInputRef.current?.();
   }, [
-    applyWeatherToEditor,
     insertTimestampHrIfNeeded,
     processManualHrs,
     updateEmptyState,
@@ -737,40 +721,7 @@ export function useContentEditableEditor({
       return;
     }
 
-    // Handle HR weather clicks - offer precise location
-    if (target.tagName === "HR") {
-      const hr = target as HTMLHRElement;
-      if (hasWeather?.(hr)) {
-        event.preventDefault();
-        onWeatherClickRef.current?.(hr);
-        return;
-      }
-    }
-
-    // Coordinate-based weather HR detection for mobile.
-    // On mobile browsers in contenteditable, tapping on an HR's ::before
-    // pseudo-element may not resolve the HR as the event target.
-    const el = editorRef.current;
-    if (el) {
-      const weatherHrs = el.querySelectorAll<HTMLHRElement>(
-        "hr[data-weather]",
-      );
-      for (const hr of weatherHrs) {
-        const rect = hr.getBoundingClientRect();
-        // Expand hit area to cover the ::before label above the HR line
-        if (
-          event.clientY >= rect.top - 28 &&
-          event.clientY <= rect.bottom + 8 &&
-          event.clientX >= rect.left &&
-          event.clientX <= rect.right
-        ) {
-          event.preventDefault();
-          onWeatherClickRef.current?.(hr);
-          return;
-        }
-      }
-    }
-  }, [hasWeather]);
+  }, []);
 
   const handleKeyDown = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
     if (!isEditableRef.current) return;
