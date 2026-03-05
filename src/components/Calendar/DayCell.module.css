@@ -51,6 +51,10 @@
   border-color: var(--color-primary);
 }
 
+.clickable.selected:hover {
+  background-color: var(--color-primary);
+}
+
 .selected .indicator {
   background-color: rgba(255, 255, 255, 0.9);
 }
