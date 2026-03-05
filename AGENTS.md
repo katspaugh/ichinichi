@@ -151,3 +151,14 @@ src/
 - `docs/code-search.md` — ast-grep usage + project rules
 - `docs/xstate-rules.md` — XState conventions (vault/auth)
 - `docs/agent-workflow.md` — haiku subagent pattern
+
+## Search Workflow (Low Maintenance, High Benefit)
+
+- Use `rg`/`ast-grep` first for fast lookup: "where is X fetched/encrypted/rendered."
+- Use Serena after target file is known: `get_symbols_overview` + `find_symbol` for exact bodies/call paths.
+- Use Serena for symbol-aware changes: `find_referencing_symbols`, `rename_symbol`, symbol edits.
+- Keep Serena onboarding one-time per repo/session; reuse memories.
+- Batch Serena queries when possible; avoid many tiny sequential calls.
+- Default policy quick locate: `rg`/`ast-grep`.
+- Default policy confirm logic/call graph: Serena.
+- Default policy multi-file safe symbol refactor: Serena.

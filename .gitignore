@@ -36,3 +36,4 @@ dist-ssr
 .claude
 .worktrees/
 .grepai/
+/.serena/
