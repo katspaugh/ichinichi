@@ -29,9 +29,9 @@
 
 .header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  margin-bottom: var(--spacing-xl);
+  margin-bottom: var(--spacing-sm);
   gap: var(--spacing-md);
 }
 
@@ -64,7 +64,6 @@
   color: var(--color-text-secondary);
   white-space: nowrap;
   flex-shrink: 0;
-  padding-top: var(--spacing-xs);
 }
 
 .readonlyBadge {
