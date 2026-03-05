@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import type { DragEvent } from "react";
-import { formatDateDisplay } from "../../utils/date";
+import { formatDateDisplay, isToday } from "../../utils/date";
 import { canEditNote } from "../../utils/noteRules";
 import { getPlaceholderText } from "../../utils/placeholderText";
 import { NoteEditorView } from "./NoteEditorView";
@@ -153,7 +153,7 @@ export function NoteEditor({
       dropIndicatorPosition={indicatorPosition}
       isBlurred={isBlurred}
       footer={null}
-      dailyWeather={weatherState.showWeather ? weatherState.dailyWeather : null}
+      dailyWeather={weatherState.showWeather && isToday(date) ? weatherState.dailyWeather : null}
     />
   );
 }
