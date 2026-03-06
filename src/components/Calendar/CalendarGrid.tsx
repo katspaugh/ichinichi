@@ -3,7 +3,6 @@ import styles from "./Calendar.module.css";
 
 interface CalendarGridProps {
   year: number;
-  month: number | null;
   hasNote: (date: string) => boolean;
   onDayClick?: (date: string) => void;
   onMonthClick?: (year: number, month: number) => void;
@@ -15,7 +14,6 @@ interface CalendarGridProps {
 
 export function CalendarGrid({
   year,
-  month,
   hasNote,
   onDayClick,
   onMonthClick,
@@ -24,15 +22,10 @@ export function CalendarGrid({
   now,
   gridRef,
 }: CalendarGridProps) {
-  const months =
-    month == null ? Array.from({ length: 12 }, (_, i) => i) : [month];
+  const months = Array.from({ length: 12 }, (_, i) => i);
 
   return (
-    <div
-      ref={gridRef}
-      className={styles.grid}
-      data-month-view={month != null ? "true" : undefined}
-    >
+    <div ref={gridRef} className={styles.grid}>
       {months.map((monthIndex) => (
         <MonthGrid
           key={monthIndex}
@@ -41,7 +34,7 @@ export function CalendarGrid({
           hasNote={hasNote}
           onDayClick={onDayClick}
           onMonthClick={onMonthClick}
-          selectedDate={month != null ? selectedDate : undefined}
+          selectedDate={selectedDate}
           onWeekStartChange={onWeekStartChange}
           now={now}
         />

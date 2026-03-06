@@ -3,12 +3,13 @@ import { ErrorBoundary } from "../ErrorBoundary";
 import { NavigationArrow } from "../NavigationArrow";
 import { NoteEditor } from "../NoteEditor";
 import { MonthGrid } from "./MonthGrid";
-import { PromptCard } from "./PromptCard";
-import styles from "./MonthViewLayout.module.css";
+import { useOverscrollNavigation } from "../../hooks/useOverscrollNavigation";
+
+import styles from "./DayViewLayout.module.css";
 
 const BLUR_INACTIVITY_MS = 2 * 60 * 1000; // 2 minutes
 
-interface MonthViewLayoutProps {
+interface DayViewLayoutProps {
   // Month grid props
   year: number;
   month: number;
@@ -73,7 +74,7 @@ function usePrivacyBlur() {
   return { isBlurred, resetBlur: useCallback(() => setIsBlurred(true), []) };
 }
 
-export function MonthViewLayout({
+export function DayViewLayout({
   year,
   month,
   hasNote,
@@ -93,8 +94,14 @@ export function MonthViewLayout({
   isContentReady,
   isOfflineStub,
   noteError,
-}: MonthViewLayoutProps) {
+}: DayViewLayoutProps) {
   const { isBlurred, resetBlur } = usePrivacyBlur();
+  const [layoutEl, setLayoutEl] = useState<HTMLDivElement | null>(null);
+
+  useOverscrollNavigation(layoutEl, {
+    onOverscrollUp: canNavigatePrev ? onNavigatePrev : undefined,
+    onOverscrollDown: canNavigateNext ? onNavigateNext : undefined,
+  });
 
   // Reset blur when clicking a different day
   const handleDayClick = useCallback(
@@ -106,7 +113,7 @@ export function MonthViewLayout({
   );
 
   return (
-    <div className={styles.layout}>
+    <div className={styles.layout} ref={setLayoutEl}>
       <div className={styles.monthGridPane}>
         <div className={styles.monthGridWrap}>
           <MonthGrid
@@ -114,7 +121,7 @@ export function MonthViewLayout({
             month={month}
             hasNote={hasNote}
             onDayClick={handleDayClick}
-            showMonthView={true}
+            isDetailView
             selectedDate={selectedDate}
             onWeekStartChange={onWeekStartChange}
             now={now}
@@ -136,7 +143,6 @@ export function MonthViewLayout({
           />
         </div>
 
-        <PromptCard />
       </div>
 
       <div className={styles.editorPane}>

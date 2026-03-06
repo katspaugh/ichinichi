@@ -1,5 +1,7 @@
 import { parseDate } from "../../utils/date";
 import { getMoonPhaseEmoji, getMoonPhaseName } from "../../utils/moonPhase";
+import { formatDailyWeatherLabel } from "../../features/weather/WeatherDom";
+import type { DailyWeatherData } from "../../features/weather/WeatherRepository";
 import styles from "./NoteEditor.module.css";
 
 interface NoteEditorHeaderProps {
@@ -8,7 +10,7 @@ interface NoteEditorHeaderProps {
   showReadonlyBadge: boolean;
   statusText: string | null;
   isStatusError?: boolean;
-  onClose?: () => void;
+  dailyWeather?: DailyWeatherData | null;
 }
 
 export function NoteEditorHeader({
@@ -17,6 +19,7 @@ export function NoteEditorHeader({
   showReadonlyBadge,
   statusText,
   isStatusError = false,
+  dailyWeather,
 }: NoteEditorHeaderProps) {
   const parsed = parseDate(date);
   const moonEmoji = parsed ? getMoonPhaseEmoji(parsed) : "";
@@ -29,22 +32,28 @@ export function NoteEditorHeader({
           {moonEmoji && <><span className={styles.moonEmoji} title={moonTitle}>{moonEmoji}</span> </>}
           {formattedDate}
         </span>
+        {dailyWeather && (
+          <span className={styles.weatherLabel}>
+            {formatDailyWeatherLabel(dailyWeather)}
+          </span>
+        )}
         {showReadonlyBadge && (
           <span className={styles.readonlyBadge}>Read only</span>
         )}
       </div>
-      <span
-        className={[
-          styles.saving,
-          statusText ? styles.savingVisible : "",
-          isStatusError ? styles.savingError : "",
-        ]
-          .filter(Boolean)
-          .join(" ")}
-        aria-live="polite"
-      >
-        {statusText ?? ""}
-      </span>
+      {statusText && (
+        <span
+          className={[
+            styles.status,
+            isStatusError ? styles.statusError : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+          aria-live="polite"
+        >
+          {statusText}
+        </span>
+      )}
     </div>
   );
 }

@@ -1,16 +1,15 @@
 import { useCallback, useState } from "react";
 import { CalendarHeader } from "./CalendarHeader";
-import { MonthViewLayout } from "./MonthViewLayout";
-import { useNoteNavigation } from "../../hooks/useNoteNavigation";
+import { DayViewLayout } from "./DayViewLayout";
+import { useMonthViewState } from "../../hooks/useMonthViewState";
 import { useNoteKeyboardNav } from "../../hooks/useNoteKeyboardNav";
 import type { SyncStatus } from "../../types";
 import type { PendingOpsSummary } from "../../domain/sync";
+import { parseDate } from "../../utils/date";
 import styles from "./Calendar.module.css";
 
-interface MonthViewProps {
-  year: number;
-  month: number;
-  monthDate: string | null;
+interface DayViewProps {
+  date: string;
   noteDates: Set<string>;
   hasNote: (date: string) => boolean;
   onDayClick: (date: string) => void;
@@ -37,10 +36,8 @@ interface MonthViewProps {
   weekStartVersion?: number;
 }
 
-export function MonthView({
-  year,
-  month,
-  monthDate,
+export function DayView({
+  date,
   noteDates,
   hasNote,
   onDayClick,
@@ -63,25 +60,32 @@ export function MonthView({
   onSyncClick,
   now,
   weekStartVersion,
-}: MonthViewProps) {
+}: DayViewProps) {
   const [, setWeekStartVersion] = useState(0);
+  const parsedDate = parseDate(date);
 
-  // Keyboard navigation for notes (arrow left/right)
+  if (!parsedDate) {
+    throw new Error(`DayView requires valid date, got: ${date}`);
+  }
+
+  const year = parsedDate.getFullYear();
+  const month = parsedDate.getMonth();
+
   const {
-    canNavigatePrev,
-    canNavigateNext,
-    navigateToPrevious,
-    navigateToNext,
-  } = useNoteNavigation({
-    currentDate: monthDate,
+    canSelectPrevious,
+    canSelectNext,
+    selectPreviousNote,
+    selectNextNote,
+  } = useMonthViewState({
+    date,
     noteDates,
-    onNavigate: onDayClick,
+    navigateToDate: onDayClick,
   });
 
   useNoteKeyboardNav({
-    enabled: monthDate !== null && !isDecrypting,
-    onPrevious: navigateToPrevious,
-    onNext: navigateToNext,
+    enabled: !isDecrypting,
+    onPrevious: selectPreviousNote,
+    onNext: selectNextNote,
     contentEditableSelector: '[data-note-editor="content"]',
   });
 
@@ -98,6 +102,7 @@ export function MonthView({
       <CalendarHeader
         year={year}
         month={month}
+        hideNavOnMobile
         onYearChange={onYearChange}
         onMonthChange={onMonthChange}
         onReturnToYear={onReturnToYear}
@@ -109,16 +114,16 @@ export function MonthView({
         onSignIn={onSignIn}
         onSyncClick={onSyncClick}
       />
-      <MonthViewLayout
+      <DayViewLayout
         year={year}
         month={month}
         hasNote={hasNote}
-        selectedDate={monthDate}
+        selectedDate={date}
         onDayClick={onDayClick}
-        canNavigatePrev={canNavigatePrev}
-        canNavigateNext={canNavigateNext}
-        onNavigatePrev={navigateToPrevious}
-        onNavigateNext={navigateToNext}
+        canNavigatePrev={canSelectPrevious}
+        canNavigateNext={canSelectNext}
+        onNavigatePrev={selectPreviousNote}
+        onNavigateNext={selectNextNote}
         onWeekStartChange={handleWeekStartChange}
         now={now}
         content={content}

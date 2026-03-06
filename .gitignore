@@ -33,6 +33,7 @@ dist-ssr
 
 # Test environment files
 .env.test
-.claude/worktrees/
+.claude
 .worktrees/
 .grepai/
+/.serena/

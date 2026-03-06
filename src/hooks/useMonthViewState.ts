@@ -1,13 +1,10 @@
-import { useCallback, useEffect } from "react";
-import { getTodayString, parseDate } from "../utils/date";
+import { useCallback } from "react";
+import { parseDate } from "../utils/date";
 
 interface UseMonthViewStateProps {
-  enabled: boolean;
-  year: number;
-  month: number;
-  monthDate: string | null;
+  date: string;
   noteDates: Set<string>;
-  navigateToMonthDate: (date: string) => void;
+  navigateToDate: (date: string) => void;
 }
 
 /**
@@ -40,92 +37,56 @@ function getNotesInMonth(
   });
 }
 
-/**
- * Hook for managing month view state including auto-selection of dates.
- *
- * Auto-select rules:
- * - Current month: select today
- * - Other months: select the last note in that month
- * - If no notes in month: no auto-select
- */
 export function useMonthViewState({
-  enabled,
-  year,
-  month,
-  monthDate,
+  date,
   noteDates,
-  navigateToMonthDate,
+  navigateToDate,
 }: UseMonthViewStateProps) {
-  // Determine if we're viewing the current month
-  const now = new Date();
-  const isCurrentMonth = year === now.getFullYear() && month === now.getMonth();
-
-  // Get today's date string
-  const todayStr = getTodayString();
-
-  // Get notes in the current month view
+  const parsedDate = parseDate(date);
+  const year = parsedDate?.getFullYear() ?? new Date().getFullYear();
+  const month = parsedDate?.getMonth() ?? new Date().getMonth();
   const notesInMonth = getNotesInMonth(noteDates, year, month);
 
-  // Auto-select: if no date selected, pick today (current month) or last note (other months)
-  useEffect(() => {
-    if (!enabled || monthDate) {
-      return;
-    }
-
-    if (isCurrentMonth) {
-      navigateToMonthDate(todayStr);
-    } else if (notesInMonth.length > 0) {
-      navigateToMonthDate(notesInMonth[notesInMonth.length - 1]);
-    }
-  }, [enabled, monthDate, isCurrentMonth, todayStr, notesInMonth, navigateToMonthDate]);
-
-  // Navigate to a specific date within the month
   const selectDate = useCallback(
-    (date: string) => {
-      navigateToMonthDate(date);
+    (nextDate: string) => {
+      navigateToDate(nextDate);
     },
-    [navigateToMonthDate],
+    [navigateToDate],
   );
 
-  // Navigate to previous note in month
   const selectPreviousNote = useCallback(() => {
-    if (!monthDate || notesInMonth.length === 0) return;
+    if (notesInMonth.length === 0) return;
 
-    const currentIndex = notesInMonth.indexOf(monthDate);
+    const currentIndex = notesInMonth.indexOf(date);
     if (currentIndex > 0) {
-      navigateToMonthDate(notesInMonth[currentIndex - 1]);
+      navigateToDate(notesInMonth[currentIndex - 1]);
     }
-  }, [monthDate, notesInMonth, navigateToMonthDate]);
+  }, [date, notesInMonth, navigateToDate]);
 
-  // Navigate to next note in month
   const selectNextNote = useCallback(() => {
-    if (!monthDate || notesInMonth.length === 0) return;
+    if (notesInMonth.length === 0) return;
 
-    const currentIndex = notesInMonth.indexOf(monthDate);
+    const currentIndex = notesInMonth.indexOf(date);
     if (currentIndex >= 0 && currentIndex < notesInMonth.length - 1) {
-      navigateToMonthDate(notesInMonth[currentIndex + 1]);
+      navigateToDate(notesInMonth[currentIndex + 1]);
     }
-  }, [monthDate, notesInMonth, navigateToMonthDate]);
+  }, [date, notesInMonth, navigateToDate]);
 
-  // Check navigation boundaries
   const canSelectPrevious =
-    monthDate !== null &&
-    notesInMonth.length > 0 &&
-    notesInMonth.indexOf(monthDate) > 0;
+    notesInMonth.length > 0 && notesInMonth.indexOf(date) > 0;
 
   const canSelectNext =
-    monthDate !== null &&
     notesInMonth.length > 0 &&
-    notesInMonth.indexOf(monthDate) < notesInMonth.length - 1;
+    notesInMonth.indexOf(date) < notesInMonth.length - 1 &&
+    notesInMonth.indexOf(date) !== -1;
 
   return {
-    selectedDate: monthDate,
+    selectedDate: date,
     notesInMonth,
     selectDate,
     selectPreviousNote,
     selectNextNote,
     canSelectPrevious,
     canSelectNext,
-    isCurrentMonth,
   };
 }

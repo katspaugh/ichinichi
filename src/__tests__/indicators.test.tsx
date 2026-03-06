@@ -47,7 +47,7 @@ describe("SyncIndicator component", () => {
 
     const indicator = container.querySelector("span");
     expect(indicator).toBeTruthy();
-    expect(indicator?.style.visibility).toBe("hidden");
+    expect(indicator?.className).toContain("hidden");
   });
 
   it("should render 'Sync needed' when status is Idle but has pending ops", () => {

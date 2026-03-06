@@ -8,6 +8,12 @@ interface OverscrollHandlers {
 const TRIGGER_THRESHOLD = 100;
 const RESISTANCE = 0.3;
 
+/**
+ * Overscroll pull-to-navigate on a page-level scrolling element.
+ *
+ * Reads scroll position from window (page scroll) and applies
+ * the visual pull transform to the provided element.
+ */
 export function useOverscrollNavigation(
   el: HTMLElement | null,
   { onOverscrollUp, onOverscrollDown }: OverscrollHandlers,
@@ -19,9 +25,11 @@ export function useOverscrollNavigation(
   useEffect(() => {
     if (!el) return;
 
-    const isAtTop = () => el.scrollTop <= 0;
+    const doc = document.documentElement;
+
+    const isAtTop = () => window.scrollY <= 0;
     const isAtBottom = () =>
-      el.scrollTop + el.clientHeight >= el.scrollHeight - 1;
+      window.scrollY + window.innerHeight >= doc.scrollHeight - 1;
 
     const resetTransform = () => {
       el.style.transition = "transform 200ms ease-out";
@@ -56,9 +64,11 @@ export function useOverscrollNavigation(
       const b = atBoundary.current;
 
       if ((b === "top" || b === "both") && dy > 0) {
+        e.preventDefault();
         pulling.current = true;
         el.style.transform = `translateY(${dy * RESISTANCE}px)`;
       } else if ((b === "bottom" || b === "both") && dy < 0) {
+        e.preventDefault();
         pulling.current = true;
         el.style.transform = `translateY(${dy * RESISTANCE}px)`;
       } else if (pulling.current) {
@@ -81,20 +91,26 @@ export function useOverscrollNavigation(
       resetTransform();
 
       if ((b === "top" || b === "both") && dy > TRIGGER_THRESHOLD) {
+        window.scrollTo(0, 0);
         onOverscrollUp?.();
-      } else if ((b === "bottom" || b === "both") && dy < -TRIGGER_THRESHOLD) {
+      } else if (
+        (b === "bottom" || b === "both") &&
+        dy < -TRIGGER_THRESHOLD
+      ) {
+        window.scrollTo(0, 0);
         onOverscrollDown?.();
       }
     };
 
-    el.addEventListener("touchstart", handleTouchStart, { passive: true });
-    el.addEventListener("touchmove", handleTouchMove, { passive: true });
-    el.addEventListener("touchend", handleTouchEnd, { passive: true });
+    window.addEventListener("touchstart", handleTouchStart, { passive: true });
+    // Non-passive so we can preventDefault to block pull-to-refresh
+    window.addEventListener("touchmove", handleTouchMove, { passive: false });
+    window.addEventListener("touchend", handleTouchEnd, { passive: true });
 
     return () => {
-      el.removeEventListener("touchstart", handleTouchStart);
-      el.removeEventListener("touchmove", handleTouchMove);
-      el.removeEventListener("touchend", handleTouchEnd);
+      window.removeEventListener("touchstart", handleTouchStart);
+      window.removeEventListener("touchmove", handleTouchMove);
+      window.removeEventListener("touchend", handleTouchEnd);
     };
   }, [el, onOverscrollUp, onOverscrollDown]);
 }

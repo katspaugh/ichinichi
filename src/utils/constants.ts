@@ -16,5 +16,4 @@ export const LOCAL_AI_ENABLED_KEY = `${STORAGE_PREFIX}local_ai_enabled_v1`;
 export const URL_PARAMS = {
   DATE: "date",
   YEAR: "year",
-  MONTH: "month",
 } as const;

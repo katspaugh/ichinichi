@@ -50,7 +50,7 @@ export function SyncIndicator({
 
   // Always render to maintain consistent layout
   if (!label) {
-    return <span className={styles.indicator} style={{ visibility: "hidden" }}>Synced</span>;
+    return <span className={`${styles.indicator} ${styles.hidden}`}>Synced</span>;
   }
 
   const classSuffix =

@@ -40,7 +40,7 @@ interface MonthGridProps {
   hasNote: (date: string) => boolean;
   onDayClick?: (date: string) => void;
   onMonthClick?: (year: number, month: number) => void;
-  showMonthView?: boolean;
+  isDetailView?: boolean;
   selectedDate?: string | null;
   onWeekStartChange?: () => void;
   now?: Date;
@@ -52,7 +52,7 @@ export function MonthGrid({
   hasNote,
   onDayClick,
   onMonthClick,
-  showMonthView = false,
+  isDetailView = false,
   selectedDate = null,
   onWeekStartChange,
   now,
@@ -65,10 +65,10 @@ export function MonthGrid({
     year === resolvedNow.getFullYear() && month === resolvedNow.getMonth();
 
   const handleMonthClick = useCallback(() => {
-    if (!showMonthView && onMonthClick) {
+    if (!isDetailView && onMonthClick) {
       onMonthClick(year, month);
     }
-  }, [showMonthView, onMonthClick, year, month]);
+  }, [isDetailView, onMonthClick, year, month]);
 
   const weeks = computeWeeks(year, month);
 
@@ -77,9 +77,9 @@ export function MonthGrid({
     <div
       className={styles.monthGrid}
       data-current-month={isCurrentMonth ? "true" : undefined}
-      data-month-view={showMonthView ? "true" : undefined}
+      data-month-view={isDetailView ? "true" : undefined}
     >
-      {!showMonthView && (
+      {!isDetailView && (
         <div className={styles.headerWrap}>
           <button
             className={styles.headerButton}

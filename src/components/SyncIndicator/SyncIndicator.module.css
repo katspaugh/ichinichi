@@ -17,6 +17,10 @@
   cursor: default;
 }
 
+.hidden {
+  visibility: hidden;
+}
+
 button.indicator {
   cursor: pointer;
   transition: all var(--transition-fast);

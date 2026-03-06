@@ -151,3 +151,26 @@ src/
 - `docs/code-search.md` — ast-grep usage + project rules
 - `docs/xstate-rules.md` — XState conventions (vault/auth)
 - `docs/agent-workflow.md` — haiku subagent pattern
+
+## Search Workflow
+
+- Use `rg`/`ast-grep` first for fast lookup: "where is X fetched/encrypted/rendered."
+- Use `typescript-language-server` (LSP) for type-aware navigation: call hierarchy, find references, go-to-definition across files, hover for type info.
+- Default policy quick locate: `rg`/`ast-grep`.
+- Default policy confirm logic/call graph: LSP (`incomingCalls`, `findReferences`, `goToDefinition`).
+- Default policy multi-file safe symbol refactor: LSP (`findReferences`, `goToImplementation`).
+
+### When to use typescript-language-server (LSP)
+
+- Tracing call chains across multiple files (incomingCalls/outgoingCalls)
+- Finding all references to a symbol (type-aware, not just text matching)
+- Go-to-definition through re-exports, interfaces, and type aliases
+- Getting type information on hover
+- Listing all symbols in a file (documentSymbol) or workspace (workspaceSymbol)
+
+### When NOT to use typescript-language-server
+
+- Simple text/pattern searches — `rg` is faster
+- Structural code pattern matching — `ast-grep` is faster
+- One-off grep for a string literal — LSP is overkill
+- Non-TypeScript files — LSP won't help

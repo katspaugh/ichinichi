@@ -243,8 +243,9 @@ async function typeInEditor(text: string) {
   fireEvent.input(editor);
 }
 
-async function closeNoteModal() {
-  fireEvent.keyDown(document.body, { key: "Escape" });
+async function returnToYearView() {
+  const returnButton = screen.getByLabelText("Return to year view");
+  fireEvent.click(returnButton);
   await waitFor(
     () => {
       expect(screen.queryByRole("textbox")).toBeNull();
@@ -360,8 +361,8 @@ describe("Local Mode User Flow", () => {
       await new Promise((r) => setTimeout(r, SAVE_IDLE_DELAY_MS + 100));
     });
 
-    // Close modal with Escape
-    await closeNoteModal();
+    // Return to year view
+    await returnToYearView();
 
     // ===== PART 5: Verify Persistence =====
     // Back at calendar
@@ -386,14 +387,14 @@ describe("Local Mode User Flow", () => {
       await new Promise((r) => setTimeout(r, SAVE_IDLE_DELAY_MS + 100));
     });
 
-    await closeNoteModal();
+    await returnToYearView();
 
     // Verify updated content persists
     await clickTodayCell();
     await waitForEditorReady();
     expect(getEditor().innerHTML).toContain("And more content.");
 
-    await closeNoteModal();
+    await returnToYearView();
   });
 });
 

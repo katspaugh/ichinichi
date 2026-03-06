@@ -8,6 +8,7 @@ import styles from "./Calendar.module.css";
 interface CalendarHeaderProps {
   year: number;
   month: number | null;
+  hideNavOnMobile?: boolean;
   onYearChange: (year: number) => void;
   onMonthChange?: (year: number, month: number) => void;
   onReturnToYear?: () => void;
@@ -23,6 +24,7 @@ interface CalendarHeaderProps {
 export function CalendarHeader({
   year,
   month,
+  hideNavOnMobile,
   onYearChange,
   onMonthChange,
   onReturnToYear,
@@ -36,6 +38,7 @@ export function CalendarHeader({
 }: CalendarHeaderProps) {
   return (
     <Header
+      hideNavOnMobile={hideNavOnMobile}
       syncStatus={syncStatus}
       syncError={syncError}
       pendingOps={pendingOps}

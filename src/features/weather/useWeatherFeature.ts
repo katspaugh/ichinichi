@@ -1,12 +1,7 @@
-import { useCallback, useMemo, useReducer, useRef } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
 import { LocationProvider } from "./LocationProvider";
-import { WeatherRepository } from "./WeatherRepository";
-import {
-  applyWeatherToHr,
-  clearWeatherFromEditor,
-  getPendingWeatherHrs,
-  hasWeather,
-} from "./WeatherDom";
+import { WeatherRepository, type DailyWeatherData } from "./WeatherRepository";
+import { clearWeatherFromEditor } from "./WeatherDom";
 import {
   getLocationCoords,
   getLocationKind,
@@ -29,6 +24,7 @@ interface WeatherState {
   locationLabel: string | null;
   locationKind: LocationKind | null;
   isPromptOpen: boolean;
+  dailyWeather: DailyWeatherData | null;
 }
 
 type WeatherAction =
@@ -39,7 +35,8 @@ type WeatherAction =
       label: string | null;
       kind: LocationKind | null;
     }
-  | { type: "SET_PROMPT_OPEN"; value: boolean };
+  | { type: "SET_PROMPT_OPEN"; value: boolean }
+  | { type: "SET_DAILY_WEATHER"; value: DailyWeatherData | null };
 
 function weatherReducer(state: WeatherState, action: WeatherAction): WeatherState {
   switch (action.type) {
@@ -55,6 +52,8 @@ function weatherReducer(state: WeatherState, action: WeatherAction): WeatherStat
       };
     case "SET_PROMPT_OPEN":
       return { ...state, isPromptOpen: action.value };
+    case "SET_DAILY_WEATHER":
+      return { ...state, dailyWeather: action.value };
     default:
       return state;
   }
@@ -70,7 +69,7 @@ function formatApproxLabel(city: string, country: string): string {
 export function useWeatherFeature() {
   const locationProvider = useMemo(() => new LocationProvider(), []);
   const weatherRepository = useMemo(() => new WeatherRepository(), []);
-  const pendingHrRef = useRef<HTMLHRElement | null>(null);
+  const fetchedRef = useRef(false);
 
   const [state, dispatch] = useReducer(weatherReducer, undefined, () => ({
     showWeather: getShowWeatherPreference(),
@@ -78,6 +77,7 @@ export function useWeatherFeature() {
     locationLabel: getLocationLabel(),
     locationKind: getLocationKind(),
     isPromptOpen: false,
+    dailyWeather: null,
   }));
 
   const commitLocation = useCallback(
@@ -101,6 +101,9 @@ export function useWeatherFeature() {
   const setShowWeather = useCallback((value: boolean) => {
     setShowWeatherPreference(value);
     dispatch({ type: "SET_SHOW_WEATHER", value });
+    if (!value) {
+      dispatch({ type: "SET_DAILY_WEATHER", value: null });
+    }
   }, []);
 
   const setUnitPreferenceValue = useCallback((value: UnitPreference) => {
@@ -108,147 +111,67 @@ export function useWeatherFeature() {
     dispatch({ type: "SET_UNIT_PREFERENCE", value });
   }, []);
 
+  const fetchDailyWeather = useCallback(async () => {
+    if (!state.showWeather) return;
+
+    let lat: number | null = null;
+    let lon: number | null = null;
+
+    const stored = getLocationCoords();
+    if (stored) {
+      lat = stored.lat;
+      lon = stored.lon;
+    }
+
+    if (lat === null || lon === null) {
+      const approx = await locationProvider.getApproxLocation();
+      if (!approx) return;
+      lat = approx.lat;
+      lon = approx.lon;
+      const label = formatApproxLabel(approx.city, approx.country);
+      commitLocation(label || null, "approx", { lat, lon });
+    }
+
+    const weather = await weatherRepository.getDailyWeather(
+      lat,
+      lon,
+      state.unitPreference,
+    );
+    if (weather) {
+      dispatch({ type: "SET_DAILY_WEATHER", value: weather });
+    }
+  }, [commitLocation, locationProvider, state.showWeather, state.unitPreference, weatherRepository]);
+
+  // Fetch daily weather on mount
+  useEffect(() => {
+    if (fetchedRef.current) return;
+    fetchedRef.current = true;
+    void fetchDailyWeather();
+  }, [fetchDailyWeather]);
+
   const refreshLocation = useCallback(async () => {
     const precise = await locationProvider.getPreciseLocation();
     if (!precise) return;
 
     const coords = { lat: precise.lat, lon: precise.lon };
-    const weather = await weatherRepository.getCurrentWeather(
+    const weather = await weatherRepository.getDailyWeather(
       precise.lat,
       precise.lon,
       state.unitPreference,
     );
 
-    if (weather?.city) {
-      commitLocation(weather.city, "precise", coords);
-      return;
-    }
-
-    commitLocation(state.locationLabel, "precise", coords);
-  }, [commitLocation, locationProvider, state.locationLabel, state.unitPreference, weatherRepository]);
-
-  const applyWeatherToEditor = useCallback(
-    async (editor: HTMLElement): Promise<boolean> => {
-      if (!state.showWeather) return false;
-      if (!editor.isConnected) return false;
-
-      const pending = getPendingWeatherHrs(editor);
-      if (pending.length === 0) return false;
-
-      let lat: number | null = null;
-      let lon: number | null = null;
-
-      // Use cached coordinates from last successful location (precise or approx).
-      // Never call getPreciseLocation() here — geolocation should only be
-      // triggered by explicit user action (HR click or sidebar refresh).
-      const stored = getLocationCoords();
-      if (stored) {
-        lat = stored.lat;
-        lon = stored.lon;
-      }
-
-      // Fall back to approximate location from timezone heuristic (first-time only)
-      if (lat === null || lon === null) {
-        const approx = await locationProvider.getApproxLocation();
-        if (!approx) return false;
-        lat = approx.lat;
-        lon = approx.lon;
-        const label = formatApproxLabel(approx.city, approx.country);
-        commitLocation(label || null, "approx", { lat, lon });
-      }
-
-      const weather = await weatherRepository.getCurrentWeather(
-        lat,
-        lon,
-        state.unitPreference,
-      );
-      if (!weather || !editor.isConnected) return false;
-
-      for (const hr of pending) {
-        applyWeatherToHr(hr, weather);
-      }
-      return true;
-    },
-    [
-      commitLocation,
-      locationProvider,
-      state.showWeather,
-      state.unitPreference,
-      weatherRepository,
-    ],
-  );
-
-  const applyPreciseToHr = useCallback(
-    async (hr: HTMLHRElement): Promise<boolean> => {
-      const precise = await locationProvider.getPreciseLocation();
-      if (!precise) return false;
-
-      const coords = { lat: precise.lat, lon: precise.lon };
-      const weather = await weatherRepository.getCurrentWeather(
-        precise.lat,
-        precise.lon,
-        state.unitPreference,
-      );
-      if (!weather) return false;
-      if (!hr.isConnected) return false;
-
-      applyWeatherToHr(hr, weather);
+    if (weather) {
+      dispatch({ type: "SET_DAILY_WEATHER", value: weather });
       const nextLabel = weather.city || state.locationLabel || null;
       commitLocation(nextLabel, "precise", coords);
-      return true;
-    },
-    [
-      commitLocation,
-      locationProvider,
-      state.locationLabel,
-      state.unitPreference,
-      weatherRepository,
-    ],
-  );
-
-  const requestPreciseForHr = useCallback(
-    (hr: HTMLHRElement) => {
-      if (!state.showWeather) return;
-      pendingHrRef.current = hr;
-
-      void (async () => {
-        const permission = await locationProvider.getPermissionState();
-        if (permission === "granted") {
-          await applyPreciseToHr(hr);
-          pendingHrRef.current = null;
-          return;
-        }
-
-        if (permission === "denied" || permission === "unavailable") {
-          pendingHrRef.current = null;
-          return;
-        }
-
-        const shouldPrompt = await locationProvider.shouldShowPrompt();
-        if (!shouldPrompt) {
-          pendingHrRef.current = null;
-          return;
-        }
-
-        locationProvider.markPromptShown();
-        dispatch({ type: "SET_PROMPT_OPEN", value: true });
-      })();
-    },
-    [applyPreciseToHr, locationProvider, state.showWeather],
-  );
+    } else {
+      commitLocation(state.locationLabel, "precise", coords);
+    }
+  }, [commitLocation, locationProvider, state.locationLabel, state.unitPreference, weatherRepository]);
 
   const dismissPrecisePrompt = useCallback(() => {
-    pendingHrRef.current = null;
     dispatch({ type: "SET_PROMPT_OPEN", value: false });
   }, []);
-
-  const confirmPreciseForHr = useCallback(async (): Promise<boolean> => {
-    dispatch({ type: "SET_PROMPT_OPEN", value: false });
-    const hr = pendingHrRef.current;
-    pendingHrRef.current = null;
-    if (!hr) return false;
-    return applyPreciseToHr(hr);
-  }, [applyPreciseToHr]);
 
   const resolvedUnit = resolveUnitPreference(state.unitPreference);
 
@@ -260,11 +183,8 @@ export function useWeatherFeature() {
     setShowWeather,
     setUnitPreference: setUnitPreferenceValue,
     refreshLocation,
-    applyWeatherToEditor,
     clearWeatherFromEditor,
-    hasWeather,
-    requestPreciseForHr,
-    confirmPreciseForHr,
     dismissPrecisePrompt,
+    fetchDailyWeather,
   };
 }

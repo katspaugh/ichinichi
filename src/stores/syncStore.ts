@@ -65,6 +65,7 @@ export const syncStore = createStore<SyncStoreState>()(subscribeWithSelector((se
 
   let _realtimeDebounceTimer: number | null = null;
   let _realtimeRetryTimer: number | null = null;
+  let _isInitialRealtimeConnect = false;
 
   const _refreshPendingOps = async () => {
     try {
@@ -148,8 +149,12 @@ export const syncStore = createStore<SyncStoreState>()(subscribeWithSelector((se
         if (get()._disposed) return;
         if (status === "SUBSCRIBED") {
           set({ realtimeConnected: true });
-          // Sync on reconnect to catch missed events
-          get().requestSync({ immediate: true });
+          // Sync on reconnect to catch missed events (skip initial — init() already syncs)
+          if (_isInitialRealtimeConnect) {
+            _isInitialRealtimeConnect = false;
+          } else {
+            get().requestSync({ immediate: true });
+          }
         } else if (
           status === "CLOSED" ||
           status === "CHANNEL_ERROR" ||
@@ -285,7 +290,8 @@ export const syncStore = createStore<SyncStoreState>()(subscribeWithSelector((se
         syncError: null,
       });
 
-      // Realtime subscription
+      // Realtime subscription (mark initial so SUBSCRIBED callback skips redundant sync)
+      _isInitialRealtimeConnect = true;
       _subscribeRealtime(config.supabase, config.userId);
 
       // Initial sync

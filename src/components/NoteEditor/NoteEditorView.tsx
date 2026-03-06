@@ -13,6 +13,7 @@ import { ImagePlus } from "lucide-react";
 import { NoteEditorHeader } from "./NoteEditorHeader";
 import { NoteEditorContent } from "./NoteEditorContent";
 import type { DropIndicatorPosition } from "./useDropIndicator";
+import type { DailyWeatherData } from "../../features/weather/WeatherRepository";
 import styles from "./NoteEditor.module.css";
 
 interface NoteEditorViewProps {
@@ -35,6 +36,7 @@ interface NoteEditorViewProps {
   dropIndicatorPosition?: DropIndicatorPosition | null;
   isBlurred?: boolean;
   footer?: ReactNode;
+  dailyWeather?: DailyWeatherData | null;
 }
 
 export function NoteEditorView({
@@ -57,6 +59,7 @@ export function NoteEditorView({
   dropIndicatorPosition,
   isBlurred = false,
   footer,
+  dailyWeather,
 }: NoteEditorViewProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bodyClassName = `${styles.body} ${isBlurred ? styles.blurred : ""}`;
@@ -100,6 +103,7 @@ export function NoteEditorView({
         showReadonlyBadge={showReadonlyBadge}
         statusText={statusText}
         isStatusError={isStatusError}
+        dailyWeather={dailyWeather}
       />
       <div className={bodyClassName}>
         <NoteEditorContent

@@ -1,15 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { isContentEmpty } from "../utils/sanitize";
 import { AppMode } from "../hooks/useAppMode";
-import { useModalTransition } from "../hooks/useModalTransition";
-import { useNoteNavigation } from "../hooks/useNoteNavigation";
-import { useNoteKeyboardNav } from "../hooks/useNoteKeyboardNav";
 import { AuthState, ViewType } from "../types";
-import { isToday } from "../utils/date";
 import { useActiveVaultContext } from "../contexts/activeVaultContext";
 import { useAppModeContext } from "../contexts/appModeContext";
 import { useNoteRepositoryContext } from "../contexts/noteRepositoryContext";
-import { useUrlStateContext } from "../contexts/urlStateContext";
+import { useRoutingContext } from "../contexts/routingContext";
 import { useVaultUiState } from "../hooks/useVaultUiState";
 
 /**
@@ -22,7 +17,6 @@ function useDelayedTrue(value: boolean, delayMs: number): boolean {
 
   useEffect(() => {
     if (value) {
-      // Start timer to show after delay
       timerRef.current = setTimeout(() => {
         setDelayedValue(true);
       }, delayMs);
@@ -34,12 +28,10 @@ function useDelayedTrue(value: boolean, delayMs: number): boolean {
         }
       };
     } else {
-      // Clear any pending timer when value becomes false
       if (timerRef.current) {
         clearTimeout(timerRef.current);
         timerRef.current = null;
       }
-      // Reset delayed value via timeout to satisfy lint rule
       const resetTimer = setTimeout(() => {
         setDelayedValue(false);
       }, 0);
@@ -47,7 +39,6 @@ function useDelayedTrue(value: boolean, delayMs: number): boolean {
     }
   }, [value, delayMs]);
 
-  // Return false immediately when value is false (don't wait for state update)
   return value ? delayedValue : false;
 }
 
@@ -80,83 +71,40 @@ export function useAppModalsController() {
     localPassword,
   } = useActiveVaultContext();
   const {
-    content,
-    setContent,
-    isDecrypting,
-    isContentReady,
-    isOfflineStub,
-    noteError,
-    hasEdits,
-    isSaving,
     noteDates,
     triggerSync,
   } = useNoteRepositoryContext();
   const {
     view,
     date,
-    navigateBackToCalendar,
-    navigateToDate,
     showIntro,
     dismissIntro,
-  } = useUrlStateContext();
-  const isNoteModalOpen =
-    view === ViewType.Note && date !== null && isVaultUnlocked;
+  } = useRoutingContext();
+  const isDayView =
+    view === ViewType.Day && date !== null && isVaultUnlocked;
 
-  const handleCloseComplete = useCallback(() => {
-    const hasLocalNote = noteDates.size > 0 || !isContentEmpty(content);
-    const shouldPromptModeChoice = mode === AppMode.Local && hasLocalNote;
-    // In cloud mode, always trigger immediate sync on close to push any pending ops
-    // (the note may have been saved locally but not yet synced to cloud)
-    if (mode === AppMode.Cloud) {
-      triggerSync({ immediate: true });
-    }
-    navigateBackToCalendar();
-    if (shouldPromptModeChoice) {
-      requestModeChoice();
-    }
-  }, [
-    content,
-    mode,
-    navigateBackToCalendar,
-    noteDates.size,
-    requestModeChoice,
-    triggerSync,
-  ]);
-
-  const {
-    showContent: showModalContent,
-    isClosing,
-    requestClose: handleCloseModal,
-  } = useModalTransition({
-    isOpen: isNoteModalOpen,
-    onCloseComplete: handleCloseComplete,
-    openDelayMs: 100,
-    resetDelayMs: 0,
-    closeDelayMs: hasEdits ? 200 : 0,
-  });
-
-  const {
-    canNavigatePrev,
-    canNavigateNext,
-    navigateToPrevious,
-    navigateToNext,
-  } = useNoteNavigation({
-    currentDate: date,
-    noteDates,
-    onNavigate: navigateToDate,
-  });
-
-  useNoteKeyboardNav({
-    enabled: isNoteModalOpen && !isDecrypting,
-    onPrevious: navigateToPrevious,
-    onNext: navigateToNext,
-    contentEditableSelector: '[data-note-editor="content"]',
-  });
-
+  // When leaving day view, trigger sync and prompt mode choice
+  const prevIsDayViewRef = useRef(isDayView);
   useEffect(() => {
-    if (!pendingModeChoice || isNoteModalOpen) return;
+    const wasInDayView = prevIsDayViewRef.current;
+    prevIsDayViewRef.current = isDayView;
+
+    if (wasInDayView && !isDayView) {
+      if (mode === AppMode.Cloud) {
+        triggerSync({ immediate: true });
+      }
+      const hasLocalNote = noteDates.size > 0;
+      if (mode === AppMode.Local && hasLocalNote) {
+        requestModeChoice();
+      }
+    }
+  }, [isDayView, mode, noteDates.size, requestModeChoice, triggerSync]);
+
+  // Open pending mode choice only when not in day view
+  useEffect(() => {
+    if (!pendingModeChoice || isDayView) return;
     openModeChoice();
-  }, [pendingModeChoice, isNoteModalOpen, openModeChoice]);
+  }, [pendingModeChoice, isDayView, openModeChoice]);
 
   useEffect(() => {
     if (mode !== AppMode.Cloud || !isVaultUnlocked) {
@@ -180,8 +128,6 @@ export function useAppModalsController() {
     mode === AppMode.Cloud &&
     auth.authState === AuthState.SignedIn &&
     (!cloudVault.isReady || cloudVault.isBusy);
-  // Delay showing "Signing in..." to avoid flash on page reload
-  // when session is restored quickly
   const isSigningIn = useDelayedTrue(isSigningInRaw, 300);
   const isVaultBusy = mode === AppMode.Cloud ? cloudVault.isBusy : localVault.isBusy;
   const hasPasswordPending = mode === AppMode.Cloud && !!authPassword;
@@ -199,9 +145,6 @@ export function useAppModalsController() {
     localVaultReady: localVault.isReady,
     localRequiresPassword: localVault.requiresPassword,
   });
-
-  const shouldRenderNoteEditor =
-    isNoteModalOpen && (showModalContent || isClosing);
 
   const handleCloudAuthDismiss = useCallback(() => {
     auth.clearError();
@@ -249,26 +192,6 @@ export function useAppModalsController() {
       mode,
       onSignOut: handleSignOut,
       onDismiss: clearVaultError,
-    },
-    noteModal: {
-      isOpen: isNoteModalOpen,
-      onClose: handleCloseModal,
-      date,
-      isCurrentDate: date !== null && isToday(date),
-      shouldRenderNoteEditor,
-      isClosing,
-      hasEdits,
-      isSaving,
-      isDecrypting,
-      isContentReady,
-      isOfflineStub,
-      noteError,
-      content,
-      onChange: setContent,
-      canNavigatePrev,
-      canNavigateNext,
-      navigateToPrevious,
-      navigateToNext,
     },
   };
 }

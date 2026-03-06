@@ -1,5 +1,5 @@
 .calendar {
-  padding: var(--spacing-xl);
+  padding: var(--spacing-md);
   max-width: 1600px;
   margin: 0 auto;
   height: 100vh;
@@ -97,7 +97,6 @@
 
 @media (max-width: 768px) {
   .calendar {
-    padding: var(--spacing-md);
     padding-top: 0;
     height: 100dvh;
     min-height: 0;
@@ -106,8 +105,12 @@
 
   .calendar[data-month-view="true"] {
     height: auto;
+    min-height: 0;
     overflow: visible;
+    padding-top: 64px;
+    overscroll-behavior: none;
   }
+
 
   .grid:not([data-month-view="true"]) {
     overflow-y: auto;
@@ -133,7 +136,6 @@
 
 @media (min-width: 1200px) {
   .calendar {
-    padding: var(--spacing-md);
     box-sizing: border-box;
   }
 
@@ -168,11 +170,13 @@
   }
 }
 
-/* Month view with split layout */
-.calendar[data-month-view="true"] {
-  height: 100vh;
-  min-height: 800px;
-  overflow: hidden;
+/* Month view with split layout (desktop) */
+@media (min-width: 769px) {
+  .calendar[data-month-view="true"] {
+    height: 100vh;
+    min-height: 800px;
+    overflow: hidden;
+  }
 }
 
 .calendar[data-month-view="true"] .grid {
