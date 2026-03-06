@@ -3,6 +3,7 @@ import { ErrorBoundary } from "../ErrorBoundary";
 import { NavigationArrow } from "../NavigationArrow";
 import { NoteEditor } from "../NoteEditor";
 import { MonthGrid } from "./MonthGrid";
+import { useOverscrollNavigation } from "../../hooks/useOverscrollNavigation";
 
 import styles from "./DayViewLayout.module.css";
 
@@ -95,6 +96,12 @@ export function DayViewLayout({
   noteError,
 }: DayViewLayoutProps) {
   const { isBlurred, resetBlur } = usePrivacyBlur();
+  const [layoutEl, setLayoutEl] = useState<HTMLDivElement | null>(null);
+
+  useOverscrollNavigation(layoutEl, {
+    onOverscrollUp: canNavigatePrev ? onNavigatePrev : undefined,
+    onOverscrollDown: canNavigateNext ? onNavigateNext : undefined,
+  });
 
   // Reset blur when clicking a different day
   const handleDayClick = useCallback(
@@ -106,7 +113,7 @@ export function DayViewLayout({
   );
 
   return (
-    <div className={styles.layout}>
+    <div className={styles.layout} ref={setLayoutEl}>
       <div className={styles.monthGridPane}>
         <div className={styles.monthGridWrap}>
           <MonthGrid

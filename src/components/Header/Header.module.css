@@ -102,7 +102,7 @@
     gap: var(--spacing-md);
     margin-bottom: var(--spacing-lg);
     padding-top: var(--spacing-md);
-    padding-bottom: var(--spacing-sm);
+    padding-bottom: var(--spacing-md);
   }
 
   .headerLeft {
@@ -119,5 +119,22 @@
   .headerRight {
     order: -1;
     margin-left: auto;
+  }
+
+  .header[data-hide-nav-mobile] .headerCenter {
+    display: none;
+  }
+
+  .header[data-hide-nav-mobile] {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    margin-bottom: 0;
+    padding-left: var(--spacing-md);
+    padding-right: var(--spacing-md);
+    background: var(--color-bg);
+    z-index: 20;
+    transition: transform 200ms ease;
   }
 }

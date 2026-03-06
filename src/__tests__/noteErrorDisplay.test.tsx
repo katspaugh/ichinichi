@@ -15,28 +15,26 @@ describe("NoteEditorHeader error display", () => {
 
     const status = container.querySelector("[aria-live='polite']")!;
     expect(status.textContent).toBe("Unable to decrypt note");
-    expect(status.className).toContain("savingError");
-    expect(status.className).toContain("savingVisible");
+    expect(status.className).toContain("statusError");
   });
 
-  it("does not apply error class for normal saving status", () => {
+  it("does not apply error class for non-error status", () => {
     const { container } = render(
       <NoteEditorHeader
         date="10-01-2026"
         formattedDate="January 10, 2026"
         showReadonlyBadge={false}
-        statusText="Saving..."
+        statusText="Decrypting..."
         isStatusError={false}
       />,
     );
 
     const status = container.querySelector("[aria-live='polite']")!;
-    expect(status.textContent).toBe("Saving...");
-    expect(status.className).not.toContain("savingError");
-    expect(status.className).toContain("savingVisible");
+    expect(status.textContent).toBe("Decrypting...");
+    expect(status.className).not.toContain("statusError");
   });
 
-  it("hides status text when there is no status", () => {
+  it("does not render status element when there is no status", () => {
     const { container } = render(
       <NoteEditorHeader
         date="10-01-2026"
@@ -46,8 +44,7 @@ describe("NoteEditorHeader error display", () => {
       />,
     );
 
-    const status = container.querySelector("[aria-live='polite']")!;
-    expect(status.className).not.toContain("savingVisible");
-    expect(status.className).not.toContain("savingError");
+    const status = container.querySelector("[aria-live='polite']");
+    expect(status).toBeNull();
   });
 });

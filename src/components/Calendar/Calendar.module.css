@@ -105,8 +105,12 @@
 
   .calendar[data-month-view="true"] {
     height: auto;
+    min-height: 0;
     overflow: visible;
+    padding-top: 64px;
+    overscroll-behavior: none;
   }
+
 
   .grid:not([data-month-view="true"]) {
     overflow-y: auto;
@@ -166,11 +170,13 @@
   }
 }
 
-/* Month view with split layout */
-.calendar[data-month-view="true"] {
-  height: 100vh;
-  min-height: 800px;
-  overflow: hidden;
+/* Month view with split layout (desktop) */
+@media (min-width: 769px) {
+  .calendar[data-month-view="true"] {
+    height: 100vh;
+    min-height: 800px;
+    overflow: hidden;
+  }
 }
 
 .calendar[data-month-view="true"] .grid {

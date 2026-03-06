@@ -5,7 +5,6 @@ import { canEditNote } from "../../utils/noteRules";
 import { getPlaceholderText } from "../../utils/placeholderText";
 import { NoteEditorView } from "./NoteEditorView";
 import { useContentEditableEditor } from "./useContentEditableEditor";
-import { useSavingIndicator } from "./useSavingIndicator";
 import { useInlineImageUpload, useInlineImageUrls } from "./useInlineImages";
 import { useImageDragState } from "./useImageDragState";
 import { useDropIndicator } from "./useDropIndicator";
@@ -18,14 +17,11 @@ interface NoteEditorProps {
   onChange: (content: string) => void;
   isClosing: boolean;
   hasEdits: boolean;
-  /** True when the note is being saved (dirty or saving state) */
   isSaving: boolean;
   isDecrypting?: boolean;
   isContentReady: boolean;
   isOfflineStub?: boolean;
-  /** True when note content should be blurred for privacy */
   isBlurred?: boolean;
-  /** Error from loading/decrypting the note */
   error?: Error | null;
 }
 
@@ -33,9 +29,6 @@ export function NoteEditor({
   date,
   content,
   onChange,
-  isClosing,
-  hasEdits,
-  isSaving,
   isDecrypting = false,
   isContentReady,
   isOfflineStub = false,
@@ -45,23 +38,13 @@ export function NoteEditor({
   const canEdit = canEditNote(date);
   const isEditable = canEdit && !isDecrypting && isContentReady;
   const formattedDate = formatDateDisplay(date);
-  const { showSaving, scheduleSavingIndicator } = useSavingIndicator(
-    isEditable,
-    isSaving,
-  );
 
-  // Show "Saving..." when:
-  // - The useSavingIndicator hook says to show it (handles idle timer + minimum display), OR
-  // - We're closing the modal and still have unsaved changes (hasEdits or isSaving)
-  const shouldShowSaving = showSaving || (isClosing && (isSaving || hasEdits));
   const hasError = !!error;
   const statusText = hasError
     ? "Unable to decrypt note"
     : isDecrypting
       ? "Decrypting..."
-      : shouldShowSaving
-        ? "Saving..."
-        : null;
+      : null;
   const placeholderText = getPlaceholderText({
     isContentReady,
     isDecrypting,
@@ -93,7 +76,6 @@ export function NoteEditor({
     isEditable,
     placeholderText,
     onChange,
-    onUserInput: scheduleSavingIndicator,
     onImageDrop,
     onDropComplete: endImageDrag,
     showWeather: weatherState.showWeather,

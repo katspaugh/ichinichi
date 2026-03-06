@@ -118,32 +118,13 @@
   display: none;
 }
 
-.saving {
-  position: absolute;
-  bottom: 0;
-  right: 0;
+.status {
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
-  opacity: 0;
-  visibility: hidden;
-  text-align: right;
-}
-
-@media (min-width: 769px) {
-  .saving {
-    right: initial;
-    left: 0;
-    bottom: -1.5em;
-  }
-}
-
-.savingVisible {
-  visibility: visible;
   animation: note-status-fade-in 200ms ease forwards;
-  animation-delay: 100ms;
 }
 
-.savingError {
+.statusError {
   color: var(--color-error, #ef4444);
 }
 
@@ -465,5 +446,6 @@
   .content {
     flex: 0 0 auto;
     min-height: 50vh;
+    padding-bottom: var(--spacing-2xl);
   }
 }

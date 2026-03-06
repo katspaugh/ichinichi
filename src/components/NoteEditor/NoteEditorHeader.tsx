@@ -10,7 +10,6 @@ interface NoteEditorHeaderProps {
   showReadonlyBadge: boolean;
   statusText: string | null;
   isStatusError?: boolean;
-  onClose?: () => void;
   dailyWeather?: DailyWeatherData | null;
 }
 
@@ -42,18 +41,19 @@ export function NoteEditorHeader({
           <span className={styles.readonlyBadge}>Read only</span>
         )}
       </div>
-      <span
-        className={[
-          styles.saving,
-          statusText ? styles.savingVisible : "",
-          isStatusError ? styles.savingError : "",
-        ]
-          .filter(Boolean)
-          .join(" ")}
-        aria-live="polite"
-      >
-        {statusText ?? ""}
-      </span>
+      {statusText && (
+        <span
+          className={[
+            styles.status,
+            isStatusError ? styles.statusError : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+          aria-live="polite"
+        >
+          {statusText}
+        </span>
+      )}
     </div>
   );
 }

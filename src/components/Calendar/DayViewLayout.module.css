@@ -2,7 +2,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--spacing-md);
-  height: 100%;
+  flex: 1;
   min-height: 0;
   overflow: hidden;
 }
@@ -23,12 +23,6 @@
   align-items: center;
   justify-content: space-between;
   padding: 0 var(--spacing-sm);
-}
-
-@media (max-width: 768px) {
-  .monthNav {
-    display: none;
-  }
 }
 
 .editorPane {
@@ -55,6 +49,31 @@
 .emptyText {
   color: var(--color-text-muted);
   font-size: var(--font-size-base);
+}
+
+/* Mobile: fullscreen editor, page scrolls */
+@media (max-width: 768px) {
+  .layout {
+    flex: none;
+    overflow: visible;
+    margin-left: -14px;
+    margin-right: -14px;
+  }
+
+  .monthGridPane {
+    display: none;
+  }
+
+  .editorPane {
+    flex: none;
+    border: none;
+    border-radius: 0;
+    padding: var(--spacing-lg) var(--spacing-xl);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    box-shadow: none;
+    overflow-y: visible;
+  }
 }
 
 /* Desktop: side-by-side layout */

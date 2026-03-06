@@ -102,6 +102,7 @@ export function DayView({
       <CalendarHeader
         year={year}
         month={month}
+        hideNavOnMobile
         onYearChange={onYearChange}
         onMonthChange={onMonthChange}
         onReturnToYear={onReturnToYear}
