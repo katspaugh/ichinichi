@@ -9,7 +9,7 @@ import { chunkText } from "./textChunker";
 import { getOrBuildTagIndex } from "./buildTagIndex";
 import { matchTags } from "./tagMatcher";
 
-const EMBEDDINGS_MODEL = "Xenova/all-MiniLM-L6-v2";
+const EMBEDDINGS_MODEL = "all-MiniLM-L6-v2";
 
 let _analysisGeneration = 0;
 

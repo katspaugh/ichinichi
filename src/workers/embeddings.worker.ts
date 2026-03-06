@@ -1,8 +1,12 @@
 /// <reference lib="webworker" />
 
-import { pipeline, type FeatureExtractionPipeline, type PretrainedModelOptions } from "@huggingface/transformers";
+import { env, pipeline, type FeatureExtractionPipeline, type PretrainedModelOptions } from "@huggingface/transformers";
 
-const MODEL_NAME = "Xenova/all-MiniLM-L6-v2";
+// Serve model files from /models/ instead of fetching from huggingface.co
+env.localModelPath = "/models/";
+env.allowRemoteModels = false;
+
+const MODEL_NAME = "all-MiniLM-L6-v2";
 
 // Cast to a narrow signature to avoid TS2590 ("union type too complex")
 // produced by the generic AllTasks[T] return type of pipeline().
