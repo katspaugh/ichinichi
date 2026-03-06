@@ -4,11 +4,11 @@ import { NavigationArrow } from "../NavigationArrow";
 import { NoteEditor } from "../NoteEditor";
 import { MonthGrid } from "./MonthGrid";
 
-import styles from "./MonthViewLayout.module.css";
+import styles from "./DayViewLayout.module.css";
 
 const BLUR_INACTIVITY_MS = 2 * 60 * 1000; // 2 minutes
 
-interface MonthViewLayoutProps {
+interface DayViewLayoutProps {
   // Month grid props
   year: number;
   month: number;
@@ -73,7 +73,7 @@ function usePrivacyBlur() {
   return { isBlurred, resetBlur: useCallback(() => setIsBlurred(true), []) };
 }
 
-export function MonthViewLayout({
+export function DayViewLayout({
   year,
   month,
   hasNote,
@@ -93,7 +93,7 @@ export function MonthViewLayout({
   isContentReady,
   isOfflineStub,
   noteError,
-}: MonthViewLayoutProps) {
+}: DayViewLayoutProps) {
   const { isBlurred, resetBlur } = usePrivacyBlur();
 
   // Reset blur when clicking a different day
@@ -114,7 +114,7 @@ export function MonthViewLayout({
             month={month}
             hasNote={hasNote}
             onDayClick={handleDayClick}
-            showMonthView={true}
+            isDetailView
             selectedDate={selectedDate}
             onWeekStartChange={onWeekStartChange}
             now={now}

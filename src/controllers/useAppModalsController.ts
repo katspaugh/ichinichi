@@ -9,7 +9,7 @@ import { isToday } from "../utils/date";
 import { useActiveVaultContext } from "../contexts/activeVaultContext";
 import { useAppModeContext } from "../contexts/appModeContext";
 import { useNoteRepositoryContext } from "../contexts/noteRepositoryContext";
-import { useUrlStateContext } from "../contexts/urlStateContext";
+import { useRoutingContext } from "../contexts/routingContext";
 import { useVaultUiState } from "../hooks/useVaultUiState";
 
 /**
@@ -98,9 +98,9 @@ export function useAppModalsController() {
     navigateToDate,
     showIntro,
     dismissIntro,
-  } = useUrlStateContext();
+  } = useRoutingContext();
   const isNoteModalOpen =
-    view === ViewType.Note && date !== null && isVaultUnlocked;
+    view === ViewType.Day && date !== null && isVaultUnlocked;
 
   const handleCloseComplete = useCallback(() => {
     const hasLocalNote = noteDates.size > 0 || !isContentEmpty(content);

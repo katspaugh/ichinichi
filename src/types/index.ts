@@ -65,7 +65,7 @@ export const AuthState = {
 export type AuthState = (typeof AuthState)[keyof typeof AuthState];
 
 export const ViewType = {
-  Note: "note",
+  Day: "day",
   Calendar: "calendar",
 } as const;
 
@@ -75,8 +75,6 @@ export interface UrlState {
   view: ViewType;
   date: string | null;
   year: number;
-  month: number | null; // null = year view, 0-11 = month view
-  monthDate: string | null; // Selected date within month view (desktop split layout)
 }
 
 export const DayCellState = {

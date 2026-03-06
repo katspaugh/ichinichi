@@ -2,12 +2,12 @@ import { ViewType, type UrlState } from "../types";
 import { URL_PARAMS, VIEW_PREFERENCE_KEY } from "./constants";
 import { getTodayString, isFuture, parseDate } from "./date";
 
-export type ViewPreference = "year" | "month";
+export type ViewPreference = "year" | "day";
 
 export function getViewPreference(): ViewPreference {
   if (typeof window === "undefined") return "year";
   const pref = localStorage.getItem(VIEW_PREFERENCE_KEY);
-  return pref === "month" ? "month" : "year";
+  return pref === "day" || pref === "month" ? "day" : "year";
 }
 
 export function setViewPreference(preference: ViewPreference): void {
@@ -21,162 +21,101 @@ interface ResolvedUrlState {
   needsRedirect: boolean;
 }
 
+function createDayState(date: string): UrlState {
+  const parsed = parseDate(date);
+
+  return {
+    view: ViewType.Day,
+    date,
+    year: parsed?.getFullYear() ?? new Date().getFullYear(),
+  };
+}
+
+function createCalendarState(year: number): UrlState {
+  return {
+    view: ViewType.Calendar,
+    date: null,
+    year,
+  };
+}
+
 export function resolveUrlState(search: string): ResolvedUrlState {
   const params = new URLSearchParams(search);
   const today = getTodayString();
   const currentYear = new Date().getFullYear();
 
-  // Web Share Target: open today's note so the editor can read shared files from cache
   if (params.has("share-target")) {
     return {
-      state: {
-        view: ViewType.Note,
-        date: today,
-        year: currentYear,
-        month: null,
-        monthDate: null,
-      },
+      state: createDayState(today),
       canonicalSearch: `?${URL_PARAMS.DATE}=${today}`,
       needsRedirect: false,
     };
   }
 
-  // Check if there's a month param first (combined month+date takes priority)
-  if (!params.has(URL_PARAMS.MONTH) && params.has(URL_PARAMS.DATE)) {
+  if (params.has(URL_PARAMS.DATE)) {
     const dateParam = params.get(URL_PARAMS.DATE) ?? "";
     const parsed = parseDate(dateParam);
+
     if (parsed && !isFuture(dateParam)) {
       return {
-        state: {
-          view: ViewType.Note,
-          date: dateParam,
-          year: parsed.getFullYear(),
-          month: null,
-          monthDate: null,
-        },
+        state: createDayState(dateParam),
         canonicalSearch: `?${URL_PARAMS.DATE}=${dateParam}`,
         needsRedirect: false,
       };
     }
 
     return {
-      state: {
-        view: ViewType.Note,
-        date: today,
-        year: currentYear,
-        month: null,
-        monthDate: null,
-      },
+      state: createDayState(today),
       canonicalSearch: `?${URL_PARAMS.DATE}=${today}`,
       needsRedirect: true,
     };
   }
 
-  if (params.has(URL_PARAMS.MONTH)) {
-    const monthParam = params.get(URL_PARAMS.MONTH) ?? "";
-    const match = monthParam.match(/^(\d{4})-(\d{2})$/);
-    if (match) {
-      const year = parseInt(match[1], 10);
-      const month = parseInt(match[2], 10) - 1; // 0-indexed
-      if (month >= 0 && month <= 11) {
-        // Check if there's also a date param for split view
-        let monthDate: string | null = null;
-        if (params.has(URL_PARAMS.DATE)) {
-          const dateParam = params.get(URL_PARAMS.DATE) ?? "";
-          const parsedDate = parseDate(dateParam);
-          // Validate date is in the selected month and not in the future
-          if (
-            parsedDate &&
-            !isFuture(dateParam) &&
-            parsedDate.getFullYear() === year &&
-            parsedDate.getMonth() === month
-          ) {
-            monthDate = dateParam;
-          }
-        }
-        const monthStr = `${year}-${String(month + 1).padStart(2, "0")}`;
-        const canonicalSearch = monthDate
-          ? `?${URL_PARAMS.MONTH}=${monthStr}&${URL_PARAMS.DATE}=${monthDate}`
-          : `?${URL_PARAMS.MONTH}=${monthStr}`;
-        return {
-          state: {
-            view: ViewType.Calendar,
-            date: null,
-            year,
-            month,
-            monthDate,
-          },
-          canonicalSearch,
-          needsRedirect: false,
-        };
-      }
-    }
-    // Invalid month format falls through to year view
+  const legacyMonthParam = params.get("month");
+  if (legacyMonthParam) {
+    const match = legacyMonthParam.match(/^(\d{4})-(\d{2})$/);
+    const year = match ? Number.parseInt(match[1], 10) : currentYear;
+
+    return {
+      state: createCalendarState(year),
+      canonicalSearch: `?${URL_PARAMS.YEAR}=${year}`,
+      needsRedirect: true,
+    };
   }
 
   if (params.has(URL_PARAMS.YEAR)) {
-    const yearParam = params.get(URL_PARAMS.YEAR);
-    const year = parseInt(yearParam ?? "", 10) || currentYear;
+    const yearParam = params.get(URL_PARAMS.YEAR) ?? "";
+    const year = Number.parseInt(yearParam, 10) || currentYear;
+
     return {
-      state: {
-        view: ViewType.Calendar,
-        date: null,
-        year,
-        month: null,
-        monthDate: null,
-      },
+      state: createCalendarState(year),
       canonicalSearch: `?${URL_PARAMS.YEAR}=${year}`,
       needsRedirect: false,
     };
   }
 
-  // No URL params - check view preference
-  const preference = getViewPreference();
-  if (preference === "month") {
-    const currentMonth = new Date().getMonth();
-    const monthStr = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}`;
+  if (getViewPreference() === "day") {
     return {
-      state: {
-        view: ViewType.Calendar,
-        date: null,
-        year: currentYear,
-        month: currentMonth,
-        monthDate: null,
-      },
-      canonicalSearch: `?${URL_PARAMS.MONTH}=${monthStr}`,
+      state: createDayState(today),
+      canonicalSearch: `?${URL_PARAMS.DATE}=${today}`,
       needsRedirect: true,
     };
   }
 
   return {
-    state: {
-      view: ViewType.Calendar,
-      date: null,
-      year: currentYear,
-      month: null,
-      monthDate: null,
-    },
+    state: createCalendarState(currentYear),
     canonicalSearch: "/",
     needsRedirect: false,
   };
 }
 
 export function serializeUrlState(state: UrlState): string {
-  if (state.view === ViewType.Calendar) {
-    if (state.month !== null) {
-      const monthStr = String(state.month + 1).padStart(2, "0");
-      const base = `?${URL_PARAMS.MONTH}=${state.year}-${monthStr}`;
-      // Include date in URL if monthDate is set (split view with selected note)
-      if (state.monthDate) {
-        return `${base}&${URL_PARAMS.DATE}=${state.monthDate}`;
-      }
-      return base;
-    }
-    return `?${URL_PARAMS.YEAR}=${state.year}`;
+  if (state.view === ViewType.Day) {
+    return state.date ? `?${URL_PARAMS.DATE}=${state.date}` : "/";
   }
 
-  if (state.date) {
-    return `?${URL_PARAMS.DATE}=${state.date}`;
+  if (state.view === ViewType.Calendar) {
+    return `?${URL_PARAMS.YEAR}=${state.year}`;
   }
 
   return "/";

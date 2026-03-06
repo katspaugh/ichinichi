@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Calendar } from "./components/Calendar";
-import { MonthView } from "./components/Calendar/MonthView";
+import { DayView } from "./components/Calendar/DayView";
 import { AppModals } from "./components/AppModals";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { UpdatePrompt } from "./components/UpdatePrompt";
@@ -14,64 +14,87 @@ import { useAppController } from "./controllers/useAppController";
 import { AppModeProvider } from "./contexts/AppModeProvider";
 import { ActiveVaultProvider } from "./contexts/ActiveVaultProvider";
 import { NoteRepositoryProvider } from "./contexts/NoteRepositoryProvider";
-import { UrlStateProvider } from "./contexts/UrlStateProvider";
-import { useMonthViewState } from "./hooks/useMonthViewState";
+import { RoutingProvider } from "./contexts/RoutingProvider";
 import { WeatherProvider } from "./contexts/WeatherProvider";
+import { getTodayString, parseDate } from "./utils/date";
 
+function getLatestNoteInMonth(
+  noteDates: Set<string>,
+  year: number,
+  month: number,
+): string | null {
+  const notesInMonth: string[] = [];
+
+  for (const dateStr of noteDates) {
+    const parsed = parseDate(dateStr);
+    if (parsed && parsed.getFullYear() === year && parsed.getMonth() === month) {
+      notesInMonth.push(dateStr);
+    }
+  }
+
+  notesInMonth.sort((a, b) => {
+    const dateA = parseDate(a);
+    const dateB = parseDate(b);
+    if (!dateA || !dateB) return 0;
+    return dateA.getTime() - dateB.getTime();
+  });
+
+  return notesInMonth.at(-1) ?? null;
+}
 
 function App() {
-  const { urlState, auth, appMode, activeVault, notes } = useAppController();
+  const { routing, auth, appMode, activeVault, notes } = useAppController();
   const { needRefresh, updateServiceWorker, dismissUpdate } = usePWA();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
   const [weekStartVersion, setWeekStartVersion] = useState(0);
-  const [isMobile, setIsMobile] = useState(
-    () => typeof window !== "undefined" && window.matchMedia("(max-width: 768px)").matches,
-  );
 
-  useEffect(() => {
-    const mq = window.matchMedia("(max-width: 768px)");
-    const onChange = (e: MediaQueryListEvent) => setIsMobile(e.matches);
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
-  }, []);
-
-  const {
-    year,
-    month,
-    monthDate,
-    navigateToDate,
-    navigateToYear,
-    navigateToMonth,
-    navigateToMonthDate,
-    navigateToCalendar,
-  } = urlState;
+  const { date, year, navigateToDate, navigateToYear, navigateToCalendar } =
+    routing;
 
   const canSync = notes.capabilities.canSync;
-  const isMonthView = month !== null;
+  const isDayView = date !== null;
   const commitHash = __COMMIT_HASH__;
-
-  // Use month view state hook for auto-selection when in month view (desktop only)
-  useMonthViewState({
-    enabled: isMonthView && !isMobile,
-    year,
-    month: month ?? 0,
-    monthDate,
-    noteDates: notes.noteDates,
-    navigateToMonthDate,
-  });
-
-  const handleMonthChange = useCallback(
-    (year: number, month: number) => {
-      navigateToMonth(year, month);
-    },
-    [navigateToMonth],
-  );
 
   const handleReturnToYear = useCallback(() => {
     navigateToCalendar(year);
   }, [navigateToCalendar, year]);
+
+  const handleCalendarMonthClick = useCallback(
+    (targetYear: number, targetMonth: number) => {
+      const latestNote = getLatestNoteInMonth(
+        notes.noteDates,
+        targetYear,
+        targetMonth,
+      );
+      if (!latestNote) return;
+      navigateToDate(latestNote);
+    },
+    [notes.noteDates, navigateToDate],
+  );
+
+  const handleDayViewMonthChange = useCallback(
+    (targetYear: number, targetMonth: number) => {
+      const now = new Date();
+      const isCurrentMonth =
+        targetYear === now.getFullYear() && targetMonth === now.getMonth();
+
+      if (isCurrentMonth) {
+        navigateToDate(getTodayString());
+        return;
+      }
+
+      const latestNote = getLatestNoteInMonth(
+        notes.noteDates,
+        targetYear,
+        targetMonth,
+      );
+      if (!latestNote) return;
+      navigateToDate(latestNote);
+    },
+    [notes.noteDates, navigateToDate],
+  );
 
   const handleMenuClick = useCallback(() => {
     setSettingsOpen(true);
@@ -91,7 +114,6 @@ function App() {
     setWeekStartVersion((value) => value + 1);
   }, []);
 
-  // Sign in handler for header
   const signInHandler =
     appMode.mode !== AppMode.Cloud && auth.authState !== AuthState.SignedIn
       ? appMode.switchToCloud
@@ -101,13 +123,11 @@ function App() {
     notes.triggerSync({ immediate: true });
   }, [notes]);
 
-  // Sign out handler for settings sidebar
   const signOutHandler =
     appMode.mode === AppMode.Cloud && auth.authState === AuthState.SignedIn
       ? activeVault.handleSignOut
       : undefined;
 
-  // Enable CSS transitions after the app has rendered (prevents FOUC during hydration swap)
   useEffect(() => {
     requestAnimationFrame(() => {
       document.documentElement.classList.remove("no-transition");
@@ -129,7 +149,7 @@ function App() {
   ]);
 
   return (
-    <UrlStateProvider value={urlState}>
+    <RoutingProvider value={routing}>
       <AppModeProvider value={appMode}>
         <ActiveVaultProvider value={activeVault}>
           <NoteRepositoryProvider value={notes}>
@@ -141,21 +161,17 @@ function App() {
                 resetLabel="Reload app"
                 onReset={() => window.location.reload()}
               >
-                {isMonthView && !isMobile ? (
-                  <MonthView
+                {isDayView && date ? (
+                  <DayView
                     weekStartVersion={weekStartVersion}
-                    year={year}
-                    month={month}
-                    monthDate={monthDate}
+                    date={date}
                     noteDates={notes.noteDates}
                     hasNote={notes.hasNote}
                     onDayClick={
-                      activeVault.isVaultUnlocked
-                        ? navigateToMonthDate
-                        : () => {}
+                      activeVault.isVaultUnlocked ? navigateToDate : () => {}
                     }
                     onYearChange={navigateToYear}
-                    onMonthChange={handleMonthChange}
+                    onMonthChange={handleDayViewMonthChange}
                     onReturnToYear={handleReturnToYear}
                     content={notes.content}
                     onChange={notes.setContent}
@@ -176,16 +192,16 @@ function App() {
                   <Calendar
                     weekStartVersion={weekStartVersion}
                     year={year}
-                    month={month}
                     hasNote={notes.hasNote}
                     onDayClick={
-                      activeVault.isVaultUnlocked
-                        ? isMobile ? navigateToDate : navigateToMonthDate
-                        : undefined
+                      activeVault.isVaultUnlocked ? navigateToDate : undefined
                     }
                     onYearChange={navigateToYear}
-                    onMonthChange={handleMonthChange}
-                    onReturnToYear={handleReturnToYear}
+                    onMonthClick={
+                      activeVault.isVaultUnlocked
+                        ? handleCalendarMonthClick
+                        : undefined
+                    }
                     syncStatus={canSync ? notes.syncStatus : undefined}
                     syncError={canSync ? notes.syncError : undefined}
                     pendingOps={canSync ? notes.pendingOps : undefined}
@@ -226,7 +242,7 @@ function App() {
           </NoteRepositoryProvider>
         </ActiveVaultProvider>
       </AppModeProvider>
-    </UrlStateProvider>
+    </RoutingProvider>
   );
 }
 

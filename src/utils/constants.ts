@@ -15,5 +15,4 @@ export const VIEW_PREFERENCE_KEY = `${STORAGE_PREFIX}view_preference_v1`;
 export const URL_PARAMS = {
   DATE: "date",
   YEAR: "year",
-  MONTH: "month",
 } as const;

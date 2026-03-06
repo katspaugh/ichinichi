@@ -42,8 +42,6 @@ export function useUrlState({ authState, mode }: UseUrlStateProps) {
         view: ViewType.Calendar,
         date: null,
         year: new Date().getFullYear(),
-        month: null,
-        monthDate: null,
       };
     }
     const resolved = resolveUrlState(window.location.search);
@@ -52,16 +50,11 @@ export function useUrlState({ authState, mode }: UseUrlStateProps) {
         view: ViewType.Calendar,
         date: null,
         year: resolved.state.year,
-        month: null,
-        monthDate: null,
       };
     }
     return resolved.state;
   });
   const stateRef = useRef(state);
-  const lastCalendarRef = useRef<{ year: number; month: number | null } | null>(
-    null,
-  );
   const [showIntro, setShowIntro] = useState(initialShowIntro);
   const skippedRedirectRef = useRef(initialShowIntro);
 
@@ -72,13 +65,11 @@ export function useUrlState({ authState, mode }: UseUrlStateProps) {
 
   // Effective state: if auth-gated, force calendar view
   const effectiveState = useMemo(() => {
-    if (isAuthGated && state.view === ViewType.Note) {
+    if (isAuthGated && state.view === ViewType.Day) {
       return {
         view: ViewType.Calendar,
         date: null,
         year: state.year,
-        month: state.month,
-        monthDate: null,
       };
     }
     return state;
@@ -87,9 +78,6 @@ export function useUrlState({ authState, mode }: UseUrlStateProps) {
   // Track if we're gated to skip initial redirect
   useEffect(() => {
     stateRef.current = state;
-    if (state.view === ViewType.Calendar) {
-      lastCalendarRef.current = { year: state.year, month: state.month };
-    }
   }, [state]);
 
   // Handle browser back/forward navigation
@@ -132,25 +120,18 @@ export function useUrlState({ authState, mode }: UseUrlStateProps) {
 
   const navigateToDate = useCallback((date: string) => {
     if (typeof window === "undefined") return;
-    if (!isFuture(date)) {
-      if (stateRef.current.view === ViewType.Calendar) {
-        lastCalendarRef.current = {
-          year: stateRef.current.year,
-          month: stateRef.current.month,
-        };
-      }
-      const parsed = parseDate(date);
-      const year = parsed?.getFullYear() ?? new Date().getFullYear();
-      const nextState = {
-        view: ViewType.Note,
-        date,
-        year,
-        month: null,
-        monthDate: null,
-      };
-      window.history.pushState({}, "", serializeUrlState(nextState));
-      setState(nextState);
-    }
+    if (isFuture(date)) return;
+
+    const parsed = parseDate(date);
+    const year = parsed?.getFullYear() ?? new Date().getFullYear();
+    const nextState = {
+      view: ViewType.Day,
+      date,
+      year,
+    };
+    setViewPreference("day");
+    window.history.pushState({}, "", serializeUrlState(nextState));
+    setState(nextState);
   }, []);
 
   const startWriting = useCallback(() => {
@@ -161,35 +142,22 @@ export function useUrlState({ authState, mode }: UseUrlStateProps) {
   const navigateToCalendar = useCallback(
     (year?: number) => {
       if (typeof window === "undefined") return;
-      const targetYear = year ?? state.year ?? new Date().getFullYear();
+      const targetYear = year ?? stateRef.current.year ?? new Date().getFullYear();
       const nextState = {
         view: ViewType.Calendar,
         date: null,
         year: targetYear,
-        month: null,
-        monthDate: null,
       };
       setViewPreference("year");
       window.history.pushState({}, "", serializeUrlState(nextState));
       setState(nextState);
     },
-    [state.year],
+    [],
   );
 
   const navigateBackToCalendar = useCallback(() => {
-    if (typeof window === "undefined") return;
-    const fallbackYear = stateRef.current.year ?? new Date().getFullYear();
-    const last = lastCalendarRef.current;
-    const nextState = {
-      view: ViewType.Calendar,
-      date: null,
-      year: last?.year ?? fallbackYear,
-      month: last?.month ?? null,
-      monthDate: null,
-    };
-    window.history.pushState({}, "", serializeUrlState(nextState));
-    setState(nextState);
-  }, []);
+    navigateToCalendar(stateRef.current.year);
+  }, [navigateToCalendar]);
 
   const navigateToYear = useCallback((year: number) => {
     if (typeof window === "undefined") return;
@@ -197,45 +165,8 @@ export function useUrlState({ authState, mode }: UseUrlStateProps) {
       view: ViewType.Calendar,
       date: null,
       year,
-      month: null,
-      monthDate: null,
     };
     setViewPreference("year");
-    window.history.pushState({}, "", serializeUrlState(nextState));
-    setState(nextState);
-  }, []);
-
-  const navigateToMonth = useCallback((year: number, month: number) => {
-    if (typeof window === "undefined") return;
-    const nextState = {
-      view: ViewType.Calendar,
-      date: null,
-      year,
-      month,
-      monthDate: null,
-    };
-    setViewPreference("month");
-    window.history.pushState({}, "", serializeUrlState(nextState));
-    setState(nextState);
-  }, []);
-
-  // Navigate to a date within month view (updates URL with both month and date)
-  const navigateToMonthDate = useCallback((date: string) => {
-    if (typeof window === "undefined") return;
-    if (isFuture(date)) return;
-
-    const parsed = parseDate(date);
-    if (!parsed) return;
-
-    const year = parsed.getFullYear();
-    const month = parsed.getMonth();
-    const nextState = {
-      view: ViewType.Calendar,
-      date: null,
-      year,
-      month,
-      monthDate: date,
-    };
     window.history.pushState({}, "", serializeUrlState(nextState));
     setState(nextState);
   }, []);
@@ -249,9 +180,7 @@ export function useUrlState({ authState, mode }: UseUrlStateProps) {
     navigateToCalendar,
     navigateBackToCalendar,
     navigateToYear,
-    navigateToMonth,
-    navigateToMonthDate,
   };
 }
 
-export type UrlState = ReturnType<typeof useUrlState>;
+export type RoutingState = ReturnType<typeof useUrlState>;
