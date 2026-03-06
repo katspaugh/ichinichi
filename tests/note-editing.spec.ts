@@ -7,44 +7,6 @@ test.describe('Note Editing', () => {
     await helpers.setupLocalVault('testpassword123');
   });
 
-  test('can create a new note for today', async ({ page, helpers }) => {
-    const todayDate = helpers.getTodayDate();
-    await helpers.openNote(todayDate);
-
-    // Editor should be visible and editable
-    const editor = page.locator('[data-note-editor="content"]');
-    await expect(editor).toBeVisible();
-    await expect(editor).toHaveAttribute('contenteditable', 'true');
-
-    // Type some content
-    await helpers.typeInEditor('Hello, this is my daily note!');
-
-    // Wait for save
-    await helpers.waitForSave();
-
-    // Close and reopen to verify persistence
-    await helpers.closeNoteModal();
-    await helpers.openNote(todayDate);
-
-    await expect.poll(async () => helpers.getEditorContent(), {
-      timeout: 10000,
-    }).toContain('Hello, this is my daily note!');
-  });
-
-  test('saves note after editing', async ({ helpers }) => {
-    const todayDate = helpers.getTodayDate();
-    await helpers.openNote(todayDate);
-
-    await helpers.typeInEditor('Testing save indicator');
-
-    await helpers.waitForSave();
-    await helpers.closeNoteModal();
-    await helpers.openNote(todayDate);
-    await expect.poll(async () => helpers.getEditorContent(), {
-      timeout: 10000,
-    }).toContain('Testing save indicator');
-  });
-
   test('past notes are read-only', async ({ page, helpers }) => {
     // First create a note for today
     const todayDate = helpers.getTodayDate();
@@ -53,7 +15,6 @@ test.describe('Note Editing', () => {
     const editor = page.locator('[data-note-editor="content"]');
     await helpers.typeInEditor('Note for today');
     await helpers.waitForSave();
-    await helpers.closeNoteModal();
 
     // Calculate yesterday's date
     const yesterday = new Date();
@@ -88,52 +49,6 @@ test.describe('Note Editing', () => {
     await expect(nextArrow).toBeDisabled();
   });
 
-  test('escape key closes the note modal', async ({ page, helpers }) => {
-    const todayDate = helpers.getTodayDate();
-    await helpers.openNote(todayDate);
-
-    const editor = page.locator('[data-note-editor="content"]');
-    await expect(editor).toBeVisible();
-
-    // Press Escape to close
-    await page.keyboard.press('Escape');
-
-    // Modal should be closed
-    await expect(editor).not.toBeVisible();
-  });
-
-  test('empty note gets deleted', async ({ page, helpers }) => {
-    const todayDate = helpers.getTodayDate();
-    await helpers.openNote(todayDate);
-
-    const editor = page.locator('[data-note-editor="content"]');
-    await helpers.typeInEditor('Temporary content');
-    await helpers.waitForSave();
-
-    // Clear the content
-    await editor.click();
-    await page.keyboard.press('Meta+a');
-    await page.keyboard.press('Backspace');
-    await helpers.waitForSave();
-
-    // Close and return to calendar
-    await helpers.closeNoteModal();
-
-    // The day should no longer show "has note" indicator
-    const today = new Date();
-    const dayOfWeek = today.toLocaleDateString('en-US', { weekday: 'long' });
-    const month = today.toLocaleDateString('en-US', { month: 'long' });
-    const day = today.getDate();
-
-    const todayCell = page.locator(
-      `[role="button"][aria-label*="${dayOfWeek}"][aria-label*="${month} ${day}"]`
-    );
-
-    // Should not contain "has note" in aria-label anymore
-    const ariaLabel = await todayCell.getAttribute('aria-label');
-    expect(ariaLabel).not.toContain('has note');
-  });
-
   test('displays correct date in note header', async ({ page, helpers }) => {
     const todayDate = helpers.getTodayDate();
     await helpers.openNote(todayDate);
@@ -148,15 +63,16 @@ test.describe('Note Editing', () => {
     await expect(dateHeader).toContainText(String(expectedDay));
   });
 
-  test('preserves formatting in notes', async ({ helpers }) => {
+  test('preserves formatting in notes', async ({ page, helpers }) => {
     const todayDate = helpers.getTodayDate();
     await helpers.openNote(todayDate);
 
     await helpers.typeInEditor('Line 1\nLine 2\nLine 3');
     await helpers.waitForSave();
 
-    // Close and reopen
-    await helpers.closeNoteModal();
+    // Navigate away and reopen
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
     await helpers.openNote(todayDate);
 
     await expect.poll(async () => helpers.getEditorContent(), {

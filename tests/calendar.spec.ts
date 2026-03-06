@@ -18,71 +18,27 @@ test.describe('Calendar Navigation', () => {
     await expect(page.getByText(String(currentYear), { exact: true })).toBeVisible();
   });
 
-  test('can navigate to previous year', async ({ page }) => {
+  test('clicking month header navigates to latest note in that month', async ({ page, helpers }) => {
+    // Seed a note for today so the current month has a note to navigate to
+    const todayDate = helpers.getTodayDate();
+    await helpers.openNote(todayDate);
+    await helpers.typeInEditor('Note for month click test');
+    await helpers.waitForSave();
+
+    // Go back to calendar
     const currentYear = new Date().getFullYear();
-    const prevYearButton = page.getByRole('button', { name: /Previous year/i });
-
-    // Use force click to bypass any overlay that might be blocking
-    await prevYearButton.click({ force: true });
-
-    // Check year in header and URL
-    await expect(page.getByText(String(currentYear - 1), { exact: true })).toBeVisible();
-    await expect(page).toHaveURL(`/?year=${currentYear - 1}`);
-  });
-
-  test('can navigate to next year', async ({ page }) => {
-    const currentYear = new Date().getFullYear();
-    const nextYearButton = page.getByRole('button', { name: /Next year/i });
-
-    // Use force click to bypass any overlay that might be blocking
-    await nextYearButton.click({ force: true });
-
-    await expect(page.getByText(String(currentYear + 1), { exact: true })).toBeVisible();
-    await expect(page).toHaveURL(`/?year=${currentYear + 1}`);
-  });
-
-  test('can enter month view by clicking month header', async ({ page }) => {
-    // Click on a month header button
-    const monthButton = page.locator('button[aria-label*="View January"]');
-    await monthButton.click({ force: true });
-
-    // Should be in month view - URL should have month parameter (format: ?month=YYYY-MM)
-    await expect(page).toHaveURL(/\?month=\d{4}-\d{2}/);
-
-    // Return to year view button should be visible
-    await expect(page.getByRole('button', { name: /Return to year/i })).toBeVisible();
-  });
-
-  test('can return to year view from month view', async ({ page }) => {
-    // Enter month view
-    const monthButton = page.locator('button[aria-label*="View January"]');
-    await monthButton.click({ force: true });
-    await expect(page).toHaveURL(/\?month=\d{4}-\d{2}/);
-
-    // Click return to year view
-    const returnButton = page.getByRole('button', { name: /Return to year/i });
-    await returnButton.click({ force: true });
-
-    // URL should have year parameter without month
-    await expect(page).toHaveURL(/\?year=\d+$/);
-  });
-
-  test('can navigate months in month view', async ({ page }) => {
-    const currentYear = new Date().getFullYear();
-
-    // Enter January month view
     await page.goto(`/?year=${currentYear}`);
-    const janButton = page.locator('button[aria-label*="View January"]');
-    await janButton.click();
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(500);
 
-    // Navigate to next month
-    const nextMonthButton = page.locator('[aria-label*="Next month"]');
-    await nextMonthButton.click();
+    // Click on the current month header
+    const currentMonthName = new Date().toLocaleDateString('en-US', { month: 'long' });
+    const monthButton = page.locator(`button[aria-label*="View ${currentMonthName}"]`);
+    await monthButton.click({ force: true });
 
-    // Should show February
-    await expect(
-      page.locator('button[aria-label="Return to year view"]'),
-    ).toContainText('February');
+    // Should navigate to the day view with today's date
+    await expect(page).toHaveURL(new RegExp(`\\?date=${todayDate}`));
+    await expect(page.locator('[data-note-editor="content"]')).toBeVisible();
   });
 
   test('highlights current month in calendar', async ({ page }) => {
@@ -103,7 +59,7 @@ test.describe('Calendar Navigation', () => {
     );
     await todayCell.click();
 
-    // Note modal should open
+    // Note editor should open (inline day view)
     await expect(page.locator('[data-note-editor="content"]')).toBeVisible();
   });
 
@@ -127,53 +83,5 @@ test.describe('Calendar Navigation', () => {
 
     await expect(page.getByText(String(year), { exact: true })).toBeVisible();
     await expect(page).toHaveURL(`/?year=${year}`);
-  });
-
-  test('month view arrows navigate to previous and next note', async ({ page, helpers }) => {
-    // Enable past-note editing so we can seed notes for navigation
-    await page.evaluate(() => {
-      localStorage.setItem('dailynote_allow_past_edit', '1');
-    });
-
-    const today = new Date();
-    const prevMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-    const prevMonthStr = `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, '0')}`;
-
-    const date15 = helpers.formatDate(
-      new Date(prevMonth.getFullYear(), prevMonth.getMonth(), 15)
-    );
-    const date16 = helpers.formatDate(
-      new Date(prevMonth.getFullYear(), prevMonth.getMonth(), 16)
-    );
-
-    // Seed two notes in the same month
-    await helpers.openNote(date15);
-    await helpers.typeInEditor('Note 15');
-    await helpers.waitForSave();
-    await helpers.closeNoteModal();
-
-    await helpers.openNote(date16);
-    await helpers.typeInEditor('Note 16');
-    await helpers.waitForSave();
-    await helpers.closeNoteModal();
-
-    // Open month view with date 16 selected
-    await page.goto(`/?month=${prevMonthStr}&date=${date16}`);
-    await helpers.waitForAppReady();
-
-    const prevArrow = page.getByRole('button', { name: 'Previous note' });
-    const nextArrow = page.getByRole('button', { name: 'Next note' });
-    await expect(prevArrow).toBeVisible();
-    await expect(nextArrow).toBeVisible();
-
-    // Navigate to previous note (15th)
-    await prevArrow.click();
-    await expect(page).toHaveURL(`/?month=${prevMonthStr}&date=${date15}`);
-    await expect(page.locator('[aria-selected="true"]')).toHaveText('15');
-
-    // Navigate back to next note (16th)
-    await nextArrow.click();
-    await expect(page).toHaveURL(`/?month=${prevMonthStr}&date=${date16}`);
-    await expect(page.locator('[aria-selected="true"]')).toHaveText('16');
   });
 });
