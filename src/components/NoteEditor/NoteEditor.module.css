@@ -62,7 +62,7 @@
 
 .toolbar {
   position: sticky;
-  bottom: var(--spacing-md);
+  bottom: calc(var(--spacing-md) + 58px);
   display: flex;
   gap: var(--spacing-xs);
   align-self: flex-end;

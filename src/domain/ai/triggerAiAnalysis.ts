@@ -24,20 +24,43 @@ export async function triggerAiAnalysis(
   e2ee: E2eeService,
 ): Promise<void> {
   const store = localAiStore.getState();
-  if (!store.enabled) return;
+  if (!store.enabled) {
+    console.debug("[AI] skipped: disabled");
+    return;
+  }
 
   const svc = getEmbeddingsService();
-  if (!svc.isReady()) return;
+  if (!svc.isReady()) {
+    if (svc.isLoading()) {
+      console.debug("[AI] model still loading, waiting…");
+      try {
+        await svc.init(); // returns existing init promise
+      } catch {
+        console.debug("[AI] model failed to load while waiting");
+        return;
+      }
+    } else {
+      console.debug("[AI] skipped: model not ready (status idle or error)");
+      return;
+    }
+  }
 
   const stripped = stripAiMarks(savedContent);
   const plainText = extractPlainText(stripped);
-  if (!plainText.trim()) return;
+  if (!plainText.trim()) {
+    console.debug("[AI] skipped: empty text after extraction");
+    return;
+  }
 
   const hash = await computeContentHash(plainText);
-  if (!store.shouldAnalyze(date, hash)) return;
+  if (!store.shouldAnalyze(date, hash)) {
+    console.debug("[AI] skipped: already analyzed this hash for", date);
+    return;
+  }
 
   const gen = ++_analysisGeneration;
   store.setAnalyzing(true);
+  console.debug("[AI] starting analysis for", date, "text length:", plainText.length);
 
   try {
     const chunks = chunkText(plainText);
@@ -51,6 +74,16 @@ export async function triggerAiAnalysis(
     if (gen !== _analysisGeneration) return;
 
     const scored = matchTags(chunkVecs, tagIndex);
+
+    if (scored.length === 0) {
+      console.debug("[AI] analysis complete but no tags exceeded threshold");
+    } else {
+      console.debug(
+        "[AI] matched tags:",
+        scored.map((s) => `${s.label}(${s.score.toFixed(3)})`),
+      );
+    }
+
     const now = new Date().toISOString();
 
     const meta: AiMeta = {
@@ -64,6 +97,7 @@ export async function triggerAiAnalysis(
     localAiStore.getState().cacheAiMeta(date, meta);
     localAiStore.getState().setLastAnalyzedHash(date, hash);
     await saveEncryptedAiMeta(date, meta, e2ee);
+    console.debug("[AI] cached meta for", date, "tags:", meta.tags);
   } catch (error) {
     console.error("AI analysis failed:", error);
   } finally {

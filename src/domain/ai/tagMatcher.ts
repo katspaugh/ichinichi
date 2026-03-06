@@ -10,7 +10,7 @@ export interface ScoredTag {
   score: number;
 }
 
-const DEFAULT_THRESHOLD = 0.35;
+const DEFAULT_THRESHOLD = 0.3;
 const DEFAULT_MAX_TAGS = 8;
 
 /**

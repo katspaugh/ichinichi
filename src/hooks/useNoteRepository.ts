@@ -190,6 +190,14 @@ export function useNoteRepository({
   // After-save callback: apply note change to calendar + queue idle sync + AI
   const handleAfterSave = useCallback(
     (snapshot: { date: string; content: string; isEmpty: boolean }) => {
+      console.debug(
+        "[AI] afterSave fired, date:",
+        snapshot.date,
+        "empty:",
+        snapshot.isEmpty,
+        "e2ee:",
+        !!e2eeRef.current,
+      );
       applyNoteChange(snapshot.date, snapshot.isEmpty);
       queueIdleSync();
 
