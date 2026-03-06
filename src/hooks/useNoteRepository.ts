@@ -178,7 +178,7 @@ export function useNoteRepository({
 
   // E2EE service for AI metadata encryption
   const e2eeRef = useRef<E2eeService | null>(null);
-  e2eeRef.current = useMemo(() => {
+  const e2eeService = useMemo(() => {
     if (!vaultKey || !activeKeyId) return null;
     const keyProvider = {
       activeKeyId,
@@ -186,6 +186,9 @@ export function useNoteRepository({
     };
     return e2eeFactory.create(keyProvider);
   }, [vaultKey, activeKeyId, keyring, e2eeFactory]);
+  useEffect(() => {
+    e2eeRef.current = e2eeService;
+  }, [e2eeService]);
 
   // After-save callback: apply note change to calendar + queue idle sync + AI
   const handleAfterSave = useCallback(
