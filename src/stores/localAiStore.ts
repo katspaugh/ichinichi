@@ -20,6 +20,7 @@ export interface LocalAiState {
   setModelStatus: (status: ModelStatus, error?: string) => void;
   setAnalyzing: (analyzing: boolean) => void;
   cacheAiMeta: (date: string, meta: AiMeta) => void;
+  updateAiTags: (date: string, tags: string[]) => AiMeta | undefined;
   getAiMeta: (date: string) => AiMeta | undefined;
   shouldAnalyze: (date: string, contentHash: string) => boolean;
   setLastAnalyzedHash: (date: string, hash: string) => void;
@@ -67,6 +68,15 @@ export const localAiStore = createStore<LocalAiState>()((set, get) => ({
   cacheAiMeta(date: string, meta: AiMeta) {
     const current = get().aiMetaByDate;
     set({ aiMetaByDate: { ...current, [date]: meta } });
+  },
+
+  updateAiTags(date: string, tags: string[]): AiMeta | undefined {
+    const existing = get().aiMetaByDate[date];
+    if (!existing) return undefined;
+    const updated = { ...existing, tags };
+    const current = get().aiMetaByDate;
+    set({ aiMetaByDate: { ...current, [date]: updated } });
+    return updated;
   },
 
   getAiMeta(date: string): AiMeta | undefined {

@@ -1,7 +1,8 @@
 .root {
   display: flex;
-  align-items: center;
-  padding: 10px var(--spacing-2xl);
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px var(--spacing-2xl);
   color: var(--color-text-muted);
   background: var(--color-surface);
   border: 1px solid var(--glass-border);
@@ -13,30 +14,74 @@
   border-radius: 0 0 var(--radius-lg) var(--radius-lg);
 }
 
+.header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
+.sparkle {
+  font-size: 16px;
+  line-height: 1;
+}
+
 .tags {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 
 .tag {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  padding: 0 12px;
-  height: 36px;
+  gap: 6px;
+  padding: 6px 14px;
   border-radius: 18px;
-  background: var(--color-surface-hover);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
-  color: var(--color-text-muted);
   white-space: nowrap;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.remove {
+  all: unset;
+  cursor: pointer;
+  margin-left: 2px;
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0.5;
+  transition: opacity 0.15s;
+}
+
+.remove:hover {
+  opacity: 1;
+}
+
+.input {
+  all: unset;
+  font-size: 14px;
+  min-width: 60px;
+  color: var(--color-text);
+}
+
+.input::placeholder {
+  color: var(--color-text-muted);
+  opacity: 0.6;
 }
 
 @media (max-width: 768px) {
   .root {
-    padding: 10px var(--spacing-xl);
+    padding: 14px var(--spacing-xl);
     margin-left: calc(-1 * var(--spacing-xl) - 1px);
     margin-right: calc(-1 * var(--spacing-xl) - 1px);
     margin-bottom: calc(-1 * var(--spacing-lg) - 1px);

@@ -23,7 +23,7 @@ import { useServiceContext } from "../contexts/serviceContext";
 import { noteContentStore } from "../stores/noteContentStore";
 import { syncStore } from "../stores/syncStore";
 import { triggerAiAnalysis } from "../domain/ai/triggerAiAnalysis";
-import { loadAiMetaForDate } from "../storage/aiMetaStore";
+import { loadAiMetaForDate, saveEncryptedAiMeta } from "../storage/aiMetaStore";
 import { localAiStore } from "../stores/localAiStore";
 import type { E2eeService } from "../domain/crypto/e2eeService";
 
@@ -65,6 +65,7 @@ export interface UseNoteRepositoryReturn {
   noteError: Error | null;
   repositoryVersion: number;
   invalidateRepository: () => void;
+  saveAiTags: (date: string, tags: string[]) => void;
 }
 
 export function useNoteRepository({
@@ -238,6 +239,15 @@ export function useNoteRepository({
     });
   }, [date]);
 
+  const saveAiTags = useCallback(
+    (targetDate: string, tags: string[]) => {
+      const updated = localAiStore.getState().updateAiTags(targetDate, tags);
+      if (!updated || !e2eeRef.current) return;
+      void saveEncryptedAiMeta(targetDate, updated, e2eeRef.current);
+    },
+    [],
+  );
+
   // Cross-concern coordination via Zustand subscribe()
   // When sync completes or realtime changes arrive, refresh current note
   useEffect(() => {
@@ -298,5 +308,6 @@ export function useNoteRepository({
     noteError,
     repositoryVersion,
     invalidateRepository,
+    saveAiTags,
   };
 }

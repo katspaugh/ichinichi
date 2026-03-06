@@ -13,6 +13,7 @@ import { useShareTarget } from "../../hooks/useShareTarget";
 import { LocationPrompt } from "../LocationPrompt/LocationPrompt";
 import { useWeatherContext } from "../../contexts/weatherContext";
 import { useLocalAi } from "../../hooks/useLocalAi";
+import { useNoteRepositoryContext } from "../../contexts/noteRepositoryContext";
 import { NoteModline } from "../NoteModline/NoteModline";
 
 interface NoteEditorProps {
@@ -160,8 +161,16 @@ export function NoteEditor({
   useShareTarget(onImageDrop ? handleFileInput : undefined, isEditable);
 
   const localAi = useLocalAi(date);
+  const { saveAiTags } = useNoteRepositoryContext();
 
-  const footer = <NoteModline aiMeta={localAi.aiMeta} />;
+  const handleTagsChange = useCallback(
+    (tags: string[]) => saveAiTags(date, tags),
+    [date, saveAiTags],
+  );
+
+  const footer = (
+    <NoteModline aiMeta={localAi.aiMeta} onTagsChange={handleTagsChange} />
+  );
   return (
     <>
       <NoteEditorView
