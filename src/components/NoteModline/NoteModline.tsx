@@ -118,8 +118,8 @@ export function NoteModline({ aiMeta, onTagsChange }: NoteModlineProps) {
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
             onBlur={handleBlur}
-            placeholder={hasTags ? "" : "Add tags..."}
-            size={Math.max(inputValue.length, 6)}
+            placeholder=""
+            size={Math.max(inputValue.length, 1)}
           />
         )}
       </div>
