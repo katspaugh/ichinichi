@@ -1,6 +1,12 @@
 /// <reference lib="webworker" />
 
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-expect-error onnxruntime-web types not resolved via package.json exports
+import * as ONNX from "onnxruntime-web";
 import { env, pipeline, type FeatureExtractionPipeline, type PretrainedModelOptions } from "@huggingface/transformers";
+
+// Serve ONNX WASM runtime from /ort/ instead of cdn.jsdelivr.net
+ONNX.env.wasm.wasmPaths = "/ort/";
 
 // Serve model files from /models/ instead of fetching from huggingface.co
 env.localModelPath = "/models/";
