@@ -15,6 +15,8 @@ module.exports = {
     "^@/(.*)$": "<rootDir>/src/$1",
     "\\.module\\.css$": "identity-obj-proxy",
     "\\.css$": "<rootDir>/src/__tests__/__mocks__/styleMock.js",
+    "^.*/services/embeddingsService$":
+      "<rootDir>/src/__tests__/__mocks__/embeddingsService.js",
   },
   setupFiles: ["<rootDir>/jest.setup.cjs"],
 };

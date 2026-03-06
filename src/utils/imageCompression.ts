@@ -143,7 +143,7 @@ async function imageHasTransparency(file: File): Promise<boolean> {
 
       if (!ctx) return false;
 
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img as unknown as CanvasImageSource, 0, 0, canvas.width, canvas.height);
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const data = imageData.data;
 
@@ -215,7 +215,7 @@ function compressToCanvas(
     ctx.imageSmoothingQuality = "high";
 
     // Draw image at target size
-    ctx.drawImage(img, 0, 0, width, height);
+    ctx.drawImage(img as unknown as CanvasImageSource, 0, 0, width, height);
 
     // Convert to blob
     canvas.toBlob(

@@ -112,6 +112,7 @@ export function createEmbeddingsService(): EmbeddingsService {
       if (status === "loading" && initPromise) return initPromise;
 
       status = "loading";
+      // @ts-ignore TS1343: import.meta.url valid in Vite but not Jest CommonJS
       worker = new Worker(new URL("../workers/embeddings.worker.ts", import.meta.url), { type: "module" });
       worker.addEventListener("message", handleMessage);
       worker.addEventListener("error", handleWorkerError);
