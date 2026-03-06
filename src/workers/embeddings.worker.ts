@@ -4,6 +4,7 @@ import { env, pipeline, type FeatureExtractionPipeline, type PretrainedModelOpti
 
 // Serve model files from /models/ instead of fetching from huggingface.co
 env.localModelPath = "/models/";
+env.allowLocalModels = true;
 env.allowRemoteModels = false;
 
 const MODEL_NAME = "all-MiniLM-L6-v2";
