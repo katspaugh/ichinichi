@@ -373,7 +373,7 @@ class LocationService {
     try {
       const position = await new Promise<GeolocationPosition>(
         (resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject, {
+          (navigator as Navigator).geolocation.getCurrentPosition(resolve, reject, {
             enableHighAccuracy: false, // Faster, good enough for weather
             timeout: 10000,
             maximumAge: 300000, // 5 minutes - browser caches position
