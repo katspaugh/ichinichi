@@ -110,7 +110,7 @@ export function useNoteRepository({
         createUnifiedSyncedImageRepository(supabase, userId, keyProvider),
       e2eeFactory,
     }),
-    [e2eeFactory, supabase, envelopePort, remoteDateIndex],
+    [e2eeFactory, supabase],
   );
 
   const repository = useMemo<NoteRepository | null>(() => {
