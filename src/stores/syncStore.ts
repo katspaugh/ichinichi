@@ -65,6 +65,8 @@ export const syncStore = createStore<SyncStoreState>()(subscribeWithSelector((se
   let _realtimeDebounceTimer: number | null = null;
   let _realtimeRetryTimer: number | null = null;
   let _isInitialRealtimeConnect = false;
+  let _initTimestamp = 0;
+  const INIT_GRACE_PERIOD_MS = 5000;
 
   const _refreshPendingOps = async () => {
     try {
@@ -204,6 +206,7 @@ export const syncStore = createStore<SyncStoreState>()(subscribeWithSelector((se
         get().dispose();
       }
 
+      _initTimestamp = Date.now();
       const online = connectivity.getOnline();
 
       // Create sync service reusing domain code
@@ -395,6 +398,8 @@ export const syncStore = createStore<SyncStoreState>()(subscribeWithSelector((se
     handleWindowFocus: () => {
       const state = get();
       if (state._disposed || !state._intentScheduler) return;
+      // Skip if still within the init grace period — init already triggered a sync
+      if (Date.now() - _initTimestamp < INIT_GRACE_PERIOD_MS) return;
       state._intentScheduler.requestSync({ immediate: true });
       void _refreshPendingOps();
     },

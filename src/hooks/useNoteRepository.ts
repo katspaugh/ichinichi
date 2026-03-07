@@ -209,13 +209,13 @@ export function useNoteRepository({
   // Cross-concern coordination via Zustand subscribe()
   // When sync completes or realtime changes arrive, refresh current note
   useEffect(() => {
-    // Sync completion → refresh current note
+    // Sync completion → re-read note from local (sync already updated IndexedDB)
     const unsubSync = syncStore.subscribe(
       (s) => s.syncCompletionCount,
       () => {
         const ns = noteContentStore.getState();
         if (ns.date && !ns.hasEdits && (ns.status === "ready" || ns.status === "error")) {
-          ns.forceRefresh();
+          void ns.reloadFromLocal();
         }
       },
     );

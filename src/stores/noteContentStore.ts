@@ -49,6 +49,7 @@ export interface NoteContentState {
   flushSave: () => Promise<void>;
   applyRemoteUpdate: (content: string) => void;
   refreshFromRemote: () => Promise<void>;
+  reloadFromLocal: () => Promise<void>;
   forceRefresh: () => void;
   checkRemoteCache: () => Promise<void>;
   setAfterSave: (callback?: (snapshot: SaveSnapshot) => void) => void;
@@ -356,6 +357,24 @@ export const noteContentStore = createStore<NoteContentState>()((set, get) => {
         if (gen === _refreshGeneration) {
           set({ isRefreshing: false });
         }
+      }
+    },
+
+    reloadFromLocal: async () => {
+      const { date, repository, hasEdits } = get();
+      if (!date || !repository || hasEdits) return;
+      try {
+        const result = await repository.get(date);
+        const current = get();
+        if (current.date !== date || current.hasEdits) return;
+        if (result.ok) {
+          const content = result.value?.content ?? "";
+          if (content !== current.content) {
+            set({ content, hasEdits: false, error: null });
+          }
+        }
+      } catch {
+        // Local read failed — not critical, skip
       }
     },
 
