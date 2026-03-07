@@ -1,21 +1,12 @@
+// @vitest-environment jsdom
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { useNoteDates } from "../hooks/useNoteDates";
 import { ok } from "../domain/result";
-import { syncDefaults } from "./helpers/mockNoteRepository";
+import { createMockSyncCapableRepository } from "./helpers/mocks";
 
 describe("useNoteDates", () => {
   it("adds a note date immediately when a note is saved", async () => {
-    const repository = {
-      ...syncDefaults,
-      syncCapable: true,
-      get: jest.fn(),
-      save: jest.fn(),
-      delete: jest.fn(),
-      getAllDates: jest.fn(),
-      getAllDatesForYear: jest.fn().mockResolvedValue(ok([])),
-      getAllLocalDatesForYear: jest.fn().mockResolvedValue(ok([])),
-      refreshDates: jest.fn().mockResolvedValue(undefined),
-    };
+    const repository = createMockSyncCapableRepository();
 
     const { result } = renderHook(() => useNoteDates(repository, 2026));
 
@@ -29,17 +20,10 @@ describe("useNoteDates", () => {
   });
 
   it("removes a note date immediately when a note is deleted", async () => {
-    const repository = {
-      ...syncDefaults,
-      syncCapable: true,
-      get: jest.fn(),
-      save: jest.fn(),
-      delete: jest.fn(),
-      getAllDates: jest.fn(),
-      getAllDatesForYear: jest.fn().mockResolvedValue(ok(["05-01-2026"])),
-      getAllLocalDatesForYear: jest.fn().mockResolvedValue(ok(["05-01-2026"])),
-      refreshDates: jest.fn().mockResolvedValue(undefined),
-    };
+    const repository = createMockSyncCapableRepository({
+      getAllDatesForYear: vi.fn().mockResolvedValue(ok(["05-01-2026"])),
+      getAllLocalDatesForYear: vi.fn().mockResolvedValue(ok(["05-01-2026"])),
+    });
 
     const { result } = renderHook(() => useNoteDates(repository, 2026));
 
@@ -57,28 +41,14 @@ describe("useNoteDates", () => {
   });
 
   it("keeps separate state for separate hook instances", async () => {
-    const januaryRepository = {
-      ...syncDefaults,
-      syncCapable: true,
-      get: jest.fn(),
-      save: jest.fn(),
-      delete: jest.fn(),
-      getAllDates: jest.fn(),
-      getAllDatesForYear: jest.fn().mockResolvedValue(ok(["05-01-2026"])),
-      getAllLocalDatesForYear: jest.fn().mockResolvedValue(ok(["05-01-2026"])),
-      refreshDates: jest.fn().mockResolvedValue(undefined),
-    };
-    const februaryRepository = {
-      ...syncDefaults,
-      syncCapable: true,
-      get: jest.fn(),
-      save: jest.fn(),
-      delete: jest.fn(),
-      getAllDates: jest.fn(),
-      getAllDatesForYear: jest.fn().mockResolvedValue(ok(["07-02-2026"])),
-      getAllLocalDatesForYear: jest.fn().mockResolvedValue(ok(["07-02-2026"])),
-      refreshDates: jest.fn().mockResolvedValue(undefined),
-    };
+    const januaryRepository = createMockSyncCapableRepository({
+      getAllDatesForYear: vi.fn().mockResolvedValue(ok(["05-01-2026"])),
+      getAllLocalDatesForYear: vi.fn().mockResolvedValue(ok(["05-01-2026"])),
+    });
+    const februaryRepository = createMockSyncCapableRepository({
+      getAllDatesForYear: vi.fn().mockResolvedValue(ok(["07-02-2026"])),
+      getAllLocalDatesForYear: vi.fn().mockResolvedValue(ok(["07-02-2026"])),
+    });
 
     const january = renderHook(() => useNoteDates(januaryRepository, 2026));
     const february = renderHook(() => useNoteDates(februaryRepository, 2026));

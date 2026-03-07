@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { render, fireEvent, waitFor } from "@testing-library/react";
 import { useContentEditableEditor } from "../components/NoteEditor/useContentEditableEditor";
 
@@ -33,18 +34,18 @@ function EditorHarness({ content }: { content: string }) {
 
 describe("NoteEditor timestamp HR insertion", () => {
   beforeEach(() => {
-    jest.useFakeTimers();
+    vi.useFakeTimers({ shouldAdvanceTime: true });
   });
 
   afterEach(() => {
-    jest.useRealTimers();
+    vi.useRealTimers();
   });
 
   it("inserts timestamped HR on first newline after 10 minutes", async () => {
     const startTime = new Date("2026-01-16T10:00:00.000Z");
     const laterTime = new Date(startTime.getTime() + 11 * 60 * 1000);
 
-    jest.setSystemTime(startTime);
+    vi.setSystemTime(startTime);
 
     const { getByTestId } = render(
       <EditorHarness content="<p>First</p><p>Second</p>" />,
@@ -66,7 +67,7 @@ describe("NoteEditor timestamp HR insertion", () => {
     setCaretAtEnd(secondParagraph);
     fireEvent.input(editor);
 
-    jest.setSystemTime(laterTime);
+    vi.setSystemTime(laterTime);
 
     const thirdParagraph = document.createElement("p");
     thirdParagraph.innerHTML = "<br>";

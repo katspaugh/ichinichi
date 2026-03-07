@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import {
   deriveImageKey,
   encryptImageBuffer,
@@ -5,7 +6,7 @@ import {
 } from "../storage/unifiedImageCrypto";
 import { base64ToBytes, bytesToBase64 } from "../storage/cryptoUtils";
 
-jest.setTimeout(20000);
+vi.setConfig({ testTimeout: 20000 });
 
 async function createVaultKey(): Promise<CryptoKey> {
   return crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, [

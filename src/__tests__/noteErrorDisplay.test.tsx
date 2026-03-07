@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { render } from "@testing-library/react";
 import { NoteEditorHeader } from "../components/NoteEditor/NoteEditorHeader";
 

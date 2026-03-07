@@ -1,11 +1,12 @@
+// @vitest-environment jsdom
 import { createCancellableOperation } from "../utils/asyncHelpers";
 
 beforeEach(() => {
-  jest.useFakeTimers();
+  vi.useFakeTimers();
 });
 
 afterEach(() => {
-  jest.useRealTimers();
+  vi.useRealTimers();
 });
 
 describe("createCancellableOperation", () => {
@@ -36,7 +37,7 @@ describe("createCancellableOperation", () => {
   });
 
   it("aborts on timeout", async () => {
-    const onTimeout = jest.fn();
+    const onTimeout = vi.fn();
     const { signal } = createCancellableOperation(
       () => new Promise(() => {}),
       { timeoutMs: 5000, onTimeout },
@@ -44,31 +45,31 @@ describe("createCancellableOperation", () => {
 
     expect(signal.aborted).toBe(false);
 
-    jest.advanceTimersByTime(5000);
+    vi.advanceTimersByTime(5000);
 
     expect(signal.aborted).toBe(true);
     expect(onTimeout).toHaveBeenCalledTimes(1);
   });
 
   it("uses default 30s timeout when not specified", () => {
-    const onTimeout = jest.fn();
+    const onTimeout = vi.fn();
     const { signal } = createCancellableOperation(
       () => new Promise(() => {}),
       { onTimeout },
     );
 
     // Not yet expired at 29s
-    jest.advanceTimersByTime(29000);
+    vi.advanceTimersByTime(29000);
     expect(signal.aborted).toBe(false);
 
     // Expires at 30s
-    jest.advanceTimersByTime(1000);
+    vi.advanceTimersByTime(1000);
     expect(signal.aborted).toBe(true);
     expect(onTimeout).toHaveBeenCalledTimes(1);
   });
 
   it("clears timeout when operation completes before timeout", async () => {
-    const clearTimeoutSpy = jest.spyOn(window, "clearTimeout");
+    const clearTimeoutSpy = vi.spyOn(window, "clearTimeout");
 
     const { promise } = createCancellableOperation(async () => "done", {
       timeoutMs: 10000,
@@ -81,7 +82,7 @@ describe("createCancellableOperation", () => {
   });
 
   it("clears timeout even when operation throws", async () => {
-    const clearTimeoutSpy = jest.spyOn(window, "clearTimeout");
+    const clearTimeoutSpy = vi.spyOn(window, "clearTimeout");
 
     const { promise } = createCancellableOperation(
       async () => {
@@ -96,7 +97,7 @@ describe("createCancellableOperation", () => {
   });
 
   it("no timeout is set when timeoutMs is 0", () => {
-    const setTimeoutSpy = jest.spyOn(window, "setTimeout");
+    const setTimeoutSpy = vi.spyOn(window, "setTimeout");
     const callCountBefore = setTimeoutSpy.mock.calls.length;
 
     createCancellableOperation(() => new Promise(() => {}), {

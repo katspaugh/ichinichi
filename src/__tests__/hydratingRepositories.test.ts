@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { createHydratingImageRepository } from "../domain/images/hydratingImageRepository";
 import type { E2eeServiceFactory } from "../domain/crypto/e2eeService";
 import { createE2eeService } from "../services/e2eeService";
@@ -112,22 +113,22 @@ describe("hydrating repositories", () => {
 
   it("stores note envelopes without decrypting", async () => {
     const gateway: RemoteNotesGateway = {
-      fetchNoteByDate: jest.fn().mockResolvedValue({ ok: true, value: null }),
-      fetchNoteDates: jest.fn().mockResolvedValue({ ok: true, value: [] }),
-      fetchNotesSince: jest.fn().mockResolvedValue({ ok: true, value: [] }),
-      pushNote: jest.fn().mockResolvedValue({
+      fetchNoteByDate: vi.fn().mockResolvedValue({ ok: true, value: null }),
+      fetchNoteDates: vi.fn().mockResolvedValue({ ok: true, value: [] }),
+      fetchNotesSince: vi.fn().mockResolvedValue({ ok: true, value: [] }),
+      pushNote: vi.fn().mockResolvedValue({
         ok: false,
         error: { type: "RemoteRejected", message: "not used" },
       }),
-      deleteNote: jest.fn().mockResolvedValue({ ok: true, value: undefined }),
+      deleteNote: vi.fn().mockResolvedValue({ ok: true, value: undefined }),
     };
     const connectivity: Connectivity = { isOnline: () => true };
     const clock: Clock = { now: () => new Date("2025-01-05T10:00:00.000Z") };
     const syncStateStore: SyncStateStore = {
-      getState: jest
+      getState: vi
         .fn()
         .mockResolvedValue({ ok: true, value: { id: "state", cursor: null } }),
-      setState: jest.fn().mockResolvedValue({ ok: true, value: undefined }),
+      setState: vi.fn().mockResolvedValue({ ok: true, value: undefined }),
     };
     const engine = createNoteSyncEngine(
       gateway,
@@ -165,19 +166,19 @@ describe("hydrating repositories", () => {
   });
   it("refreshEnvelope keeps local content when pending upsert and no remote", async () => {
     const gateway: RemoteNotesGateway = {
-      fetchNoteByDate: jest.fn().mockResolvedValue({ ok: true, value: null }),
-      fetchNoteDates: jest.fn().mockResolvedValue({ ok: true, value: [] }),
-      fetchNotesSince: jest.fn().mockResolvedValue({ ok: true, value: [] }),
-      pushNote: jest.fn(),
-      deleteNote: jest.fn().mockResolvedValue({ ok: true, value: undefined }),
+      fetchNoteByDate: vi.fn().mockResolvedValue({ ok: true, value: null }),
+      fetchNoteDates: vi.fn().mockResolvedValue({ ok: true, value: [] }),
+      fetchNotesSince: vi.fn().mockResolvedValue({ ok: true, value: [] }),
+      pushNote: vi.fn(),
+      deleteNote: vi.fn().mockResolvedValue({ ok: true, value: undefined }),
     };
     const connectivity: Connectivity = { isOnline: () => true };
     const clock: Clock = { now: () => new Date("2025-01-05T10:00:00.000Z") };
     const syncStateStore: SyncStateStore = {
-      getState: jest
+      getState: vi
         .fn()
         .mockResolvedValue({ ok: true, value: { id: "state", cursor: null } }),
-      setState: jest.fn().mockResolvedValue({ ok: true, value: undefined }),
+      setState: vi.fn().mockResolvedValue({ ok: true, value: undefined }),
     };
     const engine = createNoteSyncEngine(
       gateway,
@@ -219,10 +220,10 @@ describe("hydrating repositories", () => {
     let saveEnvelopeDuringPush: (() => Promise<void>) | null = null;
 
     const gateway: RemoteNotesGateway = {
-      fetchNoteByDate: jest.fn().mockResolvedValue({ ok: true, value: null }),
-      fetchNoteDates: jest.fn().mockResolvedValue({ ok: true, value: [] }),
-      fetchNotesSince: jest.fn().mockResolvedValue({ ok: true, value: [] }),
-      pushNote: jest.fn().mockImplementation(async (note) => {
+      fetchNoteByDate: vi.fn().mockResolvedValue({ ok: true, value: null }),
+      fetchNoteDates: vi.fn().mockResolvedValue({ ok: true, value: [] }),
+      fetchNotesSince: vi.fn().mockResolvedValue({ ok: true, value: [] }),
+      pushNote: vi.fn().mockImplementation(async (note) => {
         pushCallCount++;
         // Simulate a concurrent edit happening during the push
         if (saveEnvelopeDuringPush) {
@@ -244,15 +245,15 @@ describe("hydrating repositories", () => {
           },
         };
       }),
-      deleteNote: jest.fn().mockResolvedValue({ ok: true, value: undefined }),
+      deleteNote: vi.fn().mockResolvedValue({ ok: true, value: undefined }),
     };
     const connectivity: Connectivity = { isOnline: () => true };
     const clock: Clock = { now: () => new Date("2025-01-05T10:00:00.000Z") };
     const syncStateStore: SyncStateStore = {
-      getState: jest
+      getState: vi
         .fn()
         .mockResolvedValue({ ok: true, value: { id: "state", cursor: null } }),
-      setState: jest.fn().mockResolvedValue({ ok: true, value: undefined }),
+      setState: vi.fn().mockResolvedValue({ ok: true, value: undefined }),
     };
     const engine = createNoteSyncEngine(
       gateway,

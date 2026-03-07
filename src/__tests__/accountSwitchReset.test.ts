@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { createLocalNoteRepository } from "../domain/notes/localNoteRepository";
 import { createNoteCrypto } from "../domain/crypto/noteCrypto";
 import { createNoteSyncEngine } from "../domain/sync/noteSyncEngine";
@@ -73,20 +74,20 @@ describe("account switch resets cloud sync state", () => {
     expect(accountAfterSecond).not.toBe(accountAfterFirst);
 
     const gateway: RemoteNotesGateway = {
-      fetchNoteByDate: jest.fn().mockResolvedValue({ ok: true, value: null }),
-      fetchNoteDates: jest.fn().mockResolvedValue({ ok: true, value: [] }),
-      fetchNotesSince: jest.fn().mockResolvedValue({ ok: true, value: [] }),
-      pushNote: jest.fn(),
-      deleteNote: jest.fn().mockResolvedValue({ ok: true, value: undefined }),
+      fetchNoteByDate: vi.fn().mockResolvedValue({ ok: true, value: null }),
+      fetchNoteDates: vi.fn().mockResolvedValue({ ok: true, value: [] }),
+      fetchNotesSince: vi.fn().mockResolvedValue({ ok: true, value: [] }),
+      pushNote: vi.fn(),
+      deleteNote: vi.fn().mockResolvedValue({ ok: true, value: undefined }),
     };
     const connectivity: Connectivity = { isOnline: () => true };
     const clock: Clock = { now: () => new Date("2026-02-02T10:00:00.000Z") };
     const syncStateStore: SyncStateStore = {
-      getState: jest.fn().mockResolvedValue({
+      getState: vi.fn().mockResolvedValue({
         ok: true,
         value: { id: "state", cursor: null },
       }),
-      setState: jest.fn().mockResolvedValue({ ok: true, value: undefined }),
+      setState: vi.fn().mockResolvedValue({ ok: true, value: undefined }),
     };
 
     const engine = createNoteSyncEngine(

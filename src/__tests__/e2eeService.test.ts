@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { createE2eeService } from "../services/e2eeService";
 import type { KeyringProvider } from "../domain/crypto/keyring";
 import type { NoteRecord, ImageRecord } from "../storage/unifiedDb";

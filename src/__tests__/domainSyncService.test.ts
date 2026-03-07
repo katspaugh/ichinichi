@@ -15,8 +15,8 @@ function createMockPendingOpsSource(
   summary: PendingOpsSummary,
 ): PendingOpsSource {
   return {
-    getSummary: jest.fn().mockResolvedValue(summary),
-    hasPending: jest.fn().mockResolvedValue(summary.total > 0),
+    getSummary: vi.fn().mockResolvedValue(summary),
+    hasPending: vi.fn().mockResolvedValue(summary.total > 0),
   };
 }
 
@@ -57,7 +57,7 @@ describe("hasPendingOps", () => {
 describe("createSyncService", () => {
   function createMockRepository() {
     return {
-      sync: jest.fn<Promise<Result<SyncStatus, SyncError>>, []>(),
+      sync: vi.fn<() => Promise<Result<SyncStatus, SyncError>>>(),
     };
   }
 
@@ -83,7 +83,7 @@ describe("createSyncService", () => {
       images: 0,
       total: 0,
     });
-    const onSyncStart = jest.fn();
+    const onSyncStart = vi.fn();
     let syncStartedBeforeResolve = false;
 
     repository.sync.mockImplementation(async () => {
@@ -107,7 +107,7 @@ describe("createSyncService", () => {
       images: 0,
       total: 0,
     });
-    const onSyncComplete = jest.fn();
+    const onSyncComplete = vi.fn();
     repository.sync.mockResolvedValue(ok(SyncStatus.Synced));
 
     const service = createSyncService(repository as never, pendingOpsSource, {
@@ -126,7 +126,7 @@ describe("createSyncService", () => {
       images: 0,
       total: 0,
     });
-    const onSyncError = jest.fn();
+    const onSyncError = vi.fn();
     const error = { type: "RemoteRejected", message: "Sync failed" } as const;
     repository.sync.mockResolvedValue(err(error));
 
@@ -183,7 +183,7 @@ describe("createSyncService", () => {
       images: 0,
       total: 0,
     });
-    const onSyncComplete = jest.fn();
+    const onSyncComplete = vi.fn();
     let resolveFirst: () => void;
 
     repository.sync.mockImplementationOnce(async () => {
@@ -214,7 +214,7 @@ describe("createSyncService", () => {
       images: 0,
       total: 0,
     });
-    const onSyncError = jest.fn();
+    const onSyncError = vi.fn();
     let resolveFirst: () => void;
 
     repository.sync.mockImplementationOnce(async () => {

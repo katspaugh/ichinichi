@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+import type { Mock } from "vitest";
 import { createNoteSyncEngine } from "../domain/sync/noteSyncEngine";
 import { createNoteEnvelopeAdapter } from "../storage/noteEnvelopeAdapter";
 import { createRemoteDateIndexAdapter } from "../storage/remoteDateIndexAdapter";
@@ -106,14 +108,14 @@ function makeRemoteNote(overrides: Partial<{
 
 function makeGateway(overrides: Partial<RemoteNotesGateway> = {}): RemoteNotesGateway {
   return {
-    fetchNoteByDate: jest.fn().mockResolvedValue({ ok: true, value: null }),
-    fetchNoteDates: jest.fn().mockResolvedValue({ ok: true, value: [] }),
-    fetchNotesSince: jest.fn().mockResolvedValue({ ok: true, value: [] }),
-    pushNote: jest.fn().mockResolvedValue({
+    fetchNoteByDate: vi.fn().mockResolvedValue({ ok: true, value: null }),
+    fetchNoteDates: vi.fn().mockResolvedValue({ ok: true, value: [] }),
+    fetchNotesSince: vi.fn().mockResolvedValue({ ok: true, value: [] }),
+    pushNote: vi.fn().mockResolvedValue({
       ok: true,
       value: makeRemoteNote({ revision: 1 }),
     }),
-    deleteNote: jest.fn().mockResolvedValue({
+    deleteNote: vi.fn().mockResolvedValue({
       ok: true,
       value: makeRemoteNote({ deleted: true, revision: 2 }),
     }),
@@ -125,11 +127,11 @@ function makeDeps() {
   const connectivity: Connectivity = { isOnline: () => true };
   const clock: Clock = { now: () => new Date("2026-01-10T12:00:00.000Z") };
   const syncStateStore: SyncStateStore = {
-    getState: jest.fn().mockResolvedValue({
+    getState: vi.fn().mockResolvedValue({
       ok: true,
       value: { id: "state", cursor: null },
     }),
-    setState: jest.fn().mockResolvedValue({ ok: true, value: undefined }),
+    setState: vi.fn().mockResolvedValue({ ok: true, value: undefined }),
   };
   return { connectivity, clock, syncStateStore };
 }
@@ -142,7 +144,7 @@ describe("noteSyncEngine", () => {
   describe("push with version gating", () => {
     it("pushes new note with revision 0 (server assigns 1)", async () => {
       const gateway = makeGateway({
-        pushNote: jest.fn().mockResolvedValue({
+        pushNote: vi.fn().mockResolvedValue({
           ok: true,
           value: makeRemoteNote({ ciphertext: "local", revision: 1 }),
         }),
@@ -176,11 +178,11 @@ describe("noteSyncEngine", () => {
     it("retries on VERSION_CONFLICT by fetching remote and pushing with updated revision", async () => {
       let pushCount = 0;
       const gateway = makeGateway({
-        fetchNoteByDate: jest.fn().mockResolvedValue({
+        fetchNoteByDate: vi.fn().mockResolvedValue({
           ok: true,
           value: makeRemoteNote({ revision: 3 }),
         }),
-        pushNote: jest.fn().mockImplementation(async () => {
+        pushNote: vi.fn().mockImplementation(async () => {
           pushCount += 1;
           if (pushCount === 1) {
             return { ok: false, error: { type: "Conflict", message: "VERSION_CONFLICT" } };
@@ -220,11 +222,11 @@ describe("noteSyncEngine", () => {
 
     it("leaves pendingOp if retry also fails", async () => {
       const gateway = makeGateway({
-        fetchNoteByDate: jest.fn().mockResolvedValue({
+        fetchNoteByDate: vi.fn().mockResolvedValue({
           ok: true,
           value: makeRemoteNote({ revision: 3 }),
         }),
-        pushNote: jest.fn().mockResolvedValue({
+        pushNote: vi.fn().mockResolvedValue({
           ok: false,
           error: { type: "Conflict", message: "VERSION_CONFLICT" },
         }),
@@ -254,11 +256,11 @@ describe("noteSyncEngine", () => {
   describe("delete with version gating", () => {
     it("deletes with server revision check", async () => {
       const gateway = makeGateway({
-        pushNote: jest.fn().mockResolvedValue({
+        pushNote: vi.fn().mockResolvedValue({
           ok: true,
           value: makeRemoteNote({ revision: 1 }),
         }),
-        deleteNote: jest.fn().mockResolvedValue({
+        deleteNote: vi.fn().mockResolvedValue({
           ok: true,
           value: makeRemoteNote({ deleted: true, revision: 2 }),
         }),
@@ -321,15 +323,15 @@ describe("noteSyncEngine", () => {
     it("cancels local delete if remote has new content on conflict", async () => {
       const remoteNote = makeRemoteNote({ ciphertext: "remote-new", revision: 5 });
       const gateway = makeGateway({
-        pushNote: jest.fn().mockResolvedValue({
+        pushNote: vi.fn().mockResolvedValue({
           ok: true,
           value: makeRemoteNote({ revision: 1 }),
         }),
-        deleteNote: jest.fn().mockResolvedValue({
+        deleteNote: vi.fn().mockResolvedValue({
           ok: false,
           error: { type: "Conflict", message: "VERSION_CONFLICT" },
         }),
-        fetchNoteByDate: jest.fn().mockResolvedValue({
+        fetchNoteByDate: vi.fn().mockResolvedValue({
           ok: true,
           value: remoteNote,
         }),
@@ -364,15 +366,15 @@ describe("noteSyncEngine", () => {
   describe("pull (applyRemoteUpdate)", () => {
     it("skips remote update when local delete is pending", async () => {
       const gateway = makeGateway({
-        pushNote: jest.fn().mockResolvedValue({
+        pushNote: vi.fn().mockResolvedValue({
           ok: true,
           value: makeRemoteNote({ revision: 1 }),
         }),
-        deleteNote: jest.fn().mockResolvedValue({
+        deleteNote: vi.fn().mockResolvedValue({
           ok: true,
           value: makeRemoteNote({ deleted: true, revision: 2 }),
         }),
-        fetchNotesSince: jest.fn().mockResolvedValue({
+        fetchNotesSince: vi.fn().mockResolvedValue({
           ok: true,
           value: [makeRemoteNote({ revision: 3, ciphertext: "remote-updated" })],
         }),
@@ -403,15 +405,15 @@ describe("noteSyncEngine", () => {
     it("keeps local content when remote deleted but local has pending upsert", async () => {
       // Push always conflicts so pendingOp stays "upsert" through pull phase
       const gateway = makeGateway({
-        pushNote: jest.fn().mockResolvedValue({
+        pushNote: vi.fn().mockResolvedValue({
           ok: false,
           error: { type: "Conflict", message: "VERSION_CONFLICT" },
         }),
-        fetchNoteByDate: jest.fn().mockResolvedValue({
+        fetchNoteByDate: vi.fn().mockResolvedValue({
           ok: true,
           value: makeRemoteNote({ deleted: true, revision: 2 }),
         }),
-        fetchNotesSince: jest.fn().mockResolvedValue({
+        fetchNotesSince: vi.fn().mockResolvedValue({
           ok: true,
           value: [makeRemoteNote({ deleted: true, revision: 2 })],
         }),
@@ -440,7 +442,7 @@ describe("noteSyncEngine", () => {
 
     it("accepts remote content when no local pending", async () => {
       const gateway = makeGateway({
-        fetchNotesSince: jest.fn().mockResolvedValue({
+        fetchNotesSince: vi.fn().mockResolvedValue({
           ok: true,
           value: [makeRemoteNote({ ciphertext: "from-server", revision: 5 })],
         }),
@@ -462,7 +464,7 @@ describe("noteSyncEngine", () => {
     it("keeps local content on remote update when local upsert is pending", async () => {
       let pushCount = 0;
       const gateway = makeGateway({
-        pushNote: jest.fn().mockImplementation(async () => {
+        pushNote: vi.fn().mockImplementation(async () => {
           pushCount++;
           if (pushCount === 1) {
             // First push succeeds (initial sync)
@@ -477,11 +479,11 @@ describe("noteSyncEngine", () => {
             error: { type: "Conflict", message: "VERSION_CONFLICT" },
           };
         }),
-        fetchNoteByDate: jest.fn().mockResolvedValue({
+        fetchNoteByDate: vi.fn().mockResolvedValue({
           ok: true,
           value: makeRemoteNote({ ciphertext: "remote-v2", revision: 2 }),
         }),
-        fetchNotesSince: jest
+        fetchNotesSince: vi
           .fn()
           .mockResolvedValueOnce({ ok: true, value: [] })
           .mockResolvedValueOnce({
@@ -527,7 +529,7 @@ describe("noteSyncEngine", () => {
   describe("refreshEnvelope", () => {
     it("accepts remote content when no local pending", async () => {
       const gateway = makeGateway({
-        fetchNoteByDate: jest.fn().mockResolvedValue({
+        fetchNoteByDate: vi.fn().mockResolvedValue({
           ok: true,
           value: makeRemoteNote({ ciphertext: "from-server", revision: 3 }),
         }),
@@ -546,7 +548,7 @@ describe("noteSyncEngine", () => {
 
     it("keeps local content when pending upsert exists", async () => {
       const gateway = makeGateway({
-        fetchNoteByDate: jest.fn().mockResolvedValue({
+        fetchNoteByDate: vi.fn().mockResolvedValue({
           ok: true,
           value: makeRemoteNote({ ciphertext: "remote-v5", revision: 5 }),
         }),
@@ -572,15 +574,15 @@ describe("noteSyncEngine", () => {
 
     it("deletes locally when remote deleted and no local pending", async () => {
       const gateway = makeGateway({
-        pushNote: jest.fn().mockResolvedValue({
+        pushNote: vi.fn().mockResolvedValue({
           ok: true,
           value: makeRemoteNote({ revision: 1 }),
         }),
-        fetchNoteByDate: jest.fn().mockResolvedValue({
+        fetchNoteByDate: vi.fn().mockResolvedValue({
           ok: true,
           value: makeRemoteNote({ deleted: true, revision: 2 }),
         }),
-        fetchNotesSince: jest.fn().mockResolvedValue({ ok: true, value: [] }),
+        fetchNotesSince: vi.fn().mockResolvedValue({ ok: true, value: [] }),
       });
       const { connectivity, clock, syncStateStore } = makeDeps();
 
@@ -608,11 +610,11 @@ describe("noteSyncEngine", () => {
   describe("serverRevision tracking", () => {
     it("preserves serverRevision across local saves", async () => {
       const gateway = makeGateway({
-        pushNote: jest.fn().mockResolvedValue({
+        pushNote: vi.fn().mockResolvedValue({
           ok: true,
           value: makeRemoteNote({ revision: 1 }),
         }),
-        fetchNotesSince: jest.fn().mockResolvedValue({ ok: true, value: [] }),
+        fetchNotesSince: vi.fn().mockResolvedValue({ ok: true, value: [] }),
       });
       const { connectivity, clock, syncStateStore } = makeDeps();
 
@@ -641,7 +643,7 @@ describe("noteSyncEngine", () => {
       });
 
       // Reset mock to capture next push call
-      (gateway.pushNote as jest.Mock).mockResolvedValue({
+      (gateway.pushNote as Mock).mockResolvedValue({
         ok: true,
         value: makeRemoteNote({ ciphertext: "v2", revision: 2 }),
       });

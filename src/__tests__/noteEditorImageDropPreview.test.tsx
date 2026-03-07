@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { act, fireEvent, render } from "@testing-library/react";
 import { useContentEditableEditor } from "../components/NoteEditor/useContentEditableEditor";
 
@@ -49,16 +50,16 @@ function EditorHarness({
 describe("NoteEditor image drop preview", () => {
   beforeEach(() => {
     Object.defineProperty(URL, "createObjectURL", {
-      value: jest.fn(() => "blob:preview-url"),
+      value: vi.fn(() => "blob:preview-url"),
       writable: true,
     });
     Object.defineProperty(URL, "revokeObjectURL", {
-      value: jest.fn(),
+      value: vi.fn(),
       writable: true,
     });
     // JSDOM doesn't implement Range.getBoundingClientRect
     if (!Range.prototype.getBoundingClientRect) {
-      Range.prototype.getBoundingClientRect = jest.fn(
+      Range.prototype.getBoundingClientRect = vi.fn(
         () =>
           ({
             top: 0,
@@ -76,7 +77,7 @@ describe("NoteEditor image drop preview", () => {
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   it("renders dropped images immediately using a blob URL", async () => {
@@ -86,11 +87,11 @@ describe("NoteEditor image drop preview", () => {
       height: number;
       filename: string;
     }>();
-    const onImageDrop = jest.fn(() => deferred.promise);
+    const onImageDrop = vi.fn(() => deferred.promise);
 
     const { getByTestId } = render(<EditorHarness onImageDrop={onImageDrop} />);
     const editor = getByTestId("editor") as HTMLDivElement;
-    editor.getBoundingClientRect = jest.fn(
+    editor.getBoundingClientRect = vi.fn(
       () =>
         ({
           top: 0,
@@ -139,8 +140,8 @@ describe("NoteEditor image drop preview", () => {
       height: number;
       filename: string;
     }>();
-    const onImageDrop = jest.fn(() => deferred.promise);
-    const onChange = jest.fn();
+    const onImageDrop = vi.fn(() => deferred.promise);
+    const onChange = vi.fn();
 
     const { getByTestId, rerender } = render(
       <EditorHarness
@@ -150,7 +151,7 @@ describe("NoteEditor image drop preview", () => {
       />,
     );
     const editor = getByTestId("editor") as HTMLDivElement;
-    editor.getBoundingClientRect = jest.fn(
+    editor.getBoundingClientRect = vi.fn(
       () =>
         ({
           top: 0,

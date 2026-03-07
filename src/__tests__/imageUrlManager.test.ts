@@ -1,22 +1,23 @@
+// @vitest-environment jsdom
 import { ImageUrlManager } from "../utils/imageUrlManager";
 import type { ImageRepository } from "../storage/imageRepository";
 import { ok, err } from "../domain/result";
 
 function createMockRepository(overrides?: Partial<ImageRepository>): ImageRepository {
   return {
-    upload: jest.fn(),
-    get: jest.fn().mockResolvedValue(ok(null)),
-    getUrl: jest.fn().mockResolvedValue(ok(null)),
-    delete: jest.fn(),
-    getByNoteDate: jest.fn(),
-    deleteByNoteDate: jest.fn(),
+    upload: vi.fn(),
+    get: vi.fn().mockResolvedValue(ok(null)),
+    getUrl: vi.fn().mockResolvedValue(ok(null)),
+    delete: vi.fn(),
+    getByNoteDate: vi.fn(),
+    deleteByNoteDate: vi.fn(),
     ...overrides,
   };
 }
 
 // Mock URL.createObjectURL / revokeObjectURL
-const mockCreateObjectURL = jest.fn();
-const mockRevokeObjectURL = jest.fn();
+const mockCreateObjectURL = vi.fn();
+const mockRevokeObjectURL = vi.fn();
 
 beforeAll(() => {
   global.URL.createObjectURL = mockCreateObjectURL;
@@ -24,7 +25,7 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
-  jest.clearAllMocks();
+  vi.clearAllMocks();
   mockCreateObjectURL.mockReturnValue("blob:test-url");
 });
 
@@ -32,7 +33,7 @@ describe("ImageUrlManager", () => {
   describe("acquireUrl", () => {
     it("returns remote URL when repository provides one", async () => {
       const repo = createMockRepository({
-        getUrl: jest.fn().mockResolvedValue(ok("https://signed.url/image.jpg")),
+        getUrl: vi.fn().mockResolvedValue(ok("https://signed.url/image.jpg")),
       });
       const manager = new ImageUrlManager(repo);
 
@@ -46,8 +47,8 @@ describe("ImageUrlManager", () => {
     it("falls back to blob URL when no remote URL", async () => {
       const blob = new Blob(["pixels"], { type: "image/png" });
       const repo = createMockRepository({
-        getUrl: jest.fn().mockResolvedValue(ok(null)),
-        get: jest.fn().mockResolvedValue(ok(blob)),
+        getUrl: vi.fn().mockResolvedValue(ok(null)),
+        get: vi.fn().mockResolvedValue(ok(blob)),
       });
       mockCreateObjectURL.mockReturnValue("blob:local-url");
       const manager = new ImageUrlManager(repo);
@@ -62,8 +63,8 @@ describe("ImageUrlManager", () => {
 
     it("returns null when image not found anywhere", async () => {
       const repo = createMockRepository({
-        getUrl: jest.fn().mockResolvedValue(ok(null)),
-        get: jest.fn().mockResolvedValue(ok(null)),
+        getUrl: vi.fn().mockResolvedValue(ok(null)),
+        get: vi.fn().mockResolvedValue(ok(null)),
       });
       const manager = new ImageUrlManager(repo);
 
@@ -74,8 +75,8 @@ describe("ImageUrlManager", () => {
 
     it("returns null when getUrl returns error", async () => {
       const repo = createMockRepository({
-        getUrl: jest.fn().mockResolvedValue(err({ type: "IO", message: "fail" })),
-        get: jest.fn().mockResolvedValue(ok(null)),
+        getUrl: vi.fn().mockResolvedValue(err({ type: "IO", message: "fail" })),
+        get: vi.fn().mockResolvedValue(ok(null)),
       });
       const manager = new ImageUrlManager(repo);
 
@@ -86,7 +87,7 @@ describe("ImageUrlManager", () => {
 
     it("caches URL across multiple acquires", async () => {
       const repo = createMockRepository({
-        getUrl: jest.fn().mockResolvedValue(ok("https://signed.url/cached")),
+        getUrl: vi.fn().mockResolvedValue(ok("https://signed.url/cached")),
       });
       const manager = new ImageUrlManager(repo);
 
@@ -101,7 +102,7 @@ describe("ImageUrlManager", () => {
 
     it("evicts expired remote URL and refetches", async () => {
       const repo = createMockRepository({
-        getUrl: jest
+        getUrl: vi
           .fn()
           .mockResolvedValueOnce(ok("https://signed.url/first"))
           .mockResolvedValueOnce(ok("https://signed.url/second")),
@@ -123,8 +124,8 @@ describe("ImageUrlManager", () => {
     it("blob URLs never expire", async () => {
       const blob = new Blob(["data"], { type: "image/png" });
       const repo = createMockRepository({
-        getUrl: jest.fn().mockResolvedValue(ok(null)),
-        get: jest.fn().mockResolvedValue(ok(blob)),
+        getUrl: vi.fn().mockResolvedValue(ok(null)),
+        get: vi.fn().mockResolvedValue(ok(blob)),
       });
       mockCreateObjectURL.mockReturnValue("blob:stable");
       const manager = new ImageUrlManager(repo, { remoteTtlMs: 1 });
@@ -141,7 +142,7 @@ describe("ImageUrlManager", () => {
     it("deduplicates concurrent in-flight requests", async () => {
       let resolveGetUrl: (v: unknown) => void;
       const repo = createMockRepository({
-        getUrl: jest.fn().mockImplementation(
+        getUrl: vi.fn().mockImplementation(
           () =>
             new Promise((resolve) => {
               resolveGetUrl = resolve;
@@ -168,8 +169,8 @@ describe("ImageUrlManager", () => {
     it("revokes blob URL when last owner releases", async () => {
       const blob = new Blob(["data"], { type: "image/png" });
       const repo = createMockRepository({
-        getUrl: jest.fn().mockResolvedValue(ok(null)),
-        get: jest.fn().mockResolvedValue(ok(blob)),
+        getUrl: vi.fn().mockResolvedValue(ok(null)),
+        get: vi.fn().mockResolvedValue(ok(blob)),
       });
       mockCreateObjectURL.mockReturnValue("blob:revocable");
       const manager = new ImageUrlManager(repo);
@@ -183,8 +184,8 @@ describe("ImageUrlManager", () => {
     it("does not revoke blob URL when other owners remain", async () => {
       const blob = new Blob(["data"], { type: "image/png" });
       const repo = createMockRepository({
-        getUrl: jest.fn().mockResolvedValue(ok(null)),
-        get: jest.fn().mockResolvedValue(ok(blob)),
+        getUrl: vi.fn().mockResolvedValue(ok(null)),
+        get: vi.fn().mockResolvedValue(ok(blob)),
       });
       mockCreateObjectURL.mockReturnValue("blob:shared");
       const manager = new ImageUrlManager(repo);
@@ -198,7 +199,7 @@ describe("ImageUrlManager", () => {
 
     it("does not revoke remote URLs", async () => {
       const repo = createMockRepository({
-        getUrl: jest.fn().mockResolvedValue(ok("https://signed.url/remote")),
+        getUrl: vi.fn().mockResolvedValue(ok("https://signed.url/remote")),
       });
       const manager = new ImageUrlManager(repo);
 
@@ -213,8 +214,8 @@ describe("ImageUrlManager", () => {
     it("releases all images owned by a given owner", async () => {
       const blob = new Blob(["data"], { type: "image/png" });
       const repo = createMockRepository({
-        getUrl: jest.fn().mockResolvedValue(ok(null)),
-        get: jest.fn().mockResolvedValue(ok(blob)),
+        getUrl: vi.fn().mockResolvedValue(ok(null)),
+        get: vi.fn().mockResolvedValue(ok(blob)),
       });
       let counter = 0;
       mockCreateObjectURL.mockImplementation(() => `blob:url-${++counter}`);
@@ -230,8 +231,8 @@ describe("ImageUrlManager", () => {
     it("does not revoke images shared with other owners", async () => {
       const blob = new Blob(["data"], { type: "image/png" });
       const repo = createMockRepository({
-        getUrl: jest.fn().mockResolvedValue(ok(null)),
-        get: jest.fn().mockResolvedValue(ok(blob)),
+        getUrl: vi.fn().mockResolvedValue(ok(null)),
+        get: vi.fn().mockResolvedValue(ok(blob)),
       });
       mockCreateObjectURL.mockReturnValue("blob:shared");
       const manager = new ImageUrlManager(repo);

@@ -1,35 +1,37 @@
+// @vitest-environment jsdom
+import type { Mock } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import type { Session } from "@supabase/supabase-js";
 import { useAuth } from "../hooks/useAuth";
 import { AuthState } from "../types";
 import { supabase } from "../lib/supabase";
 
-jest.mock("../lib/supabase", () => ({
+vi.mock("../lib/supabase", () => ({
   supabase: {
     auth: {
-      getSession: jest.fn(),
-      getUser: jest.fn(async () => ({ data: { user: null }, error: null })),
-      onAuthStateChange: jest.fn(() => ({
+      getSession: vi.fn(),
+      getUser: vi.fn(async () => ({ data: { user: null }, error: null })),
+      onAuthStateChange: vi.fn(() => ({
         data: {
           subscription: {
-            unsubscribe: jest.fn(),
+            unsubscribe: vi.fn(),
           },
         },
       })),
-      signInWithPassword: jest.fn(),
-      signOut: jest.fn(),
+      signInWithPassword: vi.fn(),
+      signOut: vi.fn(),
     },
   },
 }));
 
-jest.mock("../hooks/useConnectivity", () => ({
-  useConnectivity: jest.fn(() => true),
+vi.mock("../hooks/useConnectivity", () => ({
+  useConnectivity: vi.fn(() => true),
 }));
 
-jest.mock("../services/connectivity", () => ({
+vi.mock("../services/connectivity", () => ({
   connectivity: {
-    getOnline: jest.fn(() => true),
-    subscribe: jest.fn(() => () => {}),
+    getOnline: vi.fn(() => true),
+    subscribe: vi.fn(() => () => {}),
   },
 }));
 
@@ -65,15 +67,15 @@ function AuthHarness() {
 
 describe("useAuth", () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it("updates auth state to signed in after sign in when auth events are silent", async () => {
-    (supabase.auth.getSession as jest.Mock).mockResolvedValueOnce({
+    (supabase.auth.getSession as Mock).mockResolvedValueOnce({
       data: { session: null },
       error: null,
     });
-    (supabase.auth.signInWithPassword as jest.Mock).mockResolvedValueOnce({
+    (supabase.auth.signInWithPassword as Mock).mockResolvedValueOnce({
       data: { session: createSession() },
       error: null,
     });
@@ -100,11 +102,11 @@ describe("useAuth", () => {
   });
 
   it("updates auth state to signed out after sign out when auth events are silent", async () => {
-    (supabase.auth.getSession as jest.Mock).mockResolvedValueOnce({
+    (supabase.auth.getSession as Mock).mockResolvedValueOnce({
       data: { session: createSession() },
       error: null,
     });
-    (supabase.auth.signOut as jest.Mock).mockResolvedValueOnce({
+    (supabase.auth.signOut as Mock).mockResolvedValueOnce({
       error: null,
     });
 

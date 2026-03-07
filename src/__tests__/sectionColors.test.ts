@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { applySectionColors } from "../services/sectionColors";
 import { stringToHue } from "../utils/sectionTypes";
 

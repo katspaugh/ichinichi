@@ -1,3 +1,4 @@
+import type { Mock } from "vitest";
 import { WeatherRepository } from "../features/weather/WeatherRepository";
 
 // Polyfill AbortSignal.timeout for jsdom/Node test environment
@@ -14,14 +15,14 @@ const originalFetch = global.fetch;
 
 afterEach(() => {
   global.fetch = originalFetch;
-  jest.restoreAllMocks();
+  vi.restoreAllMocks();
 });
 
 function mockFetch(
   implementations: Array<(url: string) => Promise<Response>>,
 ) {
   let callIndex = 0;
-  global.fetch = jest.fn().mockImplementation((url: string) => {
+  global.fetch = vi.fn().mockImplementation((url: string) => {
     const impl = implementations[callIndex] ?? implementations[implementations.length - 1];
     callIndex++;
     return impl(url);
@@ -100,7 +101,7 @@ describe("WeatherRepository", () => {
 
       expect(result!.unit).toBe("F");
       // Verify fahrenheit query parameter was sent
-      const weatherCall = (global.fetch as jest.Mock).mock.calls[1][0] as string;
+      const weatherCall = (global.fetch as Mock).mock.calls[1][0] as string;
       expect(weatherCall).toContain("temperature_unit=fahrenheit");
     });
 
@@ -114,7 +115,7 @@ describe("WeatherRepository", () => {
       const result = await repo.getCurrentWeather(51.51, -0.13, "auto");
 
       expect(result!.unit).toBe("C");
-      const weatherCall = (global.fetch as jest.Mock).mock.calls[1][0] as string;
+      const weatherCall = (global.fetch as Mock).mock.calls[1][0] as string;
       expect(weatherCall).not.toContain("temperature_unit=fahrenheit");
     });
 

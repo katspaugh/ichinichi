@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { render, screen } from "@testing-library/react";
 import { SyncIndicator } from "../components/SyncIndicator/SyncIndicator";
 import { NoteEditorView } from "../components/NoteEditor/NoteEditorView";
@@ -70,7 +71,7 @@ describe("SyncIndicator component", () => {
   });
 
   it("should render clickable button for error state with onSyncClick", () => {
-    const onClick = jest.fn();
+    const onClick = vi.fn();
     render(<SyncIndicator status={SyncStatus.Error} onSyncClick={onClick} />);
 
     const button = screen.getByRole("button", { name: "Sync error" });
@@ -79,7 +80,7 @@ describe("SyncIndicator component", () => {
   });
 
   it("should render clickable button for offline state with onSyncClick", () => {
-    const onClick = jest.fn();
+    const onClick = vi.fn();
     render(<SyncIndicator status={SyncStatus.Offline} onSyncClick={onClick} />);
 
     const button = screen.getByRole("button", { name: "Offline" });
@@ -88,7 +89,7 @@ describe("SyncIndicator component", () => {
   });
 
   it("should render clickable button for pending ops with onSyncClick", () => {
-    const onClick = jest.fn();
+    const onClick = vi.fn();
     render(
       <SyncIndicator
         status={SyncStatus.Idle}
@@ -103,7 +104,7 @@ describe("SyncIndicator component", () => {
   });
 
   it("should NOT render clickable button while syncing", () => {
-    const onClick = jest.fn();
+    const onClick = vi.fn();
     render(<SyncIndicator status={SyncStatus.Syncing} onSyncClick={onClick} />);
 
     expect(screen.queryByRole("button")).toBeNull();
@@ -118,12 +119,12 @@ describe("NoteEditorView status text", () => {
     showReadonlyBadge: false,
     placeholderText: "Write your note...",
     editorRef: React.createRef<HTMLDivElement>(),
-    onInput: jest.fn(),
-    onPaste: jest.fn(),
-    onDrop: jest.fn(),
-    onDragOver: jest.fn(),
-    onClick: jest.fn(),
-    onKeyDown: jest.fn(),
+    onInput: vi.fn(),
+    onPaste: vi.fn(),
+    onDrop: vi.fn(),
+    onDragOver: vi.fn(),
+    onClick: vi.fn(),
+    onKeyDown: vi.fn(),
     isDraggingImage: false,
   };
 

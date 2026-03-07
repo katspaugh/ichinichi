@@ -22,12 +22,12 @@ type SyncDefaults = Pick<
 
 export const syncDefaults: SyncDefaults = {
   syncCapable: false,
-  getAllDatesForYear: jest.fn().mockResolvedValue(ok([])),
-  refreshNote: jest.fn().mockResolvedValue(ok(null)),
-  hasPendingOp: jest.fn().mockResolvedValue(false),
-  refreshDates: jest.fn().mockResolvedValue(undefined),
-  hasRemoteDateCached: jest.fn().mockResolvedValue(false),
-  getAllLocalDates: jest.fn().mockResolvedValue(ok([])),
-  getAllLocalDatesForYear: jest.fn().mockResolvedValue(ok([])),
-  sync: jest.fn().mockResolvedValue(ok("idle")),
+  getAllDatesForYear: vi.fn().mockResolvedValue(ok([])),
+  refreshNote: vi.fn().mockResolvedValue(ok(null)),
+  hasPendingOp: vi.fn().mockResolvedValue(false),
+  refreshDates: vi.fn().mockResolvedValue(undefined),
+  hasRemoteDateCached: vi.fn().mockResolvedValue(false),
+  getAllLocalDates: vi.fn().mockResolvedValue(ok([])),
+  getAllLocalDatesForYear: vi.fn().mockResolvedValue(ok([])),
+  sync: vi.fn().mockResolvedValue(ok("idle")),
 };

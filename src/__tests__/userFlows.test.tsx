@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * Integration tests for user flows
  *
@@ -24,73 +25,73 @@ import { getAllAccountDbNames } from "../storage/accountStore";
 import { closeVaultDb } from "../storage/vault";
 
 // Increase timeout for integration tests
-jest.setTimeout(60000);
+vi.setConfig({ testTimeout: 60000 });
 const SAVE_IDLE_DELAY_MS = 2000;
 
 // ============================================================================
 // Supabase Mock
 // ============================================================================
 
-jest.mock("../lib/supabase", () => ({
+vi.mock("../lib/supabase", () => ({
   supabase: {
     auth: {
-      getSession: jest.fn(async () => ({
+      getSession: vi.fn(async () => ({
         data: { session: null },
         error: null,
       })),
-      getUser: jest.fn(async () => ({
+      getUser: vi.fn(async () => ({
         data: { user: null },
         error: null,
       })),
-      onAuthStateChange: jest.fn(() => ({
+      onAuthStateChange: vi.fn(() => ({
         data: {
           subscription: {
-            unsubscribe: jest.fn(),
+            unsubscribe: vi.fn(),
           },
         },
       })),
-      signInWithPassword: jest.fn(async () => ({
+      signInWithPassword: vi.fn(async () => ({
         data: { user: null, session: null },
         error: { message: "Invalid login credentials" },
       })),
-      signUp: jest.fn(async () => ({
+      signUp: vi.fn(async () => ({
         data: { user: null, session: null },
         error: null,
       })),
-      signOut: jest.fn(async () => ({ error: null })),
+      signOut: vi.fn(async () => ({ error: null })),
     },
-    from: jest.fn(() => ({
-      select: jest.fn(() => ({
-        eq: jest.fn(() => ({
-          single: jest.fn(async () => ({ data: null, error: null })),
-          order: jest.fn(() => ({
-            limit: jest.fn(async () => ({ data: [], error: null })),
+    from: vi.fn(() => ({
+      select: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          single: vi.fn(async () => ({ data: null, error: null })),
+          order: vi.fn(() => ({
+            limit: vi.fn(async () => ({ data: [], error: null })),
           })),
         })),
-        order: jest.fn(() => ({
-          limit: jest.fn(async () => ({ data: [], error: null })),
+        order: vi.fn(() => ({
+          limit: vi.fn(async () => ({ data: [], error: null })),
         })),
-        gt: jest.fn(() => ({
-          order: jest.fn(() => ({
-            limit: jest.fn(async () => ({ data: [], error: null })),
+        gt: vi.fn(() => ({
+          order: vi.fn(() => ({
+            limit: vi.fn(async () => ({ data: [], error: null })),
           })),
         })),
       })),
-      insert: jest.fn(async () => ({ data: null, error: null })),
-      upsert: jest.fn(async () => ({ data: null, error: null })),
-      update: jest.fn(() => ({
-        eq: jest.fn(async () => ({ data: null, error: null })),
+      insert: vi.fn(async () => ({ data: null, error: null })),
+      upsert: vi.fn(async () => ({ data: null, error: null })),
+      update: vi.fn(() => ({
+        eq: vi.fn(async () => ({ data: null, error: null })),
       })),
-      delete: jest.fn(() => ({
-        eq: jest.fn(async () => ({ data: null, error: null })),
+      delete: vi.fn(() => ({
+        eq: vi.fn(async () => ({ data: null, error: null })),
       })),
     })),
     storage: {
-      from: jest.fn(() => ({
-        upload: jest.fn(async () => ({ data: null, error: null })),
-        download: jest.fn(async () => ({ data: null, error: null })),
-        remove: jest.fn(async () => ({ data: null, error: null })),
-        list: jest.fn(async () => ({ data: [], error: null })),
+      from: vi.fn(() => ({
+        upload: vi.fn(async () => ({ data: null, error: null })),
+        download: vi.fn(async () => ({ data: null, error: null })),
+        remove: vi.fn(async () => ({ data: null, error: null })),
+        list: vi.fn(async () => ({ data: [], error: null })),
       })),
     },
   },
@@ -100,47 +101,47 @@ jest.mock("../lib/supabase", () => ({
 // Other Mocks
 // ============================================================================
 
-jest.mock("../hooks/useConnectivity", () => ({
-  useConnectivity: jest.fn(() => true),
+vi.mock("../hooks/useConnectivity", () => ({
+  useConnectivity: vi.fn(() => true),
 }));
 
-jest.mock("../services/connectivity", () => ({
+vi.mock("../services/connectivity", () => ({
   connectivity: {
-    getOnline: jest.fn(() => true),
-    subscribe: jest.fn(() => () => {}),
+    getOnline: vi.fn(() => true),
+    subscribe: vi.fn(() => () => {}),
   },
 }));
 
-jest.mock("../hooks/usePWA", () => ({
+vi.mock("../hooks/usePWA", () => ({
   usePWA: () => ({
     needRefresh: false,
-    updateServiceWorker: jest.fn(),
-    dismissUpdate: jest.fn(),
+    updateServiceWorker: vi.fn(),
+    dismissUpdate: vi.fn(),
   }),
 }));
 
 Object.defineProperty(window, "matchMedia", {
   writable: true,
-  value: jest.fn().mockImplementation((query) => ({
+  value: vi.fn().mockImplementation((query) => ({
     matches: false,
     media: query,
     onchange: null,
-    addListener: jest.fn(),
-    removeListener: jest.fn(),
-    addEventListener: jest.fn(),
-    removeEventListener: jest.fn(),
-    dispatchEvent: jest.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
   })),
 });
 
-Element.prototype.scrollIntoView = jest.fn();
+Element.prototype.scrollIntoView = vi.fn();
 
 // Mock URL.createObjectURL for image handling
-URL.createObjectURL = jest.fn(() => "blob:mock-url");
-URL.revokeObjectURL = jest.fn();
+URL.createObjectURL = vi.fn(() => "blob:mock-url");
+URL.revokeObjectURL = vi.fn();
 
 // Mock Range.getBoundingClientRect for jsdom (needed for image drop)
-Range.prototype.getBoundingClientRect = jest.fn(() => ({
+Range.prototype.getBoundingClientRect = vi.fn(() => ({
   x: 0,
   y: 0,
   width: 100,
@@ -153,7 +154,7 @@ Range.prototype.getBoundingClientRect = jest.fn(() => ({
 }));
 
 // Mock document.caretRangeFromPoint for image drop positioning
-document.caretRangeFromPoint = jest.fn(() => {
+document.caretRangeFromPoint = vi.fn(() => {
   const range = document.createRange();
   return range;
 });

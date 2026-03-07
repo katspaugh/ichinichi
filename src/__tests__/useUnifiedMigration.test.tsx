@@ -1,23 +1,25 @@
+// @vitest-environment jsdom
+import type { Mock } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { useUnifiedMigration } from "../hooks/useUnifiedMigration";
 import { AppMode } from "../utils/appMode";
 import { migrateLegacyData } from "../storage/unifiedMigration";
 
-jest.mock("../storage/unifiedMigration", () => ({
-  migrateLegacyData: jest.fn(),
+vi.mock("../storage/unifiedMigration", () => ({
+  migrateLegacyData: vi.fn(),
 }));
 
-jest.mock("../hooks/useCloudPrompt", () => ({
+vi.mock("../hooks/useCloudPrompt", () => ({
   useCloudPrompt: () => ({
     isOpen: false,
     isPending: false,
-    request: jest.fn(),
-    open: jest.fn(),
-    close: jest.fn(),
+    request: vi.fn(),
+    open: vi.fn(),
+    close: vi.fn(),
   }),
 }));
 
-jest.mock("../hooks/useAuth", () => ({
+vi.mock("../hooks/useAuth", () => ({
   AuthState: {
     Loading: "loading",
     SignedOut: "signed_out",
@@ -28,13 +30,13 @@ jest.mock("../hooks/useAuth", () => ({
 
 describe("useUnifiedMigration", () => {
   it("runs migration once for a target key", async () => {
-    const triggerSync = jest.fn();
+    const triggerSync = vi.fn();
     const targetKey = await crypto.subtle.generateKey(
       { name: "AES-GCM", length: 256 },
       true,
       ["encrypt", "decrypt"],
     );
-    (migrateLegacyData as jest.Mock).mockResolvedValue(true);
+    (migrateLegacyData as Mock).mockResolvedValue(true);
 
     const { rerender } = renderHook(
       ({ mode }) =>
@@ -56,13 +58,13 @@ describe("useUnifiedMigration", () => {
   });
 
   it("triggers sync when migrating in cloud mode", async () => {
-    const triggerSync = jest.fn();
+    const triggerSync = vi.fn();
     const targetKey = await crypto.subtle.generateKey(
       { name: "AES-GCM", length: 256 },
       true,
       ["encrypt", "decrypt"],
     );
-    (migrateLegacyData as jest.Mock).mockResolvedValue(true);
+    (migrateLegacyData as Mock).mockResolvedValue(true);
 
     renderHook(() =>
       useUnifiedMigration({

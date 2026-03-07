@@ -1,13 +1,14 @@
+// @vitest-environment jsdom
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { noteContentStore } from "../stores/noteContentStore";
 import { ok } from "../domain/result";
 import { syncDefaults } from "./helpers/mockNoteRepository";
 
 let mockOnline = true;
-jest.mock("../services/connectivity", () => ({
+vi.mock("../services/connectivity", () => ({
   connectivity: {
     getOnline: () => mockOnline,
-    subscribe: jest.fn(() => () => {}),
+    subscribe: vi.fn(() => () => {}),
   },
 }));
 
@@ -15,21 +16,21 @@ function createRepository(initialContent = ""): any {
   return {
     ...syncDefaults,
     syncCapable: true,
-    get: jest.fn().mockResolvedValue(
+    get: vi.fn().mockResolvedValue(
       ok({
         date: "10-01-2026",
         content: initialContent,
         updatedAt: "2026-01-10T10:00:00.000Z",
       }),
     ),
-    save: jest.fn().mockResolvedValue(ok(undefined)),
-    delete: jest.fn().mockResolvedValue(ok(undefined)),
-    getAllDates: jest.fn().mockResolvedValue(ok([])),
-    refreshNote: jest.fn().mockResolvedValue(
+    save: vi.fn().mockResolvedValue(ok(undefined)),
+    delete: vi.fn().mockResolvedValue(ok(undefined)),
+    getAllDates: vi.fn().mockResolvedValue(ok([])),
+    refreshNote: vi.fn().mockResolvedValue(
       ok({ date: "10-01-2026", content: "remote-content", updatedAt: "2026-01-10T11:00:00.000Z" }),
     ),
-    hasRemoteDateCached: jest.fn().mockResolvedValue(true),
-    hasPendingOp: jest.fn().mockResolvedValue(false),
+    hasRemoteDateCached: vi.fn().mockResolvedValue(true),
+    hasPendingOp: vi.fn().mockResolvedValue(false),
   };
 }
 
@@ -156,7 +157,7 @@ describe("noteContentStore remote refresh", () => {
 
   it("retries refresh when previous refresh errored", async () => {
     const repository = createRepository("local");
-    const consoleSpy = jest.spyOn(console, "error").mockImplementation();
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     // First refresh throws
     repository.refreshNote.mockRejectedValueOnce(new Error("network error"));

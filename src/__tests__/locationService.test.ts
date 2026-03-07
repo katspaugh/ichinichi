@@ -1,8 +1,9 @@
+// @vitest-environment jsdom
 /**
  * Tests for the locationService module.
  *
- * The locationService is a singleton, so we re-import via jest.isolateModules
- * to get a fresh instance for each test group that needs it.
+ * The locationService is a singleton, so we reset modules before each test
+ * to get a fresh instance.
  */
 
 import { LOCATION_PROMPT_SHOWN_KEY } from "../utils/constants";
@@ -39,6 +40,10 @@ function mockTimezone(timezone: string) {
   });
 }
 
+beforeEach(() => {
+  vi.resetModules();
+});
+
 afterEach(() => {
   Object.defineProperty(Intl, "DateTimeFormat", {
     value: originalDateTimeFormat,
@@ -48,20 +53,18 @@ afterEach(() => {
   localStorage.clear();
 });
 
+async function freshService() {
+  const mod = await import("../services/locationService");
+  return mod.locationService;
+}
+
 describe("locationService", () => {
   describe("getApproxLocation", () => {
     it("returns location for known timezone (Europe/Paris)", async () => {
       mockTimezone("Europe/Paris");
+      const service = await freshService();
 
-      // Reset cache by creating a fresh import via isolateModules
-      let service: typeof import("../services/locationService").locationService;
-      await jest.isolateModulesAsync(async () => {
-        mockTimezone("Europe/Paris");
-        const mod = await import("../services/locationService");
-        service = mod.locationService;
-      });
-
-      const loc = await service!.getApproxLocation();
+      const loc = await service.getApproxLocation();
 
       expect(loc).not.toBeNull();
       expect(loc!.city).toBe("Paris");
@@ -71,14 +74,10 @@ describe("locationService", () => {
     });
 
     it("returns location for known timezone (America/New_York)", async () => {
-      let service: typeof import("../services/locationService").locationService;
-      await jest.isolateModulesAsync(async () => {
-        mockTimezone("America/New_York");
-        const mod = await import("../services/locationService");
-        service = mod.locationService;
-      });
+      mockTimezone("America/New_York");
+      const service = await freshService();
 
-      const loc = await service!.getApproxLocation();
+      const loc = await service.getApproxLocation();
 
       expect(loc).not.toBeNull();
       expect(loc!.city).toBe("New York");
@@ -86,28 +85,20 @@ describe("locationService", () => {
     });
 
     it("resolves fallback timezone (America/Detroit → America/New_York)", async () => {
-      let service: typeof import("../services/locationService").locationService;
-      await jest.isolateModulesAsync(async () => {
-        mockTimezone("America/Detroit");
-        const mod = await import("../services/locationService");
-        service = mod.locationService;
-      });
+      mockTimezone("America/Detroit");
+      const service = await freshService();
 
-      const loc = await service!.getApproxLocation();
+      const loc = await service.getApproxLocation();
 
       expect(loc).not.toBeNull();
       expect(loc!.city).toBe("New York");
     });
 
     it("resolves Australian fallback (Australia/Adelaide → Sydney)", async () => {
-      let service: typeof import("../services/locationService").locationService;
-      await jest.isolateModulesAsync(async () => {
-        mockTimezone("Australia/Adelaide");
-        const mod = await import("../services/locationService");
-        service = mod.locationService;
-      });
+      mockTimezone("Australia/Adelaide");
+      const service = await freshService();
 
-      const loc = await service!.getApproxLocation();
+      const loc = await service.getApproxLocation();
 
       expect(loc).not.toBeNull();
       expect(loc!.city).toBe("Sydney");
@@ -115,91 +106,65 @@ describe("locationService", () => {
     });
 
     it("caches result on subsequent calls", async () => {
-      let service: typeof import("../services/locationService").locationService;
-      await jest.isolateModulesAsync(async () => {
-        mockTimezone("Asia/Tokyo");
-        const mod = await import("../services/locationService");
-        service = mod.locationService;
-      });
+      mockTimezone("Asia/Tokyo");
+      const service = await freshService();
 
-      const first = await service!.getApproxLocation();
-      const second = await service!.getApproxLocation();
+      const first = await service.getApproxLocation();
+      const second = await service.getApproxLocation();
 
       expect(first).toBe(second); // same reference (cached)
       expect(first!.city).toBe("Tokyo");
     });
 
     it("returns null for unknown timezone with no locale fallback", async () => {
-      let service: typeof import("../services/locationService").locationService;
-      await jest.isolateModulesAsync(async () => {
-        mockTimezone("Etc/UTC");
-        // Mock navigator.language to something without a region
-        Object.defineProperty(global, "navigator", {
-          value: { language: "en", geolocation: {} },
-          writable: true,
-          configurable: true,
-        });
-        const mod = await import("../services/locationService");
-        service = mod.locationService;
+      mockTimezone("Etc/UTC");
+      Object.defineProperty(global, "navigator", {
+        value: { language: "en", geolocation: {} },
+        writable: true,
+        configurable: true,
       });
+      const service = await freshService();
 
-      const loc = await service!.getApproxLocation();
+      const loc = await service.getApproxLocation();
       expect(loc).toBeNull();
     });
   });
 
   describe("prompt management", () => {
     it("hasShownPrompt returns false initially", async () => {
-      let service: typeof import("../services/locationService").locationService;
-      await jest.isolateModulesAsync(async () => {
-        const mod = await import("../services/locationService");
-        service = mod.locationService;
-      });
-
-      expect(service!.hasShownPrompt()).toBe(false);
+      const service = await freshService();
+      expect(service.hasShownPrompt()).toBe(false);
     });
 
     it("setPromptShown persists to localStorage", async () => {
-      let service: typeof import("../services/locationService").locationService;
-      await jest.isolateModulesAsync(async () => {
-        const mod = await import("../services/locationService");
-        service = mod.locationService;
-      });
+      const service = await freshService();
 
-      service!.setPromptShown();
+      service.setPromptShown();
       expect(localStorage.getItem(LOCATION_PROMPT_SHOWN_KEY)).toBe("true");
-      expect(service!.hasShownPrompt()).toBe(true);
+      expect(service.hasShownPrompt()).toBe(true);
     });
 
     it("resetPromptShown clears localStorage and cached permission", async () => {
-      let service: typeof import("../services/locationService").locationService;
-      await jest.isolateModulesAsync(async () => {
-        const mod = await import("../services/locationService");
-        service = mod.locationService;
-      });
+      const service = await freshService();
 
-      service!.setPromptShown();
-      service!.resetPromptShown();
+      service.setPromptShown();
+      service.resetPromptShown();
 
       expect(localStorage.getItem(LOCATION_PROMPT_SHOWN_KEY)).toBeNull();
-      expect(service!.hasShownPrompt()).toBe(false);
+      expect(service.hasShownPrompt()).toBe(false);
     });
   });
 
   describe("getPermissionState", () => {
     it("returns 'unavailable' when geolocation not in navigator", async () => {
-      let service: typeof import("../services/locationService").locationService;
-      await jest.isolateModulesAsync(async () => {
-        Object.defineProperty(global, "navigator", {
-          value: { language: "en" }, // no geolocation property
-          writable: true,
-          configurable: true,
-        });
-        const mod = await import("../services/locationService");
-        service = mod.locationService;
+      Object.defineProperty(global, "navigator", {
+        value: { language: "en" }, // no geolocation property
+        writable: true,
+        configurable: true,
       });
+      const service = await freshService();
 
-      const state = await service!.getPermissionState();
+      const state = await service.getPermissionState();
       expect(state).toBe("unavailable");
     });
   });
@@ -207,131 +172,106 @@ describe("locationService", () => {
   describe("shouldShowPrompt", () => {
     it("returns false if prompt already shown", async () => {
       localStorage.setItem(LOCATION_PROMPT_SHOWN_KEY, "true");
+      const service = await freshService();
 
-      let service: typeof import("../services/locationService").locationService;
-      await jest.isolateModulesAsync(async () => {
-        const mod = await import("../services/locationService");
-        service = mod.locationService;
-      });
-
-      const should = await service!.shouldShowPrompt();
+      const should = await service.shouldShowPrompt();
       expect(should).toBe(false);
     });
   });
 
   describe("getCurrentPosition", () => {
     it("returns null when geolocation not available", async () => {
-      let service: typeof import("../services/locationService").locationService;
-      await jest.isolateModulesAsync(async () => {
-        Object.defineProperty(global, "navigator", {
-          value: { language: "en" },
-          writable: true,
-          configurable: true,
-        });
-        const mod = await import("../services/locationService");
-        service = mod.locationService;
+      Object.defineProperty(global, "navigator", {
+        value: { language: "en" },
+        writable: true,
+        configurable: true,
       });
+      const service = await freshService();
 
-      const pos = await service!.getCurrentPosition();
+      const pos = await service.getCurrentPosition();
       expect(pos).toBeNull();
     });
 
     it("returns coordinates when geolocation succeeds", async () => {
-      let service: typeof import("../services/locationService").locationService;
-      await jest.isolateModulesAsync(async () => {
-        Object.defineProperty(global, "navigator", {
-          value: {
-            language: "en",
-            geolocation: {
-              getCurrentPosition: (success: PositionCallback) => {
-                success({
-                  coords: { latitude: 51.51, longitude: -0.13 },
-                } as GeolocationPosition);
-              },
+      Object.defineProperty(global, "navigator", {
+        value: {
+          language: "en",
+          geolocation: {
+            getCurrentPosition: (success: PositionCallback) => {
+              success({
+                coords: { latitude: 51.51, longitude: -0.13 },
+              } as GeolocationPosition);
             },
           },
-          writable: true,
-          configurable: true,
-        });
-        const mod = await import("../services/locationService");
-        service = mod.locationService;
+        },
+        writable: true,
+        configurable: true,
       });
+      const service = await freshService();
 
-      const pos = await service!.getCurrentPosition();
+      const pos = await service.getCurrentPosition();
       expect(pos).not.toBeNull();
       expect(pos!.lat).toBeCloseTo(51.51, 2);
       expect(pos!.lon).toBeCloseTo(-0.13, 2);
     });
 
     it("returns null when geolocation fails", async () => {
-      let service: typeof import("../services/locationService").locationService;
-      await jest.isolateModulesAsync(async () => {
-        Object.defineProperty(global, "navigator", {
-          value: {
-            language: "en",
-            geolocation: {
-              getCurrentPosition: (
-                _success: PositionCallback,
-                error: PositionErrorCallback,
-              ) => {
-                error({
-                  code: 1,
-                  message: "User denied",
-                  PERMISSION_DENIED: 1,
-                  POSITION_UNAVAILABLE: 2,
-                  TIMEOUT: 3,
-                } as GeolocationPositionError);
-              },
+      Object.defineProperty(global, "navigator", {
+        value: {
+          language: "en",
+          geolocation: {
+            getCurrentPosition: (
+              _success: PositionCallback,
+              error: PositionErrorCallback,
+            ) => {
+              error({
+                code: 1,
+                message: "User denied",
+                PERMISSION_DENIED: 1,
+                POSITION_UNAVAILABLE: 2,
+                TIMEOUT: 3,
+              } as GeolocationPositionError);
             },
           },
-          writable: true,
-          configurable: true,
-        });
-        const mod = await import("../services/locationService");
-        service = mod.locationService;
+        },
+        writable: true,
+        configurable: true,
       });
+      const service = await freshService();
 
-      const pos = await service!.getCurrentPosition();
+      const pos = await service.getCurrentPosition();
       expect(pos).toBeNull();
     });
 
     it("caches permission as granted after successful getCurrentPosition", async () => {
-      let service: typeof import("../services/locationService").locationService;
-      await jest.isolateModulesAsync(async () => {
-        Object.defineProperty(global, "navigator", {
-          value: {
-            language: "en",
-            geolocation: {
-              getCurrentPosition: (success: PositionCallback) => {
-                success({
-                  coords: { latitude: 32.67, longitude: -16.92 },
-                } as GeolocationPosition);
-              },
+      Object.defineProperty(global, "navigator", {
+        value: {
+          language: "en",
+          geolocation: {
+            getCurrentPosition: (success: PositionCallback) => {
+              success({
+                coords: { latitude: 32.67, longitude: -16.92 },
+              } as GeolocationPosition);
             },
           },
-          writable: true,
-          configurable: true,
-        });
-        const mod = await import("../services/locationService");
-        service = mod.locationService;
+        },
+        writable: true,
+        configurable: true,
       });
+      const service = await freshService();
 
-      await service!.getCurrentPosition();
-      const state = await service!.getPermissionState();
+      await service.getCurrentPosition();
+      const state = await service.getPermissionState();
       expect(state).toBe("granted");
     });
   });
 
   describe("Atlantic timezone support", () => {
     it("returns Funchal for Atlantic/Madeira timezone", async () => {
-      let service: typeof import("../services/locationService").locationService;
-      await jest.isolateModulesAsync(async () => {
-        mockTimezone("Atlantic/Madeira");
-        const mod = await import("../services/locationService");
-        service = mod.locationService;
-      });
+      mockTimezone("Atlantic/Madeira");
+      const service = await freshService();
 
-      const loc = await service!.getApproxLocation();
+      const loc = await service.getApproxLocation();
       expect(loc).not.toBeNull();
       expect(loc!.city).toBe("Funchal");
       expect(loc!.country).toBe("Portugal");

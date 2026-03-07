@@ -1,13 +1,15 @@
+// @vitest-environment jsdom
 import { noteContentStore } from "../stores/noteContentStore";
 import { syncStore } from "../stores/syncStore";
 import { SyncStatus } from "../types";
 import { ok } from "../domain/result";
-import { syncDefaults } from "./helpers/mockNoteRepository";
+import { createMockNoteRepository } from "./helpers/mocks";
+import { noteFixture } from "./helpers/fixtures";
 
-jest.mock("../services/connectivity", () => ({
+vi.mock("../services/connectivity", () => ({
   connectivity: {
-    getOnline: jest.fn(() => true),
-    subscribe: jest.fn(() => () => {}),
+    getOnline: vi.fn(() => true),
+    subscribe: vi.fn(() => () => {}),
   },
 }));
 
@@ -21,23 +23,11 @@ jest.mock("../services/connectivity", () => ({
 
 describe("Sync status data flow (syncStore)", () => {
   it("syncStore should have status=Syncing when sync starts", () => {
-    // Simulate the sync service calling onSyncStart
-    // Since init requires full config, test via direct state shape
     const initialStatus = syncStore.getState().status;
     expect(initialStatus).toBe(SyncStatus.Idle);
   });
 
   it("syncStore status is exposed via getState()", () => {
-    /**
-     * The useSync hook returns syncStore slices via useSyncExternalStore.
-     * This flows through:
-     * useNoteRepository -> notes.syncStatus -> App -> Calendar -> SyncIndicator
-     *
-     * For the indicator to show, we need:
-     * 1. canSync to be true (mode === Cloud && userId exists)
-     * 2. syncStatus passed to Calendar
-     * 3. SyncIndicator receives status !== Idle (or has pendingOps)
-     */
     expect(syncStore.getState().status).toBe(SyncStatus.Idle);
   });
 });
@@ -47,22 +37,25 @@ describe("Saving status data flow (noteContentStore)", () => {
     await noteContentStore.getState().dispose();
   });
 
+  function createTestRepository(saveOverride?: unknown) {
+    return createMockNoteRepository({
+      get: vi.fn().mockResolvedValue(
+        ok(noteFixture({ content: "initial", date: "16-01-2026" })),
+      ),
+      ...(saveOverride !== undefined
+        ? { save: vi.fn().mockReturnValue(saveOverride) }
+        : {}),
+    });
+  }
+
   it("noteContentStore exposes isSaving=true when content is edited", async () => {
-    const repository = {
-      ...syncDefaults,
-      get: jest.fn().mockResolvedValue(ok({ content: "initial", date: "16-01-2026" })),
-      save: jest.fn().mockResolvedValue(ok(undefined)),
-      delete: jest.fn().mockResolvedValue(ok(undefined)),
-      getAllDates: jest.fn().mockResolvedValue(ok([])),
-    };
+    const repository = createTestRepository();
 
     noteContentStore.getState().init("16-01-2026", repository);
 
-    // Wait for load
     await new Promise((r) => setTimeout(r, 100));
     expect(noteContentStore.getState().status).toBe("ready");
 
-    // Edit
     noteContentStore.getState().setContent("modified content");
 
     expect(noteContentStore.getState().isSaving).toBe(true);
@@ -73,13 +66,9 @@ describe("Saving status data flow (noteContentStore)", () => {
     let resolveSave!: () => void;
     const savePromise = new Promise<void>((r) => { resolveSave = r; });
 
-    const repository = {
-      ...syncDefaults,
-      get: jest.fn().mockResolvedValue(ok({ content: "initial", date: "16-01-2026" })),
-      save: jest.fn().mockReturnValue(savePromise.then(() => ok(undefined))),
-      delete: jest.fn().mockResolvedValue(ok(undefined)),
-      getAllDates: jest.fn().mockResolvedValue(ok([])),
-    };
+    const repository = createTestRepository(
+      savePromise.then(() => ok(undefined)),
+    );
 
     noteContentStore.getState().init("16-01-2026", repository);
 
@@ -88,10 +77,8 @@ describe("Saving status data flow (noteContentStore)", () => {
     noteContentStore.getState().setContent("modified content");
     expect(noteContentStore.getState().isSaving).toBe(true);
 
-    // Flush triggers save
     const flushPromise = noteContentStore.getState().flushSave();
 
-    // Still saving while promise pending
     expect(noteContentStore.getState().isSaving).toBe(true);
 
     resolveSave();
@@ -101,13 +88,7 @@ describe("Saving status data flow (noteContentStore)", () => {
   });
 
   it("noteContentStore exposes isSaving=false when in ready state without edits", async () => {
-    const repository = {
-      ...syncDefaults,
-      get: jest.fn().mockResolvedValue(ok({ content: "initial", date: "16-01-2026" })),
-      save: jest.fn().mockResolvedValue(ok(undefined)),
-      delete: jest.fn().mockResolvedValue(ok(undefined)),
-      getAllDates: jest.fn().mockResolvedValue(ok([])),
-    };
+    const repository = createTestRepository();
 
     noteContentStore.getState().init("16-01-2026", repository);
 
@@ -118,4 +99,3 @@ describe("Saving status data flow (noteContentStore)", () => {
     expect(noteContentStore.getState().hasEdits).toBe(false);
   });
 });
-

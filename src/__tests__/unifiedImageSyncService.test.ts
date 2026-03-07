@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+import type { Mock, Mocked } from "vitest";
 import { syncEncryptedImages } from "../storage/unifiedImageSyncService";
 import * as imageStore from "../storage/unifiedImageStore";
 import * as envelopeRepo from "../storage/unifiedImageEnvelopeRepository";
@@ -5,11 +7,11 @@ import type { ImageEnvelopeState } from "../storage/unifiedImageEnvelopeReposito
 import type { ImageMetaRecord, ImageRecord } from "../storage/unifiedDb";
 
 // Mock the store and envelope repository modules
-jest.mock("../storage/unifiedImageStore");
-jest.mock("../storage/unifiedImageEnvelopeRepository");
+vi.mock("../storage/unifiedImageStore");
+vi.mock("../storage/unifiedImageEnvelopeRepository");
 
-const mockedStore = imageStore as jest.Mocked<typeof imageStore>;
-const mockedEnvelope = envelopeRepo as jest.Mocked<typeof envelopeRepo>;
+const mockedStore = imageStore as Mocked<typeof imageStore>;
+const mockedEnvelope = envelopeRepo as Mocked<typeof envelopeRepo>;
 
 function makeMeta(
   id: string,
@@ -77,25 +79,25 @@ function makeEnvelopeState(overrides: {
 
 function createMockSupabase() {
   const storageMethods = {
-    upload: jest.fn().mockResolvedValue({ error: null }),
-    remove: jest.fn().mockResolvedValue({ error: null }),
+    upload: vi.fn().mockResolvedValue({ error: null }),
+    remove: vi.fn().mockResolvedValue({ error: null }),
   };
 
-  const builder: Record<string, jest.Mock> = {};
+  const builder: Record<string, Mock> = {};
   const chain = () => builder;
-  builder.upsert = jest.fn().mockImplementation(chain);
-  builder.update = jest.fn().mockImplementation(chain);
-  builder.select = jest.fn().mockImplementation(chain);
-  builder.eq = jest.fn().mockImplementation(chain);
-  builder.single = jest.fn().mockResolvedValue({
+  builder.upsert = vi.fn().mockImplementation(chain);
+  builder.update = vi.fn().mockImplementation(chain);
+  builder.select = vi.fn().mockImplementation(chain);
+  builder.eq = vi.fn().mockImplementation(chain);
+  builder.single = vi.fn().mockResolvedValue({
     data: { server_updated_at: "2025-01-15T12:00:00Z" },
     error: null,
   });
 
   return {
     supabase: {
-      storage: { from: jest.fn().mockReturnValue(storageMethods) },
-      from: jest.fn().mockReturnValue(builder),
+      storage: { from: vi.fn().mockReturnValue(storageMethods) },
+      from: vi.fn().mockReturnValue(builder),
     } as unknown as Parameters<typeof syncEncryptedImages>[0],
     storageMethods,
     builder,
@@ -106,7 +108,7 @@ describe("syncEncryptedImages", () => {
   const userId = "user-123";
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     mockedStore.storeImageAndMeta.mockResolvedValue(undefined);
     mockedStore.deleteImageRecords.mockResolvedValue(undefined);
   });

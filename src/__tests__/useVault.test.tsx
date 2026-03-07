@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { createActor } from "xstate";
 import { waitFor } from "@testing-library/react";
 import { vaultMachine } from "../hooks/useVault";
@@ -25,13 +26,13 @@ describe("vaultMachine", () => {
   it("transitions to ready state for a signed-in user", async () => {
     const vaultKey = await createKey();
     const vaultService: VaultService = {
-      tryDeviceUnlockCloudKey: jest
+      tryDeviceUnlockCloudKey: vi
         .fn()
         .mockResolvedValue({ vaultKey, keyId: "key-1" }),
-      unlockCloudVault: jest.fn(),
-      getHasLocalVault: jest.fn(),
-      bootstrapLocalVault: jest.fn(),
-      unlockLocalVault: jest.fn(),
+      unlockCloudVault: vi.fn(),
+      getHasLocalVault: vi.fn(),
+      bootstrapLocalVault: vi.fn(),
+      unlockLocalVault: vi.fn(),
     };
 
     const actor = createActor(vaultMachine);
@@ -51,15 +52,15 @@ describe("vaultMachine", () => {
   });
 
   it("stores an error message on password unlock failure", async () => {
-    const consoleError = jest
+    const consoleError = vi
       .spyOn(console, "error")
       .mockImplementation(() => {});
     const vaultService: VaultService = {
-      tryDeviceUnlockCloudKey: jest.fn().mockResolvedValue(null),
-      unlockCloudVault: jest.fn().mockRejectedValue(new Error("fail")),
-      getHasLocalVault: jest.fn(),
-      bootstrapLocalVault: jest.fn(),
-      unlockLocalVault: jest.fn(),
+      tryDeviceUnlockCloudKey: vi.fn().mockResolvedValue(null),
+      unlockCloudVault: vi.fn().mockRejectedValue(new Error("fail")),
+      getHasLocalVault: vi.fn(),
+      bootstrapLocalVault: vi.fn(),
+      unlockLocalVault: vi.fn(),
     };
 
     const actor = createActor(vaultMachine);
@@ -91,15 +92,15 @@ describe("vaultMachine", () => {
   });
 
   it("does not retry a failed password unlock without a new password", async () => {
-    const consoleError = jest
+    const consoleError = vi
       .spyOn(console, "error")
       .mockImplementation(() => {});
     const vaultService: VaultService = {
-      tryDeviceUnlockCloudKey: jest.fn().mockResolvedValue(null),
-      unlockCloudVault: jest.fn().mockRejectedValue(new Error("fail")),
-      getHasLocalVault: jest.fn(),
-      bootstrapLocalVault: jest.fn(),
-      unlockLocalVault: jest.fn(),
+      tryDeviceUnlockCloudKey: vi.fn().mockResolvedValue(null),
+      unlockCloudVault: vi.fn().mockRejectedValue(new Error("fail")),
+      getHasLocalVault: vi.fn(),
+      bootstrapLocalVault: vi.fn(),
+      unlockLocalVault: vi.fn(),
     };
 
     const actor = createActor(vaultMachine);

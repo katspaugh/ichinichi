@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+import type { MockedFunction } from "vitest";
 import { createSyncIntentScheduler } from "../domain/sync/intentScheduler";
 import type { PendingOpsSource } from "../domain/sync/pendingOpsSource";
 import type { SyncMachineEvent } from "../domain/sync/stateMachine";
@@ -12,26 +14,26 @@ async function flushPromises(): Promise<void> {
 
 describe("createSyncIntentScheduler", () => {
   const pendingOpsSource: PendingOpsSource = {
-    getSummary: jest.fn(),
-    hasPending: jest.fn(),
+    getSummary: vi.fn(),
+    hasPending: vi.fn(),
   };
 
-  const mockHasPendingOps = pendingOpsSource.hasPending as jest.MockedFunction<
+  const mockHasPendingOps = pendingOpsSource.hasPending as MockedFunction<
     PendingOpsSource["hasPending"]
   >;
 
   beforeEach(() => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
     mockHasPendingOps.mockReset();
   });
 
   afterEach(() => {
-    jest.useRealTimers();
+    vi.useRealTimers();
   });
 
   describe("requestSync", () => {
     it("dispatches immediately when intent.immediate is true", () => {
-      const dispatch = jest.fn<void, [SyncMachineEvent]>();
+      const dispatch = vi.fn<(event: SyncMachineEvent) => void>();
       const scheduler = createSyncIntentScheduler(dispatch, pendingOpsSource);
 
       scheduler.requestSync({ immediate: true });
@@ -46,17 +48,17 @@ describe("createSyncIntentScheduler", () => {
     });
 
     it("debounces dispatch when intent.immediate is false", () => {
-      const dispatch = jest.fn<void, [SyncMachineEvent]>();
+      const dispatch = vi.fn<(event: SyncMachineEvent) => void>();
       const scheduler = createSyncIntentScheduler(dispatch, pendingOpsSource);
 
       scheduler.requestSync({ immediate: false });
 
       expect(dispatch).not.toHaveBeenCalled();
 
-      jest.advanceTimersByTime(1999);
+      vi.advanceTimersByTime(1999);
       expect(dispatch).not.toHaveBeenCalled();
 
-      jest.advanceTimersByTime(1);
+      vi.advanceTimersByTime(1);
       expect(dispatch).toHaveBeenCalledTimes(1);
       expect(dispatch).toHaveBeenCalledWith({
         type: "SYNC_REQUESTED",
@@ -67,29 +69,29 @@ describe("createSyncIntentScheduler", () => {
     });
 
     it("resets debounce timer on subsequent calls", () => {
-      const dispatch = jest.fn<void, [SyncMachineEvent]>();
+      const dispatch = vi.fn<(event: SyncMachineEvent) => void>();
       const scheduler = createSyncIntentScheduler(dispatch, pendingOpsSource);
 
       scheduler.requestSync({ immediate: false });
-      jest.advanceTimersByTime(1500);
+      vi.advanceTimersByTime(1500);
 
       scheduler.requestSync({ immediate: false });
-      jest.advanceTimersByTime(1500);
+      vi.advanceTimersByTime(1500);
 
       expect(dispatch).not.toHaveBeenCalled();
 
-      jest.advanceTimersByTime(500);
+      vi.advanceTimersByTime(500);
       expect(dispatch).toHaveBeenCalledTimes(1);
 
       scheduler.dispose();
     });
 
     it("immediate request cancels pending debounced request", () => {
-      const dispatch = jest.fn<void, [SyncMachineEvent]>();
+      const dispatch = vi.fn<(event: SyncMachineEvent) => void>();
       const scheduler = createSyncIntentScheduler(dispatch, pendingOpsSource);
 
       scheduler.requestSync({ immediate: false });
-      jest.advanceTimersByTime(1000);
+      vi.advanceTimersByTime(1000);
 
       scheduler.requestSync({ immediate: true });
 
@@ -99,7 +101,7 @@ describe("createSyncIntentScheduler", () => {
         intent: { immediate: true },
       });
 
-      jest.advanceTimersByTime(2000);
+      vi.advanceTimersByTime(2000);
       expect(dispatch).toHaveBeenCalledTimes(1);
 
       scheduler.dispose();
@@ -108,7 +110,7 @@ describe("createSyncIntentScheduler", () => {
 
   describe("requestIdleSync", () => {
     it("dispatches sync after idle delay when pending ops exist", async () => {
-      const dispatch = jest.fn<void, [SyncMachineEvent]>();
+      const dispatch = vi.fn<(event: SyncMachineEvent) => void>();
       const scheduler = createSyncIntentScheduler(dispatch, pendingOpsSource);
       mockHasPendingOps.mockResolvedValue(true);
 
@@ -116,11 +118,11 @@ describe("createSyncIntentScheduler", () => {
 
       expect(dispatch).not.toHaveBeenCalled();
 
-      jest.advanceTimersByTime(3999);
+      vi.advanceTimersByTime(3999);
       await flushPromises();
       expect(dispatch).not.toHaveBeenCalled();
 
-      jest.advanceTimersByTime(1);
+      vi.advanceTimersByTime(1);
       await flushPromises();
 
       expect(dispatch).toHaveBeenCalledTimes(1);
@@ -133,13 +135,13 @@ describe("createSyncIntentScheduler", () => {
     });
 
     it("does not dispatch when no pending ops", async () => {
-      const dispatch = jest.fn<void, [SyncMachineEvent]>();
+      const dispatch = vi.fn<(event: SyncMachineEvent) => void>();
       const scheduler = createSyncIntentScheduler(dispatch, pendingOpsSource);
       mockHasPendingOps.mockResolvedValue(false);
 
       scheduler.requestIdleSync();
 
-      jest.advanceTimersByTime(4000);
+      vi.advanceTimersByTime(4000);
       await flushPromises();
 
       expect(dispatch).not.toHaveBeenCalled();
@@ -148,7 +150,7 @@ describe("createSyncIntentScheduler", () => {
     });
 
     it("ignores subsequent calls while idle timer is active", async () => {
-      const dispatch = jest.fn<void, [SyncMachineEvent]>();
+      const dispatch = vi.fn<(event: SyncMachineEvent) => void>();
       const scheduler = createSyncIntentScheduler(dispatch, pendingOpsSource);
       mockHasPendingOps.mockResolvedValue(true);
 
@@ -156,7 +158,7 @@ describe("createSyncIntentScheduler", () => {
       scheduler.requestIdleSync();
       scheduler.requestIdleSync();
 
-      jest.advanceTimersByTime(4000);
+      vi.advanceTimersByTime(4000);
       await flushPromises();
 
       expect(mockHasPendingOps).toHaveBeenCalledTimes(1);
@@ -166,17 +168,17 @@ describe("createSyncIntentScheduler", () => {
     });
 
     it("uses custom delay when provided", async () => {
-      const dispatch = jest.fn<void, [SyncMachineEvent]>();
+      const dispatch = vi.fn<(event: SyncMachineEvent) => void>();
       const scheduler = createSyncIntentScheduler(dispatch, pendingOpsSource);
       mockHasPendingOps.mockResolvedValue(true);
 
       scheduler.requestIdleSync({ delayMs: 1000 });
 
-      jest.advanceTimersByTime(999);
+      vi.advanceTimersByTime(999);
       await flushPromises();
       expect(dispatch).not.toHaveBeenCalled();
 
-      jest.advanceTimersByTime(1);
+      vi.advanceTimersByTime(1);
       await flushPromises();
       expect(dispatch).toHaveBeenCalledTimes(1);
 
@@ -184,18 +186,18 @@ describe("createSyncIntentScheduler", () => {
     });
 
     it("allows new idle sync after previous one completes", async () => {
-      const dispatch = jest.fn<void, [SyncMachineEvent]>();
+      const dispatch = vi.fn<(event: SyncMachineEvent) => void>();
       const scheduler = createSyncIntentScheduler(dispatch, pendingOpsSource);
       mockHasPendingOps.mockResolvedValue(true);
 
       scheduler.requestIdleSync({ delayMs: 1000 });
-      jest.advanceTimersByTime(1000);
+      vi.advanceTimersByTime(1000);
       await flushPromises();
 
       expect(dispatch).toHaveBeenCalledTimes(1);
 
       scheduler.requestIdleSync({ delayMs: 1000 });
-      jest.advanceTimersByTime(1000);
+      vi.advanceTimersByTime(1000);
       await flushPromises();
 
       expect(dispatch).toHaveBeenCalledTimes(2);
@@ -206,36 +208,36 @@ describe("createSyncIntentScheduler", () => {
 
   describe("dispose", () => {
     it("cancels pending debounced sync", () => {
-      const dispatch = jest.fn<void, [SyncMachineEvent]>();
+      const dispatch = vi.fn<(event: SyncMachineEvent) => void>();
       const scheduler = createSyncIntentScheduler(dispatch, pendingOpsSource);
 
       scheduler.requestSync({ immediate: false });
-      jest.advanceTimersByTime(1000);
+      vi.advanceTimersByTime(1000);
 
       scheduler.dispose();
 
-      jest.advanceTimersByTime(2000);
+      vi.advanceTimersByTime(2000);
       expect(dispatch).not.toHaveBeenCalled();
     });
 
     it("cancels pending idle sync", async () => {
-      const dispatch = jest.fn<void, [SyncMachineEvent]>();
+      const dispatch = vi.fn<(event: SyncMachineEvent) => void>();
       const scheduler = createSyncIntentScheduler(dispatch, pendingOpsSource);
       mockHasPendingOps.mockResolvedValue(true);
 
       scheduler.requestIdleSync();
-      jest.advanceTimersByTime(2000);
+      vi.advanceTimersByTime(2000);
 
       scheduler.dispose();
 
-      jest.advanceTimersByTime(3000);
+      vi.advanceTimersByTime(3000);
       await flushPromises();
 
       expect(dispatch).not.toHaveBeenCalled();
     });
 
     it("cancels both timers simultaneously", async () => {
-      const dispatch = jest.fn<void, [SyncMachineEvent]>();
+      const dispatch = vi.fn<(event: SyncMachineEvent) => void>();
       const scheduler = createSyncIntentScheduler(dispatch, pendingOpsSource);
       mockHasPendingOps.mockResolvedValue(true);
 
@@ -244,7 +246,7 @@ describe("createSyncIntentScheduler", () => {
 
       scheduler.dispose();
 
-      jest.advanceTimersByTime(5000);
+      vi.advanceTimersByTime(5000);
       await flushPromises();
 
       expect(dispatch).not.toHaveBeenCalled();

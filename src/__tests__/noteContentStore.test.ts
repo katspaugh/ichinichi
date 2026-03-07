@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+import type { Mock } from "vitest";
 import { noteContentStore } from "../stores/noteContentStore";
 import { ok, err } from "../domain/result";
 import type { NoteRepository } from "../storage/noteRepository";
@@ -6,26 +8,26 @@ import { syncDefaults } from "./helpers/mockNoteRepository";
 
 // Mock connectivity as online by default
 let mockOnline = true;
-jest.mock("../services/connectivity", () => ({
+vi.mock("../services/connectivity", () => ({
   connectivity: {
     getOnline: () => mockOnline,
-    subscribe: jest.fn(() => () => {}),
+    subscribe: vi.fn(() => () => {}),
   },
 }));
 
 function createRepository(initialContent = ""): NoteRepository {
   return {
     ...syncDefaults,
-    get: jest.fn().mockResolvedValue(
+    get: vi.fn().mockResolvedValue(
       ok({
         date: "10-01-2026",
         content: initialContent,
         updatedAt: "2026-01-10T10:00:00.000Z",
       }),
     ),
-    save: jest.fn().mockResolvedValue(ok(undefined)),
-    delete: jest.fn().mockResolvedValue(ok(undefined)),
-    getAllDates: jest.fn().mockResolvedValue(ok([])),
+    save: vi.fn().mockResolvedValue(ok(undefined)),
+    delete: vi.fn().mockResolvedValue(ok(undefined)),
+    getAllDates: vi.fn().mockResolvedValue(ok([])),
   };
 }
 
@@ -86,7 +88,7 @@ describe("noteContentStore", () => {
 
   it("calls afterSave when flush triggered by switchNote", async () => {
     const repository = createRepository("initial");
-    const afterSave = jest.fn();
+    const afterSave = vi.fn();
     noteContentStore.getState().init("10-01-2026", repository, afterSave);
 
     await waitForStatus("ready");
@@ -139,10 +141,10 @@ describe("noteContentStore", () => {
     };
     const repository: NoteRepository = {
       ...syncDefaults,
-      get: jest.fn().mockResolvedValue(err(decryptError)),
-      save: jest.fn().mockResolvedValue(ok(undefined)),
-      delete: jest.fn().mockResolvedValue(ok(undefined)),
-      getAllDates: jest.fn().mockResolvedValue(ok([])),
+      get: vi.fn().mockResolvedValue(err(decryptError)),
+      save: vi.fn().mockResolvedValue(ok(undefined)),
+      delete: vi.fn().mockResolvedValue(ok(undefined)),
+      getAllDates: vi.fn().mockResolvedValue(ok([])),
     };
 
     noteContentStore.getState().init("10-01-2026", repository);
@@ -231,7 +233,7 @@ describe("noteContentStore", () => {
     it("keeps hasEdits true if content changed during save", async () => {
       let resolveSave!: (v: { ok: true; value: undefined }) => void;
       const repository = createRepository("");
-      (repository.save as jest.Mock).mockImplementation(
+      (repository.save as Mock).mockImplementation(
         () => new Promise((r) => { resolveSave = r; }),
       );
       noteContentStore.getState().init("10-01-2026", repository);
@@ -254,59 +256,59 @@ describe("noteContentStore", () => {
       expect(noteContentStore.getState().hasEdits).toBe(true);
 
       // Let subsequent save resolve so dispose doesn't hang
-      (repository.save as jest.Mock).mockResolvedValue(ok(undefined));
+      (repository.save as Mock).mockResolvedValue(ok(undefined));
     });
   });
 
   describe("save timing", () => {
     it("saves after 2s idle delay", async () => {
-      jest.useFakeTimers();
+      vi.useFakeTimers();
       const repository = createRepository("");
       noteContentStore.getState().init("10-01-2026", repository);
 
       // Wait for load (flush microtasks)
-      await jest.advanceTimersByTimeAsync(100);
+      await vi.advanceTimersByTimeAsync(100);
 
       noteContentStore.getState().setContent("draft");
       expect(repository.save).not.toHaveBeenCalled();
 
       // Before 2s
-      jest.advanceTimersByTime(1900);
+      vi.advanceTimersByTime(1900);
       expect(repository.save).not.toHaveBeenCalled();
 
       // After 2s
-      await jest.advanceTimersByTimeAsync(200);
+      await vi.advanceTimersByTimeAsync(200);
       expect(repository.save).toHaveBeenCalledWith(
         "10-01-2026",
         "draft",
       );
 
-      jest.useRealTimers();
+      vi.useRealTimers();
     });
 
     it("resets idle timer on continued edits", async () => {
-      jest.useFakeTimers();
+      vi.useFakeTimers();
       const repository = createRepository("");
       noteContentStore.getState().init("10-01-2026", repository);
 
-      await jest.advanceTimersByTimeAsync(100);
+      await vi.advanceTimersByTimeAsync(100);
 
       noteContentStore.getState().setContent("draft");
-      jest.advanceTimersByTime(1900);
+      vi.advanceTimersByTime(1900);
       expect(repository.save).not.toHaveBeenCalled();
 
       // Edit again — resets timer
       noteContentStore.getState().setContent("draft with more text");
-      jest.advanceTimersByTime(1900);
+      vi.advanceTimersByTime(1900);
       expect(repository.save).not.toHaveBeenCalled();
 
-      await jest.advanceTimersByTimeAsync(200);
+      await vi.advanceTimersByTimeAsync(200);
       expect(repository.save).toHaveBeenCalledWith(
         "10-01-2026",
         "draft with more text",
       );
 
-      jest.useRealTimers();
+      vi.useRealTimers();
     });
   });
 
@@ -318,7 +320,7 @@ describe("noteContentStore", () => {
     expect(noteContentStore.getState().content).toBe("day one");
 
     // Simulate what React does on dep change: fire-and-forget dispose, then init
-    (repository.get as jest.Mock).mockResolvedValue(
+    (repository.get as Mock).mockResolvedValue(
       ok({
         date: "11-01-2026",
         content: "day two",

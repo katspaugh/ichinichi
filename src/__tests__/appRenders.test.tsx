@@ -1,102 +1,103 @@
+// @vitest-environment jsdom
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import App from "../App";
 import { ServiceProvider } from "../contexts/ServiceProvider";
 import { supabase } from "../lib/supabase";
 
 // Mock Supabase client
-jest.mock("../lib/supabase", () => ({
+vi.mock("../lib/supabase", () => ({
   supabase: {
     auth: {
-      getSession: jest.fn(async () => ({
+      getSession: vi.fn(async () => ({
         data: { session: null },
         error: null,
       })),
-      getUser: jest.fn(async () => ({
+      getUser: vi.fn(async () => ({
         data: { user: null },
         error: null,
       })),
-      onAuthStateChange: jest.fn(() => ({
+      onAuthStateChange: vi.fn(() => ({
         data: {
           subscription: {
-            unsubscribe: jest.fn(),
+            unsubscribe: vi.fn(),
           },
         },
       })),
-      signInWithPassword: jest.fn(),
-      signUp: jest.fn(),
-      signOut: jest.fn(),
+      signInWithPassword: vi.fn(),
+      signUp: vi.fn(),
+      signOut: vi.fn(),
     },
-    from: jest.fn(() => ({
-      select: jest.fn(() => ({
-        eq: jest.fn(() => ({
-          single: jest.fn(async () => ({ data: null, error: null })),
-          order: jest.fn(() => ({
-            limit: jest.fn(async () => ({ data: [], error: null })),
+    from: vi.fn(() => ({
+      select: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          single: vi.fn(async () => ({ data: null, error: null })),
+          order: vi.fn(() => ({
+            limit: vi.fn(async () => ({ data: [], error: null })),
           })),
         })),
-        order: jest.fn(() => ({
-          limit: jest.fn(async () => ({ data: [], error: null })),
+        order: vi.fn(() => ({
+          limit: vi.fn(async () => ({ data: [], error: null })),
         })),
       })),
-      insert: jest.fn(async () => ({ data: null, error: null })),
-      upsert: jest.fn(async () => ({ data: null, error: null })),
-      update: jest.fn(() => ({
-        eq: jest.fn(async () => ({ data: null, error: null })),
+      insert: vi.fn(async () => ({ data: null, error: null })),
+      upsert: vi.fn(async () => ({ data: null, error: null })),
+      update: vi.fn(() => ({
+        eq: vi.fn(async () => ({ data: null, error: null })),
       })),
-      delete: jest.fn(() => ({
-        eq: jest.fn(async () => ({ data: null, error: null })),
+      delete: vi.fn(() => ({
+        eq: vi.fn(async () => ({ data: null, error: null })),
       })),
     })),
     storage: {
-      from: jest.fn(() => ({
-        upload: jest.fn(async () => ({ data: null, error: null })),
-        download: jest.fn(async () => ({ data: null, error: null })),
-        remove: jest.fn(async () => ({ data: null, error: null })),
-        list: jest.fn(async () => ({ data: [], error: null })),
+      from: vi.fn(() => ({
+        upload: vi.fn(async () => ({ data: null, error: null })),
+        download: vi.fn(async () => ({ data: null, error: null })),
+        remove: vi.fn(async () => ({ data: null, error: null })),
+        list: vi.fn(async () => ({ data: [], error: null })),
       })),
     },
   },
 }));
 
 // Mock connectivity
-jest.mock("../hooks/useConnectivity", () => ({
-  useConnectivity: jest.fn(() => true),
+vi.mock("../hooks/useConnectivity", () => ({
+  useConnectivity: vi.fn(() => true),
 }));
 
 // Mock connectivity service
-jest.mock("../services/connectivity", () => ({
+vi.mock("../services/connectivity", () => ({
   connectivity: {
-    getOnline: jest.fn(() => true),
-    subscribe: jest.fn(() => () => {}),
+    getOnline: vi.fn(() => true),
+    subscribe: vi.fn(() => () => {}),
   },
 }));
 
 // Mock PWA hook
-jest.mock("../hooks/usePWA", () => ({
+vi.mock("../hooks/usePWA", () => ({
   usePWA: () => ({
     needRefresh: false,
-    updateServiceWorker: jest.fn(),
-    dismissUpdate: jest.fn(),
+    updateServiceWorker: vi.fn(),
+    dismissUpdate: vi.fn(),
   }),
 }));
 
 // Mock window.matchMedia
 Object.defineProperty(window, "matchMedia", {
   writable: true,
-  value: jest.fn().mockImplementation((query) => ({
+  value: vi.fn().mockImplementation((query) => ({
     matches: false,
     media: query,
     onchange: null,
-    addListener: jest.fn(),
-    removeListener: jest.fn(),
-    addEventListener: jest.fn(),
-    removeEventListener: jest.fn(),
-    dispatchEvent: jest.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
   })),
 });
 
 // Mock scrollIntoView
-Element.prototype.scrollIntoView = jest.fn();
+Element.prototype.scrollIntoView = vi.fn();
 
 // Set __COMMIT_HASH__ global
 (globalThis as unknown as { __COMMIT_HASH__: string }).__COMMIT_HASH__ =
@@ -105,7 +106,7 @@ Element.prototype.scrollIntoView = jest.fn();
 describe("App initial render", () => {
   beforeEach(() => {
     localStorage.clear();
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it("renders without crashing", async () => {

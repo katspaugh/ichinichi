@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { sanitizeHtml, isContentEmpty } from "../utils/sanitize";
 
 describe("sanitizeHtml", () => {

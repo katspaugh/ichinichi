@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { createLocalNoteRepository } from "../domain/notes/localNoteRepository";
 import { createNoteCrypto } from "../domain/crypto/noteCrypto";
 import { createE2eeService } from "../services/e2eeService";

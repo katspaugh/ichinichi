@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import {
   createVault,
   unlockWithPassword,
@@ -22,7 +23,7 @@ async function exportKeyBytes(key: CryptoKey): Promise<Uint8Array> {
 }
 
 describe("vault lifecycle", () => {
-  jest.setTimeout(20000);
+  vi.setConfig({ testTimeout: 20000 });
   beforeEach(async () => {
     localStorage.clear();
     await clearVaultDb();

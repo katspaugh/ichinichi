@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { render, fireEvent, waitFor } from "@testing-library/react";
 import { useContentEditableEditor } from "../components/NoteEditor/useContentEditableEditor";
 
@@ -185,7 +186,7 @@ describe("Structured section transform", () => {
       "<div>Some existing content from earlier.</div>",
     ].join("");
 
-    const onChange = jest.fn();
+    const onChange = vi.fn();
     const { getByTestId } = render(
       <EditorHarness content={existingContent} onChange={onChange} />,
     );

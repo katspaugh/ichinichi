@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { useNoteContent } from "../hooks/useNoteContent";
 import { createSyncedNoteRepository } from "../domain/notes/syncedNoteRepository";
@@ -23,7 +24,7 @@ import type { NoteRepository } from "../storage/noteRepository";
 // Mock connectivity module
 let mockOnline = true;
 const getMockOnline = () => mockOnline;
-jest.mock("../hooks/useConnectivity", () => ({
+vi.mock("../hooks/useConnectivity", () => ({
   useConnectivity: () => getMockOnline(),
 }));
 
@@ -61,15 +62,15 @@ function createMockGateway(
   remoteNotes: Map<string, RemoteNote> = new Map(),
 ): RemoteNotesGateway {
   const gateway: RemoteNotesGateway = {
-    fetchNoteByDate: jest.fn().mockImplementation(async (date: string) => {
+    fetchNoteByDate: vi.fn().mockImplementation(async (date: string) => {
       const note = remoteNotes.get(date);
       return { ok: true, value: note ?? null };
     }),
-    fetchNoteDates: jest.fn().mockImplementation(async () => {
+    fetchNoteDates: vi.fn().mockImplementation(async () => {
       return { ok: true, value: Array.from(remoteNotes.keys()) };
     }),
-    fetchNotesSince: jest.fn().mockResolvedValue({ ok: true, value: [] }),
-    pushNote: jest.fn().mockImplementation(async (note) => {
+    fetchNotesSince: vi.fn().mockResolvedValue({ ok: true, value: [] }),
+    pushNote: vi.fn().mockImplementation(async (note) => {
       // Store the pushed note so subsequent fetches find it
       const remoteNote: RemoteNote = {
         ...note,
@@ -80,7 +81,7 @@ function createMockGateway(
       remoteNotes.set(note.date, remoteNote);
       return { ok: true, value: remoteNote };
     }),
-    deleteNote: jest.fn().mockImplementation(async ({ date }) => {
+    deleteNote: vi.fn().mockImplementation(async ({ date }) => {
       remoteNotes.delete(date);
       return { ok: true, value: undefined };
     }),
@@ -94,10 +95,10 @@ function createMockClock(date = "2025-01-05T10:00:00.000Z"): Clock {
 
 function createMockSyncStateStore(): SyncStateStore {
   return {
-    getState: jest
+    getState: vi
       .fn()
       .mockResolvedValue({ ok: true, value: { id: "state", cursor: null } }),
-    setState: jest.fn().mockResolvedValue({ ok: true, value: undefined }),
+    setState: vi.fn().mockResolvedValue({ ok: true, value: undefined }),
   };
 }
 
@@ -169,7 +170,7 @@ describe("offline note loading", () => {
   });
 
   afterEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe("cloud mode (user logged in)", () => {
@@ -182,7 +183,7 @@ describe("offline note loading", () => {
       await repository.save(testDate, testContent);
       await setRemoteDatesForYear(2025, [testDate]);
 
-      const hasNoteForDate = jest.fn().mockReturnValue(true);
+      const hasNoteForDate = vi.fn().mockReturnValue(true);
 
       const { result, rerender } = renderHook(() =>
         useNoteContent(testDate, repository, hasNoteForDate),
@@ -222,7 +223,7 @@ describe("offline note loading", () => {
       await setRemoteDatesForYear(2025, [testDate]);
 
       mockOnline = false;
-      const hasNoteForDate = jest.fn().mockReturnValue(true);
+      const hasNoteForDate = vi.fn().mockReturnValue(true);
 
       const { result } = renderHook(() =>
         useNoteContent(testDate, repository, hasNoteForDate),
@@ -248,7 +249,7 @@ describe("offline note loading", () => {
       // Go offline first
       mockOnline = false;
 
-      const hasNoteForDate = jest.fn().mockReturnValue(true);
+      const hasNoteForDate = vi.fn().mockReturnValue(true);
 
       const { result } = renderHook(() =>
         useNoteContent(pastDate, repository, hasNoteForDate),
@@ -282,7 +283,7 @@ describe("offline note loading", () => {
       ]);
 
       mockOnline = false;
-      const hasNoteForDate = jest.fn().mockReturnValue(true);
+      const hasNoteForDate = vi.fn().mockReturnValue(true);
 
       // Test cached note 1
       const { result: result1 } = renderHook(() =>
@@ -317,7 +318,7 @@ describe("offline note loading", () => {
       await repository.save(testDate, testContent);
       await setRemoteDatesForYear(2025, [testDate]);
 
-      const hasNoteForDate = jest.fn().mockReturnValue(true);
+      const hasNoteForDate = vi.fn().mockReturnValue(true);
 
       // Start online
       const { result, rerender } = renderHook(() =>
@@ -376,7 +377,7 @@ describe("offline note loading", () => {
 
       // Don't save anything - this is a new note
       mockOnline = false;
-      const hasNoteForDate = jest.fn().mockReturnValue(false);
+      const hasNoteForDate = vi.fn().mockReturnValue(false);
 
       const { result } = renderHook(() =>
         useNoteContent(newDate, repository, hasNoteForDate),
@@ -401,7 +402,7 @@ describe("offline note loading", () => {
       // But note is still in local IDB
 
       mockOnline = false;
-      const hasNoteForDate = jest.fn().mockReturnValue(true);
+      const hasNoteForDate = vi.fn().mockReturnValue(true);
 
       const { result } = renderHook(() =>
         useNoteContent(testDate, repository, hasNoteForDate),
@@ -425,7 +426,7 @@ describe("offline note loading", () => {
       await repository.save(testDate, testContent);
 
       mockOnline = false;
-      const hasNoteForDate = jest.fn().mockReturnValue(true);
+      const hasNoteForDate = vi.fn().mockReturnValue(true);
 
       const { result } = renderHook(() =>
         useNoteContent(testDate, repository, hasNoteForDate),
@@ -445,7 +446,7 @@ describe("offline note loading", () => {
       await repository.save(testDate, testContent);
 
       mockOnline = true;
-      const hasNoteForDate = jest.fn().mockReturnValue(true);
+      const hasNoteForDate = vi.fn().mockReturnValue(true);
 
       const { result } = renderHook(() =>
         useNoteContent(testDate, repository, hasNoteForDate),
@@ -464,7 +465,7 @@ describe("offline note loading", () => {
 
       await repository.save(testDate, testContent);
 
-      const hasNoteForDate = jest.fn().mockReturnValue(true);
+      const hasNoteForDate = vi.fn().mockReturnValue(true);
 
       // Start online
       mockOnline = true;
@@ -495,7 +496,7 @@ describe("offline note loading", () => {
       const newDate = "20-01-2025";
 
       mockOnline = false;
-      const hasNoteForDate = jest.fn().mockReturnValue(false);
+      const hasNoteForDate = vi.fn().mockReturnValue(false);
 
       const { result } = renderHook(() =>
         useNoteContent(newDate, repository, hasNoteForDate),
@@ -523,7 +524,7 @@ describe("offline note loading", () => {
       }
 
       mockOnline = false;
-      const hasNoteForDate = jest.fn().mockReturnValue(true);
+      const hasNoteForDate = vi.fn().mockReturnValue(true);
 
       // Verify each note loads correctly
       for (const note of notes) {
@@ -553,7 +554,7 @@ describe("offline note loading", () => {
 
       // When switching accounts, hasNoteForDate wouldn't know about notes
       // encrypted with a different key - they're effectively invisible
-      const hasNoteForDate = jest.fn().mockReturnValue(false);
+      const hasNoteForDate = vi.fn().mockReturnValue(false);
 
       const { result } = renderHook(() =>
         useNoteContent(testDate, cloudSetup.repository, hasNoteForDate),
@@ -577,7 +578,7 @@ describe("offline note loading", () => {
       await repository.save(testDate, testContent);
       await setRemoteDatesForYear(2025, [testDate]);
 
-      const hasNoteForDate = jest.fn().mockReturnValue(true);
+      const hasNoteForDate = vi.fn().mockReturnValue(true);
 
       const { result, rerender } = renderHook(() =>
         useNoteContent(testDate, repository, hasNoteForDate),
@@ -613,7 +614,7 @@ describe("offline note loading", () => {
       mockOnline = false;
 
       // hasNoteForDate returns false because no note exists
-      const hasNoteForDate = jest.fn().mockReturnValue(false);
+      const hasNoteForDate = vi.fn().mockReturnValue(false);
 
       const { result } = renderHook(() =>
         useNoteContent(testDate, repository, hasNoteForDate),
@@ -634,7 +635,7 @@ describe("offline note loading", () => {
       await repository.delete(testDate);
 
       mockOnline = true;
-      const hasNoteForDate = jest.fn().mockReturnValue(true);
+      const hasNoteForDate = vi.fn().mockReturnValue(true);
 
       const { result } = renderHook(() =>
         useNoteContent(testDate, repository, hasNoteForDate),
@@ -652,7 +653,7 @@ describe("offline note loading", () => {
 
       // hasNoteForDate says note exists, but it's not in IDB or remote index
       mockOnline = false;
-      const hasNoteForDate = jest.fn().mockReturnValue(true);
+      const hasNoteForDate = vi.fn().mockReturnValue(true);
 
       const { result } = renderHook(() =>
         useNoteContent(testDate, repository, hasNoteForDate),
@@ -676,7 +677,7 @@ describe("offline note loading", () => {
 
       // Start offline
       mockOnline = false;
-      const hasNoteForDate = jest.fn().mockReturnValue(true);
+      const hasNoteForDate = vi.fn().mockReturnValue(true);
 
       const { result, rerender } = renderHook(() =>
         useNoteContent(testDate, repository, hasNoteForDate),
@@ -703,7 +704,7 @@ describe("offline note loading", () => {
     });
 
     it("handles null repository gracefully", async () => {
-      const hasNoteForDate = jest.fn().mockReturnValue(false);
+      const hasNoteForDate = vi.fn().mockReturnValue(false);
 
       const { result } = renderHook(() =>
         useNoteContent("05-01-2025", null, hasNoteForDate),
@@ -717,7 +718,7 @@ describe("offline note loading", () => {
 
     it("handles null date gracefully", async () => {
       const { repository } = await setupLocalRepository();
-      const hasNoteForDate = jest.fn().mockReturnValue(false);
+      const hasNoteForDate = vi.fn().mockReturnValue(false);
 
       const { result } = renderHook(() =>
         useNoteContent(null, repository, hasNoteForDate),

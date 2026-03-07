@@ -1,52 +1,54 @@
+// @vitest-environment jsdom
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import type { Mock } from "vitest";
 import { noteContentStore } from "../stores/noteContentStore";
 import { syncStore } from "../stores/syncStore";
 import { SyncStatus } from "../types";
 import { ok } from "../domain/result";
 import { syncDefaults } from "./helpers/mockNoteRepository";
 
-jest.mock("../services/connectivity", () => ({
+vi.mock("../services/connectivity", () => ({
   connectivity: {
-    getOnline: jest.fn(() => true),
-    subscribe: jest.fn(() => () => {}),
+    getOnline: vi.fn(() => true),
+    subscribe: vi.fn(() => () => {}),
   },
 }));
 
 import { connectivity } from "../services/connectivity";
-const mockGetOnline = connectivity.getOnline as jest.Mock;
+const mockGetOnline = connectivity.getOnline as Mock;
 
 // Mock pendingOpsSource
-jest.mock("../storage/pendingOpsSource", () => ({
+vi.mock("../storage/pendingOpsSource", () => ({
   pendingOpsSource: {
-    getSummary: jest.fn().mockResolvedValue({ notes: 0, images: 0, total: 0 }),
-    hasPending: jest.fn().mockResolvedValue(false),
+    getSummary: vi.fn().mockResolvedValue({ notes: 0, images: 0, total: 0 }),
+    hasPending: vi.fn().mockResolvedValue(false),
   },
 }));
 
 // Mock Supabase channel for syncStore tests
 function createMockChannel(): any {
   const ch: any = {
-    on: jest.fn().mockImplementation(() => ch),
-    subscribe: jest.fn((cb: any) => {
+    on: vi.fn().mockImplementation(() => ch),
+    subscribe: vi.fn((cb: any) => {
       cb("SUBSCRIBED");
       return ch;
     }),
-    unsubscribe: jest.fn().mockResolvedValue(undefined),
+    unsubscribe: vi.fn().mockResolvedValue(undefined),
   };
   return ch;
 }
 
 function createMockSupabase(): any {
-  return { channel: jest.fn().mockReturnValue(createMockChannel()) };
+  return { channel: vi.fn().mockReturnValue(createMockChannel()) };
 }
 
 function createRepository(initialContent = "") {
   return {
     ...syncDefaults,
-    get: jest.fn().mockResolvedValue(ok({ content: initialContent, date: "16-01-2026" })),
-    save: jest.fn().mockResolvedValue(ok(undefined)),
-    delete: jest.fn().mockResolvedValue(ok(undefined)),
-    getAllDates: jest.fn().mockResolvedValue(ok([])),
+    get: vi.fn().mockResolvedValue(ok({ content: initialContent, date: "16-01-2026" })),
+    save: vi.fn().mockResolvedValue(ok(undefined)),
+    delete: vi.fn().mockResolvedValue(ok(undefined)),
+    getAllDates: vi.fn().mockResolvedValue(ok([])),
   };
 }
 
@@ -100,7 +102,7 @@ describe("noteContentStore — hasEdits tracking", () => {
   it("keeps isSaving true during save, clears after save completes", async () => {
     let resolveSave!: (v: { ok: true; value: undefined }) => void;
     const repository = createRepository("");
-    (repository.save as jest.Mock).mockImplementation(
+    (repository.save as Mock).mockImplementation(
       () => new Promise((r) => { resolveSave = r; }),
     );
 
@@ -130,29 +132,29 @@ describe("noteContentStore — idle save delay", () => {
   });
 
   it("waits for idle delay before saving and resets on continued edits", async () => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
     const repository = createRepository("");
     noteContentStore.getState().init("16-01-2026", repository);
 
-    await jest.advanceTimersByTimeAsync(100);
+    await vi.advanceTimersByTimeAsync(100);
 
     noteContentStore.getState().setContent("draft");
 
-    jest.advanceTimersByTime(SAVE_IDLE_DELAY_MS - 100);
+    vi.advanceTimersByTime(SAVE_IDLE_DELAY_MS - 100);
     expect(repository.save).not.toHaveBeenCalled();
 
     noteContentStore.getState().setContent("draft with more text");
 
-    jest.advanceTimersByTime(SAVE_IDLE_DELAY_MS - 100);
+    vi.advanceTimersByTime(SAVE_IDLE_DELAY_MS - 100);
     expect(repository.save).not.toHaveBeenCalled();
 
-    await jest.advanceTimersByTimeAsync(200);
+    await vi.advanceTimersByTimeAsync(200);
     expect(repository.save).toHaveBeenCalledWith(
       "16-01-2026",
       "draft with more text",
     );
 
-    jest.useRealTimers();
+    vi.useRealTimers();
   });
 });
 
@@ -172,7 +174,7 @@ describe("syncStore", () => {
 
   it("transitions to enabled with correct online status on init", () => {
     mockGetOnline.mockReturnValue(true);
-    const mockRepo = { sync: jest.fn() } as any;
+    const mockRepo = { sync: vi.fn() } as any;
     syncStore.getState().init({
       repository: mockRepo,
       userId: "user-123",
@@ -185,7 +187,7 @@ describe("syncStore", () => {
 
   it("sets offline status when initialized offline", () => {
     mockGetOnline.mockReturnValue(false);
-    const mockRepo = { sync: jest.fn() } as any;
+    const mockRepo = { sync: vi.fn() } as any;
     syncStore.getState().init({
       repository: mockRepo,
       userId: "user-123",
@@ -198,7 +200,7 @@ describe("syncStore", () => {
 
   it("resets to idle on dispose", () => {
     mockGetOnline.mockReturnValue(true);
-    const mockRepo = { sync: jest.fn() } as any;
+    const mockRepo = { sync: vi.fn() } as any;
     syncStore.getState().init({
       repository: mockRepo,
       userId: "user-123",
@@ -215,7 +217,7 @@ describe("syncStore", () => {
 
   it("updates connectivity and triggers sync when coming online", () => {
     mockGetOnline.mockReturnValue(false);
-    const mockRepo = { sync: jest.fn() } as any;
+    const mockRepo = { sync: vi.fn() } as any;
     syncStore.getState().init({
       repository: mockRepo,
       userId: "user-123",
@@ -234,7 +236,7 @@ describe("syncStore", () => {
 
   it("sets offline status when connectivity lost", () => {
     mockGetOnline.mockReturnValue(true);
-    const mockRepo = { sync: jest.fn() } as any;
+    const mockRepo = { sync: vi.fn() } as any;
     syncStore.getState().init({
       repository: mockRepo,
       userId: "user-123",
@@ -250,7 +252,7 @@ describe("syncStore", () => {
   describe("realtime events", () => {
     it("clears lastRealtimeChangedDate via clearRealtimeChanged", () => {
       mockGetOnline.mockReturnValue(true);
-      const mockRepo = { sync: jest.fn() } as any;
+      const mockRepo = { sync: vi.fn() } as any;
       syncStore.getState().init({
         repository: mockRepo,
         userId: "user-123",
@@ -269,7 +271,7 @@ describe("syncStore", () => {
 
     it("tracks realtimeConnected based on channel subscription", () => {
       mockGetOnline.mockReturnValue(true);
-      const mockRepo = { sync: jest.fn() } as any;
+      const mockRepo = { sync: vi.fn() } as any;
 
       // Channel mock calls cb("SUBSCRIBED") synchronously
       syncStore.getState().init({
@@ -285,7 +287,7 @@ describe("syncStore", () => {
   describe("window focus sync", () => {
     it("handleWindowFocus triggers sync request", () => {
       mockGetOnline.mockReturnValue(true);
-      const mockRepo = { sync: jest.fn() } as any;
+      const mockRepo = { sync: vi.fn() } as any;
       syncStore.getState().init({
         repository: mockRepo,
         userId: "user-123",

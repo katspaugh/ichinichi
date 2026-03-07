@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+import type { MockedFunction } from "vitest";
 import {
   unlockCloudVault,
   bootstrapLocalVault,
@@ -7,8 +9,8 @@ import {
 import {
   fetchUserKeyring,
   saveUserKeyringEntry,
-  UserKeyringEntry,
 } from "../storage/userKeyring";
+import type { UserKeyringEntry } from "../storage/userKeyring";
 import {
   generateDEK,
   deriveKEK,
@@ -19,15 +21,15 @@ import {
 } from "../storage/vault";
 import { computeKeyId } from "../storage/keyId";
 
-jest.mock("../storage/userKeyring", () => ({
-  fetchUserKeyring: jest.fn(),
-  saveUserKeyringEntry: jest.fn(),
+vi.mock("../storage/userKeyring", () => ({
+  fetchUserKeyring: vi.fn(),
+  saveUserKeyringEntry: vi.fn(),
 }));
 
-const mockFetchUserKeyring = fetchUserKeyring as jest.MockedFunction<
+const mockFetchUserKeyring = fetchUserKeyring as MockedFunction<
   typeof fetchUserKeyring
 >;
-const mockSaveUserKeyringEntry = saveUserKeyringEntry as jest.MockedFunction<
+const mockSaveUserKeyringEntry = saveUserKeyringEntry as MockedFunction<
   typeof saveUserKeyringEntry
 >;
 
@@ -76,11 +78,11 @@ async function createKeyringEntry(
 }
 
 function createMockSupabase(): unknown {
-  return { from: jest.fn() };
+  return { from: vi.fn() };
 }
 
 describe("unlockCloudVault", () => {
-  jest.setTimeout(30000);
+  vi.setConfig({ testTimeout: 30000 });
 
   beforeEach(async () => {
     localStorage.clear();
@@ -246,7 +248,7 @@ describe("unlockCloudVault", () => {
 });
 
 describe("bootstrapLocalVault", () => {
-  jest.setTimeout(20000);
+  vi.setConfig({ testTimeout: 20000 });
 
   beforeEach(async () => {
     localStorage.clear();
@@ -286,7 +288,7 @@ describe("bootstrapLocalVault", () => {
 
     expect(result.hasVault).toBe(true);
 
-    // Device key unlock may not work in jest's jsdom environment
+    // Device key unlock may not work in jsdom environment
     // (see vault.test.ts for similar handling)
     if (result.requiresPassword) {
       expect(result.vaultKey).toBeNull();
@@ -299,7 +301,7 @@ describe("bootstrapLocalVault", () => {
 });
 
 describe("unlockLocalVault", () => {
-  jest.setTimeout(20000);
+  vi.setConfig({ testTimeout: 20000 });
 
   beforeEach(async () => {
     localStorage.clear();
@@ -338,7 +340,7 @@ describe("unlockLocalVault", () => {
 });
 
 describe("tryDeviceUnlockCloudKey", () => {
-  jest.setTimeout(20000);
+  vi.setConfig({ testTimeout: 20000 });
 
   beforeEach(async () => {
     localStorage.clear();

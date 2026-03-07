@@ -1,32 +1,34 @@
+// @vitest-environment jsdom
+import type { Mock } from "vitest";
 import { createCloudImageRepository } from "../storage/cloudImageStorage";
 
 function createMockSupabase() {
   const storageMethods = {
-    upload: jest.fn().mockResolvedValue({ error: null }),
-    download: jest.fn().mockResolvedValue({ data: null, error: null }),
-    remove: jest.fn().mockResolvedValue({ error: null }),
-    createSignedUrl: jest.fn().mockResolvedValue({ data: null, error: null }),
+    upload: vi.fn().mockResolvedValue({ error: null }),
+    download: vi.fn().mockResolvedValue({ data: null, error: null }),
+    remove: vi.fn().mockResolvedValue({ error: null }),
+    createSignedUrl: vi.fn().mockResolvedValue({ data: null, error: null }),
   };
 
-  const fromStorage = jest.fn().mockReturnValue(storageMethods);
+  const fromStorage = vi.fn().mockReturnValue(storageMethods);
 
   // Chainable query builder
   const createQueryBuilder = (data: unknown = null, error: unknown = null) => {
-    const builder: Record<string, jest.Mock> = {};
+    const builder: Record<string, Mock> = {};
     const chain = () => builder;
-    builder.select = jest.fn().mockImplementation(chain);
-    builder.insert = jest.fn().mockImplementation(chain);
-    builder.update = jest.fn().mockImplementation(chain);
-    builder.delete = jest.fn().mockImplementation(chain);
-    builder.upsert = jest.fn().mockImplementation(chain);
-    builder.eq = jest.fn().mockImplementation(chain);
-    builder.single = jest.fn().mockResolvedValue({ data, error });
+    builder.select = vi.fn().mockImplementation(chain);
+    builder.insert = vi.fn().mockImplementation(chain);
+    builder.update = vi.fn().mockImplementation(chain);
+    builder.delete = vi.fn().mockImplementation(chain);
+    builder.upsert = vi.fn().mockImplementation(chain);
+    builder.eq = vi.fn().mockImplementation(chain);
+    builder.single = vi.fn().mockResolvedValue({ data, error });
     return builder;
   };
 
   let queryBuilder = createQueryBuilder();
 
-  const fromDb = jest.fn().mockImplementation(() => queryBuilder);
+  const fromDb = vi.fn().mockImplementation(() => queryBuilder);
 
   return {
     supabase: {
@@ -103,7 +105,7 @@ describe("cloudImageStorage", () => {
       storageMethods.upload.mockResolvedValue({ error: null });
       // Make insert() resolve with an error (insert is awaited directly)
       const builder = createQueryBuilder();
-      builder.insert = jest
+      builder.insert = vi
         .fn()
         .mockResolvedValue({ error: { message: "DB error" } });
       fromDb.mockImplementation(() => builder);
@@ -259,9 +261,9 @@ describe("cloudImageStorage", () => {
       // For getByNoteDate, the chain ends without .single()
       const builder = createQueryBuilder();
       // Override so the eq chain returns data directly (no .single call)
-      builder.eq = jest.fn().mockImplementation(() => ({
+      builder.eq = vi.fn().mockImplementation(() => ({
         ...builder,
-        eq: jest.fn().mockResolvedValue({ data: rows, error: null }),
+        eq: vi.fn().mockResolvedValue({ data: rows, error: null }),
       }));
       fromDb.mockImplementation(() => builder);
 
@@ -283,9 +285,9 @@ describe("cloudImageStorage", () => {
     it("returns empty array when no images for date", async () => {
       const { supabase, fromDb, createQueryBuilder } = createMockSupabase();
       const builder = createQueryBuilder();
-      builder.eq = jest.fn().mockImplementation(() => ({
+      builder.eq = vi.fn().mockImplementation(() => ({
         ...builder,
-        eq: jest.fn().mockResolvedValue({ data: [], error: null }),
+        eq: vi.fn().mockResolvedValue({ data: [], error: null }),
       }));
       fromDb.mockImplementation(() => builder);
 

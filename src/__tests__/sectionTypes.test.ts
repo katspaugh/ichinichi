@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { extractSectionTypes, stringToHue } from "../utils/sectionTypes";
 import { sanitizeHtml } from "../utils/sanitize";
 
