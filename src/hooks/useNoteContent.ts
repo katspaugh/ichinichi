@@ -282,7 +282,10 @@ export function useNoteContent(
 
   const isReady =
     status === "ready" || status === "error";
-  const isLoading = status === "loading";
+  // Treat "date set but no repository yet" as loading so the editor
+  // shows "Decrypting..." while the vault is still unlocking.
+  const isLoading =
+    status === "loading" || (date !== null && repository === null);
 
   // Determine offline stub
   const isOfflineStub =

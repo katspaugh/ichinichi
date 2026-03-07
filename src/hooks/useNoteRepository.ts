@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { useNoteContent } from "./useNoteContent";
 import { useNoteDates } from "./useNoteDates";
@@ -88,6 +88,16 @@ export function useNoteRepository({
   const envelopePort = useMemo(() => createNoteEnvelopeAdapter(), []);
   const remoteDateIndex = useMemo(() => createRemoteDateIndexAdapter(), []);
 
+  // Ref keeps keyProvider.getKey() reading the latest keyring without
+  // recreating the repository (and restarting sync) on every keyring
+  // reference change.  The keyring Map changes multiple times after
+  // sign-in as the vault machine loads local keys and caches cloud
+  // keys — none of those changes should interrupt an in-flight sync.
+  const keyringRef = useRef(keyring);
+  useEffect(() => {
+    keyringRef.current = keyring;
+  }, [keyring]);
+
   const syncedFactories = useMemo<SyncedRepositoryFactories>(
     () => ({
       createSyncedNoteRepository: ({ userId, keyProvider, envelopePort, remoteDateIndex }) => {
@@ -118,9 +128,11 @@ export function useNoteRepository({
     void repositoryVersion;
     const keyProvider = {
       activeKeyId,
-      getKey: (keyId: string) => keyring.get(keyId) ?? null,
+      getKey: (keyId: string) => keyringRef.current.get(keyId) ?? null,
     };
 
+    // getKey reads the ref at I/O time (decrypt), never during render
+    // eslint-disable-next-line react-hooks/refs
     return createNoteRepository({
       mode,
       userId,
@@ -134,7 +146,6 @@ export function useNoteRepository({
     userId,
     vaultKey,
     activeKeyId,
-    keyring,
     syncedFactories,
     envelopePort,
     remoteDateIndex,
@@ -146,8 +157,9 @@ export function useNoteRepository({
     void repositoryVersion;
     const keyProvider = {
       activeKeyId,
-      getKey: (keyId: string) => keyring.get(keyId) ?? null,
+      getKey: (keyId: string) => keyringRef.current.get(keyId) ?? null,
     };
+    // eslint-disable-next-line react-hooks/refs
     return createImageRepository({
       mode,
       userId,
@@ -159,7 +171,6 @@ export function useNoteRepository({
     activeKeyId,
     mode,
     userId,
-    keyring,
     syncedFactories,
     repositoryVersion,
   ]);

@@ -167,9 +167,7 @@ function App() {
                     date={date}
                     noteDates={notes.noteDates}
                     hasNote={notes.hasNote}
-                    onDayClick={
-                      activeVault.isVaultUnlocked ? navigateToDate : () => {}
-                    }
+                    onDayClick={navigateToDate}
                     onYearChange={navigateToYear}
                     onMonthChange={handleDayViewMonthChange}
                     onReturnToYear={handleReturnToYear}
@@ -193,15 +191,9 @@ function App() {
                     weekStartVersion={weekStartVersion}
                     year={year}
                     hasNote={notes.hasNote}
-                    onDayClick={
-                      activeVault.isVaultUnlocked ? navigateToDate : undefined
-                    }
+                    onDayClick={navigateToDate}
                     onYearChange={navigateToYear}
-                    onMonthClick={
-                      activeVault.isVaultUnlocked
-                        ? handleCalendarMonthClick
-                        : undefined
-                    }
+                    onMonthClick={handleCalendarMonthClick}
                     syncStatus={canSync ? notes.syncStatus : undefined}
                     syncError={canSync ? notes.syncError : undefined}
                     pendingOps={canSync ? notes.pendingOps : undefined}
