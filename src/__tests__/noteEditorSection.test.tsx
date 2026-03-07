@@ -11,6 +11,20 @@ function setCaretAtEnd(element: HTMLElement) {
   selection.addRange(range);
 }
 
+/**
+ * Dispatch a native beforeinput event with insertParagraph.
+ * Mobile keyboards don't fire keydown for Enter, but beforeinput
+ * fires reliably — this mirrors the production code path.
+ */
+function fireInsertParagraph(element: HTMLElement) {
+  const event = new Event("beforeinput", {
+    cancelable: true,
+    bubbles: true,
+  });
+  (event as Event & { inputType: string }).inputType = "insertParagraph";
+  element.dispatchEvent(event);
+}
+
 function EditorHarness({
   content,
   onChange,
@@ -52,7 +66,7 @@ describe("Structured section transform", () => {
     const div = editor.querySelector("div") as HTMLDivElement;
     setCaretAtEnd(div);
 
-    fireEvent.keyDown(editor, { key: "Enter" });
+    fireInsertParagraph(editor);
 
     await waitFor(() => {
       const header = editor.querySelector("[data-section-type]");
@@ -75,7 +89,7 @@ describe("Structured section transform", () => {
     const div = editor.querySelector("div") as HTMLDivElement;
     setCaretAtEnd(div);
 
-    fireEvent.keyDown(editor, { key: "Enter" });
+    fireInsertParagraph(editor);
 
     expect(editor.querySelector("[data-section-type]")).toBeNull();
   });
@@ -93,7 +107,7 @@ describe("Structured section transform", () => {
     const div = editor.querySelector("div") as HTMLDivElement;
     setCaretAtEnd(div);
 
-    fireEvent.keyDown(editor, { key: "Enter" });
+    fireInsertParagraph(editor);
 
     await waitFor(() => {
       const header = editor.querySelector("[data-section-type]");
@@ -135,7 +149,7 @@ describe("Structured section transform", () => {
     expect(trumpetDiv).not.toBeNull();
     setCaretAtEnd(trumpetDiv!);
 
-    fireEvent.keyDown(editor, { key: "Enter" });
+    fireInsertParagraph(editor);
 
     await waitFor(() => {
       const header = editor.querySelector("[data-section-type]");
@@ -154,7 +168,7 @@ describe("Structured section transform", () => {
     editor.textContent = "+trumpet";
     setCaretAtEnd(editor);
 
-    fireEvent.keyDown(editor, { key: "Enter" });
+    fireInsertParagraph(editor);
 
     await waitFor(() => {
       const header = editor.querySelector("[data-section-type]");
@@ -191,8 +205,8 @@ describe("Structured section transform", () => {
     // Simulate typing — this triggers handleInput which may insert timestamp HR
     fireEvent.input(editor);
 
-    // Now press Enter to trigger section transform
-    fireEvent.keyDown(editor, { key: "Enter" });
+    // Now fire beforeinput to trigger section transform
+    fireInsertParagraph(editor);
 
     await waitFor(() => {
       const header = editor.querySelector("[data-section-type]");
@@ -248,7 +262,7 @@ describe("Structured section transform", () => {
     sel.removeAllRanges();
     sel.addRange(range);
 
-    fireEvent.keyDown(editor, { key: "Enter" });
+    fireInsertParagraph(editor);
 
     await waitFor(() => {
       const header = editor.querySelector("[data-section-type]");
