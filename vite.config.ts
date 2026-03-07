@@ -63,6 +63,16 @@ export default defineConfig({
       "@": resolve(__dirname, "./src"),
     },
   },
+  worker: {
+    // Bundle onnxruntime-web inside the worker so its dynamic import()
+    // of the WASM backend resolves correctly in both dev and production.
+    format: "es",
+  },
+  optimizeDeps: {
+    // Pre-bundle onnxruntime-web for dev mode so that Vite can resolve
+    // its internal dynamic import of ort-wasm-simd-threaded.jsep.mjs.
+    include: ["onnxruntime-web"],
+  },
   build: {
     // Optimize chunks for better caching
     rollupOptions: {
