@@ -15,6 +15,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:ct": "playwright test --config playwright-ct.config.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
@@ -33,6 +34,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@playwright/experimental-ct-react": "1.57.0",
     "@playwright/mcp": "^0.0.56",
     "@playwright/test": "^1.57.0",
     "@testing-library/dom": "^10.4.1",
