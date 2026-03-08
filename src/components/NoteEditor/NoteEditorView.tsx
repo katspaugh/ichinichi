@@ -20,6 +20,7 @@ interface NoteEditorViewProps {
   date: string;
   formattedDate: string;
   isEditable: boolean;
+  autoFocus: boolean;
   showReadonlyBadge: boolean;
   statusText: string | null;
   isStatusError?: boolean;
@@ -43,6 +44,7 @@ export function NoteEditorView({
   date,
   formattedDate,
   isEditable,
+  autoFocus,
   showReadonlyBadge,
   statusText,
   isStatusError = false,
@@ -109,6 +111,7 @@ export function NoteEditorView({
         <NoteEditorContent
           editorRef={editorRef}
           isEditable={isEditable}
+          autoFocus={autoFocus}
           placeholderText={placeholderText}
           onInput={onInput}
           onPaste={onPaste}

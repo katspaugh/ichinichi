@@ -466,6 +466,13 @@ export function useContentEditableEditor({
     }
     if (hasAutoFocusedRef.current) return;
 
+    const isMobile = window.matchMedia("(max-width: 768px)").matches;
+    const hasContent = content.trim().length > 0;
+    if (isMobile && hasContent) {
+      hasAutoFocusedRef.current = true;
+      return;
+    }
+
     el.focus();
     const hasText = (el.textContent ?? "").trim().length > 0;
     const hasImages = el.querySelector("img") !== null;

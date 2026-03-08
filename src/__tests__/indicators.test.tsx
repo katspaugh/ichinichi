@@ -116,6 +116,7 @@ describe("NoteEditorView status text", () => {
     date: "16-01-2026",
     formattedDate: "January 16, 2026",
     isEditable: true,
+    autoFocus: true,
     showReadonlyBadge: false,
     placeholderText: "Write your note...",
     editorRef: React.createRef<HTMLDivElement>(),

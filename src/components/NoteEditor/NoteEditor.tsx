@@ -37,6 +37,8 @@ export function NoteEditor({
 }: NoteEditorProps) {
   const canEdit = canEditNote(date);
   const isEditable = canEdit && !isDecrypting && isContentReady;
+  const isMobile = window.matchMedia("(max-width: 768px)").matches;
+  const autoFocus = isEditable && !(isMobile && content.trim().length > 0);
   const formattedDate = formatDateDisplay(date);
 
   const hasError = !!error;
@@ -119,6 +121,7 @@ export function NoteEditor({
       date={date}
       formattedDate={formattedDate}
       isEditable={isEditable}
+      autoFocus={autoFocus}
       showReadonlyBadge={!canEdit}
       statusText={statusText}
       isStatusError={hasError}

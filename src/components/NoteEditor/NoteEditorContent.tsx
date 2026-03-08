@@ -11,6 +11,7 @@ import styles from "./NoteEditor.module.css";
 interface NoteEditorContentProps {
   editorRef: RefObject<HTMLDivElement | null>;
   isEditable: boolean;
+  autoFocus: boolean;
   placeholderText: string;
   onInput?: (event: FormEvent<HTMLDivElement>) => void;
   onPaste?: (event: ClipboardEvent<HTMLDivElement>) => void;
@@ -23,6 +24,7 @@ interface NoteEditorContentProps {
 export function NoteEditorContent({
   editorRef,
   isEditable,
+  autoFocus,
   placeholderText,
   onInput,
   onPaste,
@@ -44,7 +46,7 @@ export function NoteEditorContent({
       data-note-editor="content"
       contentEditable={isEditable}
       tabIndex={isEditable ? 0 : -1}
-      autoFocus={isEditable}
+      autoFocus={autoFocus}
       suppressContentEditableWarning={true}
       role="textbox"
       aria-multiline="true"
