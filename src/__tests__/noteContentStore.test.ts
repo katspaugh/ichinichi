@@ -261,7 +261,7 @@ describe("noteContentStore", () => {
   });
 
   describe("save timing", () => {
-    it("saves after 2s idle delay", async () => {
+    it("saves after 500ms idle delay", async () => {
       vi.useFakeTimers();
       const repository = createRepository("");
       noteContentStore.getState().init("10-01-2026", repository);
@@ -272,11 +272,11 @@ describe("noteContentStore", () => {
       noteContentStore.getState().setContent("draft");
       expect(repository.save).not.toHaveBeenCalled();
 
-      // Before 2s
-      vi.advanceTimersByTime(1900);
+      // Before 500ms
+      vi.advanceTimersByTime(400);
       expect(repository.save).not.toHaveBeenCalled();
 
-      // After 2s
+      // After 500ms
       await vi.advanceTimersByTimeAsync(200);
       expect(repository.save).toHaveBeenCalledWith(
         "10-01-2026",
@@ -294,12 +294,12 @@ describe("noteContentStore", () => {
       await vi.advanceTimersByTimeAsync(100);
 
       noteContentStore.getState().setContent("draft");
-      vi.advanceTimersByTime(1900);
+      vi.advanceTimersByTime(400);
       expect(repository.save).not.toHaveBeenCalled();
 
       // Edit again — resets timer
       noteContentStore.getState().setContent("draft with more text");
-      vi.advanceTimersByTime(1900);
+      vi.advanceTimersByTime(400);
       expect(repository.save).not.toHaveBeenCalled();
 
       await vi.advanceTimersByTimeAsync(200);

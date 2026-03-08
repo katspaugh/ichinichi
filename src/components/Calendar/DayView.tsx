@@ -110,6 +110,7 @@ export function DayView({
         syncStatus={syncStatus}
         syncError={syncError}
         pendingOps={pendingOps}
+        isSaving={isSaving}
         onMenuClick={onMenuClick}
         onSignIn={onSignIn}
         onSyncClick={onSyncClick}

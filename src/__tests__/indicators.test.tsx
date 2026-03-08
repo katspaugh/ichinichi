@@ -51,7 +51,7 @@ describe("SyncIndicator component", () => {
     expect(indicator?.className).toContain("hidden");
   });
 
-  it("should render 'Sync needed' when status is Idle but has pending ops", () => {
+  it("should render 'Saved' when status is Idle with pending ops", () => {
     render(
       <SyncIndicator
         status={SyncStatus.Idle}
@@ -59,7 +59,24 @@ describe("SyncIndicator component", () => {
       />,
     );
 
-    expect(screen.getByText("Sync needed")).toBeTruthy();
+    expect(screen.getByText("Saved")).toBeTruthy();
+  });
+
+  it("should render 'Saving...' when isSaving is true", () => {
+    render(
+      <SyncIndicator status={SyncStatus.Idle} isSaving />,
+    );
+
+    expect(screen.getByText("Saving...")).toBeTruthy();
+  });
+
+  it("should render spinner when isSaving is true", () => {
+    const { container } = render(
+      <SyncIndicator status={SyncStatus.Idle} isSaving />,
+    );
+
+    const spinner = container.querySelector("span span");
+    expect(spinner).toBeTruthy();
   });
 
   it("should render spinner when syncing", () => {
@@ -98,7 +115,7 @@ describe("SyncIndicator component", () => {
       />,
     );
 
-    const button = screen.getByRole("button", { name: "Sync needed" });
+    const button = screen.getByRole("button", { name: "Saved" });
     button.click();
     expect(onClick).toHaveBeenCalled();
   });

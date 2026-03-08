@@ -26,7 +26,7 @@ import { closeVaultDb } from "../storage/vault";
 
 // Increase timeout for integration tests
 vi.setConfig({ testTimeout: 60000 });
-const SAVE_IDLE_DELAY_MS = 2000;
+const SAVE_IDLE_DELAY_MS = 500;
 
 // ============================================================================
 // Supabase Mock

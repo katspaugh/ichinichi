@@ -12,7 +12,7 @@ export interface SaveSnapshot {
   isEmpty: boolean;
 }
 
-const SAVE_IDLE_DELAY_MS = 2000;
+const SAVE_IDLE_DELAY_MS = 500;
 
 export interface NoteContentState {
   // Core note

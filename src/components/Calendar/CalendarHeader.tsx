@@ -16,6 +16,7 @@ interface CalendarHeaderProps {
   syncStatus?: SyncStatus;
   syncError?: string | null;
   pendingOps?: PendingOpsSummary;
+  isSaving?: boolean;
   onMenuClick?: () => void;
   onSignIn?: () => void;
   onSyncClick?: () => void;
@@ -32,6 +33,7 @@ export function CalendarHeader({
   syncStatus,
   syncError,
   pendingOps,
+  isSaving,
   onMenuClick,
   onSignIn,
   onSyncClick,
@@ -42,6 +44,7 @@ export function CalendarHeader({
       syncStatus={syncStatus}
       syncError={syncError}
       pendingOps={pendingOps}
+      isSaving={isSaving}
       onLogoClick={onLogoClick}
       onMenuClick={onMenuClick}
       onSignIn={onSignIn}

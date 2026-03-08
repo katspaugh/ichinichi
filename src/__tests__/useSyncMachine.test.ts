@@ -52,7 +52,7 @@ function createRepository(initialContent = "") {
   };
 }
 
-const SAVE_IDLE_DELAY_MS = 2000;
+const SAVE_IDLE_DELAY_MS = 500;
 
 /**
  * Tests for noteContentStore hasEdits / isSaving tracking.

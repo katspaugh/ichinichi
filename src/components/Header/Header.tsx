@@ -58,6 +58,7 @@ interface HeaderProps {
   syncStatus?: SyncStatus;
   syncError?: string | null;
   pendingOps?: PendingOpsSummary;
+  isSaving?: boolean;
   onLogoClick?: () => void;
   onMenuClick?: () => void;
   onSignIn?: () => void;
@@ -70,6 +71,7 @@ export function Header({
   syncStatus,
   syncError,
   pendingOps,
+  isSaving,
   onLogoClick,
   onMenuClick,
   onSignIn,
@@ -120,6 +122,7 @@ export function Header({
             status={syncStatus}
             pendingOps={pendingOps}
             errorMessage={syncError ?? undefined}
+            isSaving={isSaving}
             onSignIn={onSignIn}
             onSyncClick={onSyncClick}
           />

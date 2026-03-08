@@ -6,6 +6,7 @@ interface SyncIndicatorProps {
   status?: SyncStatus;
   pendingOps?: PendingOpsSummary;
   errorMessage?: string;
+  isSaving?: boolean;
   onSignIn?: () => void;
   onSyncClick?: () => void;
 }
@@ -14,6 +15,7 @@ export function SyncIndicator({
   status,
   pendingOps,
   errorMessage,
+  isSaving,
   onSignIn,
   onSyncClick,
 }: SyncIndicatorProps) {
@@ -29,21 +31,20 @@ export function SyncIndicator({
   }
 
   const getLabel = () => {
-    if (hasPendingOps && status === SyncStatus.Idle) {
-      return "Sync needed";
-    }
     switch (status) {
-      case SyncStatus.Syncing:
-        return "Syncing...";
-      case SyncStatus.Synced:
-        return "Synced";
-      case SyncStatus.Offline:
-        return "Offline";
       case SyncStatus.Error:
         return "Sync error";
+      case SyncStatus.Offline:
+        return "Offline";
+      case SyncStatus.Syncing:
+        return "Syncing...";
       default:
-        return "";
+        break;
     }
+    if (isSaving) return "Saving...";
+    if (hasPendingOps && status === SyncStatus.Idle) return "Saved";
+    if (status === SyncStatus.Synced) return "Synced";
+    return "";
   };
 
   const label = getLabel();
@@ -53,13 +54,17 @@ export function SyncIndicator({
     return <span className={`${styles.indicator} ${styles.hidden}`}>Synced</span>;
   }
 
-  const classSuffix =
-    hasPendingOps && status === SyncStatus.Idle ? "pending" : status ?? "";
+  const classSuffix = isSaving
+    ? "saving"
+    : hasPendingOps && status === SyncStatus.Idle
+      ? "saved"
+      : status ?? "";
   const statusClassMap: Record<string, string | undefined> = {
     [SyncStatus.Synced]: styles.synced,
     [SyncStatus.Error]: styles.error,
     [SyncStatus.Offline]: styles.offline,
-    pending: styles.pending,
+    saving: styles.saving,
+    saved: styles.synced,
   };
   const statusClass = statusClassMap[classSuffix];
 
@@ -82,7 +87,9 @@ export function SyncIndicator({
       className={[styles.indicator, statusClass].filter(Boolean).join(" ")}
       title={status === SyncStatus.Error ? errorMessage : undefined}
     >
-      {status === SyncStatus.Syncing && <span className={styles.spinner} />}
+      {(status === SyncStatus.Syncing || isSaving) && (
+        <span className={styles.spinner} />
+      )}
       {label}
     </span>
   );

@@ -60,6 +60,10 @@ button.indicator.synced:hover {
   border-color: var(--color-sync-pending);
 }
 
+.saving {
+  color: var(--color-text-muted);
+}
+
 .spinner {
   width: 10px;
   height: 10px;
