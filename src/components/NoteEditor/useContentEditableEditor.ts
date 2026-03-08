@@ -229,7 +229,7 @@ export function useContentEditableEditor({
     }
 
     // On first edit of this session, check if we need an initial timestamp.
-    // Insert at the beginning if it's been >10min since last edit (or no prior edits).
+    // Insert before the current block (where the cursor is), not at the top.
     if (lastEditedBlockRef.current === null) {
       lastEditedBlockRef.current = currentBlock;
 
@@ -240,7 +240,11 @@ export function useContentEditableEditor({
       if (lastEdit === null || now - lastEdit > ADDITION_WINDOW_MS) {
         const timestamp = new Date(now).toISOString();
         const { hr } = createTimestampHr(timestamp);
-        el.insertBefore(hr, el.firstChild);
+        if (currentBlock && currentBlock !== el) {
+          currentBlock.parentNode?.insertBefore(hr, currentBlock);
+        } else {
+          el.insertBefore(hr, el.firstChild);
+        }
         lastUserInputRef.current = now;
         hasInsertedTimestampRef.current = true;
       }
