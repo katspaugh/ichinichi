@@ -173,6 +173,7 @@ export function useContentEditableEditor({
   const hasInsertedTimestampRef = useRef(false);
   const hasAutoFocusedRef = useRef(false);
   const uploadInProgressRef = useRef(0);
+  const isProgrammaticUpdateRef = useRef(false);
 
   const syncEditorContent = useCallback(() => {
     const el = editorRef.current;
@@ -481,11 +482,17 @@ export function useContentEditableEditor({
       applySectionColors(el);
       return;
     }
-    el.innerHTML = nextContent;
+    // Guard against synthetic input/beforeinput events that mobile
+    // browsers may fire when innerHTML is set programmatically.
+    isProgrammaticUpdateRef.current = true;
+    el.innerHTML = nextContent; // Content is from our own store, not user input
     lastContentRef.current = nextContent;
+    // Reset stale DOM ref — old nodes are detached after innerHTML set
+    lastEditedBlockRef.current = null;
     updateEmptyState();
     updateTimestampLabels(el);
     applySectionColors(el);
+    isProgrammaticUpdateRef.current = false;
   }, [content, updateEmptyState, updateTimestampLabels]);
 
   useEffect(() => {
@@ -529,6 +536,9 @@ export function useContentEditableEditor({
 
   const handleInput = useCallback(() => {
     if (!isEditableRef.current) return;
+    // Skip synthetic input events fired by mobile browsers after
+    // programmatic innerHTML updates in the content sync effect.
+    if (isProgrammaticUpdateRef.current) return;
     const el = editorRef.current;
     if (!el) return;
 
@@ -770,6 +780,7 @@ export function useContentEditableEditor({
 
     const handleBeforeInput = (event: InputEvent) => {
       if (!isEditableRef.current) return;
+      if (isProgrammaticUpdateRef.current) return;
       if (
         event.inputType !== "insertParagraph" &&
         event.inputType !== "insertLineBreak"
