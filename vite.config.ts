@@ -67,8 +67,11 @@ export default defineConfig({
     // Optimize chunks for better caching
     rollupOptions: {
       output: {
-        manualChunks: {
-          "react-vendor": ["react", "react-dom"],
+        manualChunks(id) {
+          if (id.includes("node_modules/react-dom") ||
+              id.includes("node_modules/react/")) {
+            return "react-vendor";
+          }
         },
       },
     },
