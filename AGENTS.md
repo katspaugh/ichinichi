@@ -1,7 +1,5 @@
 # Ichinichi
 
-Telegraph style in all output. See `docs/communication-style.md` for rules + examples.
-
 Minimalist daily notes app. Year-at-a-glance calendar. Local-first, optional cloud sync. Client-side encryption, IndexedDB. Today editable, past read-only, future disabled.
 
 ## Core Rules

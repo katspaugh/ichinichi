@@ -9,12 +9,14 @@ import {
   setNoteMeta,
   deleteNoteAndMeta,
   deleteNoteRecord,
+  getAllNoteRecordDates,
 } from "./unifiedNoteStore";
 
 export function createNoteEnvelopeAdapter(): NoteEnvelopePort {
   return {
     getState: getNoteEnvelopeState,
     getAllStates: getAllNoteEnvelopeStates,
+    getAllRecordDates: getAllNoteRecordDates,
     setNoteAndMeta,
     setMeta: setNoteMeta,
     deleteNoteAndMeta,

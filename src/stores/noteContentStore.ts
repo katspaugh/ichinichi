@@ -4,7 +4,11 @@ import {
   type NoteRepository,
 } from "../storage/noteRepository";
 import { isNoteEmpty, isContentEmpty } from "../utils/sanitize";
-import { connectivity } from "../services/connectivity";
+import { connectivity as defaultConnectivity } from "../services/connectivity";
+
+interface ConnectivitySource {
+  getOnline(): boolean;
+}
 
 export interface SaveSnapshot {
   date: string;
@@ -42,6 +46,7 @@ export interface NoteContentState {
     date: string,
     repository: NoteRepository,
     afterSave?: (snapshot: SaveSnapshot) => void,
+    connectivityOverride?: ConnectivitySource,
   ) => void;
   switchNote: (date: string) => Promise<void>;
   dispose: () => Promise<void>;
@@ -62,6 +67,7 @@ export const noteContentStore = createStore<NoteContentState>()((set, get) => {
   let _refreshGeneration = 0;
   let _disposeGeneration = 0;
   let _contentVersion = 0;
+  let _connectivity: ConnectivitySource = defaultConnectivity;
 
   const _clearSaveTimer = () => {
     const timer = get()._saveTimer;
@@ -107,7 +113,7 @@ export const noteContentStore = createStore<NoteContentState>()((set, get) => {
       // Re-read afterSave after await to avoid calling a stale/disposed callback
       current.afterSave?.({ date, content, isEmpty });
     } else {
-      console.error("Failed to save note:", result.error);
+      console.error("Failed to save note:", { date, error: result.error });
       set({ isSaving: false });
     }
   };
@@ -195,9 +201,10 @@ export const noteContentStore = createStore<NoteContentState>()((set, get) => {
     repository: null,
     afterSave: null,
 
-    init: (date, repository, afterSave) => {
+    init: (date, repository, afterSave, connectivityOverride) => {
       // Cancel any in-flight dispose to prevent it from clobbering this init
       _disposeGeneration++;
+      _connectivity = connectivityOverride ?? defaultConnectivity;
       // Remove previous listener to avoid duplicates on re-init
       document.removeEventListener("visibilitychange", _handleVisibilityChange);
       document.addEventListener("visibilitychange", _handleVisibilityChange);
@@ -214,13 +221,15 @@ export const noteContentStore = createStore<NoteContentState>()((set, get) => {
 
     dispose: async () => {
       const disposeGen = ++_disposeGeneration;
+      // Invalidate in-flight loads/refreshes immediately so they can't
+      // write back after the reset below.
+      _loadGeneration++;
+      _refreshGeneration++;
       document.removeEventListener("visibilitychange", _handleVisibilityChange);
       await get().flushSave();
       // If init() was called while we were flushing, abort — the new
       // init owns the store now and our reset would clobber its state.
       if (disposeGen !== _disposeGeneration) return;
-      _loadGeneration++;
-      _refreshGeneration++;
       set({
         status: "idle",
         date: null,
@@ -290,7 +299,7 @@ export const noteContentStore = createStore<NoteContentState>()((set, get) => {
       const gen = ++_refreshGeneration;
       const state = get();
       const { date, repository } = state;
-      const online = connectivity.getOnline();
+      const online = _connectivity.getOnline();
       const syncRepository = isSyncCapableNoteRepository(repository)
         ? repository
         : null;
@@ -363,7 +372,7 @@ export const noteContentStore = createStore<NoteContentState>()((set, get) => {
           set({ isRefreshing: false, hasRefreshedForDate: date });
         }
       } catch (error) {
-        console.error("Failed to refresh note from remote:", error);
+        console.error("Failed to refresh note from remote:", { date, error });
         if (gen === _refreshGeneration) {
           set({ isRefreshing: false });
         }
@@ -399,7 +408,7 @@ export const noteContentStore = createStore<NoteContentState>()((set, get) => {
 
     checkRemoteCache: async () => {
       const { date, repository } = get();
-      const online = connectivity.getOnline();
+      const online = _connectivity.getOnline();
       const syncRepository = isSyncCapableNoteRepository(repository)
         ? repository
         : null;
@@ -422,7 +431,7 @@ export const noteContentStore = createStore<NoteContentState>()((set, get) => {
           set({ remoteCacheResult: { date, hasRemote } });
         }
       } catch (error) {
-        console.error("Failed to check remote date cache:", error);
+        console.error("Failed to check remote date cache:", { date, error });
       }
     },
 

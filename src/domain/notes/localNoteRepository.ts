@@ -82,12 +82,7 @@ export function createLocalNoteRepository(
 
     async getAllDates(): Promise<Result<string[], RepositoryError>> {
       try {
-        const states = await envelopePort.getAllStates();
-        return ok(
-          states
-            .map((state) => state.record?.date)
-            .filter((value): value is string => Boolean(value)),
-        );
+        return ok(await envelopePort.getAllRecordDates());
       } catch (error) {
         return err({
           type: "IO",
@@ -99,13 +94,8 @@ export function createLocalNoteRepository(
     async getAllDatesForYear(year: number): Promise<Result<string[], RepositoryError>> {
       try {
         const suffix = String(year);
-        const states = await envelopePort.getAllStates();
-        return ok(
-          states
-            .map((state) => state.record?.date)
-            .filter((date): date is string => Boolean(date))
-            .filter((date) => date.endsWith(suffix)),
-        );
+        const dates = await envelopePort.getAllRecordDates();
+        return ok(dates.filter((date) => date.endsWith(suffix)));
       } catch (error) {
         return err({
           type: "IO",

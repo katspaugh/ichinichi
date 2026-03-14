@@ -15,6 +15,7 @@ export class ImageUrlManager {
   private repository: ImageRepository;
   private urlCache = new Map<string, UrlEntry>();
   private ownerMap = new Map<string, Set<string>>();
+  private releasedOwners = new Set<string>();
   private inFlight = new Map<string, Promise<string | null>>();
   private remoteTtlMs: number;
 
@@ -35,7 +36,9 @@ export class ImageUrlManager {
 
     if (this.inFlight.has(imageId)) {
       const url = await this.inFlight.get(imageId)!;
-      if (url) {
+      // Owner may have been released during the await — only track
+      // if the owner is still registered (not yet released).
+      if (url && this.isOwnerActive(ownerId)) {
         this.trackOwner(imageId, ownerId);
       }
       return url;
@@ -47,7 +50,6 @@ export class ImageUrlManager {
           return null;
         }
         this.urlCache.set(imageId, entry);
-        this.trackOwner(imageId, ownerId);
         return entry.url;
       })
       .finally(() => {
@@ -55,7 +57,13 @@ export class ImageUrlManager {
       });
 
     this.inFlight.set(imageId, request);
-    return request;
+    const url = await request;
+    // Owner may have been released while awaiting — only track if
+    // still active, otherwise the entry would get an orphaned owner.
+    if (url && this.isOwnerActive(ownerId)) {
+      this.trackOwner(imageId, ownerId);
+    }
+    return url;
   }
 
   releaseImage(imageId: string, ownerId: string): void {
@@ -70,12 +78,17 @@ export class ImageUrlManager {
   }
 
   releaseOwner(ownerId: string): void {
+    this.releasedOwners.add(ownerId);
     const owners = this.ownerMap.get(ownerId);
     if (!owners) return;
     owners.forEach((imageId) => {
       this.dropOwnerFromEntry(imageId, ownerId);
     });
     this.ownerMap.delete(ownerId);
+  }
+
+  private isOwnerActive(ownerId: string): boolean {
+    return !this.releasedOwners.has(ownerId);
   }
 
   private async resolveUrl(imageId: string): Promise<UrlEntry | null> {

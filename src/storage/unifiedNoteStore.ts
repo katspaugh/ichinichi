@@ -27,6 +27,19 @@ export async function getNoteRecord(date: string): Promise<NoteRecord | null> {
   });
 }
 
+export async function getAllNoteRecordDates(): Promise<string[]> {
+  const db = await openUnifiedDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(NOTES_STORE, "readonly");
+    const store = tx.objectStore(NOTES_STORE);
+    const request = store.getAllKeys();
+    request.onsuccess = () =>
+      resolve((request.result ?? []) as string[]);
+    request.onerror = () => reject(request.error);
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
 export async function getAllNoteRecords(): Promise<NoteRecord[]> {
   const db = await openUnifiedDb();
   return new Promise((resolve, reject) => {

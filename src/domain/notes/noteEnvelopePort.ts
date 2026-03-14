@@ -10,6 +10,7 @@ export interface NoteEnvelopeState {
 export interface NoteEnvelopePort {
   getState(date: string): Promise<NoteEnvelopeState>;
   getAllStates(): Promise<NoteEnvelopeState[]>;
+  getAllRecordDates(): Promise<string[]>;
   setNoteAndMeta(record: NoteRecord, meta: NoteMetaRecord): Promise<void>;
   setMeta(meta: NoteMetaRecord): Promise<void>;
   deleteNoteAndMeta(date: string): Promise<void>;

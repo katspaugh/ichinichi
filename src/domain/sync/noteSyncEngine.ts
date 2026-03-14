@@ -67,14 +67,68 @@ function unwrapOrThrow<T, E>(result: Result<T, E>): T {
   return result.value;
 }
 
-function toUnknownSyncError(error: unknown): SyncError {
+type ReconcileAction =
+  | { type: "skip" }
+  | { type: "delete" }
+  | { type: "updateMeta"; meta: NoteMetaRecord }
+  | { type: "acceptRemote"; record: NoteRecord; meta: NoteMetaRecord };
+
+function reconcileWithRemote(
+  remote: RemoteNote | null,
+  localRecord: NoteRecord | null,
+  localMeta: NoteMetaRecord | null,
+  now: string,
+): ReconcileAction {
+  if (localMeta?.pendingOp === "delete") {
+    return { type: "skip" };
+  }
+
+  if (!remote || remote.deleted) {
+    if (localMeta?.pendingOp === "upsert" && localRecord && localMeta) {
+      return {
+        type: "updateMeta",
+        meta: {
+          ...localMeta,
+          remoteId: remote?.id ?? localMeta.remoteId,
+          serverRevision: remote?.revision ?? localMeta.serverRevision,
+          serverUpdatedAt:
+            remote?.serverUpdatedAt ?? localMeta.serverUpdatedAt,
+        },
+      };
+    }
+    return { type: "delete" };
+  }
+
+  if (localMeta?.pendingOp === "upsert" && localRecord && localMeta) {
+    return {
+      type: "updateMeta",
+      meta: {
+        ...localMeta,
+        remoteId: remote.id,
+        serverRevision: remote.revision,
+        serverUpdatedAt: remote.serverUpdatedAt,
+      },
+    };
+  }
+
+  return {
+    type: "acceptRemote",
+    record: toLocalRecord(remote),
+    meta: toLocalMeta(remote, now),
+  };
+}
+
+function toUnknownSyncError(
+  error: unknown,
+  operation?: string,
+): SyncError {
   if (error instanceof Error) {
-    return { type: "Unknown", message: error.message };
+    return { type: "Unknown", message: error.message, context: { operation } };
   }
   if (isSyncError(error)) {
     return error;
   }
-  return { type: "Unknown", message: "Sync failed." };
+  return { type: "Unknown", message: "Sync failed.", context: { operation } };
 }
 
 export function createNoteSyncEngine(
@@ -215,15 +269,29 @@ export function createNoteSyncEngine(
     await envelopePort.setNoteAndMeta(toLocalRecord(remote), toLocalMeta(remote, now));
   };
 
+  const executeReconcile = async (
+    date: string,
+    action: ReconcileAction,
+  ): Promise<void> => {
+    switch (action.type) {
+      case "skip":
+        return;
+      case "delete":
+        await envelopePort.deleteNoteAndMeta(date);
+        await remoteDateIndex.deleteDate(date);
+        return;
+      case "updateMeta":
+        await envelopePort.setMeta(action.meta);
+        return;
+      case "acceptRemote":
+        await envelopePort.setNoteAndMeta(action.record, action.meta);
+        return;
+    }
+  };
+
   const applyRemoteUpdate = async (remote: RemoteNote): Promise<void> => {
     const state = await envelopePort.getState(remote.date);
-    const localRecord = state.record;
-    const localMeta = state.meta;
-
-    // Local delete pending — skip, will be pushed next
-    if (localMeta?.pendingOp === "delete") {
-      return;
-    }
+    const { record: localRecord, meta: localMeta } = state;
 
     // Already synced to this version, no local pending
     if (
@@ -234,37 +302,8 @@ export function createNoteSyncEngine(
     }
 
     const now = clock.now().toISOString();
-
-    if (remote.deleted) {
-      if (localMeta?.pendingOp === "upsert" && localRecord) {
-        // Local edit pending — keep local content, update server metadata only
-        await envelopePort.setMeta({
-          ...localMeta,
-          remoteId: remote.id,
-          serverRevision: remote.revision,
-          serverUpdatedAt: remote.serverUpdatedAt,
-        });
-        return;
-      }
-      // No local pending — accept deletion
-      await envelopePort.deleteNoteAndMeta(remote.date);
-      await remoteDateIndex.deleteDate(remote.date);
-      return;
-    }
-
-    if (localMeta?.pendingOp === "upsert" && localRecord) {
-      // Local edit pending — keep local content, update server metadata only
-      await envelopePort.setMeta({
-        ...localMeta,
-        remoteId: remote.id,
-        serverRevision: remote.revision,
-        serverUpdatedAt: remote.serverUpdatedAt,
-      });
-      return;
-    }
-
-    // No local pending — accept remote content
-    await envelopePort.setNoteAndMeta(toLocalRecord(remote), toLocalMeta(remote, now));
+    const action = reconcileWithRemote(remote, localRecord, localMeta, now);
+    await executeReconcile(remote.date, action);
   };
 
   const sync = async (): Promise<Result<SyncStatus, SyncError>> => {
@@ -314,20 +353,17 @@ export function createNoteSyncEngine(
 
       return ok(SyncStatus.Synced);
     } catch (error) {
-      const syncError = toUnknownSyncError(error);
+      const syncError = toUnknownSyncError(error, "sync");
       console.error("Sync error:", syncError);
       return err(syncError);
     }
   };
 
   const getLocalDates = async (year?: number): Promise<string[]> => {
-    const states = await envelopePort.getAllStates();
-    return states
-      .map((state) => state.record?.date)
-      .filter((date): date is string => Boolean(date))
-      .filter((date) =>
-        typeof year === "number" ? date.endsWith(String(year)) : true,
-      );
+    const dates = await envelopePort.getAllRecordDates();
+    if (typeof year !== "number") return dates;
+    const suffix = String(year);
+    return dates.filter((date) => date.endsWith(suffix));
   };
 
   const refreshDates = async (year: number): Promise<void> => {
@@ -390,61 +426,32 @@ export function createNoteSyncEngine(
           return snapshot.envelope;
         }
         const remote = remoteResult.value;
-        const localRecord = snapshot.record;
-        const localMeta = snapshot.meta;
         const now = clock.now().toISOString();
+        const action = reconcileWithRemote(
+          remote,
+          snapshot.record,
+          snapshot.meta,
+          now,
+        );
 
-        if (localMeta?.pendingOp === "delete") {
-          // Local delete pending — keep it, will push next sync
-          return snapshot.envelope;
+        switch (action.type) {
+          case "skip":
+            return snapshot.envelope;
+          case "delete":
+            if (snapshot.record) {
+              await envelopePort.deleteNoteAndMeta(date);
+              await remoteDateIndex.deleteDate(date);
+            }
+            return null;
+          case "updateMeta":
+            await envelopePort.setMeta(action.meta);
+            return snapshot.record
+              ? envelopePort.toEnvelope(snapshot.record, action.meta)
+              : snapshot.envelope;
+          case "acceptRemote":
+            await envelopePort.setNoteAndMeta(action.record, action.meta);
+            return envelopePort.toEnvelope(action.record, action.meta);
         }
-
-        if (!remote || remote.deleted) {
-          if (localMeta?.pendingOp === "upsert" && localRecord) {
-            // Local edit pending — keep local, update server metadata
-            const updatedMeta: NoteMetaRecord = {
-              ...localMeta,
-              remoteId: remote?.id ?? localMeta.remoteId,
-              serverRevision: remote?.revision ?? localMeta.serverRevision,
-              serverUpdatedAt:
-                remote?.serverUpdatedAt ?? localMeta.serverUpdatedAt,
-            };
-            await envelopePort.setMeta(updatedMeta);
-            return envelopePort.toEnvelope(localRecord, updatedMeta);
-          }
-          // No local edits — accept deletion
-          if (localRecord) {
-            await envelopePort.deleteNoteAndMeta(date);
-            await remoteDateIndex.deleteDate(date);
-          }
-          return null;
-        }
-
-        if (!localRecord || !localMeta) {
-          // No local — accept remote
-          const record = toLocalRecord(remote);
-          const metaRecord = toLocalMeta(remote, now);
-          await envelopePort.setNoteAndMeta(record, metaRecord);
-          return envelopePort.toEnvelope(record, metaRecord);
-        }
-
-        if (localMeta.pendingOp === "upsert") {
-          // Local edit pending — keep local content, update server metadata
-          const updatedMeta: NoteMetaRecord = {
-            ...localMeta,
-            remoteId: remote.id,
-            serverRevision: remote.revision,
-            serverUpdatedAt: remote.serverUpdatedAt,
-          };
-          await envelopePort.setMeta(updatedMeta);
-          return envelopePort.toEnvelope(localRecord, updatedMeta);
-        }
-
-        // No local pending — accept remote content
-        const record = toLocalRecord(remote);
-        const metaRecord = toLocalMeta(remote, now);
-        await envelopePort.setNoteAndMeta(record, metaRecord);
-        return envelopePort.toEnvelope(record, metaRecord);
       } catch {
         return snapshot.envelope;
       }
