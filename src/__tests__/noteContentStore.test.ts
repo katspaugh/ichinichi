@@ -151,10 +151,10 @@ describe("noteContentStore", () => {
 
     await waitForStatus("error");
 
-    expect(noteContentStore.getState().error).toBeInstanceOf(Error);
-    expect(noteContentStore.getState().error!.message).toBe(
-      "Failed to decrypt note",
-    );
+    expect(noteContentStore.getState().error).toEqual({
+      type: "DecryptFailed",
+      message: "Failed to decrypt note",
+    });
     expect(noteContentStore.getState().content).toBe("");
   });
 

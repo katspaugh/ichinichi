@@ -21,7 +21,7 @@ interface NoteEditorProps {
   isDecrypting?: boolean;
   isContentReady: boolean;
   isOfflineStub?: boolean;
-  error?: Error | null;
+  error?: { type: string; message: string } | null;
 }
 
 export function NoteEditor({

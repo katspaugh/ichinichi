@@ -29,7 +29,7 @@ export interface NoteContentState {
   date: string | null;
   content: string;
   hasEdits: boolean;
-  error: Error | null;
+  error: RepositoryError | null;
   loadedWithContent: boolean;
 
   // Save
@@ -181,7 +181,7 @@ export function createNoteContentStore(deps?: NoteContentStoreDeps) {
         status: "error",
         content: "",
         hasEdits: false,
-        error: new Error(result.error.message),
+        error: result.error,
       });
     }
   };

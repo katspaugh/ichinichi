@@ -29,7 +29,7 @@ interface DayViewLayoutProps {
   isDecrypting: boolean;
   isContentReady: boolean;
   isOfflineStub: boolean;
-  noteError?: Error | null;
+  noteError?: { type: string; message: string } | null;
 }
 
 export function DayViewLayout({

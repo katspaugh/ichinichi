@@ -24,7 +24,7 @@ interface DayViewProps {
   isDecrypting: boolean;
   isContentReady: boolean;
   isOfflineStub: boolean;
-  noteError?: Error | null;
+  noteError?: { type: string; message: string } | null;
   // Sync props
   syncStatus?: SyncStatus;
   syncError?: string | null;

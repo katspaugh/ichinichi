@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo } from "react";
 import type { User } from "@supabase/supabase-js";
+import type { RepositoryError } from "../domain/errors";
 import { useNoteContent } from "./useNoteContent";
 import { useNoteDates } from "./useNoteDates";
 import { useSync } from "./useSync";
@@ -42,7 +43,7 @@ export interface UseNoteRepositoryReturn {
   isDecrypting: boolean;
   isContentReady: boolean;
   isOfflineStub: boolean;
-  noteError: Error | null;
+  noteError: RepositoryError | null;
   repositoryVersion: number;
   invalidateRepository: () => void;
 }

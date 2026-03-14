@@ -32,14 +32,14 @@ interface NoteRepositoryOptions {
   keyProvider: KeyringProvider;
   envelopePort: NoteEnvelopePort;
   remoteDateIndex: RemoteDateIndexPort;
-  syncedFactories?: SyncedRepositoryFactories;
+  syncedFactories: SyncedRepositoryFactories;
 }
 
 interface ImageRepositoryOptions {
   mode: AppMode;
   userId: string | null;
   keyProvider: KeyringProvider;
-  syncedFactories?: SyncedRepositoryFactories;
+  syncedFactories: SyncedRepositoryFactories;
 }
 
 export function createNoteRepository({
@@ -50,16 +50,13 @@ export function createNoteRepository({
   remoteDateIndex,
   syncedFactories,
 }: NoteRepositoryOptions): NoteRepository {
-  if (mode === AppMode.Cloud && userId && syncedFactories) {
+  if (mode === AppMode.Cloud && userId) {
     return syncedFactories.createSyncedNoteRepository({
       userId,
       keyProvider,
       envelopePort,
       remoteDateIndex,
     });
-  }
-  if (!syncedFactories) {
-    throw new Error("Missing synced repository factories.");
   }
   const crypto = createNoteCrypto(syncedFactories.e2eeFactory.create(keyProvider));
   return createLocalNoteRepository(crypto, envelopePort);
@@ -71,14 +68,11 @@ export function createImageRepository({
   keyProvider,
   syncedFactories,
 }: ImageRepositoryOptions): ImageRepository {
-  if (mode === AppMode.Cloud && userId && syncedFactories) {
+  if (mode === AppMode.Cloud && userId) {
     return syncedFactories.createSyncedImageRepository({
       userId,
       keyProvider,
     });
-  }
-  if (!syncedFactories) {
-    throw new Error("Missing synced repository factories.");
   }
   return createHydratingImageRepository(keyProvider, syncedFactories.e2eeFactory);
 }

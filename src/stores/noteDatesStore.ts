@@ -3,7 +3,12 @@ import {
   isSyncCapableNoteRepository,
   type NoteRepository,
 } from "../storage/noteRepository";
-import { connectivity } from "../services/connectivity";
+import { connectivity as defaultConnectivity } from "../services/connectivity";
+import type { ConnectivitySource } from "./noteContentStore";
+
+export interface NoteDatesStoreDeps {
+  connectivity?: ConnectivitySource;
+}
 
 const DEBOUNCE_MS = 400;
 
@@ -28,7 +33,9 @@ export interface NoteDatesState {
   updateRepository: (repository: NoteRepository | null) => void;
 }
 
-export function createNoteDatesStore() {
+export function createNoteDatesStore(deps?: NoteDatesStoreDeps) {
+  const conn = deps?.connectivity ?? defaultConnectivity;
+
   return createStore<NoteDatesState>()((set, get) => {
     let _refreshGeneration = 0;
 
@@ -43,7 +50,7 @@ export function createNoteDatesStore() {
     const _doRefresh = async () => {
       const gen = ++_refreshGeneration;
       const { repository, year } = get();
-      const online = connectivity.getOnline();
+      const online = conn.getOnline();
       const syncRepository = isSyncCapableNoteRepository(repository)
         ? repository
         : null;
@@ -93,7 +100,7 @@ export function createNoteDatesStore() {
       noteDates: new Set<string>(),
       year: new Date().getFullYear(),
       repository: null,
-      online: connectivity.getOnline(),
+      online: conn.getOnline(),
       isRefreshing: false,
       _refreshTimer: null,
       _refreshGeneration: 0,
