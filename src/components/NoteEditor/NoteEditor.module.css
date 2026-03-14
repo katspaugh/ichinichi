@@ -427,17 +427,12 @@
     margin-right: 0;
   }
 
-  .editor {
-    height: auto;
-  }
-
   .body {
-    flex: 0 0 auto;
-    min-height: auto;
+    flex: 1;
   }
 
   .content {
-    flex: 0 0 auto;
+    flex: 1;
     min-height: 50vh;
     padding-bottom: var(--spacing-2xl);
   }

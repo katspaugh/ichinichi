@@ -54,7 +54,7 @@
 /* Mobile: fullscreen editor, page scrolls */
 @media (max-width: 768px) {
   .layout {
-    flex: none;
+    flex: 1;
     overflow: visible;
     margin-left: -14px;
     margin-right: -14px;
@@ -65,7 +65,7 @@
   }
 
   .editorPane {
-    flex: none;
+    flex: 1;
     border: none;
     border-radius: 0;
     padding: var(--spacing-lg) var(--spacing-xl);
