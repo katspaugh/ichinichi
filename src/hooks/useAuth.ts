@@ -1,6 +1,4 @@
-import { useCallback, useEffect } from "react";
-import { useMachine } from "@xstate/react";
-import { assign, fromCallback, setup } from "xstate";
+import { useCallback, useEffect, useReducer } from "react";
 import type { Session, User, AuthError } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
 import { AUTH_HAS_LOGGED_IN_KEY } from "../utils/constants";
@@ -47,6 +45,13 @@ function isSessionMissingError(error: AuthError | null): boolean {
   return Boolean(error && error.name === "AuthSessionMissingError");
 }
 
+type AuthPhase =
+  | "bootstrapping"
+  | "idle"
+  | "signingIn"
+  | "signingUp"
+  | "signingOut";
+
 type AuthEvent =
   | { type: "SESSION_CHANGED"; session: Session | null }
   | { type: "SESSION_VALIDATED"; session: Session | null }
@@ -58,15 +63,134 @@ type AuthEvent =
   | { type: "CLEAR_ERROR" };
 
 interface AuthContext {
+  phase: AuthPhase;
   session: Session | null;
   authState: AuthState;
   error: string | null;
   isBusy: boolean;
   online: boolean;
+  signInInput: { email: string; password: string } | null;
+  signUpInput: { email: string; password: string } | null;
 }
 
-const authBootstrap = fromCallback(
-  ({ sendBack }: { sendBack: (event: AuthEvent) => void }) => {
+const initialState: AuthContext = {
+  phase: "bootstrapping",
+  session: null,
+  authState: AuthState.Loading,
+  error: null,
+  isBusy: false,
+  online: connectivity.getOnline(),
+  signInInput: null,
+  signUpInput: null,
+};
+
+function applySession(
+  session: Session | null,
+): Partial<AuthContext> {
+  return {
+    session,
+    authState: session ? AuthState.SignedIn : AuthState.SignedOut,
+  };
+}
+
+function markHasLoggedIn(session: Session | null): void {
+  if (typeof window === "undefined") return;
+  if (session) {
+    localStorage.setItem(AUTH_HAS_LOGGED_IN_KEY, "1");
+  }
+}
+
+export function authReducer(
+  state: AuthContext,
+  event: AuthEvent,
+): AuthContext {
+  switch (event.type) {
+    case "CLEAR_ERROR":
+      return { ...state, error: null };
+
+    case "INPUTS_CHANGED":
+      return { ...state, online: event.online };
+
+    case "AUTH_ERROR":
+      return {
+        ...state,
+        error: event.message,
+        isBusy: false,
+        phase: state.phase === "bootstrapping"
+          ? state.phase
+          : "idle",
+      };
+
+    case "SESSION_CHANGED": {
+      markHasLoggedIn(event.session);
+      const sessionUpdate = applySession(event.session);
+
+      if (state.phase === "bootstrapping") {
+        return {
+          ...state,
+          ...sessionUpdate,
+          phase: "idle",
+        };
+      }
+
+      if (
+        state.phase === "signingIn" ||
+        state.phase === "signingUp" ||
+        state.phase === "signingOut"
+      ) {
+        return {
+          ...state,
+          ...sessionUpdate,
+          phase: "idle",
+          isBusy: false,
+        };
+      }
+
+      return { ...state, ...sessionUpdate };
+    }
+
+    case "SESSION_VALIDATED":
+      return { ...state, ...applySession(event.session) };
+
+    case "SIGN_IN":
+      if (state.phase !== "idle") return state;
+      return {
+        ...state,
+        phase: "signingIn",
+        error: null,
+        isBusy: true,
+        signInInput: { email: event.email, password: event.password },
+      };
+
+    case "SIGN_UP":
+      if (state.phase !== "idle") return state;
+      return {
+        ...state,
+        phase: "signingUp",
+        error: null,
+        isBusy: true,
+        signUpInput: { email: event.email, password: event.password },
+      };
+
+    case "SIGN_OUT":
+      if (state.phase === "signingOut") {
+        return { ...state, phase: "idle", isBusy: false };
+      }
+      if (state.phase !== "idle") return state;
+      return {
+        ...state,
+        phase: "signingOut",
+        error: null,
+        isBusy: true,
+      };
+  }
+}
+
+export function useAuth(): UseAuthReturn {
+  const online = useConnectivity();
+  const [state, dispatch] = useReducer(authReducer, initialState);
+  // Bootstrap: getSession + onAuthStateChange listener
+  useEffect(() => {
     let cancelled = false;
 
     const start = async () => {
@@ -74,138 +198,74 @@ const authBootstrap = fromCallback(
         data: { session: initialSession },
       } = await supabase.auth.getSession();
       if (!cancelled) {
-        sendBack({ type: "SESSION_CHANGED", session: initialSession });
+        dispatch({
+          type: "SESSION_CHANGED",
+          session: initialSession,
+        });
       }
     };
 
     void start();
 
-    const { data } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      sendBack({ type: "SESSION_CHANGED", session: newSession });
-    });
+    const { data } = supabase.auth.onAuthStateChange(
+      (_event, newSession) => {
+        dispatch({ type: "SESSION_CHANGED", session: newSession });
+      },
+    );
 
     return () => {
       cancelled = true;
       data.subscription.unsubscribe();
     };
-  },
-);
+  }, []);
 
-const sessionValidator = fromCallback(
-  ({
-    sendBack,
-    input,
-  }: {
-    sendBack: (event: AuthEvent) => void;
-    input: { online: boolean };
-  }) => {
-    let cancelled = false;
+  // Forward online changes
+  useEffect(() => {
+    dispatch({ type: "INPUTS_CHANGED", online });
+  }, [online]);
 
-    const validate = async () => {
-      const {
-        data: { session: currentSession },
-      } = await supabase.auth.getSession();
-      if (!currentSession) {
-        if (!cancelled) {
-          sendBack({ type: "SESSION_VALIDATED", session: null });
-        }
-        return;
-      }
-      const { error } = await supabase.auth.getUser();
-      if (!cancelled) {
-        if (isSessionMissingError(error)) {
-          sendBack({ type: "SESSION_VALIDATED", session: null });
-        } else {
-          sendBack({ type: "SESSION_VALIDATED", session: currentSession });
-        }
-      }
-    };
-
-    if (input.online) {
-      void validate();
+  // Session validation on reconnect
+  useEffect(() => {
+    if (state.session && online && !state.isBusy) {
+      dispatch({
+        type: "SESSION_VALIDATED",
+        session: state.session,
+      });
     }
+  }, [state.session, state.isBusy, online]);
 
-    return () => {
-      cancelled = true;
-    };
-  },
-);
+  // Sign in effect
+  useEffect(() => {
+    if (state.phase !== "signingIn" || !state.signInInput) return;
 
-const signInActor = fromCallback(
-  ({
-    sendBack,
-    input,
-  }: {
-    sendBack: (event: AuthEvent) => void;
-    input: { email: string; password: string };
-  }) => {
     let cancelled = false;
+    const { email, password } = state.signInInput;
 
     const run = async () => {
       try {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: input.email,
-          password: input.password,
-        });
-        if (!cancelled && error) {
-          sendBack({ type: "AUTH_ERROR", message: formatAuthError(error) });
-        }
-        if (!cancelled && !error) {
-          sendBack({ type: "SESSION_CHANGED", session: data.session ?? null });
-        }
-      } catch (error) {
-        if (!cancelled) {
-          sendBack({
+        const { data, error } =
+          await supabase.auth.signInWithPassword({ email, password });
+        if (cancelled) return;
+        if (error) {
+          dispatch({
             type: "AUTH_ERROR",
-            message:
-              error instanceof Error ? error.message : "Unable to sign in.",
+            message: formatAuthError(error),
           });
-        }
-      }
-    };
-
-    void run();
-
-    return () => {
-      cancelled = true;
-    };
-  },
-);
-
-const signUpActor = fromCallback(
-  ({
-    sendBack,
-    input,
-  }: {
-    sendBack: (event: AuthEvent) => void;
-    input: { email: string; password: string };
-  }) => {
-    let cancelled = false;
-
-    const run = async () => {
-      try {
-        const { data, error } = await supabase.auth.signUp({
-          email: input.email,
-          password: input.password,
-        });
-        if (!cancelled && error) {
-          sendBack({ type: "AUTH_ERROR", message: formatAuthError(error) });
-          return;
-        }
-        if (!cancelled) {
-          sendBack({
+        } else {
+          dispatch({
             type: "SESSION_CHANGED",
             session: data.session ?? null,
           });
         }
       } catch (error) {
-        if (!cancelled) {
-          sendBack({
-            type: "AUTH_ERROR",
-            message:
-              error instanceof Error ? error.message : "Unable to sign up.",
-          });
-        }
+        if (cancelled) return;
+        dispatch({
+          type: "AUTH_ERROR",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Unable to sign in.",
+        });
       }
     };
 
@@ -214,23 +274,70 @@ const signUpActor = fromCallback(
     return () => {
       cancelled = true;
     };
-  },
-);
+  }, [state.phase, state.signInInput]);
 
-const signOutActor = fromCallback(
-  ({ sendBack }: { sendBack: (event: AuthEvent) => void }) => {
+  // Sign up effect
+  useEffect(() => {
+    if (state.phase !== "signingUp" || !state.signUpInput) return;
+
+    let cancelled = false;
+    const { email, password } = state.signUpInput;
+
+    const run = async () => {
+      try {
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+        });
+        if (cancelled) return;
+        if (error) {
+          dispatch({
+            type: "AUTH_ERROR",
+            message: formatAuthError(error),
+          });
+          return;
+        }
+        dispatch({
+          type: "SESSION_CHANGED",
+          session: data.session ?? null,
+        });
+      } catch (error) {
+        if (cancelled) return;
+        dispatch({
+          type: "AUTH_ERROR",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Unable to sign up.",
+        });
+      }
+    };
+
+    void run();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [state.phase, state.signUpInput]);
+
+  // Sign out effect
+  useEffect(() => {
+    if (state.phase !== "signingOut") return;
+
     let cancelled = false;
 
     const run = async () => {
       try {
-        const { error } = await supabase.auth.signOut({ scope: "local" });
+        const { error } = await supabase.auth.signOut({
+          scope: "local",
+        });
         if (isSessionMissingError(error)) {
           await supabase.auth.getUser();
         }
       } finally {
         if (!cancelled) {
-          sendBack({ type: "SESSION_CHANGED", session: null });
-          sendBack({ type: "SIGN_OUT" });
+          dispatch({ type: "SESSION_CHANGED", session: null });
+          dispatch({ type: "SIGN_OUT" });
         }
       }
     };
@@ -240,230 +347,38 @@ const signOutActor = fromCallback(
     return () => {
       cancelled = true;
     };
-  },
-);
-
-const authMachine = setup({
-  types: {
-    context: {} as AuthContext,
-    events: {} as AuthEvent,
-  },
-  actors: {
-    authBootstrap,
-    sessionValidator,
-    signInActor,
-    signUpActor,
-    signOutActor,
-  },
-  actions: {
-    applySession: assign((args: { event: AuthEvent }) => {
-      const { event } = args;
-      if (
-        event.type !== "SESSION_CHANGED" &&
-        event.type !== "SESSION_VALIDATED"
-      ) {
-        return {};
-      }
-      return {
-        session: event.session,
-        authState: event.session ? AuthState.SignedIn : AuthState.SignedOut,
-      };
-    }),
-    applyOnline: assign((args: { event: AuthEvent }) => {
-      const { event } = args;
-      if (event.type !== "INPUTS_CHANGED") {
-        return {};
-      }
-      return { online: event.online };
-    }),
-    setBusy: assign({ isBusy: true }),
-    clearBusy: assign({ isBusy: false }),
-    clearError: assign({ error: null }),
-    setErrorMessage: assign((args: { event: AuthEvent }) => {
-      const { event } = args;
-      if (event.type !== "AUTH_ERROR") {
-        return {};
-      }
-      return { error: event.message };
-    }),
-    markHasLoggedIn: (args: { event: AuthEvent }) => {
-      if (typeof window === "undefined") return;
-      // Only mark as logged in if there's an actual session
-      if (args.event.type === "SESSION_CHANGED" && args.event.session) {
-        localStorage.setItem(AUTH_HAS_LOGGED_IN_KEY, "1");
-      }
-    },
-  },
-}).createMachine({
-  id: "auth",
-  initial: "bootstrapping",
-  context: {
-    session: null,
-    authState: AuthState.Loading,
-    error: null,
-    isBusy: false,
-    online: connectivity.getOnline(),
-  },
-  invoke: {
-    id: "bootstrap",
-    src: "authBootstrap",
-  },
-  on: {
-    SESSION_CHANGED: {
-      actions: ["applySession", "markHasLoggedIn"],
-    },
-    SESSION_VALIDATED: {
-      actions: "applySession",
-    },
-    INPUTS_CHANGED: {
-      actions: "applyOnline",
-    },
-    AUTH_ERROR: {
-      actions: ["setErrorMessage", "clearBusy"],
-    },
-  },
-  states: {
-    bootstrapping: {
-      on: {
-        SESSION_CHANGED: {
-          actions: ["applySession", "markHasLoggedIn"],
-          target: "idle",
-        },
-      },
-    },
-    idle: {
-      on: {
-        SIGN_IN: {
-          target: "signingIn",
-          actions: ["clearError", "setBusy"],
-        },
-        SIGN_UP: {
-          target: "signingUp",
-          actions: ["clearError", "setBusy"],
-        },
-        SIGN_OUT: {
-          target: "signingOut",
-          actions: ["clearError", "setBusy"],
-        },
-        SESSION_CHANGED: {
-          actions: "applySession",
-        },
-        INPUTS_CHANGED: {
-          actions: "applyOnline",
-        },
-      },
-    },
-    signingIn: {
-      invoke: {
-        id: "signIn",
-        src: "signInActor",
-        input: ({ event }: { event: AuthEvent }) => {
-          if (event.type !== "SIGN_IN") {
-            return { email: "", password: "" };
-          }
-          return { email: event.email, password: event.password };
-        },
-      },
-      on: {
-        SIGN_IN: {
-          target: "idle",
-          actions: "clearBusy",
-        },
-        SESSION_CHANGED: {
-          target: "idle",
-          actions: ["applySession", "markHasLoggedIn", "clearBusy"],
-        },
-        AUTH_ERROR: {
-          target: "idle",
-          actions: ["setErrorMessage", "clearBusy"],
-        },
-      },
-    },
-    signingUp: {
-      invoke: {
-        id: "signUp",
-        src: "signUpActor",
-        input: ({ event }: { event: AuthEvent }) => {
-          if (event.type !== "SIGN_UP") {
-            return { email: "", password: "" };
-          }
-          return { email: event.email, password: event.password };
-        },
-      },
-      on: {
-        SESSION_CHANGED: {
-          target: "idle",
-          actions: ["applySession", "markHasLoggedIn", "clearBusy"],
-        },
-        AUTH_ERROR: {
-          target: "idle",
-          actions: ["setErrorMessage", "clearBusy"],
-        },
-      },
-    },
-    signingOut: {
-      invoke: {
-        id: "signOut",
-        src: "signOutActor",
-      },
-      on: {
-        SIGN_OUT: {
-          target: "idle",
-          actions: "clearBusy",
-        },
-        SESSION_CHANGED: {
-          target: "idle",
-          actions: ["applySession", "markHasLoggedIn", "clearBusy"],
-        },
-      },
-    },
-  },
-});
-
-export function useAuth(): UseAuthReturn {
-  const online = useConnectivity();
-  const [state, send] = useMachine(authMachine);
-
-  useEffect(() => {
-    send({ type: "INPUTS_CHANGED", online });
-  }, [send, online]);
-
-  useEffect(() => {
-    if (state.context.session && online && !state.context.isBusy) {
-      send({ type: "SESSION_VALIDATED", session: state.context.session });
-    }
-  }, [state.context.session, state.context.isBusy, online, send]);
+  }, [state.phase]);
 
   const signUp = useCallback(
     async (email: string, password: string) => {
-      send({ type: "SIGN_UP", email, password });
+      dispatch({ type: "SIGN_UP", email, password });
       return { success: true, password };
     },
-    [send],
+    [],
   );
 
   const signIn = useCallback(
     async (email: string, password: string) => {
-      send({ type: "SIGN_IN", email, password });
+      dispatch({ type: "SIGN_IN", email, password });
       return { success: true, password };
     },
-    [send],
+    [],
   );
 
   const signOut = useCallback(async () => {
-    send({ type: "SIGN_OUT" });
-  }, [send]);
+    dispatch({ type: "SIGN_OUT" });
+  }, []);
 
   const clearError = useCallback(() => {
-    send({ type: "CLEAR_ERROR" });
-  }, [send]);
+    dispatch({ type: "CLEAR_ERROR" });
+  }, []);
 
   return {
-    session: state.context.session,
-    user: state.context.session?.user ?? null,
-    authState: state.context.authState,
-    error: state.context.error,
-    isBusy: state.context.isBusy,
+    session: state.session,
+    user: state.session?.user ?? null,
+    authState: state.authState,
+    error: state.error,
+    isBusy: state.isBusy,
     signUp,
     signIn,
     signOut,

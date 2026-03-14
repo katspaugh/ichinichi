@@ -29,7 +29,6 @@
     "lucide-react": "^0.563.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "xstate": "^5.21.0",
     "zustand": "^5.0.11"
   },
   "devDependencies": {
@@ -44,7 +43,6 @@
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
-    "@xstate/react": "^5.0.0",
     "cheerio": "^1.0.0",
     "dotenv": "^17.2.3",
     "eslint": "^9.39.1",

@@ -1,15 +1,20 @@
 // @vitest-environment jsdom
-import { createActor } from "xstate";
-import { waitFor } from "@testing-library/react";
-import { vaultMachine } from "../hooks/useVault";
+import { vaultReducer } from "../hooks/useVault";
+import type { VaultState } from "../hooks/useVault";
 import type { VaultService } from "../domain/vault";
 import type { User } from "@supabase/supabase-js";
 
-async function createKey(): Promise<CryptoKey> {
-  return crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, [
-    "encrypt",
-    "decrypt",
-  ]);
+function createVaultService(
+  overrides?: Partial<VaultService>,
+): VaultService {
+  return {
+    tryDeviceUnlockCloudKey: vi.fn().mockResolvedValue(null),
+    unlockCloudVault: vi.fn(),
+    getHasLocalVault: vi.fn(),
+    bootstrapLocalVault: vi.fn(),
+    unlockLocalVault: vi.fn(),
+    ...overrides,
+  };
 }
 
 function createUser(): User {
@@ -22,117 +27,137 @@ function createUser(): User {
   } as User;
 }
 
-describe("vaultMachine", () => {
-  it("transitions to ready state for a signed-in user", async () => {
-    const vaultKey = await createKey();
-    const vaultService: VaultService = {
-      tryDeviceUnlockCloudKey: vi
-        .fn()
-        .mockResolvedValue({ vaultKey, keyId: "key-1" }),
-      unlockCloudVault: vi.fn(),
-      getHasLocalVault: vi.fn(),
-      bootstrapLocalVault: vi.fn(),
-      unlockLocalVault: vi.fn(),
-    };
+function initialState(): VaultState {
+  return {
+    phase: "signedOut",
+    vaultService: null,
+    userId: null,
+    password: null,
+    localDek: null,
+    localKeyring: new Map(),
+    vaultKey: null,
+    keyring: new Map(),
+    primaryKeyId: null,
+    lastFailedPassword: null,
+    isReady: false,
+    isBusy: false,
+    error: null,
+  };
+}
 
-    const actor = createActor(vaultMachine);
-    actor.start();
-
-    actor.send({
+describe("vaultReducer", () => {
+  it("transitions signedOut → deviceUnlocking on user input", () => {
+    const vs = createVaultService();
+    const next = vaultReducer(initialState(), {
       type: "INPUTS_CHANGED",
-      vaultService,
+      vaultService: vs,
       user: createUser(),
       password: null,
       localDek: null,
       localKeyring: new Map(),
     });
-
-    await waitFor(() => expect(actor.getSnapshot().context.isReady).toBe(true));
-    actor.stop();
+    expect(next.phase).toBe("deviceUnlocking");
+    expect(next.isBusy).toBe(true);
   });
 
-  it("stores an error message on password unlock failure", async () => {
-    const consoleError = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => {});
-    const vaultService: VaultService = {
-      tryDeviceUnlockCloudKey: vi.fn().mockResolvedValue(null),
-      unlockCloudVault: vi.fn().mockRejectedValue(new Error("fail")),
-      getHasLocalVault: vi.fn(),
-      bootstrapLocalVault: vi.fn(),
-      unlockLocalVault: vi.fn(),
+  it("transitions deviceUnlocking → ready on device unlock", () => {
+    const state: VaultState = {
+      ...initialState(),
+      phase: "deviceUnlocking",
+      isBusy: true,
     };
-
-    const actor = createActor(vaultMachine);
-    actor.start();
-
-    actor.send({
-      type: "INPUTS_CHANGED",
-      vaultService,
-      user: createUser(),
-      password: null,
-      localDek: null,
-      localKeyring: new Map(),
+    const key = {} as CryptoKey;
+    const next = vaultReducer(state, {
+      type: "DEVICE_UNLOCKED",
+      vaultKey: key,
+      keyId: "key-1",
     });
-
-    await waitFor(() => expect(actor.getSnapshot().context.isReady).toBe(true));
-
-    actor.send({
-      type: "INPUTS_CHANGED",
-      vaultService,
-      user: createUser(),
-      password: "secret",
-      localDek: null,
-      localKeyring: new Map(),
-    });
-
-    await waitFor(() => expect(actor.getSnapshot().context.error).toBeTruthy());
-    actor.stop();
-    consoleError.mockRestore();
+    expect(next.phase).toBe("ready");
+    expect(next.vaultKey).toBe(key);
+    expect(next.isReady).toBe(true);
   });
 
-  it("does not retry a failed password unlock without a new password", async () => {
-    const consoleError = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => {});
-    const vaultService: VaultService = {
-      tryDeviceUnlockCloudKey: vi.fn().mockResolvedValue(null),
-      unlockCloudVault: vi.fn().mockRejectedValue(new Error("fail")),
-      getHasLocalVault: vi.fn(),
-      bootstrapLocalVault: vi.fn(),
-      unlockLocalVault: vi.fn(),
+  it("transitions deviceUnlocking → locked on unlock failure", () => {
+    const state: VaultState = {
+      ...initialState(),
+      phase: "deviceUnlocking",
+      isBusy: true,
     };
+    const next = vaultReducer(state, { type: "UNLOCK_FAILED" });
+    expect(next.phase).toBe("locked");
+    expect(next.isReady).toBe(true);
+    expect(next.isBusy).toBe(false);
+  });
 
-    const actor = createActor(vaultMachine);
-    actor.start();
+  it("auto-transitions locked → unlocking when password available", () => {
+    const vs = createVaultService();
+    const state: VaultState = {
+      ...initialState(),
+      phase: "deviceUnlocking",
+      vaultService: vs,
+      userId: "user-1",
+      password: "secret",
+      isBusy: true,
+    };
+    const next = vaultReducer(state, { type: "UNLOCK_FAILED" });
+    expect(next.phase).toBe("unlocking");
+    expect(next.isBusy).toBe(true);
+  });
 
-    actor.send({
+  it("sets error on password unlock failure", () => {
+    const state: VaultState = {
+      ...initialState(),
+      phase: "unlocking",
+      password: "secret",
+      isBusy: true,
+    };
+    const next = vaultReducer(state, { type: "UNLOCK_FAILED" });
+    expect(next.phase).toBe("locked");
+    expect(next.error).toBeTruthy();
+    expect(next.lastFailedPassword).toBe("secret");
+  });
+
+  it("does not auto-retry with same failed password", () => {
+    const state: VaultState = {
+      ...initialState(),
+      phase: "unlocking",
+      password: "secret",
+      isBusy: true,
+    };
+    const next = vaultReducer(state, { type: "UNLOCK_FAILED" });
+    // lastFailedPassword === password → stays locked
+    expect(next.phase).toBe("locked");
+  });
+
+  it("clears error", () => {
+    const state: VaultState = {
+      ...initialState(),
+      error: "some error",
+    };
+    const next = vaultReducer(state, { type: "CLEAR_ERROR" });
+    expect(next.error).toBeNull();
+  });
+
+  it("resets vault on signout (noUser from ready)", () => {
+    const vs = createVaultService();
+    const state: VaultState = {
+      ...initialState(),
+      phase: "ready",
+      vaultService: vs,
+      userId: "user-1",
+      vaultKey: {} as CryptoKey,
+      isReady: true,
+    };
+    const next = vaultReducer(state, {
       type: "INPUTS_CHANGED",
-      vaultService,
-      user: createUser(),
+      vaultService: vs,
+      user: null,
       password: null,
       localDek: null,
       localKeyring: new Map(),
     });
-
-    await waitFor(() => expect(actor.getSnapshot().context.isReady).toBe(true));
-
-    actor.send({
-      type: "INPUTS_CHANGED",
-      vaultService,
-      user: createUser(),
-      password: "secret",
-      localDek: null,
-      localKeyring: new Map(),
-    });
-
-    await waitFor(() => expect(actor.getSnapshot().context.error).toBeTruthy());
-
-    await waitFor(() => {
-      expect(vaultService.unlockCloudVault).toHaveBeenCalledTimes(1);
-    });
-
-    actor.stop();
-    consoleError.mockRestore();
+    expect(next.phase).toBe("signedOut");
+    expect(next.vaultKey).toBeNull();
+    expect(next.isReady).toBe(true);
   });
 });

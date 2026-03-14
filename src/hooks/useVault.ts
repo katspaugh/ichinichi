@@ -1,6 +1,4 @@
-import { useCallback, useEffect } from "react";
-import { useMachine } from "@xstate/react";
-import { assign, fromCallback, setup } from "xstate";
+import { useCallback, useEffect, useReducer } from "react";
 import type { User } from "@supabase/supabase-js";
 import type { VaultService } from "../domain/vault";
 
@@ -23,7 +21,30 @@ interface UseVaultProps {
   localKeyring: Map<string, CryptoKey>;
 }
 
-type VaultEvent =
+type VaultPhase =
+  | "signedOut"
+  | "deviceUnlocking"
+  | "locked"
+  | "unlocking"
+  | "ready";
+
+export interface VaultState {
+  phase: VaultPhase;
+  vaultService: VaultService | null;
+  userId: string | null;
+  password: string | null;
+  localDek: CryptoKey | null;
+  localKeyring: Map<string, CryptoKey>;
+  vaultKey: CryptoKey | null;
+  keyring: Map<string, CryptoKey>;
+  primaryKeyId: string | null;
+  lastFailedPassword: string | null;
+  isReady: boolean;
+  isBusy: boolean;
+  error: string | null;
+}
+
+export type VaultAction =
   | {
       type: "INPUTS_CHANGED";
       vaultService: VaultService;
@@ -42,79 +63,292 @@ type VaultEvent =
   | { type: "UNLOCK_FAILED" }
   | { type: "CLEAR_ERROR" };
 
-interface VaultContext {
-  vaultService: VaultService | null;
-  userId: string | null;
-  password: string | null;
-  localDek: CryptoKey | null;
-  localKeyring: Map<string, CryptoKey>;
-  vaultKey: CryptoKey | null;
-  keyring: Map<string, CryptoKey>;
-  primaryKeyId: string | null;
-  lastFailedPassword: string | null;
-  isReady: boolean;
-  isBusy: boolean;
-  error: string | null;
+const initialState: VaultState = {
+  phase: "signedOut",
+  vaultService: null,
+  userId: null,
+  password: null,
+  localDek: null,
+  localKeyring: new Map(),
+  vaultKey: null,
+  keyring: new Map(),
+  primaryKeyId: null,
+  lastFailedPassword: null,
+  isReady: false,
+  isBusy: false,
+  error: null,
+};
+
+function applyInputs(
+  state: VaultState,
+  action: Extract<VaultAction, { type: "INPUTS_CHANGED" }>,
+): Partial<VaultState> {
+  const passwordChanged = action.password !== state.password;
+  return {
+    vaultService: action.vaultService,
+    userId: action.user?.id ?? null,
+    password: action.password,
+    localDek: action.localDek,
+    localKeyring: action.localKeyring,
+    lastFailedPassword: passwordChanged
+      ? null
+      : state.lastFailedPassword,
+  };
 }
 
-const deviceUnlockActor = fromCallback(
-  ({
-    sendBack,
-    input,
-  }: {
-    sendBack: (event: VaultEvent) => void;
-    input: { vaultService: VaultService };
-  }) => {
-    let cancelled = false;
+function maybeAutoUnlock(s: VaultState): VaultState {
+  if (
+    s.phase === "locked" &&
+    s.password &&
+    s.password !== s.lastFailedPassword
+  ) {
+    return {
+      ...s,
+      phase: "unlocking",
+      isBusy: true,
+      isReady: false,
+      error: null,
+    };
+  }
+  return s;
+}
 
-    const unlock = async () => {
-      const result = await input.vaultService.tryDeviceUnlockCloudKey();
-      if (!cancelled && result) {
-        sendBack({
+export function vaultReducer(
+  state: VaultState,
+  action: VaultAction,
+): VaultState {
+  switch (action.type) {
+    case "CLEAR_ERROR":
+      return { ...state, error: null };
+
+    case "INPUTS_CHANGED": {
+      const inputs = applyInputs(state, action);
+      const hasUser = !!action.user;
+      const noUser = !action.user;
+      const passwordChanged =
+        action.password !== state.password;
+      const hasPassword =
+        !!action.password &&
+        action.password !== (passwordChanged
+          ? null
+          : state.lastFailedPassword);
+
+      switch (state.phase) {
+        case "signedOut":
+          if (hasUser) {
+            return {
+              ...state,
+              ...inputs,
+              phase: "deviceUnlocking",
+              isBusy: true,
+              isReady: false,
+              error: null,
+            };
+          }
+          return { ...state, ...inputs };
+
+        case "deviceUnlocking":
+          if (noUser) {
+            return {
+              ...state,
+              ...inputs,
+              phase: "signedOut",
+              vaultKey: null,
+              keyring: new Map(),
+              primaryKeyId: null,
+              lastFailedPassword: null,
+              isReady: true,
+              isBusy: false,
+              error: null,
+            };
+          }
+          return { ...state, ...inputs };
+
+        case "locked":
+          if (noUser) {
+            return {
+              ...state,
+              ...inputs,
+              phase: "signedOut",
+              vaultKey: null,
+              keyring: new Map(),
+              primaryKeyId: null,
+              lastFailedPassword: null,
+              isReady: true,
+              isBusy: false,
+              error: null,
+            };
+          }
+          if (hasPassword) {
+            return {
+              ...state,
+              ...inputs,
+              phase: "unlocking",
+              isBusy: true,
+              isReady: false,
+              error: null,
+            };
+          }
+          return { ...state, ...inputs };
+
+        case "unlocking":
+          if (noUser) {
+            return {
+              ...state,
+              ...inputs,
+              phase: "signedOut",
+              vaultKey: null,
+              keyring: new Map(),
+              primaryKeyId: null,
+              lastFailedPassword: null,
+              isReady: true,
+              isBusy: false,
+              error: null,
+            };
+          }
+          return { ...state, ...inputs };
+
+        case "ready":
+          if (noUser) {
+            return {
+              ...state,
+              ...inputs,
+              phase: "signedOut",
+              vaultKey: null,
+              keyring: new Map(),
+              primaryKeyId: null,
+              lastFailedPassword: null,
+              isReady: true,
+              isBusy: false,
+              error: null,
+            };
+          }
+          return { ...state, ...inputs };
+      }
+    }
+    // eslint-disable-next-line no-fallthrough -- inner switch is exhaustive
+    case "DEVICE_UNLOCKED":
+      if (state.phase !== "deviceUnlocking") return state;
+      return {
+        ...state,
+        phase: "ready",
+        vaultKey: action.vaultKey,
+        keyring: new Map([[action.keyId, action.vaultKey]]),
+        primaryKeyId: action.keyId,
+        isBusy: false,
+        isReady: true,
+      };
+
+    case "PASSWORD_UNLOCKED":
+      if (state.phase !== "unlocking") return state;
+      return {
+        ...state,
+        phase: "ready",
+        vaultKey: action.vaultKey,
+        keyring: action.keyring,
+        primaryKeyId: action.primaryKeyId,
+        lastFailedPassword: null,
+        isBusy: false,
+        isReady: true,
+        error: null,
+      };
+
+    case "UNLOCK_FAILED":
+      if (state.phase === "deviceUnlocking") {
+        return maybeAutoUnlock({
+          ...state,
+          phase: "locked",
+          isReady: true,
+          isBusy: false,
+        });
+      }
+      if (state.phase === "unlocking") {
+        return maybeAutoUnlock({
+          ...state,
+          phase: "locked",
+          isBusy: false,
+          isReady: true,
+          error:
+            "Unable to unlock. Check your password and try again.",
+          lastFailedPassword: state.password,
+        });
+      }
+      return state;
+  }
+}
+
+export function useVault({
+  vaultService,
+  user,
+  password,
+  localDek,
+  localKeyring,
+}: UseVaultProps): UseVaultReturn {
+  const [state, dispatch] = useReducer(vaultReducer, initialState);
+  useEffect(() => {
+    dispatch({
+      type: "INPUTS_CHANGED",
+      vaultService,
+      user,
+      password,
+      localDek,
+      localKeyring,
+    });
+  }, [vaultService, user, password, localDek, localKeyring]);
+
+  // Device unlock effect
+  useEffect(() => {
+    if (state.phase !== "deviceUnlocking") return;
+    if (!state.vaultService) return;
+
+    let cancelled = false;
+    const service = state.vaultService;
+
+    const run = async () => {
+      const result = await service.tryDeviceUnlockCloudKey();
+      if (cancelled) return;
+      if (result) {
+        dispatch({
           type: "DEVICE_UNLOCKED",
           vaultKey: result.vaultKey,
           keyId: result.keyId,
         });
-      }
-      if (!cancelled && !result) {
-        sendBack({ type: "UNLOCK_FAILED" });
+      } else {
+        dispatch({ type: "UNLOCK_FAILED" });
       }
     };
 
-    void unlock();
+    void run();
 
     return () => {
       cancelled = true;
     };
-  },
-);
+  }, [state.phase, state.vaultService]);
 
-const passwordUnlockActor = fromCallback(
-  ({
-    sendBack,
-    input,
-  }: {
-    sendBack: (event: VaultEvent) => void;
-    input: {
-      vaultService: VaultService;
-      userId: string;
-      password: string;
-      localDek: CryptoKey | null;
-      localKeyring: Map<string, CryptoKey>;
-    };
-  }) => {
+  // Password unlock effect
+  useEffect(() => {
+    if (state.phase !== "unlocking") return;
+    if (!state.vaultService || !state.userId || !state.password) {
+      return;
+    }
+
     let cancelled = false;
+    const service = state.vaultService;
+    const userId = state.userId;
+    const pw = state.password;
+    const dek = state.localDek;
+    const kr = state.localKeyring;
 
-    const unlock = async () => {
+    const run = async () => {
       try {
-        const result = await input.vaultService.unlockCloudVault({
-          userId: input.userId,
-          password: input.password,
-          localDek: input.localDek,
-          localKeyring: input.localKeyring,
+        const result = await service.unlockCloudVault({
+          userId,
+          password: pw,
+          localDek: dek,
+          localKeyring: kr,
         });
         if (!cancelled && result.vaultKey && result.primaryKeyId) {
-          sendBack({
+          dispatch({
             type: "PASSWORD_UNLOCKED",
             vaultKey: result.vaultKey,
             keyring: result.keyring,
@@ -124,270 +358,37 @@ const passwordUnlockActor = fromCallback(
       } catch (error) {
         console.error("Vault unlock error:", error);
         if (!cancelled) {
-          sendBack({ type: "UNLOCK_FAILED" });
+          dispatch({ type: "UNLOCK_FAILED" });
         }
       }
     };
 
-    void unlock();
+    void run();
 
     return () => {
       cancelled = true;
     };
-  },
-);
-
-export const vaultMachine = setup({
-  types: {
-    context: {} as VaultContext,
-    events: {} as VaultEvent,
-  },
-  actors: {
-    deviceUnlock: deviceUnlockActor,
-    passwordUnlock: passwordUnlockActor,
-  },
-  actions: {
-    applyInputs: assign((args: { event: VaultEvent; context: VaultContext }) => {
-      const { event, context } = args;
-      if (event.type !== "INPUTS_CHANGED") {
-        return {};
-      }
-      const passwordChanged = event.password !== context.password;
-      return {
-        vaultService: event.vaultService,
-        userId: event.user?.id ?? null,
-        password: event.password,
-        localDek: event.localDek,
-        localKeyring: event.localKeyring,
-        lastFailedPassword: passwordChanged ? null : context.lastFailedPassword,
-      };
-    }),
-    resetVault: assign({
-      vaultKey: null,
-      keyring: new Map(),
-      primaryKeyId: null,
-      lastFailedPassword: null,
-      isReady: true,
-      isBusy: false,
-      error: null,
-    }),
-    applyDeviceUnlock: assign((args: { event: VaultEvent }) => {
-      const { event } = args;
-      if (event.type !== "DEVICE_UNLOCKED") {
-        return {};
-      }
-      return {
-        vaultKey: event.vaultKey,
-        keyring: new Map([[event.keyId, event.vaultKey]]),
-        primaryKeyId: event.keyId,
-        isBusy: false,
-        isReady: true,
-      };
-    }),
-    applyPasswordUnlock: assign((args: { event: VaultEvent }) => {
-      const { event } = args;
-      if (event.type !== "PASSWORD_UNLOCKED") {
-        return {};
-      }
-      return {
-        vaultKey: event.vaultKey,
-        keyring: event.keyring,
-        primaryKeyId: event.primaryKeyId,
-        lastFailedPassword: null,
-        isBusy: false,
-        isReady: true,
-        error: null,
-      };
-    }),
-    setErrorMessage: assign((args: { context: VaultContext }) => ({
-      isBusy: false,
-      isReady: true,
-      error: "Unable to unlock. Check your password and try again.",
-      lastFailedPassword: args.context.password,
-    })),
-    setReady: assign({ isReady: true, isBusy: false }),
-    setBusy: assign({ isBusy: true, isReady: false }),
-    clearError: assign({ error: null }),
-  },
-  guards: {
-    hasUser: ({ event }: { event: VaultEvent }) =>
-      event.type === "INPUTS_CHANGED" && !!event.user,
-    noUser: ({ event }: { event: VaultEvent }) =>
-      event.type === "INPUTS_CHANGED" && !event.user,
-    hasPassword: ({ event, context }: { event: VaultEvent; context: VaultContext }) =>
-      event.type === "INPUTS_CHANGED" &&
-      !!event.password &&
-      event.password !== context.lastFailedPassword,
-  },
-}).createMachine({
-  id: "vault",
-  initial: "signedOut",
-  context: {
-    vaultService: null,
-    userId: null,
-    password: null,
-    localDek: null,
-    localKeyring: new Map(),
-    vaultKey: null,
-    keyring: new Map(),
-    primaryKeyId: null,
-    lastFailedPassword: null,
-    isReady: false,
-    isBusy: false,
-    error: null,
-  },
-  on: {
-    INPUTS_CHANGED: {
-      actions: "applyInputs",
-    },
-    CLEAR_ERROR: {
-      actions: "clearError",
-    },
-  },
-  states: {
-    signedOut: {
-      entry: "resetVault",
-      on: {
-        INPUTS_CHANGED: {
-          guard: "hasUser",
-          target: "deviceUnlocking",
-          actions: "applyInputs",
-        },
-      },
-    },
-    deviceUnlocking: {
-      entry: ["clearError", "setBusy"],
-      invoke: {
-        id: "deviceUnlock",
-        src: "deviceUnlock",
-        input: ({ context }: { context: VaultContext }) => {
-          if (!context.vaultService) {
-            return {
-              vaultService: {
-                tryDeviceUnlockCloudKey: async () => null,
-              } as VaultService,
-            };
-          }
-          return {
-            vaultService: context.vaultService,
-          };
-        },
-      },
-      on: {
-        DEVICE_UNLOCKED: {
-          target: "ready",
-          actions: "applyDeviceUnlock",
-        },
-        UNLOCK_FAILED: {
-          target: "locked",
-          actions: "setReady",
-        },
-        INPUTS_CHANGED: {
-          guard: "noUser",
-          target: "signedOut",
-          actions: "applyInputs",
-        },
-      },
-    },
-    locked: {
-      entry: "setReady",
-      // Auto-transition to unlocking if password is available in context
-      always: {
-        guard: ({ context }) =>
-          !!context.password && context.password !== context.lastFailedPassword,
-        target: "unlocking",
-      },
-      on: {
-        INPUTS_CHANGED: [
-          {
-            guard: "noUser",
-            target: "signedOut",
-            actions: "applyInputs",
-          },
-          {
-            guard: "hasPassword",
-            target: "unlocking",
-            actions: "applyInputs",
-          },
-        ],
-      },
-    },
-    unlocking: {
-      entry: ["clearError", "setBusy"],
-      invoke: {
-        id: "passwordUnlock",
-        src: "passwordUnlock",
-        input: ({ context }: { context: VaultContext }) => ({
-          vaultService: context.vaultService as VaultService,
-          userId: context.userId as string,
-          password: context.password as string,
-          localDek: context.localDek,
-          localKeyring: context.localKeyring,
-        }),
-      },
-      on: {
-        PASSWORD_UNLOCKED: {
-          target: "ready",
-          actions: "applyPasswordUnlock",
-        },
-        UNLOCK_FAILED: {
-          target: "locked",
-          actions: "setErrorMessage",
-        },
-        INPUTS_CHANGED: {
-          guard: "noUser",
-          target: "signedOut",
-          actions: "applyInputs",
-        },
-      },
-    },
-    ready: {
-      entry: "setReady",
-      on: {
-        INPUTS_CHANGED: [
-          {
-            guard: "noUser",
-            target: "signedOut",
-            actions: "applyInputs",
-          },
-        ],
-      },
-    },
-  },
-});
-
-export function useVault({
-  vaultService,
-  user,
-  password,
-  localDek,
-  localKeyring,
-}: UseVaultProps): UseVaultReturn {
-  const [state, send] = useMachine(vaultMachine);
-
-  useEffect(() => {
-    send({
-      type: "INPUTS_CHANGED",
-      vaultService,
-      user,
-      password,
-      localDek,
-      localKeyring,
-    });
-  }, [send, vaultService, user, password, localDek, localKeyring]);
+  }, [
+    state.phase,
+    state.vaultService,
+    state.userId,
+    state.password,
+    state.localDek,
+    state.localKeyring,
+  ]);
 
   const clearError = useCallback(() => {
-    send({ type: "CLEAR_ERROR" });
-  }, [send]);
+    dispatch({ type: "CLEAR_ERROR" });
+  }, []);
 
   return {
-    vaultKey: state.context.vaultKey,
-    keyring: state.context.keyring,
-    primaryKeyId: state.context.primaryKeyId,
-    isReady: state.context.isReady,
-    isLocked: !state.context.vaultKey,
-    isBusy: state.context.isBusy,
-    error: state.context.error,
+    vaultKey: state.vaultKey,
+    keyring: state.keyring,
+    primaryKeyId: state.primaryKeyId,
+    isReady: state.isReady,
+    isLocked: !state.vaultKey,
+    isBusy: state.isBusy,
+    error: state.error,
     clearError,
   };
 }

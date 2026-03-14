@@ -1,5 +1,4 @@
-import { useMachine } from "@xstate/react";
-import { assign, fromCallback, setup } from "xstate";
+import { useCallback, useEffect, useReducer } from "react";
 import type { VaultService } from "../domain/vault";
 import { AppMode } from "./useAppMode";
 import { createCancellableOperation } from "../utils/asyncHelpers";
@@ -30,7 +29,14 @@ export type ActiveVaultEvent =
   | { type: "CLOUD_KEY_CACHED" }
   | { type: "CLOUD_KEY_RESTORED"; vaultKey: CryptoKey };
 
-interface ActiveVaultContext {
+type ActiveVaultPhase =
+  | "idle"
+  | "restoringCloudKey"
+  | "loadingLocalKeyring"
+  | "cachingCloudKeys";
+
+interface ActiveVaultState {
+  phase: ActiveVaultPhase;
   vaultService: VaultService | null;
   mode: AppMode;
   authUserId: string | null;
@@ -43,34 +49,146 @@ interface ActiveVaultContext {
   hasCachedCloudKeys: boolean;
 }
 
-const localKeyringLoader = fromCallback(
-  ({
-    sendBack,
-    input,
-  }: {
-    sendBack: (event: ActiveVaultEvent) => void;
-    input: { localKey: CryptoKey };
-  }) => {
+const initialState: ActiveVaultState = {
+  phase: "idle",
+  vaultService: null,
+  mode: AppMode.Local,
+  authUserId: null,
+  vaultKey: null,
+  cloudKeyring: new Map(),
+  cloudPrimaryKeyId: null,
+  localKeyring: new Map(),
+  localKeyId: null,
+  restoredCloudVaultKey: null,
+  hasCachedCloudKeys: false,
+};
+
+function evaluate(state: ActiveVaultState): ActiveVaultPhase {
+  if (
+    state.vaultService &&
+    !state.restoredCloudVaultKey &&
+    !state.vaultKey &&
+    state.mode === AppMode.Cloud
+  ) {
+    return "restoringCloudKey";
+  }
+  if (state.vaultKey && !state.localKeyId) {
+    return "loadingLocalKeyring";
+  }
+  if (
+    state.vaultKey &&
+    state.cloudKeyring.size > 0 &&
+    !state.hasCachedCloudKeys
+  ) {
+    return "cachingCloudKeys";
+  }
+  return "idle";
+}
+
+function activeVaultReducer(
+  state: ActiveVaultState,
+  event: ActiveVaultEvent,
+): ActiveVaultState {
+  switch (event.type) {
+    case "INPUTS_CHANGED": {
+      const updated: ActiveVaultState = {
+        ...state,
+        vaultService: event.vaultService,
+        mode: event.mode,
+        authUserId: event.authUserId,
+        vaultKey: event.vaultKey,
+        cloudKeyring: event.cloudKeyring,
+        cloudPrimaryKeyId: event.cloudPrimaryKeyId,
+        localKeyring: event.localKeyring,
+      };
+      return { ...updated, phase: evaluate(updated) };
+    }
+
+    case "LOCAL_KEYRING_LOADED":
+      return {
+        ...state,
+        localKeyId: event.keyId,
+        localKeyring: event.keyring,
+        phase: "idle",
+      };
+
+    case "CLOUD_KEY_RESTORED":
+      return {
+        ...state,
+        restoredCloudVaultKey: event.vaultKey,
+        phase: "idle",
+      };
+
+    case "CLOUD_KEY_CACHED":
+      return {
+        ...state,
+        hasCachedCloudKeys: true,
+        phase: "idle",
+      };
+  }
+}
+
+export function useVaultMachine(): [
+  { context: ActiveVaultState },
+  (event: ActiveVaultEvent) => void,
+] {
+  const [state, dispatch] = useReducer(
+    activeVaultReducer,
+    initialState,
+  );
+
+  // Restore cloud key effect
+  useEffect(() => {
+    if (state.phase !== "restoringCloudKey") return;
+    if (!state.vaultService) return;
+
+    const { promise, cancel, signal } = createCancellableOperation(
+      () => state.vaultService!.tryDeviceUnlockCloudKey(),
+      { timeoutMs: 30000 },
+    );
+
+    void promise.then((result) => {
+      if (!result || signal.aborted) return;
+      dispatch({
+        type: "CLOUD_KEY_RESTORED",
+        vaultKey: result.vaultKey,
+      });
+    });
+
+    return () => {
+      cancel();
+    };
+  }, [state.phase, state.vaultService]);
+
+  // Load local keyring effect
+  useEffect(() => {
+    if (state.phase !== "loadingLocalKeyring") return;
+    if (!state.vaultKey) return;
+
+    const localKey = state.vaultKey;
     const { promise, cancel, signal } = createCancellableOperation(
       async (abortSignal) => {
-        const keyId = await computeKeyId(input.localKey);
+        const keyId = await computeKeyId(localKey);
         if (abortSignal.aborted) return null;
 
         const entries = new Map<string, CryptoKey>();
-        entries.set(keyId, input.localKey);
+        entries.set(keyId, localKey);
 
-        const extraKeys = listLocalKeyIds().filter((id) => id !== keyId);
+        const extraKeys = listLocalKeyIds().filter(
+          (id) => id !== keyId,
+        );
         for (const id of extraKeys) {
-          if (abortSignal.aborted) {
-            return null;
-          }
+          if (abortSignal.aborted) return null;
           try {
-            const restored = await restoreLocalWrappedKey(id, input.localKey);
+            const restored = await restoreLocalWrappedKey(
+              id,
+              localKey,
+            );
             if (restored) {
               entries.set(id, restored);
             }
           } catch {
-            // Ignore corrupted entries.
+            // Ignore corrupted entries
           }
         }
 
@@ -81,7 +199,7 @@ const localKeyringLoader = fromCallback(
 
     void promise.then((result) => {
       if (!result || signal.aborted) return;
-      sendBack({
+      dispatch({
         type: "LOCAL_KEYRING_LOADED",
         keyId: result.keyId,
         keyring: result.keyring,
@@ -91,61 +209,36 @@ const localKeyringLoader = fromCallback(
     return () => {
       cancel();
     };
-  },
-);
+  }, [state.phase, state.vaultKey]);
 
-const cloudKeyRestorer = fromCallback(
-  ({
-    sendBack,
-    input,
-  }: {
-    sendBack: (event: ActiveVaultEvent) => void;
-    input: { vaultService: VaultService };
-  }) => {
-    const { promise, cancel, signal } = createCancellableOperation(
-      () => input.vaultService.tryDeviceUnlockCloudKey(),
-      { timeoutMs: 30000 },
-    );
+  // Cache cloud keys effect
+  useEffect(() => {
+    if (state.phase !== "cachingCloudKeys") return;
+    if (!state.vaultKey) return;
 
-    void promise.then((result) => {
-      if (!result || signal.aborted) return;
-      sendBack({ type: "CLOUD_KEY_RESTORED", vaultKey: result.vaultKey });
-    });
+    const localKey = state.vaultKey;
+    const cloudKeyring = state.cloudKeyring;
+    const localKeyId = state.localKeyId;
+    const userId = state.authUserId;
 
-    return () => {
-      cancel();
-    };
-  },
-);
-
-const cloudKeyCacher = fromCallback(
-  ({
-    sendBack,
-    input,
-  }: {
-    sendBack: (event: ActiveVaultEvent) => void;
-    input: {
-      localKey: CryptoKey;
-      cloudKeyring: Map<string, CryptoKey>;
-      localKeyId: string | null;
-      userId: string | null;
-    };
-  }) => {
     const { promise, cancel, signal } = createCancellableOperation(
       async (abortSignal) => {
         const cachedKeyIds: string[] = [];
-        for (const [keyId, key] of input.cloudKeyring.entries()) {
+        for (const [keyId, key] of cloudKeyring.entries()) {
           if (abortSignal.aborted) return false;
-          if (keyId === input.localKeyId) continue;
+          if (keyId === localKeyId) continue;
           try {
-            await storeLocalWrappedKey(keyId, key, input.localKey);
+            await storeLocalWrappedKey(keyId, key, localKey);
             cachedKeyIds.push(keyId);
           } catch (error) {
-            console.warn("Failed to cache cloud key locally:", error);
+            console.warn(
+              "Failed to cache cloud key locally:",
+              error,
+            );
           }
         }
-        if (input.userId && cachedKeyIds.length) {
-          rememberCloudKeyIds(input.userId, cachedKeyIds);
+        if (userId && cachedKeyIds.length) {
+          rememberCloudKeyIds(userId, cachedKeyIds);
         }
         return true;
       },
@@ -154,167 +247,24 @@ const cloudKeyCacher = fromCallback(
 
     void promise.then((didCache) => {
       if (!didCache || signal.aborted) return;
-      sendBack({ type: "CLOUD_KEY_CACHED" });
+      dispatch({ type: "CLOUD_KEY_CACHED" });
     });
 
     return () => {
       cancel();
     };
-  },
-);
+  }, [
+    state.phase,
+    state.vaultKey,
+    state.cloudKeyring,
+    state.localKeyId,
+    state.authUserId,
+  ]);
 
-const activeVaultMachine = setup({
-  types: {
-    context: {} as ActiveVaultContext,
-    events: {} as ActiveVaultEvent,
-  },
-  actors: {
-    localKeyringLoader,
-    cloudKeyRestorer,
-    cloudKeyCacher,
-  },
-  actions: {
-    applyInputs: assign((args: { event: ActiveVaultEvent }) => {
-      const { event } = args;
-      if (event.type !== "INPUTS_CHANGED") {
-        return {};
-      }
-      return {
-        vaultService: event.vaultService,
-        mode: event.mode,
-        authUserId: event.authUserId,
-        vaultKey: event.vaultKey,
-        cloudKeyring: event.cloudKeyring,
-        cloudPrimaryKeyId: event.cloudPrimaryKeyId,
-        localKeyring: event.localKeyring,
-      };
-    }),
-    applyLocalKeyring: assign((args: { event: ActiveVaultEvent }) => {
-      const { event } = args;
-      if (event.type !== "LOCAL_KEYRING_LOADED") {
-        return {};
-      }
-      return {
-        localKeyId: event.keyId,
-        localKeyring: event.keyring,
-      };
-    }),
-    applyRestoredCloudKey: assign((args: { event: ActiveVaultEvent }) => {
-      const { event } = args;
-      if (event.type !== "CLOUD_KEY_RESTORED") {
-        return {};
-      }
-      return { restoredCloudVaultKey: event.vaultKey };
-    }),
-    markCloudKeysCached: assign({ hasCachedCloudKeys: true }),
-  },
-  guards: {
-    shouldRestoreCloudKey: ({ context }: { context: ActiveVaultContext }) =>
-      !!context.vaultService &&
-      !context.restoredCloudVaultKey &&
-      !context.vaultKey &&
-      context.mode === AppMode.Cloud,
-    shouldLoadLocalKeyring: ({ context }: { context: ActiveVaultContext }) =>
-      !!context.vaultKey && !context.localKeyId,
-    shouldCacheCloudKeys: ({ context }: { context: ActiveVaultContext }) =>
-      !!context.vaultKey &&
-      context.cloudKeyring.size > 0 &&
-      !context.hasCachedCloudKeys,
-  },
-}).createMachine({
-  id: "activeVault",
-  initial: "idle",
-  context: {
-    vaultService: null,
-    mode: AppMode.Local,
-    authUserId: null,
-    vaultKey: null,
-    cloudKeyring: new Map(),
-    cloudPrimaryKeyId: null,
-    localKeyring: new Map(),
-    localKeyId: null,
-    restoredCloudVaultKey: null,
-    hasCachedCloudKeys: false,
-  },
-  on: {
-    INPUTS_CHANGED: {
-      actions: "applyInputs",
-      target: ".evaluate",
-    },
-  },
-  states: {
-    idle: {},
-    evaluate: {
-      always: [
-        { guard: "shouldRestoreCloudKey", target: "restoringCloudKey" },
-        { guard: "shouldLoadLocalKeyring", target: "loadingLocalKeyring" },
-        { guard: "shouldCacheCloudKeys", target: "cachingCloudKeys" },
-        { target: "idle" },
-      ],
-    },
-    restoringCloudKey: {
-      invoke: {
-        id: "cloudKeyRestorer",
-        src: "cloudKeyRestorer",
-        input: ({ context }: { context: ActiveVaultContext }) => ({
-          vaultService: context.vaultService as VaultService,
-        }),
-      },
-      on: {
-        CLOUD_KEY_RESTORED: {
-          target: "idle",
-          actions: "applyRestoredCloudKey",
-        },
-        INPUTS_CHANGED: {
-          target: "evaluate",
-          actions: "applyInputs",
-        },
-      },
-    },
-    loadingLocalKeyring: {
-      invoke: {
-        id: "localKeyringLoader",
-        src: "localKeyringLoader",
-        input: ({ context }: { context: ActiveVaultContext }) => ({
-          localKey: context.vaultKey as CryptoKey,
-        }),
-      },
-      on: {
-        LOCAL_KEYRING_LOADED: {
-          target: "idle",
-          actions: "applyLocalKeyring",
-        },
-        INPUTS_CHANGED: {
-          target: "evaluate",
-          actions: "applyInputs",
-        },
-      },
-    },
-    cachingCloudKeys: {
-      invoke: {
-        id: "cloudKeyCacher",
-        src: "cloudKeyCacher",
-        input: ({ context }: { context: ActiveVaultContext }) => ({
-          localKey: context.vaultKey as CryptoKey,
-          cloudKeyring: context.cloudKeyring,
-          localKeyId: context.localKeyId,
-          userId: context.authUserId,
-        }),
-      },
-      on: {
-        CLOUD_KEY_CACHED: {
-          target: "idle",
-          actions: "markCloudKeysCached",
-        },
-        INPUTS_CHANGED: {
-          target: "evaluate",
-          actions: "applyInputs",
-        },
-      },
-    },
-  },
-});
+  const send = useCallback(
+    (event: ActiveVaultEvent) => dispatch(event),
+    [],
+  );
 
-export function useVaultMachine() {
-  return useMachine(activeVaultMachine);
+  return [{ context: state }, send];
 }
