@@ -161,6 +161,7 @@
   outline: none;
   min-height: 100%;
   padding-top: 0;
+  padding-bottom: var(--spacing-2xl);
   position: relative;
 }
 
@@ -467,6 +468,5 @@
   .content {
     flex: 1;
     min-height: 50vh;
-    padding-bottom: var(--spacing-2xl);
   }
 }
