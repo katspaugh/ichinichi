@@ -11,7 +11,7 @@ export interface EncryptedNote {
 
 export interface NoteCrypto {
   encrypt(
-    content: string,
+    payload: NotePayload,
   ): Promise<Result<EncryptedNote, CryptoError>>;
   decrypt(record: {
     keyId?: string | null;
@@ -23,10 +23,10 @@ export interface NoteCrypto {
 export function createNoteCrypto(e2ee: E2eeService): NoteCrypto {
   return {
     async encrypt(
-      content: string,
+      payload: NotePayload,
     ): Promise<Result<EncryptedNote, CryptoError>> {
       try {
-        const result = await e2ee.encryptNoteContent({ content });
+        const result = await e2ee.encryptNoteContent(payload);
         if (!result) {
           return err({
             type: "EncryptFailed",

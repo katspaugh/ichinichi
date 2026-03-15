@@ -70,7 +70,10 @@ export function createE2eeService(keyring: KeyringProvider): E2eeService {
     if (!key) return null;
     const iv = randomBytes(NOTE_IV_BYTES);
     const sanitized = sanitizeHtml(payload.content);
-    const envelope = { content: sanitized };
+    const envelope: Record<string, unknown> = { content: sanitized };
+    if (payload.weather) {
+      envelope.weather = payload.weather;
+    }
     const plaintext = encodeUtf8(JSON.stringify(envelope));
     const encrypted = await crypto.subtle.encrypt(
       { name: "AES-GCM", iv },
@@ -99,9 +102,11 @@ export function createE2eeService(keyring: KeyringProvider): E2eeService {
     );
     const parsed = JSON.parse(decodeUtf8(new Uint8Array(decrypted))) as {
       content: string;
+      weather?: import("../types").SavedWeather | null;
     };
     return {
       content: sanitizeHtml(parsed.content),
+      weather: parsed.weather ?? null,
     };
   };
 

@@ -1,4 +1,4 @@
-import type { Note } from "../types";
+import type { Note, SavedWeather } from "../types";
 import type { Result } from "../domain/result";
 import type { RepositoryError } from "../domain/errors";
 import type { Syncable } from "../domain/sync";
@@ -6,7 +6,11 @@ import type { Syncable } from "../domain/sync";
 export interface NoteRepository {
   // Core CRUD
   get(date: string): Promise<Result<Note | null, RepositoryError>>;
-  save(date: string, content: string): Promise<Result<void, RepositoryError>>;
+  save(
+    date: string,
+    content: string,
+    weather?: SavedWeather | null,
+  ): Promise<Result<void, RepositoryError>>;
   delete(date: string): Promise<Result<void, RepositoryError>>;
   getAllDates(): Promise<Result<string[], RepositoryError>>;
   getAllDatesForYear(year: number): Promise<Result<string[], RepositoryError>>;

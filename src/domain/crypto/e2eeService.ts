@@ -1,7 +1,10 @@
 import type { KeyringProvider } from "./keyring";
 
+import type { SavedWeather } from "../../types";
+
 export interface NotePayload {
   content: string;
+  weather?: SavedWeather | null;
 }
 
 export interface E2eeService {
