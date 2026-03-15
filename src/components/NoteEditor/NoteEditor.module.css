@@ -162,7 +162,7 @@
   outline: none;
   min-height: 100%;
   padding-top: 0;
-  padding-bottom: var(--spacing-2xl);
+  padding-bottom: 40vh;
   position: relative;
 }
 
