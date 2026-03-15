@@ -29,23 +29,23 @@ describe("canEditNote", () => {
     expect(canEditNote(formatDate(yesterday))).toBe(false);
   });
 
-  it("returns true for yesterday before 1am (late night)", () => {
+  it("returns true for yesterday before 3am (late night)", () => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date(2024, 5, 15, 0, 30, 0)); // 00:30 on June 15
+    vi.setSystemTime(new Date(2024, 5, 15, 2, 30, 0)); // 02:30 on June 15
     const yesterday = new Date(2024, 5, 14);
     expect(canEditNote(formatDate(yesterday))).toBe(true);
   });
 
-  it("returns false for yesterday at exactly 1am", () => {
+  it("returns false for yesterday at exactly 3am", () => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date(2024, 5, 15, 1, 0, 0)); // 01:00 on June 15
+    vi.setSystemTime(new Date(2024, 5, 15, 3, 0, 0)); // 03:00 on June 15
     const yesterday = new Date(2024, 5, 14);
     expect(canEditNote(formatDate(yesterday))).toBe(false);
   });
 
-  it("returns false for two days ago even before 1am", () => {
+  it("returns false for two days ago even before 3am", () => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date(2024, 5, 15, 0, 30, 0)); // 00:30 on June 15
+    vi.setSystemTime(new Date(2024, 5, 15, 2, 30, 0)); // 02:30 on June 15
     const twoDaysAgo = new Date(2024, 5, 13);
     expect(canEditNote(formatDate(twoDaysAgo))).toBe(false);
   });
