@@ -13,9 +13,11 @@
   display: flex;
   flex-direction: column;
   gap: var(--spacing-md);
-  background: var(--color-surface);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow), var(--glass-highlight);
   border-radius: var(--radius-lg);
-  padding: var(--spacing-md);
+  padding: var(--spacing-lg);
 }
 
 .sidebarHeader {
@@ -83,10 +85,12 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  background: var(--color-surface);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow), var(--glass-highlight);
   border-radius: var(--radius-lg);
   padding: var(--spacing-lg) var(--spacing-xl);
-  overflow-y: auto;
+  min-height: 0;
 }
 
 .expandButton {
@@ -136,19 +140,28 @@
 @media (min-width: 769px) {
   .layout {
     flex-direction: row;
+    --sidebar-width: 33%;
+    --header-margin: 0;
+  }
+
+  .layout[data-sidebar-collapsed] {
+    --sidebar-width: 0px;
+    --header-margin: auto;
   }
 
   .sidebar {
     flex: 0 0 auto;
     height: 100%;
-    width: 30%;
-    max-width: 420px;
+    width: 33%;
+    max-width: 480px;
     min-width: 280px;
   }
 
   .editorPane {
     flex: 1;
     min-width: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
   }
 
   .layout[data-sidebar-collapsed] .editorPane {
