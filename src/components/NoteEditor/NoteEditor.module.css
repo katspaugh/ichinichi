@@ -31,6 +31,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  margin-top: 3px;
   margin-bottom: var(--spacing-lg);
   gap: var(--spacing-md);
   width: 100%;
@@ -414,7 +415,7 @@
       var(--spacing-md) + var(--spacing-xl)
     );
     right: calc(var(--spacing-md) + var(--spacing-xl));
-    margin: 0 var(--header-margin, 0);
+    margin: 3px var(--header-margin, 0) 0;
     z-index: 5;
   }
 
