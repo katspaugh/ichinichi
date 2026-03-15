@@ -2,7 +2,7 @@ import { Modal } from "../Modal";
 import { ModalCard } from "../ModalCard";
 import { Button } from "../Button";
 import { IntroPreview } from "./IntroPreview";
-import styles from "./IntroModal.module.css";
+import styles from "../VaultPanel/VaultPanel.module.css";
 
 interface IntroModalProps {
   isOpen: boolean;

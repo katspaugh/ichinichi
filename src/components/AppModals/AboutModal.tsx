@@ -18,7 +18,7 @@ export function AboutModal({ isOpen, onClose }: AboutModalProps) {
         <p className={styles.subtitle}>
           A calm place for one note per day. No account required to start.
         </p>
-        <IntroPreview />
+        <IntroPreview className={styles.preview} />
         <ul className={styles.list}>
           <li>Your notes are encrypted on this device before storage.</li>
           <li>Sync is optional and keeps encrypted backups in the cloud.</li>
