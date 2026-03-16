@@ -57,15 +57,9 @@ export function SearchOverlay({
 }: SearchOverlayProps) {
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const { results, isSearching, progress, search } =
     useNoteSearch(repository, noteDates);
-
-  // Focus input on mount (component only renders when open)
-  useEffect(() => {
-    requestAnimationFrame(() => inputRef.current?.focus());
-  }, []);
 
   const handleSelect = useCallback(
     (date: string) => {
@@ -143,9 +137,9 @@ export function SearchOverlay({
         <div className={styles.inputWrapper}>
           <Search className={styles.searchIcon} />
           <input
-            ref={inputRef}
             className={styles.input}
             type="text"
+            autoFocus
             placeholder="Search notes..."
             value={query}
             onChange={handleInputChange}
