@@ -32,6 +32,7 @@ interface DayViewProps {
   syncError?: string | null;
   pendingOps?: PendingOpsSummary;
   onMenuClick?: () => void;
+  onSearchClick?: () => void;
   onSignIn?: () => void;
   onSyncClick?: () => void;
   now?: Date;
@@ -59,6 +60,7 @@ export function DayView({
   syncError,
   pendingOps,
   onMenuClick,
+  onSearchClick,
   onSignIn,
   onSyncClick,
   now,
@@ -122,6 +124,7 @@ export function DayView({
         pendingOps={pendingOps}
         isSaving={isSaving}
         onMenuClick={onMenuClick}
+        onSearchClick={onSearchClick}
         onSignIn={onSignIn}
         onSyncClick={onSyncClick}
       />

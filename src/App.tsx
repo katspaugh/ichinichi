@@ -5,6 +5,7 @@ import { AppModals } from "./components/AppModals";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { UpdatePrompt } from "./components/UpdatePrompt";
 import { SettingsSidebar } from "./components/SettingsSidebar";
+import { SearchOverlay } from "./components/Search";
 import { exportNotesAsZip, downloadBlob } from "./services/exportNotes";
 import { AboutModal } from "./components/AppModals/AboutModal";
 import { PrivacyPolicyModal } from "./components/AppModals/PrivacyPolicyModal";
@@ -47,6 +48,7 @@ function App() {
   const { routing, auth, appMode, activeVault, notes } = useAppController();
   const { needRefresh, updateServiceWorker, dismissUpdate } = usePWA();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
   const [weekStartVersion, setWeekStartVersion] = useState(0);
@@ -101,6 +103,14 @@ function App() {
     setSettingsOpen(true);
   }, []);
 
+  const handleSearchClick = useCallback(() => {
+    setSearchOpen(true);
+  }, []);
+
+  const handleSearchClose = useCallback(() => {
+    setSearchOpen(false);
+  }, []);
+
   const handleOpenAbout = useCallback(() => {
     setSettingsOpen(false);
     setAboutOpen(true);
@@ -136,6 +146,18 @@ function App() {
     appMode.mode === AppMode.Cloud && auth.authState === AuthState.SignedIn
       ? activeVault.handleSignOut
       : undefined;
+
+  // ⌘K / Ctrl+K global shortcut to open search
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   useEffect(() => {
     requestAnimationFrame(() => {
@@ -197,6 +219,7 @@ function App() {
                     syncError={canSync ? notes.syncError : undefined}
                     pendingOps={canSync ? notes.pendingOps : undefined}
                     onMenuClick={handleMenuClick}
+                    onSearchClick={handleSearchClick}
                     onSignIn={signInHandler}
                     onSyncClick={canSync ? handleSyncClick : undefined}
                   />
@@ -212,10 +235,19 @@ function App() {
                     syncError={canSync ? notes.syncError : undefined}
                     pendingOps={canSync ? notes.pendingOps : undefined}
                     onMenuClick={handleMenuClick}
+                    onSearchClick={handleSearchClick}
                     onSignIn={signInHandler}
                     onSyncClick={canSync ? handleSyncClick : undefined}
                   />
                 )}
+
+                <SearchOverlay
+                  open={searchOpen}
+                  onClose={handleSearchClose}
+                  onSelectDate={navigateToDate}
+                  repository={notes.repository}
+                  noteDates={notes.noteDates}
+                />
 
                 <SettingsSidebar
                   open={settingsOpen}

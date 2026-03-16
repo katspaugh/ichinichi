@@ -15,6 +15,7 @@ interface CalendarProps {
   syncError?: string | null;
   pendingOps?: PendingOpsSummary;
   onMenuClick?: () => void;
+  onSearchClick?: () => void;
   onSignIn?: () => void;
   onSyncClick?: () => void;
   now?: Date;
@@ -31,6 +32,7 @@ export function Calendar({
   syncError,
   pendingOps,
   onMenuClick,
+  onSearchClick,
   onSignIn,
   onSyncClick,
   now,
@@ -103,6 +105,7 @@ export function Calendar({
         syncError={syncError}
         pendingOps={pendingOps}
         onMenuClick={onMenuClick}
+        onSearchClick={onSearchClick}
         onSignIn={onSignIn}
         onSyncClick={onSyncClick}
       />

@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ReactNode } from "react";
-import { Menu } from "lucide-react";
+import { Menu, Search } from "lucide-react";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { SyncIndicator } from "../SyncIndicator";
 import type { SyncStatus } from "../../types";
@@ -61,6 +61,7 @@ interface HeaderProps {
   isSaving?: boolean;
   onLogoClick?: () => void;
   onMenuClick?: () => void;
+  onSearchClick?: () => void;
   onSignIn?: () => void;
   onSyncClick?: () => void;
 }
@@ -74,6 +75,7 @@ export function Header({
   isSaving,
   onLogoClick,
   onMenuClick,
+  onSearchClick,
   onSignIn,
   onSyncClick,
 }: HeaderProps) {
@@ -127,6 +129,15 @@ export function Header({
             onSyncClick={onSyncClick}
           />
         </ErrorBoundary>
+        {onSearchClick && (
+          <button
+            className={styles.menuButton}
+            onClick={onSearchClick}
+            aria-label="Search notes"
+          >
+            <Search className={styles.menuIcon} />
+          </button>
+        )}
         <button
           className={styles.menuButton}
           onClick={onMenuClick}
