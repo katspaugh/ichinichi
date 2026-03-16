@@ -6,6 +6,7 @@ import {
 import { isNoteEmpty, isContentEmpty } from "../utils/sanitize";
 import { connectivity as defaultConnectivity } from "../services/connectivity";
 import type { RepositoryError } from "../domain/errors";
+import type { SavedWeather } from "../types";
 
 export interface ConnectivitySource {
   getOnline(): boolean;
@@ -31,6 +32,7 @@ export interface NoteContentState {
   hasEdits: boolean;
   error: RepositoryError | null;
   loadedWithContent: boolean;
+  weather: SavedWeather | null;
 
   // Save
   isSaving: boolean;
@@ -57,6 +59,7 @@ export interface NoteContentState {
   switchNote: (date: string) => Promise<void>;
   dispose: () => Promise<void>;
   setContent: (content: string) => void;
+  setWeather: (weather: SavedWeather | null) => void;
   flushSave: () => Promise<void>;
   applyRemoteUpdate: (content: string) => void;
   refreshFromRemote: () => Promise<void>;
@@ -87,7 +90,7 @@ export function createNoteContentStore(deps?: NoteContentStoreDeps) {
   };
 
   const _doSave = async (): Promise<void> => {
-    const { date, content, repository, loadedWithContent } = get();
+    const { date, content, repository, loadedWithContent, weather } = get();
     if (!date || !repository) return;
 
     const isEmpty = isNoteEmpty(content);
@@ -100,7 +103,7 @@ export function createNoteContentStore(deps?: NoteContentStoreDeps) {
 
     const result = isEmpty
       ? await repository.delete(date)
-      : await repository.save(date, content);
+      : await repository.save(date, content, weather);
 
     // Re-read current state after await
     const current = get();
@@ -155,6 +158,7 @@ export function createNoteContentStore(deps?: NoteContentStoreDeps) {
       hasEdits: false,
       error: null,
       loadedWithContent: false,
+      weather: null,
       isRefreshing: false,
       hasRefreshedForDate: null,
       remoteCacheResult: null,
@@ -171,6 +175,7 @@ export function createNoteContentStore(deps?: NoteContentStoreDeps) {
         hasEdits: false,
         error: null,
         loadedWithContent: !isContentEmpty(content),
+        weather: result.value?.weather ?? null,
       });
 
       // Auto-trigger remote refresh + cache check after load
@@ -201,6 +206,7 @@ export function createNoteContentStore(deps?: NoteContentStoreDeps) {
     hasEdits: false,
     error: null,
     loadedWithContent: false,
+    weather: null,
     isSaving: false,
     saveError: null,
     _saveTimer: null,
@@ -248,6 +254,7 @@ export function createNoteContentStore(deps?: NoteContentStoreDeps) {
         error: null,
         saveError: null,
         loadedWithContent: false,
+        weather: null,
         isSaving: false,
         _saveTimer: null,
         _savePromise: null,
@@ -270,6 +277,10 @@ export function createNoteContentStore(deps?: NoteContentStoreDeps) {
       _contentVersion++;
       set({ content, hasEdits: true, error: null });
       _scheduleSave();
+    },
+
+    setWeather: (weather) => {
+      set({ weather });
     },
 
     flushSave: async () => {
@@ -371,15 +382,18 @@ export function createNoteContentStore(deps?: NoteContentStoreDeps) {
         }
 
         const remoteContent = remoteNote.content ?? "";
+        const remoteWeather = remoteNote.weather ?? null;
         if (remoteContent !== current.content) {
           set({
             content: remoteContent,
+            weather: remoteWeather,
             hasEdits: false,
             error: null,
             isRefreshing: false,
             hasRefreshedForDate: date,
           });
         } else {
+          if (remoteWeather) set({ weather: remoteWeather });
           set({ isRefreshing: false, hasRefreshedForDate: date });
         }
       } catch {
@@ -403,7 +417,12 @@ export function createNoteContentStore(deps?: NoteContentStoreDeps) {
         if (result.ok) {
           const content = result.value?.content ?? "";
           if (content !== current.content) {
-            set({ content, hasEdits: false, error: null });
+            set({
+              content,
+              weather: result.value?.weather ?? null,
+              hasEdits: false,
+              error: null,
+            });
           }
         }
       } catch {

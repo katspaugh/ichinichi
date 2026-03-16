@@ -70,6 +70,7 @@ describe("noteContentStore", () => {
     expect(repository.save).toHaveBeenCalledWith(
       "10-01-2026",
       "draft",
+      null,
     );
   });
 
@@ -208,6 +209,7 @@ describe("noteContentStore", () => {
     expect(repository.save).toHaveBeenCalledWith(
       "10-01-2026",
       "draft",
+      null,
     );
   });
 
@@ -302,6 +304,7 @@ describe("noteContentStore", () => {
       expect(repository.save).toHaveBeenCalledWith(
         "10-01-2026",
         "draft",
+        null,
       );
 
       vi.useRealTimers();
@@ -327,6 +330,7 @@ describe("noteContentStore", () => {
       expect(repository.save).toHaveBeenCalledWith(
         "10-01-2026",
         "draft with more text",
+        null,
       );
 
       vi.useRealTimers();
