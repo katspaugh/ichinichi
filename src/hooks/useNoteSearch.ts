@@ -29,8 +29,11 @@ const SNIPPET_RADIUS = 50;
  * Uses DOMParser (safe — does not execute scripts) instead of innerHTML.
  */
 function stripHtml(html: string): string {
-  const doc = new DOMParser().parseFromString(html, "text/html");
-  return doc.body.textContent ?? "";
+  // Insert space before every tag so adjacent elements don't merge.
+  // DOMParser then strips the tags, leaving clean spaced text.
+  const spaced = html.replace(/</g, " <");
+  const doc = new DOMParser().parseFromString(spaced, "text/html");
+  return (doc.body.textContent ?? "").replace(/\s+/g, " ").trim();
 }
 
 function buildSnippet(

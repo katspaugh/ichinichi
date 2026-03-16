@@ -80,6 +80,33 @@ describe("useNoteSearch", () => {
     });
   });
 
+  it("inserts spaces at block-element boundaries", async () => {
+    const repo = createMockNoteRepository({
+      get: vi.fn().mockResolvedValue(
+        ok(
+          makeNote(
+            "01-01-2026",
+            "<div>first paragraph</div><div>second paragraph</div>",
+          ),
+        ),
+      ),
+    });
+
+    const dates = new Set(["01-01-2026"]);
+    const { result } = renderHook(() => useNoteSearch(repo, dates));
+
+    act(() => {
+      result.current.search("paragraph second");
+    });
+
+    await waitFor(() => {
+      expect(result.current.results).toHaveLength(1);
+      expect(result.current.results[0].snippet).toContain(
+        "paragraph second",
+      );
+    });
+  });
+
   it("is case-insensitive", async () => {
     const repo = createMockNoteRepository({
       get: vi.fn().mockResolvedValue(
