@@ -103,6 +103,7 @@
     margin-bottom: var(--spacing-sm);
     padding-top: var(--spacing-md);
     padding-bottom: var(--spacing-md);
+    background: var(--color-bg);
   }
 
   .headerLeft {

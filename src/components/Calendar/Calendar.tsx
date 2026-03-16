@@ -52,7 +52,7 @@ export function Calendar({
     if (!gridEl) return;
 
     // Always scroll to top when year changes on mobile
-    gridEl.scrollTop = 0;
+    window.scrollTo(0, 0);
 
     // On first load of current year, scroll to current month instead
     if (!hasAutoScrolledRef.current) {
@@ -64,7 +64,10 @@ export function Calendar({
           '[data-current-month="true"]',
         );
         if (currentMonthEl instanceof HTMLElement) {
-          gridEl.scrollTop = currentMonthEl.offsetTop;
+          currentMonthEl.scrollIntoView({
+            block: "start",
+            behavior: "instant",
+          });
         }
       }
     }

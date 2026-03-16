@@ -99,38 +99,14 @@
 
 @media (max-width: 768px) {
   .calendar {
-    position: fixed;
-    inset: 0;
-    padding-top: 0;
-    padding-bottom: 0;
+    height: auto;
     min-height: 0;
-    overflow: hidden;
+    overflow: visible;
+    padding-bottom: var(--spacing-md);
   }
 
   .calendar[data-month-view="true"] {
-    position: static;
-    height: auto;
-    min-height: 100dvh;
-    overflow: visible;
     padding-top: 64px;
-  }
-
-
-  .grid:not([data-month-view="true"]) {
-    overflow-y: auto;
-    padding-bottom: var(--spacing-md);
-    scroll-snap-type: y mandatory;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .grid:not([data-month-view="true"])::-webkit-scrollbar {
-    display: none;
-  }
-
-  .grid:not([data-month-view="true"]) > * {
-    scroll-snap-align: start;
   }
 
   .yearMonth {
