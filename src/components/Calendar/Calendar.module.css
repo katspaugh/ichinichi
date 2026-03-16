@@ -110,7 +110,6 @@
     min-height: 100dvh;
     overflow: visible;
     padding-top: 64px;
-    overscroll-behavior: none;
   }
 
 

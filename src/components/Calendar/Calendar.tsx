@@ -64,10 +64,7 @@ export function Calendar({
           '[data-current-month="true"]',
         );
         if (currentMonthEl instanceof HTMLElement) {
-          currentMonthEl.scrollIntoView({
-            block: "start",
-            behavior: "instant",
-          });
+          gridEl.scrollTop = currentMonthEl.offsetTop;
         }
       }
     }

@@ -135,6 +135,10 @@ function App() {
   }, []);
 
   useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [isDayView]);
+
+  useEffect(() => {
     if (typeof document === "undefined") return;
     const root = document.documentElement;
     root.dataset.vaultUnlocked = String(activeVault.isVaultUnlocked);
