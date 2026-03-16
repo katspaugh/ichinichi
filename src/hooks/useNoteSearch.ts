@@ -36,17 +36,26 @@ function stripHtml(html: string): string {
   return (doc.body.textContent ?? "").replace(/\s+/g, " ").trim();
 }
 
+interface Snippet {
+  text: string;
+  matchIndex: number;
+}
+
 function buildSnippet(
   text: string,
   index: number,
   queryLength: number,
-): string {
+): Snippet {
   const start = Math.max(0, index - SNIPPET_RADIUS);
   const end = Math.min(text.length, index + queryLength + SNIPPET_RADIUS);
   let snippet = text.slice(start, end);
-  if (start > 0) snippet = "..." + snippet;
+  let matchOffset = index - start;
+  if (start > 0) {
+    snippet = "..." + snippet;
+    matchOffset += 3;
+  }
   if (end < text.length) snippet = snippet + "...";
-  return snippet;
+  return { text: snippet, matchIndex: matchOffset };
 }
 
 function compareDatesDescending(a: string, b: string): number {
@@ -130,10 +139,11 @@ export function useNoteSearch(
         const lowerText = text.toLowerCase();
         const idx = lowerText.indexOf(lowerQuery);
         if (idx !== -1) {
+          const snippet = buildSnippet(text, idx, query.length);
           matches.push({
             date,
-            snippet: buildSnippet(text, idx, query.length),
-            matchIndex: idx - Math.max(0, idx - SNIPPET_RADIUS),
+            snippet: snippet.text,
+            matchIndex: snippet.matchIndex,
             matchLength: query.length,
           });
         }
