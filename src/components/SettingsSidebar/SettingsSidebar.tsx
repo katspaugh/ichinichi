@@ -13,6 +13,7 @@ import {
   GitBranch,
   ChevronRight,
   ExternalLink,
+  Download,
   X,
 } from "lucide-react";
 import { useTheme } from "@/hooks/useTheme";
@@ -32,6 +33,7 @@ interface SettingsSidebarProps {
   onOpenAbout?: () => void;
   onOpenPrivacy?: () => void;
   onWeekStartChange?: () => void;
+  onExport?: () => Promise<void>;
 }
 
 type WeatherState = ReturnType<typeof useWeatherContext>["state"];
@@ -267,6 +269,54 @@ function WeatherSection({
   );
 }
 
+function DataSection({
+  onExport,
+}: {
+  onExport: () => Promise<void>;
+}) {
+  const [status, setStatus] = useState<
+    "idle" | "exporting" | "done" | "empty" | "error"
+  >("idle");
+
+  const handleExport = useCallback(async () => {
+    if (status === "exporting") return;
+    setStatus("exporting");
+    try {
+      await onExport();
+      setStatus("done");
+    } catch {
+      setStatus("error");
+    }
+    setTimeout(() => setStatus("idle"), 2000);
+  }, [onExport, status]);
+
+  const label =
+    status === "exporting"
+      ? "Exporting..."
+      : status === "done"
+        ? "Exported!"
+        : status === "empty"
+          ? "No notes to export"
+          : status === "error"
+            ? "Export failed"
+            : "Export as Markdown";
+
+  return (
+    <div className={styles.section}>
+      <p className={styles.sectionLabel}>Data</p>
+      <button
+        className={styles.actionButton}
+        type="button"
+        onClick={handleExport}
+        disabled={status === "exporting"}
+      >
+        <Download className={styles.actionIcon} />
+        {label}
+      </button>
+    </div>
+  );
+}
+
 function LinksSection({
   onOpenPrivacy,
   onOpenAbout,
@@ -360,6 +410,7 @@ export function SettingsSidebar({
   onOpenAbout,
   onOpenPrivacy,
   onWeekStartChange,
+  onExport,
 }: SettingsSidebarProps) {
   const { theme, setTheme } = useTheme();
   const weather = useWeatherContext();
@@ -468,6 +519,13 @@ export function SettingsSidebar({
             onTempUnitChange={handleTempUnitChange}
             onShowWeatherChange={handleShowWeatherChange}
           />
+
+          {onExport && (
+            <>
+              <div className={styles.separator} />
+              <DataSection onExport={onExport} />
+            </>
+          )}
 
           <div className={styles.separator} />
 

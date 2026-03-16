@@ -5,6 +5,7 @@ import { AppModals } from "./components/AppModals";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { UpdatePrompt } from "./components/UpdatePrompt";
 import { SettingsSidebar } from "./components/SettingsSidebar";
+import { exportNotesAsZip, downloadBlob } from "./services/exportNotes";
 import { AboutModal } from "./components/AppModals/AboutModal";
 import { PrivacyPolicyModal } from "./components/AppModals/PrivacyPolicyModal";
 import { AuthState } from "./hooks/useAuth";
@@ -114,6 +115,14 @@ function App() {
     setWeekStartVersion((value) => value + 1);
   }, []);
 
+  const handleExport = useCallback(async () => {
+    if (!notes.repository) return;
+    const blob = await exportNotesAsZip(notes.repository);
+    if (!blob) return;
+    const today = new Date().toISOString().slice(0, 10);
+    downloadBlob(blob, `ichinichi-export-${today}.zip`);
+  }, [notes.repository]);
+
   const signInHandler =
     appMode.mode !== AppMode.Cloud && auth.authState !== AuthState.SignedIn
       ? appMode.switchToCloud
@@ -219,6 +228,7 @@ function App() {
                   onOpenAbout={handleOpenAbout}
                   onOpenPrivacy={handleOpenPrivacy}
                   onWeekStartChange={handleWeekStartChange}
+                  onExport={notes.repository ? handleExport : undefined}
                 />
 
                 <AppModals />

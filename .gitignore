@@ -39,3 +39,4 @@ dist-ssr
 .grepai/
 /.serena/
 .superpowers/
+docs/superpowers/
