@@ -135,6 +135,16 @@
   color: var(--color-error, #ef4444);
 }
 
+.restoreButton {
+  background: none;
+  border: none;
+  color: var(--color-link, #3b82f6);
+  cursor: pointer;
+  font-size: inherit;
+  padding: 0 0.25rem;
+  text-decoration: underline;
+}
+
 .close {
   flex-shrink: 0;
   width: 56px;

@@ -30,12 +30,23 @@ export async function getNoteRecord(date: string): Promise<NoteRecord | null> {
 export async function getAllNoteRecordDates(): Promise<string[]> {
   const db = await openUnifiedDb();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(NOTES_STORE, "readonly");
-    const store = tx.objectStore(NOTES_STORE);
-    const request = store.getAllKeys();
-    request.onsuccess = () =>
-      resolve((request.result ?? []) as string[]);
-    request.onerror = () => reject(request.error);
+    const tx = db.transaction([NOTES_STORE, NOTE_META_STORE], "readonly");
+    const notesStore = tx.objectStore(NOTES_STORE);
+    const metaStore = tx.objectStore(NOTE_META_STORE);
+    const keysRequest = notesStore.getAllKeys();
+    keysRequest.onsuccess = () => {
+      const allKeys = (keysRequest.result ?? []) as string[];
+      const metaRequest = metaStore.getAll();
+      metaRequest.onsuccess = () => {
+        const metas = metaRequest.result as NoteMetaRecord[];
+        const deletedDates = new Set(
+          metas.filter((m) => m.deletedAt).map((m) => m.date),
+        );
+        resolve(allKeys.filter((key) => !deletedDates.has(key)));
+      };
+      metaRequest.onerror = () => reject(metaRequest.error);
+    };
+    keysRequest.onerror = () => reject(keysRequest.error);
     tx.onerror = () => reject(tx.error);
   });
 }
@@ -105,8 +116,19 @@ export async function setNoteMeta(meta: NoteMetaRecord): Promise<void> {
 export async function deleteNoteRecord(date: string): Promise<void> {
   const db = await openUnifiedDb();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(NOTES_STORE, "readwrite");
-    tx.objectStore(NOTES_STORE).delete(date);
+    const tx = db.transaction(NOTE_META_STORE, "readwrite");
+    const metaStore = tx.objectStore(NOTE_META_STORE);
+    const getRequest = metaStore.get(date);
+    getRequest.onsuccess = () => {
+      const existing = getRequest.result as NoteMetaRecord | undefined;
+      if (existing) {
+        metaStore.put({
+          ...existing,
+          deletedAt: new Date().toISOString(),
+        });
+      }
+    };
+    getRequest.onerror = () => reject(getRequest.error);
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });
@@ -115,9 +137,20 @@ export async function deleteNoteRecord(date: string): Promise<void> {
 export async function deleteNoteAndMeta(date: string): Promise<void> {
   const db = await openUnifiedDb();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction([NOTES_STORE, NOTE_META_STORE], "readwrite");
-    tx.objectStore(NOTES_STORE).delete(date);
-    tx.objectStore(NOTE_META_STORE).delete(date);
+    const tx = db.transaction(NOTE_META_STORE, "readwrite");
+    const metaStore = tx.objectStore(NOTE_META_STORE);
+    const getRequest = metaStore.get(date);
+    getRequest.onsuccess = () => {
+      const existing = getRequest.result as NoteMetaRecord | undefined;
+      if (existing) {
+        metaStore.put({
+          ...existing,
+          deletedAt: new Date().toISOString(),
+          pendingOp: null,
+        });
+      }
+    };
+    getRequest.onerror = () => reject(getRequest.error);
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });
@@ -208,6 +241,32 @@ export async function deleteNoteAndMetaResult(
   } catch (error) {
     return err(toStorageError(error));
   }
+}
+
+export async function markUnsyncedNotesAsPending(): Promise<void> {
+  const db = await openUnifiedDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction([NOTES_STORE, NOTE_META_STORE], "readwrite");
+    const notesStore = tx.objectStore(NOTES_STORE);
+    const metaStore = tx.objectStore(NOTE_META_STORE);
+    const notesRequest = notesStore.getAllKeys();
+    notesRequest.onsuccess = () => {
+      const noteKeys = new Set(notesRequest.result as string[]);
+      const metaRequest = metaStore.getAll();
+      metaRequest.onsuccess = () => {
+        const metas = metaRequest.result as NoteMetaRecord[];
+        for (const meta of metas) {
+          if (!meta.pendingOp && !meta.remoteId && noteKeys.has(meta.date)) {
+            metaStore.put({ ...meta, pendingOp: "upsert" });
+          }
+        }
+      };
+      metaRequest.onerror = () => reject(metaRequest.error);
+    };
+    notesRequest.onerror = () => reject(notesRequest.error);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
 }
 
 export async function clearNoteSyncMetadata(): Promise<void> {

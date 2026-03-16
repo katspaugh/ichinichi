@@ -15,4 +15,5 @@ export interface NoteMetaRecord {
   serverUpdatedAt?: string | null;
   lastSyncedAt?: string | null;
   pendingOp?: "upsert" | "delete" | null;
+  deletedAt?: string | null;
 }

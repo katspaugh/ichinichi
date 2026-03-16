@@ -9,6 +9,7 @@ import {
   getUserIdForAccount,
   setCurrentAccountId,
 } from "./accountStore";
+import { markUnsyncedNotesAsPending } from "./unifiedNoteStore";
 
 async function resetCloudUnlockState(): Promise<void> {
   closeUnifiedDb();
@@ -34,6 +35,7 @@ export async function handleCloudAccountSwitch(
   const currentUserId = getUserIdForAccount(currentAccountId);
   if (!currentUserId) {
     bindUserToAccount(nextUserId, currentAccountId);
+    await markUnsyncedNotesAsPending();
     return;
   }
 

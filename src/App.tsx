@@ -177,6 +177,8 @@ function App() {
                     isDecrypting={notes.isDecrypting}
                     isContentReady={notes.isContentReady}
                     isOfflineStub={notes.isOfflineStub}
+                    isSoftDeleted={notes.isSoftDeleted}
+                    onRestore={notes.restoreNote}
                     noteError={notes.noteError}
                     syncStatus={canSync ? notes.syncStatus : undefined}
                     syncError={canSync ? notes.syncError : undefined}

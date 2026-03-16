@@ -10,6 +10,7 @@ interface NoteEditorHeaderProps {
   showReadonlyBadge: boolean;
   statusText: string | null;
   isStatusError?: boolean;
+  onRestore?: () => void;
   dailyWeather?: DailyWeatherData | null;
 }
 
@@ -19,6 +20,7 @@ export function NoteEditorHeader({
   showReadonlyBadge,
   statusText,
   isStatusError = false,
+  onRestore,
   dailyWeather,
 }: NoteEditorHeaderProps) {
   const parsed = parseDate(date);
@@ -52,6 +54,14 @@ export function NoteEditorHeader({
           aria-live="polite"
         >
           {statusText}
+          {onRestore && (
+            <button
+              className={styles.restoreButton}
+              onClick={onRestore}
+            >
+              Restore
+            </button>
+          )}
         </span>
       )}
     </div>

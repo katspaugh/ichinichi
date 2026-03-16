@@ -47,6 +47,7 @@ function toLocalMeta(remote: RemoteNote, now: string): NoteMetaRecord {
     serverUpdatedAt: remote.serverUpdatedAt,
     lastSyncedAt: now,
     pendingOp: null,
+    deletedAt: null,
   };
 }
 
@@ -95,6 +96,10 @@ function reconcileWithRemote(
             remote?.serverUpdatedAt ?? localMeta.serverUpdatedAt,
         },
       };
+    }
+    // Never-synced note: absence from cloud does not mean "deleted remotely"
+    if (localRecord && localMeta && !localMeta.remoteId) {
+      return { type: "skip" };
     }
     return { type: "delete" };
   }

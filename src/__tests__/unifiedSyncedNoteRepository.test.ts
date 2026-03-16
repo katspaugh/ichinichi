@@ -6,7 +6,7 @@ import { createRemoteDateIndexAdapter } from "../storage/remoteDateIndexAdapter"
 import { closeUnifiedDb } from "../storage/unifiedDb";
 import { getAllAccountDbNames } from "../storage/accountStore";
 import { getNoteEnvelopeState, toNoteEnvelope } from "../storage/unifiedNoteEnvelopeRepository";
-import { setNoteAndMeta, setNoteMeta, deleteNoteRecord } from "../storage/unifiedNoteStore";
+import { setNoteAndMeta, setNoteMeta, deleteNoteRecord, markUnsyncedNotesAsPending, getNoteMeta } from "../storage/unifiedNoteStore";
 import { deleteRemoteDate } from "../storage/remoteNoteIndexStore";
 import type { NoteMetaRecord, NoteRecord } from "../storage/unifiedDb";
 import type { RemoteNotesGateway } from "../domain/sync/remoteNotesGateway";
@@ -290,8 +290,9 @@ describe("noteSyncEngine", () => {
         expect.objectContaining({ id: "remote-1", revision: 1 }),
       );
 
-      const envelope = await getEnvelope("10-01-2026");
-      expect(envelope).toBeNull();
+      // Record preserved (soft-delete), but meta has deletedAt
+      const state = await getNoteEnvelopeState("10-01-2026");
+      expect(state.meta?.deletedAt).toBeTruthy();
     });
 
     it("skips remote delete for never-synced notes", async () => {
@@ -316,8 +317,9 @@ describe("noteSyncEngine", () => {
       await engine.sync();
 
       expect(gateway.deleteNote).not.toHaveBeenCalled();
-      const envelope = await getEnvelope("10-01-2026");
-      expect(envelope).toBeNull();
+      // Record preserved (soft-delete), but meta has deletedAt
+      const state = await getNoteEnvelopeState("10-01-2026");
+      expect(state.meta?.deletedAt).toBeTruthy();
     });
 
     it("cancels local delete if remote has new content on conflict", async () => {
@@ -672,6 +674,117 @@ describe("noteSyncEngine", () => {
     ]);
 
     expect(gateway.fetchNoteDates).toHaveBeenCalledTimes(1);
+  });
+
+  describe("never-synced guard", () => {
+    it("skips reconcile for never-synced note when remote is null", async () => {
+      const gateway = makeGateway({
+        fetchNotesSince: vi.fn().mockResolvedValue({ ok: true, value: [] }),
+        fetchNoteByDate: vi.fn().mockResolvedValue({ ok: true, value: null }),
+      });
+      const { connectivity, clock, syncStateStore } = makeDeps();
+
+      const engine = createNoteSyncEngine(
+        gateway, "key-1", async () => undefined, connectivity, clock, syncStateStore,
+        createNoteEnvelopeAdapter(), createRemoteDateIndexAdapter(),
+      );
+
+      // Save locally with pendingOp: null (simulating localNoteRepository.save)
+      const record: NoteRecord = {
+        version: 1,
+        date: "10-01-2026",
+        keyId: "key-1",
+        ciphertext: "local-only",
+        nonce: "nonce-1",
+        updatedAt: "2026-01-10T12:00:00.000Z",
+      };
+      const meta: NoteMetaRecord = {
+        date: "10-01-2026",
+        revision: 1,
+        pendingOp: null,
+        remoteId: null,
+      };
+      await setNoteAndMeta(record, meta);
+
+      // refreshEnvelope triggers reconcileWithRemote with remote=null
+      const envelope = await engine.refreshEnvelope("10-01-2026");
+
+      // Should NOT delete — note is never-synced, so skip
+      expect(envelope?.ciphertext).toBe("local-only");
+      const state = await getNoteEnvelopeState("10-01-2026");
+      expect(state.record).not.toBeNull();
+    });
+  });
+
+  describe("markUnsyncedNotesAsPending", () => {
+    it("marks local-only notes with pendingOp upsert", async () => {
+      const record: NoteRecord = {
+        version: 1,
+        date: "10-01-2026",
+        keyId: "key-1",
+        ciphertext: "local",
+        nonce: "n1",
+        updatedAt: "2026-01-10T12:00:00.000Z",
+      };
+      const meta: NoteMetaRecord = {
+        date: "10-01-2026",
+        revision: 1,
+        pendingOp: null,
+        remoteId: null,
+      };
+      await setNoteAndMeta(record, meta);
+
+      await markUnsyncedNotesAsPending();
+
+      const updated = await getNoteMeta("10-01-2026");
+      expect(updated?.pendingOp).toBe("upsert");
+    });
+
+    it("is idempotent — does not change already-pending notes", async () => {
+      const record: NoteRecord = {
+        version: 1,
+        date: "10-01-2026",
+        keyId: "key-1",
+        ciphertext: "local",
+        nonce: "n1",
+        updatedAt: "2026-01-10T12:00:00.000Z",
+      };
+      const meta: NoteMetaRecord = {
+        date: "10-01-2026",
+        revision: 1,
+        pendingOp: "upsert",
+        remoteId: null,
+      };
+      await setNoteAndMeta(record, meta);
+
+      await markUnsyncedNotesAsPending();
+
+      const updated = await getNoteMeta("10-01-2026");
+      expect(updated?.pendingOp).toBe("upsert");
+    });
+
+    it("skips notes that already have a remoteId", async () => {
+      const record: NoteRecord = {
+        version: 1,
+        date: "10-01-2026",
+        keyId: "key-1",
+        ciphertext: "synced",
+        nonce: "n1",
+        updatedAt: "2026-01-10T12:00:00.000Z",
+      };
+      const meta: NoteMetaRecord = {
+        date: "10-01-2026",
+        revision: 1,
+        pendingOp: null,
+        remoteId: "remote-1",
+      };
+      await setNoteAndMeta(record, meta);
+
+      await markUnsyncedNotesAsPending();
+
+      const updated = await getNoteMeta("10-01-2026");
+      expect(updated?.pendingOp).toBeNull();
+    });
   });
 
   it("does not share refreshDates cooldown across engine instances", async () => {

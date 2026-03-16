@@ -20,12 +20,14 @@ export interface UseNoteContentReturn {
   isSaving: boolean;
   isContentReady: boolean;
   isOfflineStub: boolean;
+  isSoftDeleted: boolean;
   /** Error from loading/decrypting the note (e.g. DecryptFailed) */
   error: RepositoryError | null;
   /** Error from the last failed save attempt */
   saveError: RepositoryError | null;
   /** Force a refresh from remote (used for realtime updates) */
   forceRefresh: () => void;
+  restoreNote: () => void;
 }
 
 // Zustand selectors for fine-grained re-renders
@@ -106,6 +108,7 @@ export function useNoteContent(
   const error = useStoreSelector(store, (s) => s.error);
   const saveError = useStoreSelector(store, (s) => s.saveError);
   const remoteCacheResult = useStoreSelector(store, (s) => s.remoteCacheResult);
+  const isSoftDeleted = useStoreSelector(store, (s) => s.isSoftDeleted);
 
   const isReady =
     status === "ready" || status === "error";
@@ -134,6 +137,10 @@ export function useNoteContent(
     () => store.getState().forceRefresh(),
     [store],
   );
+  const restoreNote = useCallback(
+    () => store.getState().restoreNote(),
+    [store],
+  );
 
   return {
     content,
@@ -143,8 +150,10 @@ export function useNoteContent(
     isSaving,
     isContentReady: isReady,
     isOfflineStub,
+    isSoftDeleted,
     error,
     saveError,
     forceRefresh,
+    restoreNote,
   };
 }

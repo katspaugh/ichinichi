@@ -38,6 +38,8 @@ interface DayViewLayoutProps {
   isDecrypting: boolean;
   isContentReady: boolean;
   isOfflineStub: boolean;
+  isSoftDeleted?: boolean;
+  onRestore?: () => void;
   noteError?: { type: string; message: string } | null;
 }
 
@@ -64,6 +66,8 @@ export function DayViewLayout({
   isDecrypting,
   isContentReady,
   isOfflineStub,
+  isSoftDeleted,
+  onRestore,
   noteError,
 }: DayViewLayoutProps) {
   const [layoutEl, setLayoutEl] = useState<HTMLDivElement | null>(null);
@@ -182,6 +186,8 @@ export function DayViewLayout({
               isDecrypting={isDecrypting}
               isContentReady={isContentReady}
               isOfflineStub={isOfflineStub}
+              isSoftDeleted={isSoftDeleted}
+              onRestore={onRestore}
               error={noteError}
             />
           </ErrorBoundary>

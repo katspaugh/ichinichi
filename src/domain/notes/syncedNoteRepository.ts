@@ -23,6 +23,7 @@ export function createSyncedNoteRepository(
     async get(date: string): Promise<Result<Note | null, RepositoryError>> {
       try {
         const state = await envelopePort.getState(date);
+        if (state.meta?.deletedAt) return ok(null);
         const record = state.record;
         if (!record || record.version !== 1) {
           return ok(null);
@@ -66,6 +67,7 @@ export function createSyncedNoteRepository(
           serverUpdatedAt: existingMeta?.serverUpdatedAt ?? null,
           lastSyncedAt: existingMeta?.lastSyncedAt ?? null,
           pendingOp: "upsert",
+          deletedAt: null,
         };
         await envelopePort.setNoteAndMeta(record, meta);
         return ok(undefined);
@@ -88,15 +90,59 @@ export function createSyncedNoteRepository(
           serverUpdatedAt: existingMeta?.serverUpdatedAt ?? null,
           lastSyncedAt: existingMeta?.lastSyncedAt ?? null,
           pendingOp: "delete",
+          deletedAt: new Date().toISOString(),
         };
         await envelopePort.setMeta(meta);
-        await envelopePort.deleteRecord(date);
         await remoteDateIndex.deleteDate(date);
         return ok(undefined);
       } catch (error) {
         return err({
           type: "IO",
           message: error instanceof Error ? error.message : "Failed to delete note",
+        });
+      }
+    },
+
+    async getIncludingDeleted(date: string): Promise<Result<Note | null, RepositoryError>> {
+      try {
+        const state = await envelopePort.getState(date);
+        const record = state.record;
+        if (!record || record.version !== 1) {
+          return ok(null);
+        }
+        const decrypted = await crypto.decrypt(record);
+        if (!decrypted.ok) return decrypted;
+        return ok({
+          date: record.date,
+          content: decrypted.value.content,
+          sectionTypes: extractSectionTypes(decrypted.value.content),
+          updatedAt: record.updatedAt,
+        });
+      } catch (error) {
+        return err({
+          type: "Unknown",
+          message: error instanceof Error ? error.message : "Failed to get note",
+        });
+      }
+    },
+
+    async restoreNote(date: string): Promise<Result<void, RepositoryError>> {
+      try {
+        const state = await envelopePort.getState(date);
+        const meta = state.meta;
+        if (!meta) {
+          return err({ type: "Unknown", message: "No metadata for note" });
+        }
+        await envelopePort.setMeta({
+          ...meta,
+          deletedAt: null,
+          pendingOp: "upsert",
+        });
+        return ok(undefined);
+      } catch (error) {
+        return err({
+          type: "IO",
+          message: error instanceof Error ? error.message : "Failed to restore note",
         });
       }
     },

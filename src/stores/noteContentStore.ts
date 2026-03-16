@@ -38,6 +38,9 @@ export interface NoteContentState {
   _saveTimer: number | null;
   _savePromise: Promise<void> | null;
 
+  // Soft-delete
+  isSoftDeleted: boolean;
+
   // Remote refresh
   isRefreshing: boolean;
   hasRefreshedForDate: string | null;
@@ -57,6 +60,7 @@ export interface NoteContentState {
   switchNote: (date: string) => Promise<void>;
   dispose: () => Promise<void>;
   setContent: (content: string) => void;
+  restoreNote: () => Promise<void>;
   flushSave: () => Promise<void>;
   applyRemoteUpdate: (content: string) => void;
   refreshFromRemote: () => Promise<void>;
@@ -155,6 +159,7 @@ export function createNoteContentStore(deps?: NoteContentStoreDeps) {
       hasEdits: false,
       error: null,
       loadedWithContent: false,
+      isSoftDeleted: false,
       isRefreshing: false,
       hasRefreshedForDate: null,
       remoteCacheResult: null,
@@ -164,6 +169,22 @@ export function createNoteContentStore(deps?: NoteContentStoreDeps) {
     if (gen !== _loadGeneration) return; // superseded
 
     if (result.ok) {
+      if (!result.value && repository.getIncludingDeleted) {
+        // Check for soft-deleted note
+        const deletedResult = await repository.getIncludingDeleted(date);
+        if (gen !== _loadGeneration) return;
+        if (deletedResult.ok && deletedResult.value) {
+          set({
+            status: "ready",
+            content: deletedResult.value.content,
+            hasEdits: false,
+            error: null,
+            loadedWithContent: false,
+            isSoftDeleted: true,
+          });
+          return;
+        }
+      }
       const content = result.value?.content ?? "";
       set({
         status: "ready",
@@ -171,6 +192,7 @@ export function createNoteContentStore(deps?: NoteContentStoreDeps) {
         hasEdits: false,
         error: null,
         loadedWithContent: !isContentEmpty(content),
+        isSoftDeleted: false,
       });
 
       // Auto-trigger remote refresh + cache check after load
@@ -205,6 +227,7 @@ export function createNoteContentStore(deps?: NoteContentStoreDeps) {
     saveError: null,
     _saveTimer: null,
     _savePromise: null,
+    isSoftDeleted: false,
     isRefreshing: false,
     hasRefreshedForDate: null,
     remoteCacheResult: null,
@@ -251,12 +274,24 @@ export function createNoteContentStore(deps?: NoteContentStoreDeps) {
         isSaving: false,
         _saveTimer: null,
         _savePromise: null,
+        isSoftDeleted: false,
         isRefreshing: false,
         hasRefreshedForDate: null,
         remoteCacheResult: null,
         repository: null,
         afterSave: null,
       });
+    },
+
+    restoreNote: async () => {
+      const { date, repository } = get();
+      if (!date || !repository?.restoreNote) return;
+      const result = await repository.restoreNote(date);
+      if (result.ok) {
+        set({ isSoftDeleted: false, loadedWithContent: true });
+        // Trigger save to create pendingOp (syncs back to cloud)
+        void get().refreshFromRemote();
+      }
     },
 
     setContent: (content) => {

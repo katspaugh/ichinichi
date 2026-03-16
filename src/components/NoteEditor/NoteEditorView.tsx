@@ -24,6 +24,7 @@ interface NoteEditorViewProps {
   showReadonlyBadge: boolean;
   statusText: string | null;
   isStatusError?: boolean;
+  onRestore?: () => void;
   placeholderText: string;
   editorRef: RefObject<HTMLDivElement | null>;
   onInput?: (event: FormEvent<HTMLDivElement>) => void;
@@ -47,6 +48,7 @@ export function NoteEditorView({
   showReadonlyBadge,
   statusText,
   isStatusError = false,
+  onRestore,
   placeholderText,
   editorRef,
   onInput,
@@ -103,6 +105,7 @@ export function NoteEditorView({
         showReadonlyBadge={showReadonlyBadge}
         statusText={statusText}
         isStatusError={isStatusError}
+        onRestore={onRestore}
         dailyWeather={dailyWeather}
       />
       <div className={bodyClassName}>

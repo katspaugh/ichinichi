@@ -24,6 +24,8 @@ interface DayViewProps {
   isDecrypting: boolean;
   isContentReady: boolean;
   isOfflineStub: boolean;
+  isSoftDeleted?: boolean;
+  onRestore?: () => void;
   noteError?: { type: string; message: string } | null;
   // Sync props
   syncStatus?: SyncStatus;
@@ -50,6 +52,8 @@ export function DayView({
   isDecrypting,
   isContentReady,
   isOfflineStub,
+  isSoftDeleted,
+  onRestore,
   noteError,
   syncStatus,
   syncError,
@@ -144,6 +148,8 @@ export function DayView({
         isDecrypting={isDecrypting}
         isContentReady={isContentReady}
         isOfflineStub={isOfflineStub}
+        isSoftDeleted={isSoftDeleted}
+        onRestore={onRestore}
         noteError={noteError}
       />
     </div>
