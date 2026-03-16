@@ -105,6 +105,14 @@
     padding-bottom: var(--spacing-md);
   }
 
+  :global(html[data-scroll-snap]) {
+    scroll-snap-type: y mandatory;
+  }
+
+  .grid > * {
+    scroll-snap-align: start;
+  }
+
   .calendar[data-month-view="true"] {
     padding-top: 64px;
   }
