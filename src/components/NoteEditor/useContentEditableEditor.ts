@@ -565,6 +565,11 @@ export function useContentEditableEditor({
     const hasContent = content.trim().length > 0;
     if (isMobile && hasContent) {
       hasAutoFocusedRef.current = true;
+      // Prime lastEditedBlockRef so first mobile tap doesn't trigger
+      // the "first edit of session" path and insert HR at wrong position
+      const blocks = el.querySelectorAll("p, div");
+      const lastBlock = blocks[blocks.length - 1];
+      lastEditedBlockRef.current = lastBlock ?? el;
       return;
     }
 
