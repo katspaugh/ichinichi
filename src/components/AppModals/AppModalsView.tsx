@@ -34,6 +34,7 @@ interface AppModalsViewProps {
     onDismiss: () => void;
     onSignIn: (email: string, password: string) => Promise<void>;
     onSignUp: (email: string, password: string) => Promise<void>;
+    onResetPassword: (email: string) => void;
     onVaultUnlock: (password: string) => void;
   };
   vaultErrorModal: {
@@ -85,6 +86,7 @@ export function AppModalsView({
         onDismiss={cloudAuthModal.onDismiss}
         onSignIn={cloudAuthModal.onSignIn}
         onSignUp={cloudAuthModal.onSignUp}
+        onResetPassword={cloudAuthModal.onResetPassword}
         onVaultUnlock={cloudAuthModal.onVaultUnlock}
       />
 

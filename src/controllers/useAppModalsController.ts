@@ -184,6 +184,7 @@ export function useAppModalsController() {
       onDismiss: handleCloudAuthDismiss,
       onSignIn: handleSignIn,
       onSignUp: handleSignUp,
+      onResetPassword: (email: string) => auth.resetPassword(email),
       onVaultUnlock: handleCloudVaultUnlock,
     },
     vaultErrorModal: {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer } from "react";
+import { useCallback, useEffect, useReducer, useState } from "react";
 import type { Session, User, AuthError } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
 import { AUTH_HAS_LOGGED_IN_KEY } from "../utils/constants";
@@ -12,7 +12,9 @@ export interface UseAuthReturn {
   user: User | null;
   authState: AuthState;
   error: string | null;
+  hashError: string | null;
   isBusy: boolean;
+  isPasswordRecovery: boolean;
   signUp: (
     email: string,
     password: string,
@@ -22,6 +24,10 @@ export interface UseAuthReturn {
     password: string,
   ) => Promise<{ success: boolean; password?: string }>;
   signOut: () => Promise<void>;
+  resetPassword: (email: string) => Promise<{ success: boolean }>;
+  updatePassword: (password: string) => Promise<{ success: boolean }>;
+  clearPasswordRecovery: () => void;
+  clearHashError: () => void;
   clearError: () => void;
 }
 
@@ -189,6 +195,25 @@ export function authReducer(
 export function useAuth(): UseAuthReturn {
   const online = useConnectivity();
   const [state, dispatch] = useReducer(authReducer, initialState);
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
+  const [hashError, setHashError] = useState<string | null>(null);
+
+  // Parse auth errors from URL hash (e.g. expired reset links)
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (!hash.includes("error_description=")) return;
+    const params = new URLSearchParams(hash.replace(/^#/, ""));
+    const description = params.get("error_description");
+    if (description) {
+      setHashError(description.replace(/\+/g, " "));
+      window.history.replaceState(
+        {},
+        "",
+        window.location.pathname + window.location.search,
+      );
+    }
+  }, []);
+
   // Bootstrap: getSession + onAuthStateChange listener
   useEffect(() => {
     let cancelled = false;
@@ -208,7 +233,10 @@ export function useAuth(): UseAuthReturn {
     void start();
 
     const { data } = supabase.auth.onAuthStateChange(
-      (_event, newSession) => {
+      (event, newSession) => {
+        if (event === "PASSWORD_RECOVERY") {
+          setIsPasswordRecovery(true);
+        }
         dispatch({ type: "SESSION_CHANGED", session: newSession });
       },
     );
@@ -369,6 +397,61 @@ export function useAuth(): UseAuthReturn {
     dispatch({ type: "SIGN_OUT" });
   }, []);
 
+  const resetPassword = useCallback(
+    async (email: string) => {
+      try {
+        const { error } = await supabase.auth.resetPasswordForEmail(email);
+        if (error) {
+          dispatch({ type: "AUTH_ERROR", message: formatAuthError(error) });
+          return { success: false };
+        }
+        return { success: true };
+      } catch (error) {
+        dispatch({
+          type: "AUTH_ERROR",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Unable to send reset email.",
+        });
+        return { success: false };
+      }
+    },
+    [],
+  );
+
+  const updatePassword = useCallback(
+    async (password: string) => {
+      try {
+        const { error } = await supabase.auth.updateUser({ password });
+        if (error) {
+          dispatch({ type: "AUTH_ERROR", message: formatAuthError(error) });
+          return { success: false };
+        }
+        setIsPasswordRecovery(false);
+        return { success: true };
+      } catch (error) {
+        dispatch({
+          type: "AUTH_ERROR",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Unable to update password.",
+        });
+        return { success: false };
+      }
+    },
+    [],
+  );
+
+  const clearPasswordRecovery = useCallback(() => {
+    setIsPasswordRecovery(false);
+  }, []);
+
+  const clearHashError = useCallback(() => {
+    setHashError(null);
+  }, []);
+
   const clearError = useCallback(() => {
     dispatch({ type: "CLEAR_ERROR" });
   }, []);
@@ -378,10 +461,16 @@ export function useAuth(): UseAuthReturn {
     user: state.session?.user ?? null,
     authState: state.authState,
     error: state.error,
+    hashError,
     isBusy: state.isBusy,
+    isPasswordRecovery,
     signUp,
     signIn,
     signOut,
+    resetPassword,
+    updatePassword,
+    clearPasswordRecovery,
+    clearHashError,
     clearError,
   };
 }

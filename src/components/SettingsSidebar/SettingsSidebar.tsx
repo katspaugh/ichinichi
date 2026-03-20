@@ -3,6 +3,7 @@ import {
   User,
   LogOut,
   LogIn,
+  KeyRound,
   Moon,
   Sun,
   Monitor,
@@ -29,6 +30,7 @@ interface SettingsSidebarProps {
   isSignedIn: boolean;
   onSignIn?: () => void;
   onSignOut?: () => void;
+  onResetPassword?: () => void;
   commitHash: string;
   onOpenAbout?: () => void;
   onOpenPrivacy?: () => void;
@@ -57,10 +59,20 @@ function SettingsHeader({ onClose }: { onClose: () => void }) {
 function UserSection({
   userEmail,
   onSignOut,
+  onResetPassword,
 }: {
   userEmail: string;
   onSignOut?: () => void;
+  onResetPassword?: () => void;
 }) {
+  const [resetSent, setResetSent] = useState(false);
+
+  const handleResetPassword = useCallback(() => {
+    if (!onResetPassword || resetSent) return;
+    onResetPassword();
+    setResetSent(true);
+  }, [onResetPassword, resetSent]);
+
   return (
     <>
       <div className={styles.userRow}>
@@ -81,6 +93,18 @@ function UserSection({
         >
           <LogOut className={styles.actionIcon} />
           Sign out
+        </button>
+      )}
+
+      {onResetPassword && (
+        <button
+          className={styles.actionButton}
+          type="button"
+          onClick={handleResetPassword}
+          disabled={resetSent}
+        >
+          <KeyRound className={styles.actionIcon} />
+          {resetSent ? "Reset link sent!" : "Reset password"}
         </button>
       )}
 
@@ -406,6 +430,7 @@ export function SettingsSidebar({
   isSignedIn,
   onSignIn,
   onSignOut,
+  onResetPassword,
   commitHash,
   onOpenAbout,
   onOpenPrivacy,
@@ -496,7 +521,7 @@ export function SettingsSidebar({
 
         <div className={styles.body}>
           {isSignedIn && userEmail ? (
-            <UserSection userEmail={userEmail} onSignOut={onSignOut} />
+            <UserSection userEmail={userEmail} onSignOut={onSignOut} onResetPassword={onResetPassword} />
           ) : onSignIn ? (
             <SignInSection onSignIn={onSignIn} />
           ) : null}

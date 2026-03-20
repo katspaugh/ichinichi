@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Button } from "../Button";
 import { VaultPanel } from "../VaultPanel";
 import styles from "../VaultPanel/VaultPanel.module.css";
@@ -8,6 +8,7 @@ interface AuthFormProps {
   error: string | null;
   onSignIn: (email: string, password: string) => void;
   onSignUp: (email: string, password: string) => void;
+  onResetPassword?: (email: string) => void;
   defaultPassword?: string | null;
 }
 
@@ -16,11 +17,14 @@ export function AuthForm({
   error,
   onSignIn,
   onSignUp,
+  onResetPassword,
   defaultPassword,
 }: AuthFormProps) {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState(defaultPassword || "");
+
+  const [resetSent, setResetSent] = useState(false);
 
   const isSignIn = mode === "signin";
   const title = isSignIn ? "Sign in to Ichinichi" : "Create an account";
@@ -29,6 +33,12 @@ export function AuthForm({
     ? "Don't have an account?"
     : "Already have an account?";
   const toggleAction = isSignIn ? "Sign up" : "Sign in";
+
+  const handleResetPassword = useCallback(() => {
+    if (!email || !onResetPassword) return;
+    onResetPassword(email);
+    setResetSent(true);
+  }, [email, onResetPassword]);
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
@@ -77,6 +87,23 @@ export function AuthForm({
           required
           minLength={6}
         />
+
+        {isSignIn && onResetPassword && (
+          <p className={styles.note}>
+            {resetSent ? (
+              "Check your email for a reset link."
+            ) : (
+              <button
+                type="button"
+                className={styles.toggle}
+                onClick={handleResetPassword}
+                disabled={isBusy || !email}
+              >
+                Forgot password?
+              </button>
+            )}
+          </p>
+        )}
 
         {error && <div className={styles.error}>{error}</div>}
 

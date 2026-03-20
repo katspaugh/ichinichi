@@ -9,6 +9,8 @@ import { SearchOverlay } from "./components/Search";
 import { exportNotesAsZip, downloadBlob } from "./services/exportNotes";
 import { AboutModal } from "./components/AppModals/AboutModal";
 import { PrivacyPolicyModal } from "./components/AppModals/PrivacyPolicyModal";
+import { ResetPasswordModal } from "./components/AppModals/ResetPasswordModal";
+import { AuthErrorModal } from "./components/AppModals/AuthErrorModal";
 import { AuthState } from "./hooks/useAuth";
 import { AppMode } from "./hooks/useAppMode";
 import { usePWA } from "./hooks/usePWA";
@@ -147,6 +149,11 @@ function App() {
       ? activeVault.handleSignOut
       : undefined;
 
+  const resetPasswordHandler =
+    auth.authState === AuthState.SignedIn && auth.user?.email
+      ? () => auth.resetPassword(auth.user!.email!)
+      : undefined;
+
   // ⌘K / Ctrl+K global shortcut to open search
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -256,6 +263,7 @@ function App() {
                   isSignedIn={auth.authState === AuthState.SignedIn}
                   onSignIn={signInHandler}
                   onSignOut={signOutHandler}
+                  onResetPassword={resetPasswordHandler}
                   commitHash={commitHash}
                   onOpenAbout={handleOpenAbout}
                   onOpenPrivacy={handleOpenPrivacy}
@@ -268,6 +276,17 @@ function App() {
                 <PrivacyPolicyModal
                   isOpen={privacyOpen}
                   onClose={() => setPrivacyOpen(false)}
+                />
+                <ResetPasswordModal
+                  isOpen={auth.isPasswordRecovery}
+                  error={auth.error}
+                  onSubmit={auth.updatePassword}
+                  onDismiss={auth.clearPasswordRecovery}
+                />
+                <AuthErrorModal
+                  isOpen={!!auth.hashError}
+                  error={auth.hashError}
+                  onClose={auth.clearHashError}
                 />
 
                 {needRefresh && (
