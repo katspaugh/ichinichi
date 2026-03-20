@@ -62,21 +62,25 @@ export function createNoteDatesStore(deps?: NoteDatesStoreDeps) {
 
       set({ isRefreshing: true });
 
-      // Load local dates first (instant)
+      // Load local dates first — but only show them if we won't immediately
+      // fetch remote dates (avoids dots blinking: local → local+remote)
       let hasLocalSnapshot = false;
+      const willFetchRemote = online && syncRepository;
       if (syncRepository) {
         const localResult = await syncRepository.getAllLocalDatesForYear(year);
         if (gen !== _refreshGeneration || get()._disposed) return; // superseded or disposed
         if (localResult.ok) {
           hasLocalSnapshot = true;
-          set({ noteDates: new Set(localResult.value) });
-        } else {
+          if (!willFetchRemote) {
+            set({ noteDates: new Set(localResult.value) });
+          }
+        } else if (!willFetchRemote) {
           set({ noteDates: new Set() });
         }
       }
 
       // Refresh from remote if online
-      if (online && syncRepository) {
+      if (willFetchRemote) {
         await syncRepository.refreshDates(year);
         if (gen !== _refreshGeneration || get()._disposed) return; // superseded or disposed
       }
@@ -107,7 +111,8 @@ export function createNoteDatesStore(deps?: NoteDatesStoreDeps) {
       _disposed: true,
 
       init: (repository, year) => {
-        set({ repository, year, noteDates: new Set(), _disposed: false });
+        // Preserve existing noteDates to avoid flash — refresh will replace them
+        set({ repository, year, _disposed: false });
         void _doRefresh();
       },
 
