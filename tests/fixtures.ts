@@ -90,8 +90,6 @@ export interface TestHelpers {
 
 export const test = base.extend<{ helpers: TestHelpers }>({
   helpers: async ({ page }, use) => {
-    let savedVaultPassword: string | null = null;
-
     const helpers: TestHelpers = {
       clearStorageAndReload: async () => {
         // Clear cookies first (including Supabase auth cookies)
@@ -193,7 +191,6 @@ export const test = base.extend<{ helpers: TestHelpers }>({
 
       setupLocalVault: async (password?: string) => {
         const vaultPassword = password || 'testpassword123';
-        savedVaultPassword = vaultPassword;
 
         // Wait for potential vault modal
         await page.waitForTimeout(500);
