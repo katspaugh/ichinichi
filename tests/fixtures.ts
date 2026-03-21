@@ -39,6 +39,7 @@ export interface TestHelpers {
    * Open a note for a specific date
    */
   openNote: (date: string) => Promise<void>;
+  openNoteWithReload: (date: string) => Promise<void>;
 
   /**
    * Close the current note modal
@@ -79,6 +80,7 @@ export interface TestHelpers {
    * Navigate to a specific year in the calendar
    */
   navigateToYear: (year: number) => Promise<void>;
+  navigateToYearWithReload: (year: number) => Promise<void>;
 
   /**
    * Click on a day cell
@@ -88,6 +90,8 @@ export interface TestHelpers {
 
 export const test = base.extend<{ helpers: TestHelpers }>({
   helpers: async ({ page }, use) => {
+    let savedVaultPassword: string | null = null;
+
     const helpers: TestHelpers = {
       clearStorageAndReload: async () => {
         // Clear cookies first (including Supabase auth cookies)
@@ -185,23 +189,19 @@ export const test = base.extend<{ helpers: TestHelpers }>({
         if (await maybeLaterButton.isVisible({ timeout: 3000 }).catch(() => false)) {
           await maybeLaterButton.click();
         }
-        // Wait for vault to be unlocked (needed to interact with notes)
-        await helpers.waitForVaultUnlocked();
       },
 
       setupLocalVault: async (password?: string) => {
+        const vaultPassword = password || 'testpassword123';
+        savedVaultPassword = vaultPassword;
+
         // Wait for potential vault modal
         await page.waitForTimeout(500);
 
         // Check if vault password prompt appears
         const passwordInput = page.locator('#vault-password');
         if (await passwordInput.isVisible({ timeout: 3000 }).catch(() => false)) {
-          if (password) {
-            await passwordInput.fill(password);
-          } else {
-            // Use a default test password
-            await passwordInput.fill('testpassword123');
-          }
+          await passwordInput.fill(vaultPassword);
           await page.getByRole('button', { name: /Create vault|Unlock/i }).click();
           await page.waitForTimeout(1000);
         }
@@ -242,9 +242,23 @@ export const test = base.extend<{ helpers: TestHelpers }>({
 
         // Final wait for stability
         await page.waitForTimeout(200);
+
+        // Ensure vault is unlocked before proceeding
+        await helpers.waitForVaultUnlocked();
       },
 
       openNote: async (date: string) => {
+        // Prefer client-side navigation (preserves vault key in memory,
+        // avoids slow PBKDF2 re-derivation in webkit)
+        await page.evaluate((d) => {
+          window.history.pushState({}, '', `/?date=${d}`);
+          window.dispatchEvent(new PopStateEvent('popstate'));
+        }, date);
+        await page.waitForTimeout(300);
+        await helpers.waitForAppReady();
+      },
+
+      openNoteWithReload: async (date: string) => {
         await page.goto(`/?date=${date}`);
         await helpers.waitForAppReady();
       },
@@ -307,7 +321,7 @@ export const test = base.extend<{ helpers: TestHelpers }>({
             () => document.documentElement.dataset.vaultUnlocked ?? "false"
           );
         }, {
-          timeout: 15000,
+          timeout: 90000,
         }).toBe("true");
       },
 
@@ -319,6 +333,17 @@ export const test = base.extend<{ helpers: TestHelpers }>({
       },
 
       navigateToYear: async (year: number) => {
+        // Prefer client-side navigation (preserves vault key in memory)
+        await page.evaluate((y) => {
+          window.history.pushState({}, '', `/?year=${y}`);
+          window.dispatchEvent(new PopStateEvent('popstate'));
+        }, year);
+        // Wait for the year to appear in the DOM
+        await expect(page.getByText(String(year))).toBeVisible({ timeout: 5000 });
+        await page.waitForTimeout(500);
+      },
+
+      navigateToYearWithReload: async (year: number) => {
         await page.goto(`/?year=${year}`);
         await helpers.waitForAppReady();
       },

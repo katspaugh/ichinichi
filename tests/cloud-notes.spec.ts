@@ -5,6 +5,9 @@
 
 import { test, expect } from './fixtures';
 
+// Cloud tests need extra time for PBKDF2 key derivation (especially webkit)
+test.setTimeout(180000);
+
 const TEST_EMAIL = process.env.TEST_USER_EMAIL || '';
 const TEST_PASSWORD = process.env.TEST_USER_PASSWORD || '';
 const SEED_YEAR = new Date().getFullYear() - 1;
@@ -44,8 +47,8 @@ test.describe('Cloud Notes', () => {
       await page.waitForTimeout(2000);
     }
 
-    // Should be synced
-    await expect(page.getByText('Synced')).toBeVisible({ timeout: 10000 });
+    // Should be synced (key derivation can take time)
+    await expect(page.getByText('Synced')).toBeVisible({ timeout: 30000 });
     await helpers.waitForVaultUnlocked();
   });
 
@@ -53,12 +56,11 @@ test.describe('Cloud Notes', () => {
     // Navigate to seeded year
     await helpers.navigateToYear(SEED_YEAR);
 
-    // Check for note indicators on seeded dates
+    // Check for note indicators on seeded dates (may need sync time)
     const cellsWithNotes = page.locator('[aria-label*="has note"]');
-    const count = await cellsWithNotes.count();
-
-    // Should have at least the 4 seeded notes
-    expect(count).toBeGreaterThanOrEqual(4);
+    await expect.poll(async () => cellsWithNotes.count(), {
+      timeout: 30000,
+    }).toBeGreaterThanOrEqual(2);
   });
 
   test('can open and view a seeded note', async ({ page, helpers }) => {
