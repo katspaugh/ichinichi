@@ -46,8 +46,20 @@ export function useAudioRecording({
   const recordPluginRef = useRef<RecordPlugin | null>(null);
   const placeholderRef = useRef<HTMLDivElement | null>(null);
   const mimeRef = useRef<string>("");
+  const mountedRef = useRef(true);
 
   const cleanup = useCallback(() => {
+    // Explicitly stop mic tracks (Safari may not release via destroy alone)
+    const record = recordPluginRef.current;
+    if (record) {
+      try {
+        const mr = (record as unknown as { mediaRecorder?: MediaRecorder })
+          .mediaRecorder;
+        mr?.stream?.getTracks().forEach((t) => t.stop());
+      } catch {
+        // Best-effort
+      }
+    }
     if (wavesurferRef.current) {
       wavesurferRef.current.destroy();
       wavesurferRef.current = null;
@@ -140,7 +152,7 @@ export function useAudioRecording({
     if (!record || !record.isRecording()) return;
 
     const blob = await new Promise<Blob>((resolve) => {
-      record.on("record-end", (b: Blob) => resolve(b));
+      record.once("record-end", (b: Blob) => resolve(b));
       record.stopRecording();
     });
 
@@ -153,6 +165,11 @@ export function useAudioRecording({
         width: 0,
         height: 0,
       });
+
+      if (!mountedRef.current) {
+        cleanup();
+        return;
+      }
 
       if (result.ok) {
         placeholderRef.current.setAttribute("data-audio-id", result.value.id);
@@ -183,7 +200,9 @@ export function useAudioRecording({
 
   // Cleanup on unmount to prevent leaked MediaStream / wavesurfer
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
+      mountedRef.current = false;
       if (wavesurferRef.current) {
         wavesurferRef.current.destroy();
         wavesurferRef.current = null;

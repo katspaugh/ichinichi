@@ -86,7 +86,7 @@ export function createAudioPlayer(
   });
 
   ws.on("interaction", () => {
-    ws.playPause();
+    ws.play();
   });
 
   return ws;

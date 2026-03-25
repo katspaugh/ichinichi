@@ -244,7 +244,9 @@ export function useContentEditableEditor({
     if (!el) return;
     const hasText = (el.textContent ?? "").trim().length > 0;
     const hasImages = el.querySelector("img") !== null;
-    const html = hasText || hasImages ? serializeEditorContent(el) : "";
+    const hasAudio = el.querySelector("[data-audio-id]") !== null;
+    const html =
+      hasText || hasImages || hasAudio ? serializeEditorContent(el) : "";
     if (html === lastContentRef.current) {
       return;
     }
@@ -421,8 +423,9 @@ export function useContentEditableEditor({
     if (!el) return;
     const hasText = (el.textContent ?? "").trim().length > 0;
     const hasImages = el.querySelector("img") !== null;
+    const hasAudio = el.querySelector("[data-audio-id]") !== null;
     const hasHr = el.querySelector("hr") !== null;
-    if (!hasText && !hasImages && !hasHr) {
+    if (!hasText && !hasImages && !hasAudio && !hasHr) {
       el.setAttribute("data-empty", "true");
     } else {
       el.removeAttribute("data-empty");
@@ -586,7 +589,8 @@ export function useContentEditableEditor({
     el.focus();
     const hasText = (el.textContent ?? "").trim().length > 0;
     const hasImages = el.querySelector("img") !== null;
-    if (hasText || hasImages) {
+    const hasAudio = el.querySelector("[data-audio-id]") !== null;
+    if (hasText || hasImages || hasAudio) {
       placeCaretAtEnd(el);
 
       // Prime lastEditedBlockRef to the last block element.
@@ -655,7 +659,9 @@ export function useContentEditableEditor({
 
     const hasText = (el.textContent ?? "").trim().length > 0;
     const hasImages = el.querySelector("img") !== null;
-    const html = hasText || hasImages ? serializeEditorContent(el) : "";
+    const hasAudio = el.querySelector("[data-audio-id]") !== null;
+    const html =
+      hasText || hasImages || hasAudio ? serializeEditorContent(el) : "";
     if (html === lastContentRef.current) {
       return;
     }
