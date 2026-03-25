@@ -27,9 +27,10 @@ export function useInlineAudioUrls({
   useEffect(() => {
     if (!imageRepository) return;
     const manager = new ImageUrlManager(imageRepository);
+    const oid = ownerIdRef.current;
     managerRef.current = manager;
     return () => {
-      manager.releaseOwner(ownerIdRef.current);
+      manager.releaseOwner(oid);
       managerRef.current = null;
       currentIdsRef.current = new Set();
       playersRef.current.forEach((ws) => ws.destroy());
