@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 import WaveSurfer from "wavesurfer.js";
 import RecordPlugin from "wavesurfer.js/dist/plugins/record.esm.js";
@@ -180,6 +180,17 @@ export function useAudioRecording({
 
     cleanup();
   }, [onContentChange, cleanup]);
+
+  // Cleanup on unmount to prevent leaked MediaStream / wavesurfer
+  useEffect(() => {
+    return () => {
+      if (wavesurferRef.current) {
+        wavesurferRef.current.destroy();
+        wavesurferRef.current = null;
+      }
+      recordPluginRef.current = null;
+    };
+  }, []);
 
   return {
     isRecording,
