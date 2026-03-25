@@ -146,6 +146,16 @@ function serializeEditorContent(editor: HTMLElement): string {
   for (const img of clone.querySelectorAll("img[data-image-id]")) {
     img.removeAttribute("src");
   }
+  for (const el of clone.querySelectorAll("[data-audio-id]")) {
+    if (el.getAttribute("data-audio-id") === "recording") {
+      el.remove();
+      continue;
+    }
+    // Replace runtime div with semantic <audio data-audio-id="...">
+    const audioEl = document.createElement("audio");
+    audioEl.setAttribute("data-audio-id", el.getAttribute("data-audio-id")!);
+    el.replaceWith(audioEl);
+  }
   for (const el of clone.querySelectorAll("[style]")) {
     el.removeAttribute("style");
   }

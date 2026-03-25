@@ -6,6 +6,8 @@ import { getPlaceholderText } from "../../utils/placeholderText";
 import { NoteEditorView } from "./NoteEditorView";
 import { useContentEditableEditor } from "./useContentEditableEditor";
 import { useInlineImageUpload, useInlineImageUrls } from "./useInlineImages";
+import { useInlineAudioUrls } from "./useInlineAudio";
+import { useAudioRecording } from "./useAudioRecording";
 import { useImageDragState } from "./useImageDragState";
 import { useDropIndicator } from "./useDropIndicator";
 import { useShareTarget } from "../../hooks/useShareTarget";
@@ -117,6 +119,26 @@ export function NoteEditor({
     editorRef,
   });
 
+  const {
+    isRecording,
+    recordingDuration,
+    startRecording,
+    stopRecording,
+    cancelRecording,
+    canRecord,
+  } = useAudioRecording({
+    date,
+    isEditable,
+    editorRef,
+    onContentChange: () => handleInput(),
+  });
+
+  useInlineAudioUrls({
+    date,
+    content,
+    editorRef,
+  });
+
   // Auto-insert images shared via Web Share Target API
   useShareTarget(onImageDrop ? handleFileInput : undefined, isEditable);
 
@@ -139,6 +161,11 @@ export function NoteEditor({
       onClick={handleClick}
       onKeyDown={handleKeyDown}
       onImageSelect={onImageDrop ? handleFileInput : undefined}
+      isRecording={isRecording}
+      recordingDuration={recordingDuration}
+      onStartRecording={canRecord ? startRecording : undefined}
+      onStopRecording={stopRecording}
+      onCancelRecording={cancelRecording}
       isDraggingImage={isDraggingImage}
       dropIndicatorPosition={indicatorPosition}
       footer={null}
