@@ -86,7 +86,9 @@ export function createAudioPlayer(
   });
 
   ws.on("interaction", () => {
-    ws.play();
+    if (!ws.isPlaying()) {
+      ws.play();
+    }
   });
 
   return ws;

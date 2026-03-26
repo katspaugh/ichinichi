@@ -33,6 +33,15 @@ function fileExtForMime(mime: string): string {
   return "webm";
 }
 
+/** Remove placeholder div and its trailing <br> from the DOM */
+function removePlaceholderAndBr(placeholder: HTMLDivElement) {
+  const next = placeholder.nextSibling;
+  if (next && next.nodeType === Node.ELEMENT_NODE && (next as HTMLElement).tagName === "BR") {
+    next.remove();
+  }
+  placeholder.remove();
+}
+
 export function useAudioRecording({
   date,
   isEditable,
@@ -137,7 +146,7 @@ export function useAudioRecording({
       await record.startRecording();
     } catch (err) {
       console.error("Microphone access denied:", err);
-      placeholder.remove();
+      removePlaceholderAndBr(placeholder);
       placeholderRef.current = null;
       cleanup();
       return;
@@ -161,22 +170,36 @@ export function useAudioRecording({
 
     // Upload via image repository (reuses encryption pipeline)
     if (imageRepository && placeholderRef.current) {
-      const result = await imageRepository.upload(date, blob, "inline", `recording.${ext}`, {
-        width: 0,
-        height: 0,
-      });
+      try {
+        const result = await imageRepository.upload(date, blob, "inline", `recording.${ext}`, {
+          width: 0,
+          height: 0,
+        });
 
-      if (!mountedRef.current) {
-        cleanup();
-        return;
-      }
+        if (!mountedRef.current) {
+          cleanup();
+          return;
+        }
 
-      if (result.ok) {
-        placeholderRef.current.setAttribute("data-audio-id", result.value.id);
-        // Clear wavesurfer DOM so playback hook can reinitialize
-        while (placeholderRef.current.firstChild) placeholderRef.current.firstChild.remove();
-        placeholderRef.current = null;
-        onContentChange();
+        if (result.ok) {
+          placeholderRef.current.setAttribute("data-audio-id", result.value.id);
+          // Clear wavesurfer DOM so playback hook can reinitialize
+          while (placeholderRef.current.firstChild) placeholderRef.current.firstChild.remove();
+          placeholderRef.current = null;
+          onContentChange();
+        } else {
+          console.error("Audio upload failed:", result);
+          removePlaceholderAndBr(placeholderRef.current);
+          placeholderRef.current = null;
+          onContentChange();
+        }
+      } catch (err) {
+        console.error("Audio upload error:", err);
+        if (placeholderRef.current) {
+          removePlaceholderAndBr(placeholderRef.current);
+          placeholderRef.current = null;
+          onContentChange();
+        }
       }
     }
 
@@ -190,7 +213,7 @@ export function useAudioRecording({
     }
 
     if (placeholderRef.current) {
-      placeholderRef.current.remove();
+      removePlaceholderAndBr(placeholderRef.current);
       placeholderRef.current = null;
       onContentChange();
     }
@@ -203,13 +226,13 @@ export function useAudioRecording({
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
-      if (wavesurferRef.current) {
-        wavesurferRef.current.destroy();
-        wavesurferRef.current = null;
+      if (placeholderRef.current) {
+        removePlaceholderAndBr(placeholderRef.current);
+        placeholderRef.current = null;
       }
-      recordPluginRef.current = null;
+      cleanup();
     };
-  }, []);
+  }, [cleanup]);
 
   return {
     isRecording,
