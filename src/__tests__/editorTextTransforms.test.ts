@@ -54,11 +54,11 @@ describe("applyTextTransforms", () => {
         range.deleteContents();
         range.insertNode(anchor);
 
-        const wrongRange = document.createRange();
-        wrongRange.setStart(anchor.firstChild!, 0);
-        wrongRange.collapse(true);
+        const browserRange = document.createRange();
+        browserRange.setStart(anchor.firstChild!, 0);
+        browserRange.collapse(true);
         selection.removeAllRanges();
-        selection.addRange(wrongRange);
+        selection.addRange(browserRange);
         return true;
       }),
     });
