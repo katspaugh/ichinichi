@@ -262,18 +262,56 @@ describe("getWeekdays and getWeekdayOptions", () => {
   });
 
   it("weekday labels match dayIndex regardless of local timezone", () => {
-    // Regression: labels were off-by-one in timezones west of UTC because
-    // dates were constructed in UTC but formatted in local time.
-    setWeekStartPreference(0); // Sunday
-    const options = getWeekdayOptions();
-    // dayIndex 0 = Sunday, so first label must contain "Sun"
-    expect(options[0].label).toMatch(/sun/i);
-    // dayIndex 1 = Monday
-    expect(options[1].label).toMatch(/mon/i);
+    // Derive expected labels from the current locale so the test works
+    // regardless of navigator.language.
+    const locale = navigator.language || "en-US";
+    const refFormatter = new Intl.DateTimeFormat(locale, { weekday: "short" });
+    // 2021-08-01 is a Sunday; local Date avoids UTC/local mismatch.
+    const expectedByDayIndex = Array.from({ length: 7 }, (_, i) =>
+      refFormatter.format(new Date(2021, 7, 1 + i)),
+    );
 
-    setWeekStartPreference(1); // Monday
-    const optionsMon = getWeekdayOptions();
-    expect(optionsMon[0].label).toMatch(/mon/i);
-    expect(optionsMon[1].label).toMatch(/tue/i);
+    // Track DateTimeFormat calls while preserving original behavior.
+    const OriginalDTF = Intl.DateTimeFormat;
+    const dtfCalls: Array<Record<string, unknown>> = [];
+    // Must use function (not arrow) so it can be called with `new`.
+    Intl.DateTimeFormat = function (...args: unknown[]) {
+      const opts = args[1] as Record<string, unknown> | undefined;
+      if (opts) dtfCalls.push(opts);
+      return new OriginalDTF(
+        args[0] as string | string[] | undefined,
+        args[1] as Intl.DateTimeFormatOptions | undefined,
+      );
+    } as unknown as typeof Intl.DateTimeFormat;
+
+    try {
+      setWeekStartPreference(0); // Sunday
+      const options = getWeekdayOptions();
+      expect(options[0].label.toLowerCase()).toContain(
+        expectedByDayIndex[0].toLowerCase(),
+      );
+      expect(options[1].label.toLowerCase()).toContain(
+        expectedByDayIndex[1].toLowerCase(),
+      );
+
+      setWeekStartPreference(1); // Monday
+      const optionsMon = getWeekdayOptions();
+      expect(optionsMon[0].label.toLowerCase()).toContain(
+        expectedByDayIndex[1].toLowerCase(),
+      );
+      expect(optionsMon[1].label.toLowerCase()).toContain(
+        expectedByDayIndex[2].toLowerCase(),
+      );
+
+      // Assert DateTimeFormat is called with timeZone: "UTC" to prevent
+      // the off-by-one bug from regressing.
+      for (const opts of dtfCalls) {
+        if ("weekday" in opts) {
+          expect(opts).toMatchObject({ timeZone: "UTC" });
+        }
+      }
+    } finally {
+      Intl.DateTimeFormat = OriginalDTF;
+    }
   });
 });
