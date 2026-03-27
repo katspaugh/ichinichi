@@ -2,6 +2,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { applyTextTransforms } from "../services/editorTextTransforms";
 
+const originalExecCommandDescriptor = Object.getOwnPropertyDescriptor(
+  document,
+  "execCommand",
+);
+
 function makeEditor(text: string): HTMLElement {
   const editor = document.createElement("div");
   editor.setAttribute("contenteditable", "true");
@@ -30,6 +35,15 @@ function getCaretTextOffset(editor: HTMLElement): number {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  if (originalExecCommandDescriptor) {
+    Object.defineProperty(
+      document,
+      "execCommand",
+      originalExecCommandDescriptor,
+    );
+  } else {
+    delete (document as { execCommand?: unknown }).execCommand;
+  }
   document.body.textContent = "";
 });
 
@@ -49,7 +63,7 @@ describe("applyTextTransforms", () => {
         const selection = window.getSelection()!;
         const range = selection.getRangeAt(0);
         const anchor = document.createElement("a");
-        anchor.href = String(value ?? "");
+        anchor.setAttribute("href", String(value ?? ""));
         anchor.textContent = range.toString();
         range.deleteContents();
         range.insertNode(anchor);
@@ -65,9 +79,13 @@ describe("applyTextTransforms", () => {
 
     applyTextTransforms(editor);
 
-    expect(editor.innerHTML).toBe(
-      '<a href="https://example.com" target="_blank" rel="noopener noreferrer">https://example.com</a> ',
-    );
+    const anchor = editor.querySelector("a");
+    expect(anchor).not.toBeNull();
+    expect(anchor!.getAttribute("href")).toBe("https://example.com");
+    expect(anchor!.getAttribute("target")).toBe("_blank");
+    expect(anchor!.getAttribute("rel")).toBe("noopener noreferrer");
+    expect(anchor!.textContent).toBe("https://example.com");
+    expect(editor.textContent).toBe("https://example.com ");
     expect(getCaretTextOffset(editor)).toBe("https://example.com ".length);
   });
 });
