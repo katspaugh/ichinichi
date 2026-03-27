@@ -260,4 +260,20 @@ describe("getWeekdays and getWeekdayOptions", () => {
     // Last day should be Sunday (dayIndex 0)
     expect(options[6].dayIndex).toBe(0);
   });
+
+  it("weekday labels match dayIndex regardless of local timezone", () => {
+    // Regression: labels were off-by-one in timezones west of UTC because
+    // dates were constructed in UTC but formatted in local time.
+    setWeekStartPreference(0); // Sunday
+    const options = getWeekdayOptions();
+    // dayIndex 0 = Sunday, so first label must contain "Sun"
+    expect(options[0].label).toMatch(/sun/i);
+    // dayIndex 1 = Monday
+    expect(options[1].label).toMatch(/mon/i);
+
+    setWeekStartPreference(1); // Monday
+    const optionsMon = getWeekdayOptions();
+    expect(optionsMon[0].label).toMatch(/mon/i);
+    expect(optionsMon[1].label).toMatch(/tue/i);
+  });
 });
