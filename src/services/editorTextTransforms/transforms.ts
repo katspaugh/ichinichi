@@ -4,6 +4,7 @@
  */
 
 import { findUrls, normalizeUrl } from "../../utils/linkify";
+import { applyFavicon } from "../../utils/linkFavicons";
 import {
   findTextNodesMatching,
   isInsideAnchor,
@@ -212,6 +213,7 @@ export const linkifyTransform: TextTransform = {
         if (anchor?.tagName === "A") {
           anchor.setAttribute("target", "_blank");
           anchor.setAttribute("rel", "noopener noreferrer");
+          applyFavicon(anchor as HTMLAnchorElement);
         }
       }
     }

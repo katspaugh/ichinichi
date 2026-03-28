@@ -37,6 +37,7 @@ const SANITIZE_CONFIG = {
     "data-timestamp",
     "data-label",
     "data-weather",
+    "data-favicon",
     "data-section-type",
     "alt",
     "width",
