@@ -5444,7 +5444,6 @@ __metadata:
     vite: "npm:^8.0.0"
     vite-plugin-pwa: "npm:^1.2.0"
     vitest: "npm:^4.1.0"
-    wavesurfer.js: "npm:^7.12.5"
     wrangler: "npm:^4.54.0"
     zustand: "npm:^5.0.11"
   languageName: unknown
@@ -8413,13 +8412,6 @@ __metadata:
   version: 4.0.0
   resolution: "walk-up-path@npm:4.0.0"
   checksum: 10c0/fabe344f91387d1d41df230af962ef18bf703dd4178006d55cd6412caacd187b54440002d4d53a982d4f7f0455567dcffb6d3884533c8b2268928eca3ebd8a19
-  languageName: node
-  linkType: hard
-
-"wavesurfer.js@npm:^7.12.5":
-  version: 7.12.5
-  resolution: "wavesurfer.js@npm:7.12.5"
-  checksum: 10c0/5b15ba5b373e6900777ef734f564d443a7443bad4ee8e0b8c0df34f0cbb09cbbc85179bd00a98f823c06765c271cdaa1f318b933a32778e239af8c48203e164f
   languageName: node
   linkType: hard
 
