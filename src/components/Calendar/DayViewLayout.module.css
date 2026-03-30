@@ -114,7 +114,7 @@
 @media (max-width: 768px) {
   .layout {
     flex: 1;
-    overflow: hidden;
+    overflow: visible;
     margin-left: -14px;
     margin-right: -14px;
   }
@@ -132,9 +132,8 @@
     border: none;
     border-radius: 0;
     padding: var(--spacing-md) var(--spacing-md);
-    padding-bottom: max(var(--spacing-md), env(safe-area-inset-bottom, 0px));
-    overflow-y: auto;
-    overscroll-behavior: none;
+    padding-bottom: max(var(--spacing-md), var(--keyboard-inset-bottom, 0px));
+    overflow-y: visible;
   }
 }
 
