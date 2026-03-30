@@ -115,6 +115,9 @@
 
   .calendar[data-month-view="true"] {
     padding-top: 64px;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
   }
 
   .yearMonth {
