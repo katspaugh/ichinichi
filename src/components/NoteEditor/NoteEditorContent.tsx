@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import type {
   ClipboardEvent,
   DragEvent,
@@ -33,6 +34,13 @@ export function NoteEditorContent({
   onClick,
   onKeyDown,
 }: NoteEditorContentProps) {
+  useEffect(() => {
+    if (autoFocus) {
+      editorRef.current?.focus({ preventScroll: true });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <div
       ref={editorRef}
@@ -46,7 +54,6 @@ export function NoteEditorContent({
       data-note-editor="content"
       contentEditable={isEditable}
       tabIndex={isEditable ? 0 : -1}
-      autoFocus={autoFocus}
       suppressContentEditableWarning={true}
       role="textbox"
       aria-multiline="true"
