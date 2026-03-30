@@ -119,6 +119,11 @@
     overflow: hidden;
   }
 
+  .calendar[data-month-view="true"] .grid {
+    flex: 1;
+    min-height: 0;
+  }
+
   .yearMonth {
     font-size: var(--font-size-base);
     min-width: auto;
