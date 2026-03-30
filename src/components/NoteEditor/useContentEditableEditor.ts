@@ -153,16 +153,6 @@ function serializeEditorContent(editor: HTMLElement): string {
   for (const img of clone.querySelectorAll("img[data-image-id]")) {
     img.removeAttribute("src");
   }
-  for (const el of clone.querySelectorAll("[data-audio-id]")) {
-    if (el.getAttribute("data-audio-id") === "recording") {
-      el.remove();
-      continue;
-    }
-    // Replace runtime div with semantic <audio data-audio-id="...">
-    const audioEl = document.createElement("audio");
-    audioEl.setAttribute("data-audio-id", el.getAttribute("data-audio-id")!);
-    el.replaceWith(audioEl);
-  }
   for (const el of clone.querySelectorAll("[style]")) {
     el.removeAttribute("style");
   }
@@ -251,9 +241,8 @@ export function useContentEditableEditor({
     if (!el) return;
     const hasText = (el.textContent ?? "").trim().length > 0;
     const hasImages = el.querySelector("img") !== null;
-    const hasAudio = el.querySelector("[data-audio-id]") !== null;
     const html =
-      hasText || hasImages || hasAudio ? serializeEditorContent(el) : "";
+      hasText || hasImages ? serializeEditorContent(el) : "";
     if (html === lastContentRef.current) {
       return;
     }
@@ -430,9 +419,8 @@ export function useContentEditableEditor({
     if (!el) return;
     const hasText = (el.textContent ?? "").trim().length > 0;
     const hasImages = el.querySelector("img") !== null;
-    const hasAudio = el.querySelector("[data-audio-id]") !== null;
     const hasHr = el.querySelector("hr") !== null;
-    if (!hasText && !hasImages && !hasAudio && !hasHr) {
+    if (!hasText && !hasImages && !hasHr) {
       el.setAttribute("data-empty", "true");
     } else {
       el.removeAttribute("data-empty");
@@ -599,8 +587,7 @@ export function useContentEditableEditor({
     el.focus();
     const hasText = (el.textContent ?? "").trim().length > 0;
     const hasImages = el.querySelector("img") !== null;
-    const hasAudio = el.querySelector("[data-audio-id]") !== null;
-    if (hasText || hasImages || hasAudio) {
+    if (hasText || hasImages) {
       placeCaretAtEnd(el);
 
       // Prime lastEditedBlockRef to the last block element.
@@ -670,9 +657,8 @@ export function useContentEditableEditor({
 
     const hasText = (el.textContent ?? "").trim().length > 0;
     const hasImages = el.querySelector("img") !== null;
-    const hasAudio = el.querySelector("[data-audio-id]") !== null;
     const html =
-      hasText || hasImages || hasAudio ? serializeEditorContent(el) : "";
+      hasText || hasImages ? serializeEditorContent(el) : "";
     if (html === lastContentRef.current) {
       return;
     }

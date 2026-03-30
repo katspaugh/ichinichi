@@ -9,7 +9,7 @@ import type {
   ReactNode,
   RefObject,
 } from "react";
-import { ImagePlus, Mic, Square, X } from "lucide-react";
+import { ImagePlus } from "lucide-react";
 import { NoteEditorHeader } from "./NoteEditorHeader";
 import { NoteEditorContent } from "./NoteEditorContent";
 import type { DropIndicatorPosition } from "./useDropIndicator";
@@ -34,11 +34,6 @@ interface NoteEditorViewProps {
   onClick?: (event: MouseEvent<HTMLDivElement>) => void;
   onKeyDown?: (event: KeyboardEvent<HTMLDivElement>) => void;
   onImageSelect?: (file: File) => void;
-  isRecording?: boolean;
-  recordingDuration?: number;
-  onStartRecording?: () => void;
-  onStopRecording?: () => void;
-  onCancelRecording?: () => void;
   isDraggingImage?: boolean;
   dropIndicatorPosition?: DropIndicatorPosition | null;
   footer?: ReactNode;
@@ -63,11 +58,6 @@ export function NoteEditorView({
   onClick,
   onKeyDown,
   onImageSelect,
-  isRecording = false,
-  recordingDuration = 0,
-  onStartRecording,
-  onStopRecording,
-  onCancelRecording,
   isDraggingImage = false,
   dropIndicatorPosition,
   footer,
@@ -132,65 +122,24 @@ export function NoteEditorView({
           onKeyDown={onKeyDown}
         />
       </div>
-      {(onImageSelect || onStartRecording) && (
+      {onImageSelect && (
         <div className={styles.toolbar}>
-          {onImageSelect && !isRecording && (
-            <>
-              <button
-                type="button"
-                className={styles.toolbarButton}
-                onClick={handleButtonClick}
-                aria-label="Insert image"
-                title="Insert image"
-              >
-                <ImagePlus size={18} />
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className={styles.imageInput}
-                onChange={handleFileChange}
-              />
-            </>
-          )}
-          {onStartRecording && !isRecording && (
-            <button
-              type="button"
-              className={styles.toolbarButton}
-              style={{ marginLeft: 4 }}
-              onClick={onStartRecording}
-              aria-label="Record audio"
-              title="Record audio"
-            >
-              <Mic size={18} />
-            </button>
-          )}
-          {isRecording && (
-            <>
-              <button
-                type="button"
-                className={`${styles.toolbarButton} ${styles.toolbarRecording}`}
-                onClick={onStopRecording}
-                aria-label="Stop recording"
-                title="Stop recording"
-              >
-                <Square size={18} />
-              </button>
-              <button
-                type="button"
-                className={styles.toolbarButton}
-                onClick={onCancelRecording}
-                aria-label="Cancel recording"
-                title="Cancel recording"
-              >
-                <X size={18} />
-              </button>
-              <span className={styles.recordingInfo}>
-                {Math.floor(recordingDuration / 60)}:{(recordingDuration % 60).toString().padStart(2, "0")}
-              </span>
-            </>
-          )}
+          <button
+            type="button"
+            className={styles.toolbarButton}
+            onClick={handleButtonClick}
+            aria-label="Insert image"
+            title="Insert image"
+          >
+            <ImagePlus size={18} />
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className={styles.imageInput}
+            onChange={handleFileChange}
+          />
         </div>
       )}
       {footer}
