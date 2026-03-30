@@ -132,8 +132,11 @@
     border: none;
     border-radius: 0;
     padding: var(--spacing-md) var(--spacing-md);
-    padding-bottom: max(var(--spacing-md), var(--keyboard-inset-bottom, 0px));
-    overflow-y: visible;
+    padding-bottom: max(var(--spacing-md), env(safe-area-inset-bottom, 0px));
+    /* 78px = calendar padding-top (64px) + padding-bottom (14px) */
+    height: calc(100vh - 78px - var(--keyboard-inset-bottom, 0px));
+    overflow-y: auto;
+    overscroll-behavior: none;
   }
 }
 

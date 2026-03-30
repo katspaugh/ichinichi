@@ -71,9 +71,10 @@ export function DayViewLayout({
   noteError,
 }: DayViewLayoutProps) {
   const [layoutEl, setLayoutEl] = useState<HTMLDivElement | null>(null);
+  const [editorPaneEl, setEditorPaneEl] = useState<HTMLDivElement | null>(null);
   useKeyboardInset();
 
-  useOverscrollNavigation(layoutEl, {
+  useOverscrollNavigation(editorPaneEl, {
     onOverscrollUp: canNavigatePrev ? onNavigatePrev : undefined,
     onOverscrollDown: canNavigateNext ? onNavigateNext : undefined,
   });
@@ -169,7 +170,7 @@ export function DayViewLayout({
         </button>
       )}
 
-      <div className={styles.editorPane}>
+      <div className={styles.editorPane} ref={setEditorPaneEl}>
         {selectedDate ? (
           <ErrorBoundary
             title="Note editor crashed"
