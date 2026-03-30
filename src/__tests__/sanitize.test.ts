@@ -59,10 +59,6 @@ describe("sanitizeHtml", () => {
       expect(sanitizeHtml("<img>")).toBe("<img>");
     });
 
-    it("allows audio tags", () => {
-      expect(sanitizeHtml("<audio></audio>")).toBe("<audio></audio>");
-    });
-
     it("allows anchor tags", () => {
       expect(sanitizeHtml("<a>link</a>")).toBe("<a>link</a>");
     });
@@ -72,12 +68,6 @@ describe("sanitizeHtml", () => {
     it("allows data-image-id on img", () => {
       expect(sanitizeHtml('<img data-image-id="abc123">')).toBe(
         '<img data-image-id="abc123">',
-      );
-    });
-
-    it("allows data-audio-id on audio", () => {
-      expect(sanitizeHtml('<audio data-audio-id="abc123"></audio>')).toBe(
-        '<audio data-audio-id="abc123"></audio>',
       );
     });
 
@@ -231,14 +221,5 @@ describe("isContentEmpty", () => {
 
   it("returns true for empty content with only non-img elements", () => {
     expect(isContentEmpty("<p><br></p>")).toBe(true);
-  });
-
-  it("returns false for content with audio", () => {
-    expect(isContentEmpty('<audio data-audio-id="123"></audio>')).toBe(false);
-    expect(isContentEmpty('<div><audio data-audio-id="123"></audio></div>')).toBe(false);
-  });
-
-  it("returns false for audio-only content (no text, no images)", () => {
-    expect(isContentEmpty('<br><audio data-audio-id="abc"></audio><br>')).toBe(false);
   });
 });

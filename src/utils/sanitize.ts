@@ -28,11 +28,9 @@ const SANITIZE_CONFIG = {
     "h5",
     "h6",
     "hr",
-    "audio",
     "blockquote",
   ],
   ALLOWED_ATTR: [
-    "data-audio-id",
     "data-image-id",
     "data-timestamp",
     "data-label",
@@ -77,9 +75,8 @@ export function isContentEmpty(html: string): boolean {
   temp.innerHTML = html;
   const hasText = (temp.textContent ?? "").trim().length > 0;
   const hasImages = temp.querySelector("img") !== null;
-  const hasAudio = temp.querySelector("[data-audio-id]") !== null;
 
-  return !hasText && !hasImages && !hasAudio;
+  return !hasText && !hasImages;
 }
 
 /**

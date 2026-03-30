@@ -33,7 +33,6 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "turndown": "^7.2.2",
-    "wavesurfer.js": "^7.12.5",
     "zustand": "^5.0.11"
   },
   "devDependencies": {
