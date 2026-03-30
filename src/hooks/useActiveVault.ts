@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { UseAuthReturn } from "./useAuth";
 import { useLocalVault } from "./useLocalVault";
 import { useVault } from "./useVault";
 import { AppMode } from "./useAppMode";
+import { AuthState } from "../types";
 import { useServiceContext } from "../contexts/serviceContext";
 import { useVaultMachine } from "./useVaultMachine";
 import { handleCloudAccountSwitch } from "../storage/accountSwitch";
@@ -29,8 +30,8 @@ export interface UseActiveVaultReturn {
   isVaultUnlocked: boolean;
   vaultError: string | null;
   handleLocalUnlock: (password: string) => Promise<boolean>;
-  handleSignIn: (email: string, password: string) => Promise<void>;
-  handleSignUp: (email: string, password: string) => Promise<void>;
+  handleSignIn: (email: string, password: string) => void;
+  handleSignUp: (email: string, password: string) => void;
   handleSignOut: () => Promise<void>;
   handleCloudVaultUnlock: (password: string) => void;
   clearVaultError: () => void;
@@ -127,26 +128,38 @@ export function useActiveVault({
     [localVault],
   );
 
+  const pendingPasswordRef = useRef<string | null>(null);
+
+  // Set authPassword + switch to Cloud only after auth actually succeeds
+  useEffect(() => {
+    if (auth.authState === AuthState.SignedIn && pendingPasswordRef.current) {
+      setAuthPassword(pendingPasswordRef.current);
+      setMode(AppMode.Cloud);
+      pendingPasswordRef.current = null;
+    } else if (
+      auth.authState === AuthState.SignedOut &&
+      !auth.isBusy &&
+      pendingPasswordRef.current
+    ) {
+      // Auth failed — clear pending password
+      pendingPasswordRef.current = null;
+    }
+  }, [auth.authState, auth.isBusy, setMode]);
+
   const handleSignIn = useCallback(
-    async (email: string, password: string) => {
-      const result = await auth.signIn(email, password);
-      if (result.success && result.password) {
-        setAuthPassword(result.password);
-        setMode(AppMode.Cloud);
-      }
+    (email: string, password: string) => {
+      pendingPasswordRef.current = password;
+      auth.signIn(email, password);
     },
-    [auth, setMode],
+    [auth],
   );
 
   const handleSignUp = useCallback(
-    async (email: string, password: string) => {
-      const result = await auth.signUp(email, password);
-      if (result.success && result.password) {
-        setAuthPassword(result.password);
-        setMode(AppMode.Cloud);
-      }
+    (email: string, password: string) => {
+      pendingPasswordRef.current = password;
+      auth.signUp(email, password);
     },
-    [auth, setMode],
+    [auth],
   );
 
   const handleSignOut = useCallback(async () => {

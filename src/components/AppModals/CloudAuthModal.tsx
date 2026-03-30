@@ -11,8 +11,8 @@ interface CloudAuthModalProps {
   error: string | null;
   localPassword: string | null;
   onDismiss: () => void;
-  onSignIn: (email: string, password: string) => Promise<void>;
-  onSignUp: (email: string, password: string) => Promise<void>;
+  onSignIn: (email: string, password: string) => void;
+  onSignUp: (email: string, password: string) => void;
   onResetPassword: (email: string) => void;
   onVaultUnlock: (password: string) => void;
 }
