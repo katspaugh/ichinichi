@@ -115,6 +115,8 @@
 
   .calendar[data-month-view="true"] {
     padding-top: 64px;
+    height: 100dvh;
+    overflow: hidden;
   }
 
   .yearMonth {
