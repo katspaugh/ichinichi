@@ -645,6 +645,6 @@
 
   .content {
     flex: 1;
-    min-height: 50vh;
+    min-height: 0;
   }
 }
