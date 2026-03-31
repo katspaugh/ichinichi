@@ -152,6 +152,59 @@ export async function unlockCloudVault(options: {
   };
 }
 
+export async function rewrapCloudKeyring(options: {
+  supabase: SupabaseClient;
+  userId: string;
+  newPassword: string;
+  keyring: Map<string, CryptoKey>;
+  primaryKeyId: string | null;
+}): Promise<void> {
+  const { supabase, userId, newPassword, keyring, primaryKeyId } = options;
+
+  for (const [keyId, key] of keyring.entries()) {
+    const salt = generateSalt();
+    const kek = await deriveKEK(newPassword, salt, DEFAULT_KDF_ITERATIONS);
+    const wrapped = await wrapDEK(key, kek);
+    const entry: UserKeyringEntry = {
+      keyId,
+      wrappedDek: wrapped.data,
+      dekIv: wrapped.iv,
+      kdfSalt: salt,
+      kdfIterations: DEFAULT_KDF_ITERATIONS,
+      version: 1,
+      isPrimary: keyId === primaryKeyId,
+    };
+    await saveUserKeyringEntry(supabase, userId, entry);
+  }
+}
+
+export async function ensureCloudKeyringPassword(options: {
+  supabase: SupabaseClient;
+  userId: string;
+  password: string;
+  keyring: Map<string, CryptoKey>;
+  primaryKeyId: string | null;
+}): Promise<void> {
+  const { supabase, userId, password, keyring, primaryKeyId } = options;
+  if (!keyring.size) return;
+
+  const existingEntries = await fetchUserKeyring(supabase, userId);
+  if (!existingEntries.length) return;
+
+  // Try unwrapping the first entry with the current password
+  const probe = existingEntries[0];
+  try {
+    const kek = await deriveKEK(password, probe.kdfSalt, probe.kdfIterations);
+    await unwrapDEK(probe.wrappedDek, probe.dekIv, kek);
+    // Password works — nothing to do
+    return;
+  } catch {
+    // Password doesn't match stored wrapping — re-wrap all entries
+  }
+
+  await rewrapCloudKeyring({ supabase, userId, newPassword: password, keyring, primaryKeyId });
+}
+
 export function getHasLocalVault(): boolean {
   return hasVaultMeta();
 }

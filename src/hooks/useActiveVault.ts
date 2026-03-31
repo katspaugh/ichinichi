@@ -8,6 +8,8 @@ import { useServiceContext } from "../contexts/serviceContext";
 import { useVaultMachine } from "./useVaultMachine";
 import { handleCloudAccountSwitch } from "../storage/accountSwitch";
 import { closeUnifiedDb } from "../storage/unifiedDb";
+import { ensureCloudKeyringPassword } from "../services/vaultService";
+import { supabase } from "../lib/supabase";
 
 interface UseActiveVaultProps {
   auth: UseAuthReturn;
@@ -82,6 +84,32 @@ export function useActiveVault({
   useEffect(() => {
     void handleCloudAccountSwitch(auth.user?.id ?? null);
   }, [auth.user?.id]);
+
+  // Re-wrap cloud keyring if current password doesn't match stored wrapping
+  // (happens for users who reset their password before the rewrap fix)
+  const hasVerifiedKeyringRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (
+      mode !== AppMode.Cloud ||
+      !auth.user ||
+      !authPassword ||
+      !cloudVault.isReady ||
+      !cloudVault.keyring.size
+    ) {
+      return;
+    }
+    const cacheKey = `${auth.user.id}:${authPassword}`;
+    if (hasVerifiedKeyringRef.current === cacheKey) return;
+    hasVerifiedKeyringRef.current = cacheKey;
+
+    void ensureCloudKeyringPassword({
+      supabase,
+      userId: auth.user.id,
+      password: authPassword,
+      keyring: cloudVault.keyring,
+      primaryKeyId: cloudVault.primaryKeyId,
+    });
+  }, [mode, auth.user, authPassword, cloudVault.isReady, cloudVault.keyring, cloudVault.primaryKeyId]);
 
   const mergedKeyring = useMemo(() => {
     const merged = new Map<string, CryptoKey>();
