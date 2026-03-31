@@ -215,34 +215,6 @@ export async function ensureCloudKeyringPassword(options: {
 }): Promise<void> {
   const { supabase, userId, password, keyring, primaryKeyId } = options;
   if (!keyring.size) return;
-
-  const existingEntries = await fetchUserKeyring(supabase, userId);
-
-  // Check if ALL existing entries can be unwrapped with the current password
-  let allValid = existingEntries.length > 0;
-  for (const entry of existingEntries) {
-    try {
-      const kek = await deriveKEK(password, entry.kdfSalt, entry.kdfIterations);
-      await unwrapDEK(entry.wrappedDek, entry.dekIv, kek);
-    } catch {
-      allValid = false;
-      break;
-    }
-  }
-
-  // Check if we have local keys not yet in the cloud
-  const cloudKeyIds = new Set(existingEntries.map((e) => e.keyId));
-  let hasNewKeys = false;
-  for (const keyId of keyring.keys()) {
-    if (!cloudKeyIds.has(keyId)) {
-      hasNewKeys = true;
-      break;
-    }
-  }
-
-  if (allValid && !hasNewKeys) return;
-
-  // Re-wrap all keys we have with the current password
   await rewrapCloudKeyring({ supabase, userId, newPassword: password, keyring, primaryKeyId });
 }
 
