@@ -1,13 +1,10 @@
 import { useCallback, useState } from "react";
-import { Header } from "../Header";
 import { DayViewLayout } from "./DayViewLayout";
 import { useMonthViewState } from "../../hooks/useMonthViewState";
 import { useNoteKeyboardNav } from "../../hooks/useNoteKeyboardNav";
-import type { SyncStatus } from "../../types";
-import type { PendingOpsSummary } from "../../domain/sync";
 import { parseDate } from "../../utils/date";
 import { SIDEBAR_COLLAPSED_KEY } from "../../utils/constants";
-import styles from "./Calendar.module.css";
+import styles from "./DayView.module.css";
 
 interface DayViewProps {
   date: string;
@@ -16,7 +13,6 @@ interface DayViewProps {
   onDayClick: (date: string) => void;
   onMonthChange: (year: number, month: number) => void;
   onReturnToYear: () => void;
-  // Editor props
   content: string;
   onChange: (content: string) => void;
   hasEdits: boolean;
@@ -27,14 +23,6 @@ interface DayViewProps {
   isSoftDeleted?: boolean;
   onRestore?: () => void;
   noteError?: { type: string; message: string } | null;
-  // Sync props
-  syncStatus?: SyncStatus;
-  syncError?: string | null;
-  pendingOps?: PendingOpsSummary;
-  onMenuClick?: () => void;
-  onSearchClick?: () => void;
-  onSignIn?: () => void;
-  onSyncClick?: () => void;
   now?: Date;
   weekStartVersion?: number;
 }
@@ -56,13 +44,6 @@ export function DayView({
   isSoftDeleted,
   onRestore,
   noteError,
-  syncStatus,
-  syncError,
-  pendingOps,
-  onMenuClick,
-  onSearchClick,
-  onSignIn,
-  onSyncClick,
   now,
   weekStartVersion,
 }: DayViewProps) {
@@ -112,22 +93,9 @@ export function DayView({
 
   return (
     <div
-      className={styles.calendar}
-      data-month-view="true"
+      className={styles.root}
       data-week-start-version={weekStartVersion}
     >
-      <Header
-        hideNavOnMobile
-        onLogoClick={onReturnToYear}
-        syncStatus={syncStatus}
-        syncError={syncError}
-        pendingOps={pendingOps}
-        isSaving={isSaving}
-        onMenuClick={onMenuClick}
-        onSearchClick={onSearchClick}
-        onSignIn={onSignIn}
-        onSyncClick={onSyncClick}
-      />
       <DayViewLayout
         year={year}
         month={month}

@@ -2,10 +2,11 @@
   padding: var(--spacing-md);
   max-width: 1600px;
   margin: 0 auto;
-  height: 100vh;
-  min-height: 800px;
+  flex: 1;
   display: flex;
   flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .year {
@@ -16,25 +17,6 @@
   text-align: center;
 }
 
-.yearMonth {
-  font-size: var(--font-size-2xl);
-  font-weight: var(--font-weight-semibold);
-  line-height: 1;
-  min-width: 200px;
-  text-align: center;
-  background: transparent;
-  border: none;
-  color: var(--color-text);
-  cursor: pointer;
-  padding: var(--spacing-xs) var(--spacing-sm);
-  border-radius: var(--radius-sm);
-  transition: background-color 0.2s;
-}
-
-.yearMonth:hover {
-  background-color: var(--color-surface);
-}
-
 .grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -42,15 +24,6 @@
   flex: 1;
   align-content: start;
 }
-
-.grid[data-month-view="true"] {
-  grid-template-columns: 1fr;
-  place-items: center;
-  max-width: 800px;
-  margin: 0 auto;
-  width: 100%;
-}
-
 
 .navButton {
   display: flex;
@@ -99,29 +72,15 @@
 
 @media (max-width: 768px) {
   .calendar {
-    height: auto;
-    min-height: 0;
-    overflow: visible;
     padding-bottom: var(--spacing-md);
   }
 
-  :global(html[data-scroll-snap]) {
+  .calendar[data-scroll-snap] {
     scroll-snap-type: y mandatory;
   }
 
   .grid > * {
     scroll-snap-align: start;
-  }
-
-  .calendar[data-month-view="true"] {
-    padding-top: 64px;
-    height: 100dvh;
-    overflow: hidden;
-  }
-
-  .yearMonth {
-    font-size: var(--font-size-base);
-    min-width: auto;
   }
 }
 
@@ -135,43 +94,16 @@
     min-width: 100px;
   }
 
-  .yearMonth {
-    font-size: var(--font-size-xl);
-    min-width: 180px;
-  }
-
   .grid {
     grid-template-rows: repeat(3, 1fr);
     gap: var(--spacing-md);
     overflow: hidden;
   }
-
-  .grid[data-month-view="true"] {
-    grid-template-rows: 1fr;
-    max-width: 1000px;
-    align-content: center;
-  }
 }
-
 
 /* Desktop PWA: window title bar provides enough top spacing */
 @media (display-mode: standalone) and (min-width: 769px) {
   .calendar {
     padding-top: 0;
   }
-}
-
-/* Month view with split layout (desktop) */
-@media (min-width: 769px) {
-  .calendar[data-month-view="true"] {
-    height: 100vh;
-    min-height: 800px;
-    overflow: hidden;
-  }
-}
-
-.calendar[data-month-view="true"] .grid {
-  grid-template-columns: 1fr;
-  max-width: none;
-  flex: none;
 }

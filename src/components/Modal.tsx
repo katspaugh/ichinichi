@@ -1,6 +1,5 @@
 import { useEffect, useCallback, type ReactNode } from "react";
 import { Button } from "./Button";
-import { useVisualViewport } from "../hooks/useVisualViewport";
 import styles from "./Modal.module.css";
 
 interface ModalProps {
@@ -22,8 +21,6 @@ export function Modal({
   variant = "default",
   className,
 }: ModalProps) {
-  useVisualViewport(isOpen);
-
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (!isDismissable) return;

@@ -172,7 +172,7 @@
   outline: none;
   min-height: 100%;
   padding-top: 0;
-  padding-bottom: 40vh;
+  padding-bottom: max(40vh, var(--keyboard-inset-bottom, 0px));
   position: relative;
 }
 
@@ -496,30 +496,19 @@
 
 @media (min-width: 769px) {
   .header {
-    position: fixed;
-    top: var(--spacing-md);
-    left: calc(
-      var(--spacing-md) + var(--sidebar-width, 30%) +
-      var(--spacing-md) + var(--spacing-xl)
-    );
-    right: calc(var(--spacing-md) + var(--spacing-xl));
-    margin: 3px var(--header-margin, 0) 0;
+    position: sticky;
+    top: 0;
     z-index: 5;
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
   }
 }
 
 /* Desktop PWA: window title bar provides enough top spacing */
 @media (display-mode: standalone) and (min-width: 769px) {
-  .header {
-    top: 0;
-  }
-
   .editor {
     min-height: 0;
-  }
-
-  .body {
-    padding-top: var(--spacing-md);
   }
 
   .headerTitle {
@@ -554,6 +543,5 @@
 
   .content {
     flex: 1;
-    min-height: 50vh;
   }
 }

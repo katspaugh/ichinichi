@@ -52,7 +52,6 @@ export function AppBootstrap({ shouldHydrate, year, now }: AppBootstrapProps) {
       <Calendar
         year={year}
         hasNote={() => false}
-        onYearChange={() => {}}
         now={now}
       />
     );
