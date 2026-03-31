@@ -365,15 +365,9 @@ describe("ensureCloudKeyringPassword", () => {
     mockSaveUserKeyringEntry.mockReset();
   });
 
-  it("re-wraps when stored entries use a different password", async () => {
+  it("wraps all keyring entries with the current password", async () => {
     const dek = await generateDEK();
     const keyId = await computeKeyId(dek);
-    const oldPassword = "old-password";
-    const newPassword = "new-password";
-
-    // Cloud has entry wrapped with old password
-    const oldEntry = await createKeyringEntry(dek, oldPassword, true);
-    mockFetchUserKeyring.mockResolvedValue([oldEntry]);
     mockSaveUserKeyringEntry.mockResolvedValue();
 
     const keyring = new Map<string, CryptoKey>([[keyId, dek]]);
@@ -381,12 +375,11 @@ describe("ensureCloudKeyringPassword", () => {
     await ensureCloudKeyringPassword({
       supabase: createMockSupabase() as never,
       userId: "user-1",
-      password: newPassword,
+      password: "new-password",
       keyring,
       primaryKeyId: keyId,
     });
 
-    // Should have re-wrapped
     expect(mockSaveUserKeyringEntry).toHaveBeenCalledTimes(1);
     const savedEntry = mockSaveUserKeyringEntry.mock.calls[0][2];
     expect(savedEntry.keyId).toBe(keyId);
@@ -396,7 +389,7 @@ describe("ensureCloudKeyringPassword", () => {
     const result = await unlockCloudVault({
       supabase: createMockSupabase() as never,
       userId: "user-1",
-      password: newPassword,
+      password: "new-password",
       localDek: null,
       localKeyring: new Map(),
     });
@@ -405,51 +398,40 @@ describe("ensureCloudKeyringPassword", () => {
     expect(await keysEqual(result.vaultKey!, dek)).toBe(true);
   });
 
-  it("skips re-wrap when password already matches", async () => {
-    const dek = await generateDEK();
-    const keyId = await computeKeyId(dek);
-    const password = "same-password";
-
-    const entry = await createKeyringEntry(dek, password, true);
-    mockFetchUserKeyring.mockResolvedValue([entry]);
+  it("wraps multiple keys", async () => {
+    const dek1 = await generateDEK();
+    const dek2 = await generateDEK();
+    const keyId1 = await computeKeyId(dek1);
+    const keyId2 = await computeKeyId(dek2);
     mockSaveUserKeyringEntry.mockResolvedValue();
 
-    const keyring = new Map<string, CryptoKey>([[keyId, dek]]);
-
-    await ensureCloudKeyringPassword({
-      supabase: createMockSupabase() as never,
-      userId: "user-1",
-      password,
-      keyring,
-      primaryKeyId: keyId,
-    });
-
-    // Should NOT have re-wrapped
-    expect(mockSaveUserKeyringEntry).not.toHaveBeenCalled();
-  });
-
-  it("skips when no cloud entries exist", async () => {
-    const dek = await generateDEK();
-    const keyId = await computeKeyId(dek);
-
-    mockFetchUserKeyring.mockResolvedValue([]);
-    mockSaveUserKeyringEntry.mockResolvedValue();
-
-    const keyring = new Map<string, CryptoKey>([[keyId, dek]]);
+    const keyring = new Map<string, CryptoKey>([
+      [keyId1, dek1],
+      [keyId2, dek2],
+    ]);
 
     await ensureCloudKeyringPassword({
       supabase: createMockSupabase() as never,
       userId: "user-1",
       password: "any-password",
       keyring,
-      primaryKeyId: keyId,
+      primaryKeyId: keyId1,
     });
 
-    expect(mockSaveUserKeyringEntry).not.toHaveBeenCalled();
+    expect(mockSaveUserKeyringEntry).toHaveBeenCalledTimes(2);
+    expect(mockSaveUserKeyringEntry).toHaveBeenCalledWith(
+      expect.anything(),
+      "user-1",
+      expect.objectContaining({ keyId: keyId1, isPrimary: true }),
+    );
+    expect(mockSaveUserKeyringEntry).toHaveBeenCalledWith(
+      expect.anything(),
+      "user-1",
+      expect.objectContaining({ keyId: keyId2, isPrimary: false }),
+    );
   });
 
   it("skips when keyring is empty", async () => {
-    mockFetchUserKeyring.mockResolvedValue([]);
 
     await ensureCloudKeyringPassword({
       supabase: createMockSupabase() as never,
@@ -463,6 +445,7 @@ describe("ensureCloudKeyringPassword", () => {
     expect(mockFetchUserKeyring).not.toHaveBeenCalled();
     expect(mockSaveUserKeyringEntry).not.toHaveBeenCalled();
   });
+
 });
 
 describe("bootstrapLocalVault", () => {

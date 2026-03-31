@@ -215,21 +215,6 @@ export async function ensureCloudKeyringPassword(options: {
 }): Promise<void> {
   const { supabase, userId, password, keyring, primaryKeyId } = options;
   if (!keyring.size) return;
-
-  const existingEntries = await fetchUserKeyring(supabase, userId);
-  if (!existingEntries.length) return;
-
-  // Try unwrapping the first entry with the current password
-  const probe = existingEntries[0];
-  try {
-    const kek = await deriveKEK(password, probe.kdfSalt, probe.kdfIterations);
-    await unwrapDEK(probe.wrappedDek, probe.dekIv, kek);
-    // Password works — nothing to do
-    return;
-  } catch {
-    // Password doesn't match stored wrapping — re-wrap all entries
-  }
-
   await rewrapCloudKeyring({ supabase, userId, newPassword: password, keyring, primaryKeyId });
 }
 

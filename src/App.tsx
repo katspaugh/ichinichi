@@ -154,18 +154,27 @@ function App() {
   const handleUpdatePassword = useCallback(
     async (password: string) => {
       const result = await auth.updatePassword(password);
-      if (result.success && auth.user && activeVault.cloudVault.keyring.size) {
-        await rewrapCloudKeyring({
-          supabase,
-          userId: auth.user.id,
-          newPassword: password,
-          keyring: activeVault.cloudVault.keyring,
-          primaryKeyId: activeVault.cloudVault.primaryKeyId,
-        });
+      if (result.success && auth.user && activeVault.keyring.size) {
+        // Use the full merged keyring (minus synthetic "legacy" alias)
+        const keysToSync = new Map<string, CryptoKey>();
+        for (const [keyId, key] of activeVault.keyring.entries()) {
+          if (keyId !== "legacy") {
+            keysToSync.set(keyId, key);
+          }
+        }
+        if (keysToSync.size) {
+          await rewrapCloudKeyring({
+            supabase,
+            userId: auth.user.id,
+            newPassword: password,
+            keyring: keysToSync,
+            primaryKeyId: activeVault.activeKeyId,
+          });
+        }
       }
       return result;
     },
-    [auth, activeVault.cloudVault.keyring, activeVault.cloudVault.primaryKeyId],
+    [auth, activeVault.keyring, activeVault.activeKeyId],
   );
 
   const resetPasswordHandler =
