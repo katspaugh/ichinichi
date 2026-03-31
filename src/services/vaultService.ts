@@ -152,6 +152,32 @@ export async function unlockCloudVault(options: {
   };
 }
 
+export async function rewrapCloudKeyring(options: {
+  supabase: SupabaseClient;
+  userId: string;
+  newPassword: string;
+  keyring: Map<string, CryptoKey>;
+  primaryKeyId: string | null;
+}): Promise<void> {
+  const { supabase, userId, newPassword, keyring, primaryKeyId } = options;
+
+  for (const [keyId, key] of keyring.entries()) {
+    const salt = generateSalt();
+    const kek = await deriveKEK(newPassword, salt, DEFAULT_KDF_ITERATIONS);
+    const wrapped = await wrapDEK(key, kek);
+    const entry: UserKeyringEntry = {
+      keyId,
+      wrappedDek: wrapped.data,
+      dekIv: wrapped.iv,
+      kdfSalt: salt,
+      kdfIterations: DEFAULT_KDF_ITERATIONS,
+      version: 1,
+      isPrimary: keyId === primaryKeyId,
+    };
+    await saveUserKeyringEntry(supabase, userId, entry);
+  }
+}
+
 export function getHasLocalVault(): boolean {
   return hasVaultMeta();
 }

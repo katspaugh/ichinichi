@@ -2,6 +2,7 @@
 import type { MockedFunction } from "vitest";
 import {
   unlockCloudVault,
+  rewrapCloudKeyring,
   bootstrapLocalVault,
   unlockLocalVault,
   tryDeviceUnlockCloudKey,
@@ -244,6 +245,69 @@ describe("unlockCloudVault", () => {
         localKeyring: new Map(),
       }),
     ).rejects.toThrow();
+  });
+});
+
+describe("rewrapCloudKeyring", () => {
+  vi.setConfig({ testTimeout: 30000 });
+
+  beforeEach(async () => {
+    localStorage.clear();
+    await clearVaultDb();
+    mockFetchUserKeyring.mockReset();
+    mockSaveUserKeyringEntry.mockReset();
+  });
+
+  it("re-wraps keyring with new password so it can be unlocked", async () => {
+    const dek = await generateDEK();
+    const keyId = await computeKeyId(dek);
+    const oldPassword = "old-password";
+    const newPassword = "new-password";
+
+    // Initial keyring wrapped with old password
+    const oldEntry = await createKeyringEntry(dek, oldPassword, true);
+    mockFetchUserKeyring.mockResolvedValue([oldEntry]);
+    mockSaveUserKeyringEntry.mockResolvedValue();
+
+    // Unlock with old password to get keyring
+    const unlocked = await unlockCloudVault({
+      supabase: createMockSupabase() as never,
+      userId: "user-1",
+      password: oldPassword,
+      localDek: null,
+      localKeyring: new Map(),
+    });
+
+    expect(unlocked.keyring.size).toBe(1);
+
+    // Re-wrap with new password
+    await rewrapCloudKeyring({
+      supabase: createMockSupabase() as never,
+      userId: "user-1",
+      newPassword,
+      keyring: unlocked.keyring,
+      primaryKeyId: unlocked.primaryKeyId,
+    });
+
+    // saveUserKeyringEntry should have been called with re-wrapped entry
+    const rewrapCall = mockSaveUserKeyringEntry.mock.calls.find(
+      (call) => call[2].keyId === keyId && call[2].kdfSalt !== oldEntry.kdfSalt,
+    );
+    expect(rewrapCall).toBeDefined();
+    const rewrappedEntry = rewrapCall![2];
+
+    // Verify new password can unwrap the re-wrapped entry
+    mockFetchUserKeyring.mockResolvedValue([rewrappedEntry]);
+    const result = await unlockCloudVault({
+      supabase: createMockSupabase() as never,
+      userId: "user-1",
+      password: newPassword,
+      localDek: null,
+      localKeyring: new Map(),
+    });
+
+    expect(result.vaultKey).not.toBeNull();
+    expect(await keysEqual(result.vaultKey!, dek)).toBe(true);
   });
 });
 
