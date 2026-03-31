@@ -53,12 +53,40 @@ export async function unlockCloudVault(options: {
   let dek: CryptoKey | null = null;
 
   if (existingKeyrings.length && !nextKeyring.size) {
+    let passwordUnwrapFailed = false;
+
     for (const entry of existingKeyrings) {
-      const kek = await deriveKEK(password, entry.kdfSalt, entry.kdfIterations);
-      const unwrapped = await unwrapDEK(entry.wrappedDek, entry.dekIv, kek);
-      nextKeyring.set(entry.keyId, unwrapped);
-      if (entry.isPrimary && !nextPrimaryId) {
-        nextPrimaryId = entry.keyId;
+      try {
+        const kek = await deriveKEK(password, entry.kdfSalt, entry.kdfIterations);
+        const unwrapped = await unwrapDEK(entry.wrappedDek, entry.dekIv, kek);
+        nextKeyring.set(entry.keyId, unwrapped);
+        if (entry.isPrimary && !nextPrimaryId) {
+          nextPrimaryId = entry.keyId;
+        }
+      } catch {
+        passwordUnwrapFailed = true;
+      }
+    }
+
+    // Password doesn't match stored wrapping (e.g. password was reset
+    // before the rewrap fix). Fall back to device-wrapped DEK if available.
+    if (!nextKeyring.size && passwordUnwrapFailed) {
+      const deviceDek = await tryUnlockWithDeviceDEK();
+      if (deviceDek) {
+        const keyId = await computeKeyId(deviceDek);
+        nextKeyring.set(keyId, deviceDek);
+        nextPrimaryId = keyId;
+
+        // Re-wrap with current password so other devices can unlock
+        await rewrapCloudKeyring({
+          supabase,
+          userId,
+          newPassword: password,
+          keyring: nextKeyring,
+          primaryKeyId: nextPrimaryId,
+        });
+      } else {
+        throw new Error("Unable to unlock. Check your password and try again.");
       }
     }
   }

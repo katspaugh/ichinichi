@@ -20,6 +20,7 @@ import {
   generateSalt,
   DEFAULT_KDF_ITERATIONS,
   closeVaultDb,
+  storeDeviceWrappedDEK,
 } from "../storage/vault";
 import { computeKeyId } from "../storage/keyId";
 
@@ -232,7 +233,49 @@ describe("unlockCloudVault", () => {
     expect(mockSaveUserKeyringEntry).toHaveBeenCalledTimes(2);
   });
 
-  it("throws when password is wrong", async () => {
+  it("falls back to device DEK when password is wrong and re-wraps", async () => {
+    const existingDek = await generateDEK();
+    const entry = await createKeyringEntry(existingDek, "old-password", true);
+    mockFetchUserKeyring.mockResolvedValue([entry]);
+    mockSaveUserKeyringEntry.mockResolvedValue();
+
+    // Store the DEK as device-wrapped (simulates original device)
+    await storeDeviceWrappedDEK(existingDek);
+
+    const result = await unlockCloudVault({
+      supabase: createMockSupabase() as never,
+      userId: "user-1",
+      password: "new-password",
+      localDek: null,
+      localKeyring: new Map(),
+    });
+
+    // Should succeed via device key fallback
+    expect(result.vaultKey).not.toBeNull();
+    expect(await keysEqual(result.vaultKey!, existingDek)).toBe(true);
+
+    // Should have re-wrapped with new password
+    expect(mockSaveUserKeyringEntry).toHaveBeenCalled();
+    const rewrapCall = mockSaveUserKeyringEntry.mock.calls.find(
+      (call) => call[2].kdfSalt !== entry.kdfSalt,
+    );
+    expect(rewrapCall).toBeDefined();
+    const rewrappedEntry = rewrapCall![2];
+
+    // Verify new password can now unlock
+    mockFetchUserKeyring.mockResolvedValue([rewrappedEntry]);
+    const secondResult = await unlockCloudVault({
+      supabase: createMockSupabase() as never,
+      userId: "user-1",
+      password: "new-password",
+      localDek: null,
+      localKeyring: new Map(),
+    });
+    expect(secondResult.vaultKey).not.toBeNull();
+    expect(await keysEqual(secondResult.vaultKey!, existingDek)).toBe(true);
+  });
+
+  it("throws when password is wrong and no device DEK available", async () => {
     const existingDek = await generateDEK();
     const entry = await createKeyringEntry(existingDek, "correct-password", true);
     mockFetchUserKeyring.mockResolvedValue([entry]);
