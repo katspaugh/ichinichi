@@ -9,7 +9,7 @@
 
 @media (max-width: 768px) {
   .root {
-    padding: 0 var(--spacing-md);
+    padding: 0;
   }
 }
 
