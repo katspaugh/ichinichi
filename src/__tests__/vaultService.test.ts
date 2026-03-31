@@ -428,7 +428,7 @@ describe("ensureCloudKeyringPassword", () => {
     expect(mockSaveUserKeyringEntry).not.toHaveBeenCalled();
   });
 
-  it("skips when no cloud entries exist", async () => {
+  it("pushes local keys not yet in cloud", async () => {
     const dek = await generateDEK();
     const keyId = await computeKeyId(dek);
 
@@ -445,7 +445,13 @@ describe("ensureCloudKeyringPassword", () => {
       primaryKeyId: keyId,
     });
 
-    expect(mockSaveUserKeyringEntry).not.toHaveBeenCalled();
+    // Should push the local key to cloud
+    expect(mockSaveUserKeyringEntry).toHaveBeenCalledTimes(1);
+    expect(mockSaveUserKeyringEntry).toHaveBeenCalledWith(
+      expect.anything(),
+      "user-1",
+      expect.objectContaining({ keyId, isPrimary: true }),
+    );
   });
 
   it("skips when keyring is empty", async () => {

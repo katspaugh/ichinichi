@@ -85,32 +85,6 @@ export function useActiveVault({
     void handleCloudAccountSwitch(auth.user?.id ?? null);
   }, [auth.user?.id]);
 
-  // Re-wrap cloud keyring if current password doesn't match stored wrapping
-  // (happens for users who reset their password before the rewrap fix)
-  const hasVerifiedKeyringRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (
-      mode !== AppMode.Cloud ||
-      !auth.user ||
-      !authPassword ||
-      !cloudVault.isReady ||
-      !cloudVault.keyring.size
-    ) {
-      return;
-    }
-    const cacheKey = `${auth.user.id}:${authPassword}`;
-    if (hasVerifiedKeyringRef.current === cacheKey) return;
-    hasVerifiedKeyringRef.current = cacheKey;
-
-    void ensureCloudKeyringPassword({
-      supabase,
-      userId: auth.user.id,
-      password: authPassword,
-      keyring: cloudVault.keyring,
-      primaryKeyId: cloudVault.primaryKeyId,
-    });
-  }, [mode, auth.user, authPassword, cloudVault.isReady, cloudVault.keyring, cloudVault.primaryKeyId]);
-
   const mergedKeyring = useMemo(() => {
     const merged = new Map<string, CryptoKey>();
     state.context.localKeyring.forEach((value, key) => merged.set(key, value));
@@ -136,6 +110,41 @@ export function useActiveVault({
   const vaultKey = activeKeyId
     ? (mergedKeyring.get(activeKeyId) ?? null)
     : null;
+
+  // Sync all available keys to cloud keyring when password is available.
+  // Covers: stale wrapping after password reset, local keys not yet in cloud.
+  const hasSyncedKeyringRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (
+      mode !== AppMode.Cloud ||
+      !auth.user ||
+      !authPassword ||
+      !cloudVault.isReady ||
+      !mergedKeyring.size
+    ) {
+      return;
+    }
+    const cacheKey = `${auth.user.id}:${authPassword}`;
+    if (hasSyncedKeyringRef.current === cacheKey) return;
+    hasSyncedKeyringRef.current = cacheKey;
+
+    // Filter out "legacy" — it's a synthetic alias, not a real keyId
+    const keysToSync = new Map<string, CryptoKey>();
+    for (const [keyId, key] of mergedKeyring.entries()) {
+      if (keyId !== "legacy") {
+        keysToSync.set(keyId, key);
+      }
+    }
+    if (!keysToSync.size) return;
+
+    void ensureCloudKeyringPassword({
+      supabase,
+      userId: auth.user.id,
+      password: authPassword,
+      keyring: keysToSync,
+      primaryKeyId: activeKeyId,
+    });
+  }, [mode, auth.user, authPassword, cloudVault.isReady, mergedKeyring, activeKeyId]);
 
   const isVaultReady =
     mode === AppMode.Cloud ? cloudVault.isReady : localVault.isReady;
