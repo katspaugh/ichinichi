@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { Menu, Search } from "lucide-react";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { SyncIndicator } from "../SyncIndicator";
@@ -54,7 +54,6 @@ function AppLogo({ onClick }: AppLogoProps) {
 
 interface HeaderProps {
   children?: ReactNode;
-  hideNavOnMobile?: boolean;
   syncStatus?: SyncStatus;
   syncError?: string | null;
   pendingOps?: PendingOpsSummary;
@@ -68,7 +67,6 @@ interface HeaderProps {
 
 export function Header({
   children,
-  hideNavOnMobile,
   syncStatus,
   syncError,
   pendingOps,
@@ -79,36 +77,8 @@ export function Header({
   onSignIn,
   onSyncClick,
 }: HeaderProps) {
-  const headerRef = useRef<HTMLElement>(null);
-
-  // Auto-hide header on scroll down, show on scroll up (mobile day view)
-  useEffect(() => {
-    if (!hideNavOnMobile) return;
-
-    let lastScrollY = window.scrollY;
-    const header = headerRef.current;
-    if (!header) return;
-
-    const onScroll = () => {
-      const currentY = window.scrollY;
-      if (currentY > lastScrollY && currentY > 64) {
-        header.style.transform = "translateY(-100%)";
-      } else {
-        header.style.transform = "";
-      }
-      lastScrollY = currentY;
-    };
-
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, [hideNavOnMobile]);
-
   return (
-    <header
-      ref={headerRef}
-      className={styles.header}
-      data-hide-nav-mobile={hideNavOnMobile || undefined}
-    >
+    <header className={styles.header}>
       <div className={styles.headerLeft}>
         <AppLogo onClick={onLogoClick} />
       </div>

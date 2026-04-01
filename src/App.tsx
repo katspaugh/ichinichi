@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Calendar } from "./components/Calendar";
 import { DayView } from "./components/Calendar/DayView";
+import { AppLayout } from "./components/AppLayout";
+import { Header } from "./components/Header";
 import { AppModals } from "./components/AppModals";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { UpdatePrompt } from "./components/UpdatePrompt";
@@ -24,6 +27,7 @@ import { NoteRepositoryProvider } from "./contexts/NoteRepositoryProvider";
 import { RoutingProvider } from "./contexts/RoutingProvider";
 import { WeatherProvider } from "./contexts/WeatherProvider";
 import { getTodayString, parseDate } from "./utils/date";
+import calendarStyles from "./components/Calendar/Calendar.module.css";
 
 function getLatestNoteInMonth(
   noteDates: Set<string>,
@@ -204,10 +208,6 @@ function App() {
   }, []);
 
   useEffect(() => {
-    window.scrollTo(0, 0);
-  }, [isDayView]);
-
-  useEffect(() => {
     if (typeof document === "undefined") return;
     const root = document.documentElement;
     root.dataset.vaultUnlocked = String(activeVault.isVaultUnlocked);
@@ -220,6 +220,26 @@ function App() {
     activeVault.isVaultReady,
     activeVault.authPassword,
   ]);
+
+  const headerNav = isDayView ? null : (
+    <>
+      <button
+        className={calendarStyles.navButton}
+        onClick={() => navigateToYear(year - 1)}
+        aria-label="Previous year"
+      >
+        <ChevronLeft className={calendarStyles.navIcon} />
+      </button>
+      <span className={calendarStyles.year}>{year}</span>
+      <button
+        className={calendarStyles.navButton}
+        onClick={() => navigateToYear(year + 1)}
+        aria-label="Next year"
+      >
+        <ChevronRight className={calendarStyles.navIcon} />
+      </button>
+    </>
+  );
 
   return (
     <RoutingProvider value={routing}>
@@ -234,50 +254,53 @@ function App() {
                 resetLabel="Reload app"
                 onReset={() => window.location.reload()}
               >
-                {isDayView && date ? (
-                  <DayView
-                    weekStartVersion={weekStartVersion}
-                    date={date}
-                    noteDates={notes.noteDates}
-                    hasNote={notes.hasNote}
-                    onDayClick={navigateToDate}
-                    onMonthChange={handleDayViewMonthChange}
-                    onReturnToYear={handleReturnToYear}
-                    content={notes.content}
-                    onChange={notes.setContent}
-                    hasEdits={notes.hasEdits}
-                    isSaving={notes.isSaving}
-                    isDecrypting={notes.isDecrypting}
-                    isContentReady={notes.isContentReady}
-                    isOfflineStub={notes.isOfflineStub}
-                    isSoftDeleted={notes.isSoftDeleted}
-                    onRestore={notes.restoreNote}
-                    noteError={notes.noteError}
-                    syncStatus={canSync ? notes.syncStatus : undefined}
-                    syncError={canSync ? notes.syncError : undefined}
-                    pendingOps={canSync ? notes.pendingOps : undefined}
-                    onMenuClick={handleMenuClick}
-                    onSearchClick={handleSearchClick}
-                    onSignIn={signInHandler}
-                    onSyncClick={canSync ? handleSyncClick : undefined}
-                  />
-                ) : (
-                  <Calendar
-                    weekStartVersion={weekStartVersion}
-                    year={year}
-                    hasNote={notes.hasNote}
-                    onDayClick={navigateToDate}
-                    onYearChange={navigateToYear}
-                    onMonthClick={handleCalendarMonthClick}
-                    syncStatus={canSync ? notes.syncStatus : undefined}
-                    syncError={canSync ? notes.syncError : undefined}
-                    pendingOps={canSync ? notes.pendingOps : undefined}
-                    onMenuClick={handleMenuClick}
-                    onSearchClick={handleSearchClick}
-                    onSignIn={signInHandler}
-                    onSyncClick={canSync ? handleSyncClick : undefined}
-                  />
-                )}
+                <AppLayout
+                  header={
+                    <Header
+                      onLogoClick={isDayView ? handleReturnToYear : undefined}
+                      syncStatus={canSync ? notes.syncStatus : undefined}
+                      syncError={canSync ? notes.syncError : undefined}
+                      pendingOps={canSync ? notes.pendingOps : undefined}
+                      isSaving={notes.isSaving}
+                      onMenuClick={handleMenuClick}
+                      onSearchClick={handleSearchClick}
+                      onSignIn={signInHandler}
+                      onSyncClick={canSync ? handleSyncClick : undefined}
+                    >
+                      {headerNav}
+                    </Header>
+                  }
+                >
+                  {isDayView && date ? (
+                    <DayView
+                      weekStartVersion={weekStartVersion}
+                      date={date}
+                      noteDates={notes.noteDates}
+                      hasNote={notes.hasNote}
+                      onDayClick={navigateToDate}
+                      onMonthChange={handleDayViewMonthChange}
+                      onReturnToYear={handleReturnToYear}
+                      content={notes.content}
+                      onChange={notes.setContent}
+                      hasEdits={notes.hasEdits}
+                      isSaving={notes.isSaving}
+                      isDecrypting={notes.isDecrypting}
+                      isContentReady={notes.isContentReady}
+                      isOfflineStub={notes.isOfflineStub}
+                      isSoftDeleted={notes.isSoftDeleted}
+                      onRestore={notes.restoreNote}
+                      noteError={notes.noteError}
+                    />
+                  ) : (
+                    <Calendar
+                      weekStartVersion={weekStartVersion}
+                      year={year}
+                      hasNote={notes.hasNote}
+                      onDayClick={navigateToDate}
+                      onMonthClick={handleCalendarMonthClick}
+                    />
+                  )}
+                </AppLayout>
 
                 <SearchOverlay
                   open={searchOpen}

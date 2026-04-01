@@ -18,15 +18,8 @@ body {
   line-height: 1.5;
   color: var(--color-text);
   background-color: var(--color-bg);
-  min-height: 100vh;
+  overflow: hidden;
   overscroll-behavior: none;
-}
-
-@media (max-width: 768px) {
-  body:has([data-month-view="true"]) {
-    height: 100dvh;
-    overflow: hidden;
-  }
 }
 
 button {

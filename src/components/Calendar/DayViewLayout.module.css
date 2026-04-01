@@ -92,6 +92,8 @@
   border-radius: var(--radius-lg);
   padding: var(--spacing-lg) var(--spacing-xl);
   min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .expandButton {
@@ -110,13 +112,11 @@
   font-size: var(--font-size-base);
 }
 
-/* Mobile: fullscreen editor, page scrolls */
+/* Mobile: contained scroll in editor pane */
 @media (max-width: 768px) {
   .layout {
     flex: 1;
-    overflow: visible;
-    margin-left: -14px;
-    margin-right: -14px;
+    gap: 0;
   }
 
   .sidebar {
@@ -131,9 +131,9 @@
     flex: 1;
     border: none;
     border-radius: 0;
-    padding: var(--spacing-md) var(--spacing-md);
+    padding: var(--spacing-md);
     padding-bottom: max(var(--spacing-md), var(--keyboard-inset-bottom, 0px));
-    overflow-y: visible;
+    overflow-y: auto;
   }
 }
 
@@ -162,8 +162,6 @@
   .editorPane {
     flex: 1;
     min-width: 0;
-    overflow-x: hidden;
-    overflow-y: auto;
   }
 
   .layout[data-sidebar-collapsed] .editorPane {
