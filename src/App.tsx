@@ -14,6 +14,7 @@ import { AuthErrorModal } from "./components/AppModals/AuthErrorModal";
 import { AuthState } from "./hooks/useAuth";
 import { supabase } from "./lib/supabase";
 import { rewrapCloudKeyring } from "./services/vaultService";
+import { storeDeviceEncryptedPassword } from "./storage/vault";
 import { AppMode } from "./hooks/useAppMode";
 import { usePWA } from "./hooks/usePWA";
 import { useAppController } from "./controllers/useAppController";
@@ -171,6 +172,8 @@ function App() {
             primaryKeyId: activeVault.activeKeyId,
           });
         }
+        // Store new password for session-restore re-wrapping
+        void storeDeviceEncryptedPassword(password);
       }
       return result;
     },
