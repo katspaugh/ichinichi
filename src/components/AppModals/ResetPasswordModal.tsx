@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useCallback, useReducer } from "react";
 import { Modal } from "../Modal";
 import { VaultPanel } from "../VaultPanel";
 import { Button } from "../Button";
@@ -11,37 +11,79 @@ interface ResetPasswordModalProps {
   onDismiss: () => void;
 }
 
+type ResetPasswordPhase = "idle" | "submitting" | "success";
+
+interface ResetPasswordState {
+  phase: ResetPasswordPhase;
+  password: string;
+  confirm: string;
+  mismatch: boolean;
+}
+
+type ResetPasswordEvent =
+  | { type: "SET_PASSWORD"; value: string }
+  | { type: "SET_CONFIRM"; value: string }
+  | { type: "MISMATCH" }
+  | { type: "SUBMIT" }
+  | { type: "SUBMIT_SUCCESS" }
+  | { type: "SUBMIT_DONE" };
+
+function resetPasswordReducer(
+  state: ResetPasswordState,
+  event: ResetPasswordEvent,
+): ResetPasswordState {
+  switch (event.type) {
+    case "SET_PASSWORD":
+      return { ...state, password: event.value };
+    case "SET_CONFIRM":
+      return { ...state, confirm: event.value };
+    case "MISMATCH":
+      return { ...state, mismatch: true };
+    case "SUBMIT":
+      return { ...state, mismatch: false, phase: "submitting" };
+    case "SUBMIT_SUCCESS":
+      return { ...state, phase: "success" };
+    case "SUBMIT_DONE":
+      return { ...state, phase: "idle" };
+  }
+}
+
+const initialState: ResetPasswordState = {
+  phase: "idle",
+  password: "",
+  confirm: "",
+  mismatch: false,
+};
+
 export function ResetPasswordModal({
   isOpen,
   error,
   onSubmit,
   onDismiss,
 }: ResetPasswordModalProps) {
-  const [password, setPassword] = useState("");
-  const [confirm, setConfirm] = useState("");
-  const [isBusy, setIsBusy] = useState(false);
-  const [mismatch, setMismatch] = useState(false);
-  const [success, setSuccess] = useState(false);
+  const [state, dispatch] = useReducer(resetPasswordReducer, initialState);
+
+  const isBusy = state.phase === "submitting";
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
-      if (password !== confirm) {
-        setMismatch(true);
+      if (state.password !== state.confirm) {
+        dispatch({ type: "MISMATCH" });
         return;
       }
-      setMismatch(false);
-      setIsBusy(true);
-      const result = await onSubmit(password);
-      setIsBusy(false);
+      dispatch({ type: "SUBMIT" });
+      const result = await onSubmit(state.password);
       if (result.success) {
-        setSuccess(true);
+        dispatch({ type: "SUBMIT_SUCCESS" });
+      } else {
+        dispatch({ type: "SUBMIT_DONE" });
       }
     },
-    [password, confirm, onSubmit],
+    [state.password, state.confirm, onSubmit],
   );
 
-  if (success) {
+  if (state.phase === "success") {
     return (
       <Modal isOpen={isOpen} onClose={onDismiss}>
         <VaultPanel title="Password updated">
@@ -72,8 +114,10 @@ export function ResetPasswordModal({
             className={styles.input}
             type="password"
             autoComplete="new-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            value={state.password}
+            onChange={(e) =>
+              dispatch({ type: "SET_PASSWORD", value: e.target.value })
+            }
             disabled={isBusy}
             required
             minLength={6}
@@ -87,14 +131,16 @@ export function ResetPasswordModal({
             className={styles.input}
             type="password"
             autoComplete="new-password"
-            value={confirm}
-            onChange={(e) => setConfirm(e.target.value)}
+            value={state.confirm}
+            onChange={(e) =>
+              dispatch({ type: "SET_CONFIRM", value: e.target.value })
+            }
             disabled={isBusy}
             required
             minLength={6}
           />
 
-          {mismatch && (
+          {state.mismatch && (
             <div className={styles.error}>Passwords do not match.</div>
           )}
           {error && <div className={styles.error}>{error}</div>}

@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useCallback, useReducer } from "react";
 import { Button } from "../Button";
 import { VaultPanel } from "../VaultPanel";
 import styles from "../VaultPanel/VaultPanel.module.css";
@@ -12,6 +12,39 @@ interface AuthFormProps {
   defaultPassword?: string | null;
 }
 
+interface AuthFormState {
+  mode: "signin" | "signup";
+  email: string;
+  password: string;
+  resetSent: boolean;
+}
+
+type AuthFormEvent =
+  | { type: "SET_EMAIL"; value: string }
+  | { type: "SET_PASSWORD"; value: string }
+  | { type: "TOGGLE_MODE" }
+  | { type: "RESET_SENT" };
+
+function authFormReducer(
+  state: AuthFormState,
+  event: AuthFormEvent,
+): AuthFormState {
+  switch (event.type) {
+    case "SET_EMAIL":
+      return { ...state, email: event.value };
+    case "SET_PASSWORD":
+      return { ...state, password: event.value };
+    case "TOGGLE_MODE":
+      return {
+        ...state,
+        mode: state.mode === "signin" ? "signup" : "signin",
+        resetSent: false,
+      };
+    case "RESET_SENT":
+      return { ...state, resetSent: true };
+  }
+}
+
 export function AuthForm({
   isBusy,
   error,
@@ -20,13 +53,14 @@ export function AuthForm({
   onResetPassword,
   defaultPassword,
 }: AuthFormProps) {
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState(defaultPassword || "");
+  const [state, dispatch] = useReducer(authFormReducer, {
+    mode: "signin",
+    email: "",
+    password: defaultPassword || "",
+    resetSent: false,
+  });
 
-  const [resetSent, setResetSent] = useState(false);
-
-  const isSignIn = mode === "signin";
+  const isSignIn = state.mode === "signin";
   const title = isSignIn ? "Sign in to Ichinichi" : "Create an account";
   const buttonText = isSignIn ? "Sign in" : "Create account";
   const toggleText = isSignIn
@@ -35,22 +69,18 @@ export function AuthForm({
   const toggleAction = isSignIn ? "Sign up" : "Sign in";
 
   const handleResetPassword = useCallback(() => {
-    if (!email || !onResetPassword) return;
-    onResetPassword(email);
-    setResetSent(true);
-  }, [email, onResetPassword]);
+    if (!state.email || !onResetPassword) return;
+    onResetPassword(state.email);
+    dispatch({ type: "RESET_SENT" });
+  }, [state.email, onResetPassword]);
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     if (isSignIn) {
-      onSignIn(email, password);
+      onSignIn(state.email, state.password);
     } else {
-      onSignUp(email, password);
+      onSignUp(state.email, state.password);
     }
-  };
-
-  const handleToggle = () => {
-    setMode(isSignIn ? "signup" : "signin");
   };
 
   return (
@@ -67,8 +97,10 @@ export function AuthForm({
           className={styles.input}
           type="email"
           autoComplete="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          value={state.email}
+          onChange={(e) =>
+            dispatch({ type: "SET_EMAIL", value: e.target.value })
+          }
           disabled={isBusy}
           required
         />
@@ -81,8 +113,10 @@ export function AuthForm({
           className={styles.input}
           type="password"
           autoComplete={isSignIn ? "current-password" : "new-password"}
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          value={state.password}
+          onChange={(e) =>
+            dispatch({ type: "SET_PASSWORD", value: e.target.value })
+          }
           disabled={isBusy}
           required
           minLength={6}
@@ -90,14 +124,14 @@ export function AuthForm({
 
         {isSignIn && onResetPassword && (
           <p className={styles.note}>
-            {resetSent ? (
+            {state.resetSent ? (
               "Check your email for a reset link."
             ) : (
               <button
                 type="button"
                 className={styles.toggle}
                 onClick={handleResetPassword}
-                disabled={isBusy || !email}
+                disabled={isBusy || !state.email}
               >
                 Forgot password?
               </button>
@@ -122,7 +156,7 @@ export function AuthForm({
         <button
           type="button"
           className={styles.toggle}
-          onClick={handleToggle}
+          onClick={() => dispatch({ type: "TOGGLE_MODE" })}
           disabled={isBusy}
         >
           {toggleAction}

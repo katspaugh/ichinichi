@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useReducer, useRef } from "react";
 import type { NoteRepository } from "../storage/noteRepository";
 import { parseDate } from "../utils/date";
 
@@ -65,13 +65,48 @@ function compareDatesDescending(a: string, b: string): number {
   return db.getTime() - da.getTime();
 }
 
+interface SearchState {
+  results: SearchResult[];
+  isSearching: boolean;
+  progress: SearchProgress | null;
+}
+
+type SearchEvent =
+  | { type: "SEARCH_START" }
+  | { type: "PROGRESS"; progress: SearchProgress }
+  | { type: "COMPLETE"; results: SearchResult[] }
+  | { type: "ABORT" }
+  | { type: "CLEAR" };
+
+function searchReducer(
+  state: SearchState,
+  event: SearchEvent,
+): SearchState {
+  switch (event.type) {
+    case "SEARCH_START":
+      return { ...state, isSearching: true };
+    case "PROGRESS":
+      return { ...state, progress: event.progress };
+    case "COMPLETE":
+      return { results: event.results, isSearching: false, progress: null };
+    case "ABORT":
+      return { ...state, isSearching: false, progress: null };
+    case "CLEAR":
+      return { results: [], isSearching: false, progress: null };
+  }
+}
+
+const initialSearchState: SearchState = {
+  results: [],
+  isSearching: false,
+  progress: null,
+};
+
 export function useNoteSearch(
   repository: NoteRepository | null,
   noteDates: Set<string>,
 ): UseNoteSearchReturn {
-  const [results, setResults] = useState<SearchResult[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [progress, setProgress] = useState<SearchProgress | null>(null);
+  const [state, dispatch] = useReducer(searchReducer, initialSearchState);
 
   const cacheRef = useRef<Map<string, string>>(new Map());
   const cacheSizeRef = useRef(0);
@@ -93,7 +128,7 @@ export function useNoteSearch(
 
       const dates = Array.from(noteDates);
       const total = dates.length;
-      setProgress({ current: 0, total });
+      dispatch({ type: "PROGRESS", progress: { current: 0, total } });
 
       for (let i = 0; i < dates.length; i++) {
         if (signal.aborted) return false;
@@ -102,7 +137,10 @@ export function useNoteSearch(
         if (result.ok && result.value) {
           cacheRef.current.set(date, stripHtml(result.value.content));
         }
-        setProgress({ current: i + 1, total });
+        dispatch({
+          type: "PROGRESS",
+          progress: { current: i + 1, total },
+        });
       }
 
       cacheSizeRef.current = noteDates.size;
@@ -118,17 +156,14 @@ export function useNoteSearch(
       abortRef.current = controller;
 
       if (!query.trim()) {
-        setResults([]);
-        setIsSearching(false);
-        setProgress(null);
+        dispatch({ type: "CLEAR" });
         return;
       }
 
-      setIsSearching(true);
+      dispatch({ type: "SEARCH_START" });
       const cacheReady = await buildCache(controller.signal);
       if (!cacheReady || controller.signal.aborted) {
-        setIsSearching(false);
-        setProgress(null);
+        dispatch({ type: "ABORT" });
         return;
       }
 
@@ -152,9 +187,7 @@ export function useNoteSearch(
       matches.sort((a, b) => compareDatesDescending(a.date, b.date));
 
       if (!controller.signal.aborted) {
-        setResults(matches);
-        setIsSearching(false);
-        setProgress(null);
+        dispatch({ type: "COMPLETE", results: matches });
       }
     },
     [buildCache],
@@ -171,9 +204,7 @@ export function useNoteSearch(
   const clearSearch = useCallback(() => {
     clearTimeout(debounceRef.current);
     abortRef.current?.abort();
-    setResults([]);
-    setIsSearching(false);
-    setProgress(null);
+    dispatch({ type: "CLEAR" });
   }, []);
 
   // Cleanup on unmount
@@ -184,5 +215,11 @@ export function useNoteSearch(
     };
   }, []);
 
-  return { results, isSearching, progress, search, clearSearch };
+  return {
+    results: state.results,
+    isSearching: state.isSearching,
+    progress: state.progress,
+    search,
+    clearSearch,
+  };
 }

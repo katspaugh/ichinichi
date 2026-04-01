@@ -47,10 +47,8 @@ export function useAppModalsController() {
     mode,
     setMode,
     isModeChoiceOpen,
-    pendingModeChoice,
     openModeChoice,
     closeModeChoice,
-    requestModeChoice,
     switchToCloud,
   } = useAppModeContext();
   const {
@@ -95,16 +93,10 @@ export function useAppModalsController() {
       }
       const hasLocalNote = noteDates.size > 0;
       if (mode === AppMode.Local && hasLocalNote) {
-        requestModeChoice();
+        openModeChoice();
       }
     }
-  }, [isDayView, mode, noteDates.size, requestModeChoice, triggerSync]);
-
-  // Open pending mode choice only when not in day view
-  useEffect(() => {
-    if (!pendingModeChoice || isDayView) return;
-    openModeChoice();
-  }, [pendingModeChoice, isDayView, openModeChoice]);
+  }, [isDayView, mode, noteDates.size, openModeChoice, triggerSync]);
 
   useEffect(() => {
     if (mode !== AppMode.Cloud || !isVaultUnlocked) {
