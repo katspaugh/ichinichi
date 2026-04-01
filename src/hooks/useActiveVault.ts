@@ -9,6 +9,11 @@ import { useVaultMachine } from "./useVaultMachine";
 import { handleCloudAccountSwitch } from "../storage/accountSwitch";
 import { closeUnifiedDb } from "../storage/unifiedDb";
 import { ensureCloudKeyringPassword } from "../services/vaultService";
+import {
+  storeDeviceEncryptedPassword,
+  tryGetDeviceEncryptedPassword,
+  clearDeviceEncryptedPassword,
+} from "../storage/vault";
 import { supabase } from "../lib/supabase";
 
 interface UseActiveVaultProps {
@@ -111,20 +116,47 @@ export function useActiveVault({
     ? (mergedKeyring.get(activeKeyId) ?? null)
     : null;
 
+  // On session restore, retrieve device-encrypted password so we can
+  // re-wrap the cloud keyring even without the user typing their password.
+  const [devicePassword, setDevicePassword] = useState<string | null>(null);
+  useEffect(() => {
+    if (
+      mode !== AppMode.Cloud ||
+      !auth.user ||
+      authPassword ||
+      !cloudVault.isReady
+    ) {
+      return;
+    }
+    let cancelled = false;
+    void tryGetDeviceEncryptedPassword().then((pw) => {
+      if (!cancelled && pw) setDevicePassword(pw);
+    });
+    return () => { cancelled = true; };
+  }, [mode, auth.user, authPassword, cloudVault.isReady]);
+
+  // Persist auth password device-encrypted whenever it changes.
+  useEffect(() => {
+    if (authPassword) {
+      void storeDeviceEncryptedPassword(authPassword);
+    }
+  }, [authPassword]);
+
   // Sync all available keys to cloud keyring when password is available.
   // Covers: stale wrapping after password reset, local keys not yet in cloud.
+  const effectivePassword = authPassword ?? devicePassword;
   const hasSyncedKeyringRef = useRef<string | null>(null);
   useEffect(() => {
     if (
       mode !== AppMode.Cloud ||
       !auth.user ||
-      !authPassword ||
+      !effectivePassword ||
       !cloudVault.isReady ||
       !mergedKeyring.size
     ) {
       return;
     }
-    const cacheKey = `${auth.user.id}:${authPassword}`;
+    const cacheKey = `${auth.user.id}:${effectivePassword}`;
     if (hasSyncedKeyringRef.current === cacheKey) return;
     hasSyncedKeyringRef.current = cacheKey;
 
@@ -140,11 +172,11 @@ export function useActiveVault({
     void ensureCloudKeyringPassword({
       supabase,
       userId: auth.user.id,
-      password: authPassword,
+      password: effectivePassword,
       keyring: keysToSync,
       primaryKeyId: activeKeyId,
     });
-  }, [mode, auth.user, authPassword, cloudVault.isReady, mergedKeyring, activeKeyId]);
+  }, [mode, auth.user, effectivePassword, cloudVault.isReady, mergedKeyring, activeKeyId]);
 
   const isVaultReady =
     mode === AppMode.Cloud ? cloudVault.isReady : localVault.isReady;
@@ -202,8 +234,10 @@ export function useActiveVault({
   const handleSignOut = useCallback(async () => {
     await auth.signOut();
     closeUnifiedDb();
+    void clearDeviceEncryptedPassword();
     setMode(AppMode.Local);
     setAuthPassword(null);
+    setDevicePassword(null);
   }, [auth, setMode]);
 
   const handleCloudVaultUnlock = useCallback((password: string) => {

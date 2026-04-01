@@ -2,6 +2,7 @@ import { STORAGE_PREFIX } from "../utils/constants";
 import {
   base64ToBytes,
   bytesToBase64,
+  decodeUtf8,
   encodeUtf8,
   randomBytes,
 } from "./cryptoUtils";
@@ -299,6 +300,115 @@ export async function tryUnlockWithDeviceDEK(): Promise<CryptoKey | null> {
     return await unwrapDEK(wrapped.data, wrapped.iv, deviceKey);
   } catch {
     return null;
+  }
+}
+
+// Device-encrypted auth password for session restore re-wrapping.
+// Same security model as device-wrapped DEK: if attacker has IndexedDB
+// access, they already have the DEK and full note access.
+const AUTH_PW_ENC_KEY_ID = "auth_pw_enc";
+const AUTH_PW_DATA_ID = "auth_pw_data";
+
+async function getAuthEncryptKey(): Promise<CryptoKey | null> {
+  const db = await openDeviceKeyDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readonly");
+    const store = tx.objectStore(STORE_NAME);
+    const request = store.get(AUTH_PW_ENC_KEY_ID);
+    request.onsuccess = () => resolve(request.result ?? null);
+    request.onerror = () => reject(request.error);
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function getOrCreateAuthEncryptKey(): Promise<CryptoKey> {
+  const existing = await getAuthEncryptKey();
+  if (existing) return existing;
+  const key = await crypto.subtle.generateKey(
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"],
+  );
+  const db = await openDeviceKeyDb();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    const store = tx.objectStore(STORE_NAME);
+    store.put(key, AUTH_PW_ENC_KEY_ID);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+  return key;
+}
+
+export async function storeDeviceEncryptedPassword(
+  password: string,
+): Promise<void> {
+  try {
+    const key = await getOrCreateAuthEncryptKey();
+    const iv = randomBytes(WRAP_IV_BYTES);
+    const encrypted = await crypto.subtle.encrypt(
+      { name: "AES-GCM", iv },
+      key,
+      encodeUtf8(password),
+    );
+    const db = await openDeviceKeyDb();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, "readwrite");
+      const store = tx.objectStore(STORE_NAME);
+      store.put(
+        {
+          iv: bytesToBase64(iv),
+          data: bytesToBase64(new Uint8Array(encrypted)),
+        },
+        AUTH_PW_DATA_ID,
+      );
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch {
+    // Device storage unavailable
+  }
+}
+
+export async function tryGetDeviceEncryptedPassword(): Promise<string | null> {
+  try {
+    const key = await getAuthEncryptKey();
+    if (!key) return null;
+    const db = await openDeviceKeyDb();
+    const stored = await new Promise<{ iv: string; data: string } | null>(
+      (resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, "readonly");
+        const store = tx.objectStore(STORE_NAME);
+        const request = store.get(AUTH_PW_DATA_ID);
+        request.onsuccess = () => resolve(request.result ?? null);
+        request.onerror = () => reject(request.error);
+        tx.onerror = () => reject(tx.error);
+      },
+    );
+    if (!stored) return null;
+    const decrypted = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: base64ToBytes(stored.iv) },
+      key,
+      base64ToBytes(stored.data),
+    );
+    return decodeUtf8(new Uint8Array(decrypted));
+  } catch {
+    return null;
+  }
+}
+
+export async function clearDeviceEncryptedPassword(): Promise<void> {
+  try {
+    const db = await openDeviceKeyDb();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, "readwrite");
+      const store = tx.objectStore(STORE_NAME);
+      store.delete(AUTH_PW_DATA_ID);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch {
+    // Ignore errors
   }
 }
 
