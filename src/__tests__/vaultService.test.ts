@@ -21,6 +21,9 @@ import {
   DEFAULT_KDF_ITERATIONS,
   closeVaultDb,
   storeDeviceWrappedDEK,
+  storeDeviceEncryptedPassword,
+  tryGetDeviceEncryptedPassword,
+  clearDeviceEncryptedPassword,
 } from "../storage/vault";
 import { computeKeyId } from "../storage/keyId";
 
@@ -551,5 +554,39 @@ describe("tryDeviceUnlockCloudKey", () => {
   it("returns null when no device DEK stored", async () => {
     const result = await tryDeviceUnlockCloudKey();
     expect(result).toBeNull();
+  });
+});
+
+describe("device-encrypted password", () => {
+  vi.setConfig({ testTimeout: 20000 });
+
+  beforeEach(async () => {
+    localStorage.clear();
+    await clearVaultDb();
+  });
+
+  it("stores and retrieves password", async () => {
+    await storeDeviceEncryptedPassword("my-secret-pw");
+    const retrieved = await tryGetDeviceEncryptedPassword();
+    expect(retrieved).toBe("my-secret-pw");
+  });
+
+  it("returns null when no password stored", async () => {
+    const retrieved = await tryGetDeviceEncryptedPassword();
+    expect(retrieved).toBeNull();
+  });
+
+  it("clears stored password", async () => {
+    await storeDeviceEncryptedPassword("my-secret-pw");
+    await clearDeviceEncryptedPassword();
+    const retrieved = await tryGetDeviceEncryptedPassword();
+    expect(retrieved).toBeNull();
+  });
+
+  it("overwrites previous password", async () => {
+    await storeDeviceEncryptedPassword("old-pw");
+    await storeDeviceEncryptedPassword("new-pw");
+    const retrieved = await tryGetDeviceEncryptedPassword();
+    expect(retrieved).toBe("new-pw");
   });
 });
