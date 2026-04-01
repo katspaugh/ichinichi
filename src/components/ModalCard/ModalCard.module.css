@@ -12,7 +12,7 @@
   padding: var(--spacing-xl);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
-  background: var(--glass-bg);
+  background: var(--modal-glass-bg);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
   box-shadow: var(--glass-shadow), var(--glass-highlight);
