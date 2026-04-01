@@ -13,6 +13,7 @@ import { createCancellableOperation } from "../utils/asyncHelpers";
 import type { SyncError } from "../domain/errors";
 import { connectivity as defaultConnectivity } from "../services/connectivity";
 import type { PendingOpsSource } from "../domain/sync/pendingOpsSource";
+import { reportError } from "../utils/errorReporter";
 import type { ConnectivitySource } from "./noteContentStore";
 
 export interface SyncStoreDeps {
@@ -87,7 +88,8 @@ export function createSyncStore(deps?: SyncStoreDeps) {
       if (!get()._disposed) {
         set({ pendingOps: summary });
       }
-    } catch {
+    } catch (error) {
+      reportError("syncStore.refreshPendingOps", error);
       if (!get()._disposed) {
         set({ pendingOps: initialPendingOps });
       }

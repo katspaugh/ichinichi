@@ -6,6 +6,7 @@ import {
 import { isNoteEmpty, isContentEmpty } from "../utils/sanitize";
 import { connectivity as defaultConnectivity } from "../services/connectivity";
 import type { RepositoryError } from "../domain/errors";
+import { reportError } from "../utils/errorReporter";
 
 export interface ConnectivitySource {
   getOnline(): boolean;
@@ -417,7 +418,8 @@ export function createNoteContentStore(deps?: NoteContentStoreDeps) {
         } else {
           set({ isRefreshing: false, hasRefreshedForDate: date });
         }
-      } catch {
+      } catch (error) {
+        reportError("noteContentStore.refreshFromRemote", error);
         if (gen === _refreshGeneration) {
           set({ isRefreshing: false });
         }
@@ -441,8 +443,8 @@ export function createNoteContentStore(deps?: NoteContentStoreDeps) {
             set({ content, hasEdits: false, error: null });
           }
         }
-      } catch {
-        // Local read failed — not critical, skip
+      } catch (error) {
+        reportError("noteContentStore.reloadFromLocal", error);
       }
     },
 
@@ -475,8 +477,8 @@ export function createNoteContentStore(deps?: NoteContentStoreDeps) {
         if (current.date === date) {
           set({ remoteCacheResult: { date, hasRemote } });
         }
-      } catch {
-        // Local cache check failed — not critical
+      } catch (error) {
+        reportError("noteContentStore.checkRemoteCache", error);
       }
     },
 

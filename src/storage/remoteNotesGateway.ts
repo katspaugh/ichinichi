@@ -6,19 +6,7 @@ import type {
   RemoteNotePayload,
   RemoteNotesGateway,
 } from "../domain/sync/remoteNotesGateway";
-
-interface RemoteNoteRow {
-  id: string;
-  user_id: string;
-  date: string;
-  ciphertext: string;
-  nonce: string;
-  key_id: string;
-  revision: number;
-  updated_at: string;
-  server_updated_at: string;
-  deleted: boolean;
-}
+import { parseRemoteNoteRow, type RemoteNoteRow } from "./parsers";
 
 function mapRemoteRow(row: RemoteNoteRow): RemoteNote {
   return {
@@ -79,7 +67,10 @@ async function fetchRemoteNoteByDate(
       return err(toSyncError(error, "RemoteRejected"));
     }
     if (!data) return ok(null);
-    return ok(mapRemoteRow(data as RemoteNoteRow));
+    const row = parseRemoteNoteRow(data);
+    if (!row)
+      return err({ type: "Unknown", message: "Invalid remote note shape" });
+    return ok(mapRemoteRow(row));
   } catch (error) {
     return err(toSyncError(error));
   }
@@ -105,7 +96,14 @@ async function fetchRemoteNoteDates(
     if (error) {
       return err(toSyncError(error, "RemoteRejected"));
     }
-    return ok((data ?? []).map((row) => String((row as { date: string }).date)));
+    return ok(
+      (data ?? [])
+        .map((row) => {
+          const r = row as Record<string, unknown>;
+          return typeof r?.date === "string" ? r.date : null;
+        })
+        .filter((d): d is string => d !== null),
+    );
   } catch (error) {
     return err(toSyncError(error));
   }
@@ -131,7 +129,8 @@ async function fetchRemoteNotesSince(
     if (error) {
       return err(toSyncError(error, "RemoteRejected"));
     }
-    return ok((data ?? []).map((row) => mapRemoteRow(row as RemoteNoteRow)));
+    const rows = (data ?? []).map(parseRemoteNoteRow).filter(Boolean) as RemoteNoteRow[];
+    return ok(rows.map(mapRemoteRow));
   } catch (error) {
     return err(toSyncError(error));
   }
@@ -161,7 +160,10 @@ async function pushRemoteNote(
       }
       return err(toSyncError(error, "RemoteRejected"));
     }
-    return ok(mapRemoteRow(data as RemoteNoteRow));
+    const row = parseRemoteNoteRow(data);
+    if (!row)
+      return err({ type: "Unknown", message: "Invalid remote note shape" });
+    return ok(mapRemoteRow(row));
   } catch (error) {
     return err(toSyncError(error));
   }
@@ -185,7 +187,10 @@ async function deleteRemoteNote(
       }
       return err(toSyncError(error, "RemoteRejected"));
     }
-    return ok(mapRemoteRow(data as RemoteNoteRow));
+    const row = parseRemoteNoteRow(data);
+    if (!row)
+      return err({ type: "Unknown", message: "Invalid remote note shape" });
+    return ok(mapRemoteRow(row));
   } catch (error) {
     return err(toSyncError(error));
   }

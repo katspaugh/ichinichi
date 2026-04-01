@@ -8,6 +8,7 @@ import {
   encodeUtf8,
   randomBytes,
 } from "../storage/cryptoUtils";
+import { parseDecryptedNotePayload } from "../storage/parsers";
 import {
   decryptImageBuffer,
   deriveImageKey,
@@ -97,9 +98,10 @@ export function createE2eeService(keyring: KeyringProvider): E2eeService {
       key,
       ciphertext,
     );
-    const parsed = JSON.parse(decodeUtf8(new Uint8Array(decrypted))) as {
-      content: string;
-    };
+    const parsed = parseDecryptedNotePayload(
+      JSON.parse(decodeUtf8(new Uint8Array(decrypted))),
+    );
+    if (!parsed) return null;
     return {
       content: sanitizeHtml(parsed.content),
     };

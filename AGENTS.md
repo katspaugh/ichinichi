@@ -94,6 +94,66 @@ Reference implementations: `useVault.ts` (simplest), `useAuth.ts` (most effects)
 - `cancelled` flag without operation cancellation → side effects still run
 - Fire-and-forget `void promise.then(...)` → no tracking/cancellation/error handling
 
+## Architecture Invariants
+
+Hard rules. Violations MUST be fixed before commit. Enforced by ESLint, ast-grep, and CI.
+
+### Layer Boundaries (enforced by ESLint `no-restricted-imports`)
+
+- **Components** → may import from: controllers, contexts, hooks, types, utils. NOT from: storage, stores, domain, lib.
+- **Domain** → may import from: storage (interfaces only), types. NOT from: components, controllers, hooks, stores.
+- **Stores** → may import from: domain, storage, services, types, utils. NOT from: components, controllers, hooks.
+- **Infrastructure** (storage/services/lib) → NOT from: components, controllers, hooks, stores.
+- Exception: `NoteEditor` imports editor-specific services. `AppBootstrap` imports `lib/supabase`.
+
+### DO NOT: Use `as` Casts on External Data
+
+All data entering the app from IndexedDB, Supabase, localStorage JSON, or decrypted payloads MUST pass through a parse function in `src/storage/parsers.ts`. Parse functions validate shape and return `T | null`.
+
+```typescript
+// WRONG — silent corruption if schema drifts
+const row = data as RemoteNoteRow;
+
+// RIGHT — fails safely at the boundary
+const row = parseRemoteNoteRow(data);
+if (!row) return err({ type: "ParseError", message: "Invalid remote row" });
+```
+
+### DO NOT: Swallow Errors Silently
+
+Empty `catch {}` blocks hide bugs. Use `reportError()` from `src/utils/errorReporter.ts`:
+
+```typescript
+// WRONG
+} catch {
+  // not critical
+}
+
+// RIGHT
+} catch (error) {
+  reportError("storeName.methodName", error);
+}
+```
+
+### DO NOT: Chain useEffects
+
+New component-level async state MUST use the phase-gated reducer pattern. DO NOT chain useEffects where one effect's output triggers another via shared state or refs. Route ALL async state transitions through a reducer.
+
+- Max 3 useEffect calls per component/hook (lint warning). Max 5 (lint error).
+- If you need 4+ effects, use a phase-gated reducer instead.
+- Reference: `useVault.ts` (simplest), `useAuth.ts` (most effects), `useVaultMachine.ts` (`evaluate` pattern).
+
+### MUST: Generation Counter Discipline in Stores
+
+After every `await` in a Zustand store method:
+1. Check `if (gen !== _generation) return;` — abort if superseded
+2. Check `if (get()._disposed) return;` — abort if store disposed (where applicable)
+3. Re-read state via `get()` — never close over stale pre-await values
+
+### MUST: Use `reportError()` in New Catch Blocks
+
+Every new `catch` block in stores, storage, or domain code must call `reportError(context, error)`. No exceptions. Genuinely intentional suppressions (e.g., DOM range errors, Intl API unavailability) keep `catch {}` but must include `// INTENTIONAL: <reason>`.
+
 ## Data Model (src/types/index.ts)
 
 - Note: date, content (sanitized HTML), updatedAt
