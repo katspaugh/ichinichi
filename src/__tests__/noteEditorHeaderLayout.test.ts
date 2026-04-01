@@ -23,6 +23,6 @@ describe("NoteEditor header layout", () => {
     const headerRuleMatch = css.match(/\.header\s*\{[^}]*\}/m);
 
     expect(headerRuleMatch).toBeTruthy();
-    expect(headerRuleMatch?.[0]).toMatch(/\bposition\s*:\s*(relative|sticky)\b/);
+    expect(headerRuleMatch?.[0]).toMatch(/\bposition\s*:\s*relative\b/);
   });
 });

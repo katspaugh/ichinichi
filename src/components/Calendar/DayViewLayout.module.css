@@ -141,6 +141,13 @@
 @media (min-width: 769px) {
   .layout {
     flex-direction: row;
+    --sidebar-width: 33%;
+    --header-margin: 0;
+  }
+
+  .layout[data-sidebar-collapsed] {
+    --sidebar-width: 0px;
+    --header-margin: auto;
   }
 
   .sidebar {

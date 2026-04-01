@@ -32,17 +32,12 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-top: 3px;
-  padding-bottom: var(--spacing-lg);
+  margin-top: 3px;
+  margin-bottom: var(--spacing-lg);
   gap: var(--spacing-md);
   width: 100%;
   max-width: 65ch;
-  position: sticky;
-  top: 0;
-  z-index: 5;
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
+  position: relative;
 }
 
 .headerLeft {
@@ -496,6 +491,18 @@
   }
   100% {
     background-position: 0 50%;
+  }
+}
+
+/* Desktop: fixed header in app header row */
+@media (min-width: 769px) {
+  .header {
+    position: fixed;
+    top: var(--spacing-md);
+    left: calc(var(--spacing-md) + var(--sidebar-width, 30%) + var(--spacing-md) + var(--spacing-xl));
+    right: calc(var(--spacing-md) + var(--spacing-xl));
+    margin: 3px var(--header-margin, 0) 0;
+    z-index: 5;
   }
 }
 
