@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer, useState } from "react";
+import { useCallback, useEffect, useReducer } from "react";
 import type { Session, User, AuthError } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
 import { AUTH_HAS_LOGGED_IN_KEY } from "../utils/constants";
@@ -66,7 +66,11 @@ type AuthEvent =
   | { type: "SIGN_UP"; email: string; password: string }
   | { type: "SIGN_OUT" }
   | { type: "AUTH_ERROR"; message: string }
-  | { type: "CLEAR_ERROR" };
+  | { type: "CLEAR_ERROR" }
+  | { type: "PASSWORD_RECOVERY" }
+  | { type: "CLEAR_PASSWORD_RECOVERY" }
+  | { type: "HASH_ERROR"; message: string }
+  | { type: "CLEAR_HASH_ERROR" };
 
 interface AuthContext {
   phase: AuthPhase;
@@ -77,6 +81,8 @@ interface AuthContext {
   online: boolean;
   signInInput: { email: string; password: string } | null;
   signUpInput: { email: string; password: string } | null;
+  isPasswordRecovery: boolean;
+  hashError: string | null;
 }
 
 const initialState: AuthContext = {
@@ -88,6 +94,8 @@ const initialState: AuthContext = {
   online: connectivity.getOnline(),
   signInInput: null,
   signUpInput: null,
+  isPasswordRecovery: false,
+  hashError: null,
 };
 
 function applySession(
@@ -189,14 +197,24 @@ export function authReducer(
         error: null,
         isBusy: true,
       };
+
+    case "PASSWORD_RECOVERY":
+      return { ...state, isPasswordRecovery: true };
+
+    case "CLEAR_PASSWORD_RECOVERY":
+      return { ...state, isPasswordRecovery: false };
+
+    case "HASH_ERROR":
+      return { ...state, hashError: event.message };
+
+    case "CLEAR_HASH_ERROR":
+      return { ...state, hashError: null };
   }
 }
 
 export function useAuth(): UseAuthReturn {
   const online = useConnectivity();
   const [state, dispatch] = useReducer(authReducer, initialState);
-  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
-  const [hashError, setHashError] = useState<string | null>(null);
 
   // Parse auth errors from URL hash (e.g. expired reset links)
   useEffect(() => {
@@ -205,7 +223,10 @@ export function useAuth(): UseAuthReturn {
     const params = new URLSearchParams(hash.replace(/^#/, ""));
     const description = params.get("error_description");
     if (description) {
-      setHashError(description.replace(/\+/g, " "));
+      dispatch({
+        type: "HASH_ERROR",
+        message: description.replace(/\+/g, " "),
+      });
       window.history.replaceState(
         {},
         "",
@@ -235,7 +256,7 @@ export function useAuth(): UseAuthReturn {
     const { data } = supabase.auth.onAuthStateChange(
       (event, newSession) => {
         if (event === "PASSWORD_RECOVERY") {
-          setIsPasswordRecovery(true);
+          dispatch({ type: "PASSWORD_RECOVERY" });
         }
         dispatch({ type: "SESSION_CHANGED", session: newSession });
       },
@@ -428,7 +449,7 @@ export function useAuth(): UseAuthReturn {
           dispatch({ type: "AUTH_ERROR", message: formatAuthError(error) });
           return { success: false };
         }
-        setIsPasswordRecovery(false);
+        dispatch({ type: "CLEAR_PASSWORD_RECOVERY" });
         return { success: true };
       } catch (error) {
         dispatch({
@@ -445,11 +466,11 @@ export function useAuth(): UseAuthReturn {
   );
 
   const clearPasswordRecovery = useCallback(() => {
-    setIsPasswordRecovery(false);
+    dispatch({ type: "CLEAR_PASSWORD_RECOVERY" });
   }, []);
 
   const clearHashError = useCallback(() => {
-    setHashError(null);
+    dispatch({ type: "CLEAR_HASH_ERROR" });
   }, []);
 
   const clearError = useCallback(() => {
@@ -461,9 +482,9 @@ export function useAuth(): UseAuthReturn {
     user: state.session?.user ?? null,
     authState: state.authState,
     error: state.error,
-    hashError,
+    hashError: state.hashError,
     isBusy: state.isBusy,
-    isPasswordRecovery,
+    isPasswordRecovery: state.isPasswordRecovery,
     signUp,
     signIn,
     signOut,
