@@ -23,6 +23,7 @@
   grid-template-columns: repeat(4, 1fr);
   gap: var(--spacing-xl);
   flex: 1;
+  align-content: start;
 }
 
 .navButton {
@@ -75,10 +76,6 @@
     padding-bottom: var(--spacing-md);
   }
 
-  .grid {
-    align-content: start;
-  }
-
   .calendar[data-scroll-snap] {
     scroll-snap-type: y mandatory;
   }
@@ -91,6 +88,7 @@
 @media (min-width: 1200px) {
   .calendar {
     box-sizing: border-box;
+    overflow: hidden;
   }
 
   .year {
@@ -100,6 +98,7 @@
 
   .grid {
     grid-template-rows: repeat(3, 1fr);
+    align-content: stretch;
     gap: var(--spacing-md);
     overflow: hidden;
   }
