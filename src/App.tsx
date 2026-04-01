@@ -12,6 +12,9 @@ import { PrivacyPolicyModal } from "./components/AppModals/PrivacyPolicyModal";
 import { ResetPasswordModal } from "./components/AppModals/ResetPasswordModal";
 import { AuthErrorModal } from "./components/AppModals/AuthErrorModal";
 import { AuthState } from "./hooks/useAuth";
+import { supabase } from "./lib/supabase";
+import { rewrapCloudKeyring } from "./services/vaultService";
+import { storeDeviceEncryptedPassword } from "./storage/vault";
 import { AppMode } from "./hooks/useAppMode";
 import { usePWA } from "./hooks/usePWA";
 import { useAppController } from "./controllers/useAppController";
@@ -149,6 +152,34 @@ function App() {
       ? activeVault.handleSignOut
       : undefined;
 
+  const handleUpdatePassword = useCallback(
+    async (password: string) => {
+      const result = await auth.updatePassword(password);
+      if (result.success && auth.user && activeVault.keyring.size) {
+        // Use the full merged keyring (minus synthetic "legacy" alias)
+        const keysToSync = new Map<string, CryptoKey>();
+        for (const [keyId, key] of activeVault.keyring.entries()) {
+          if (keyId !== "legacy") {
+            keysToSync.set(keyId, key);
+          }
+        }
+        if (keysToSync.size) {
+          await rewrapCloudKeyring({
+            supabase,
+            userId: auth.user.id,
+            newPassword: password,
+            keyring: keysToSync,
+            primaryKeyId: activeVault.activeKeyId,
+          });
+        }
+        // Store new password for session-restore re-wrapping
+        void storeDeviceEncryptedPassword(password);
+      }
+      return result;
+    },
+    [auth, activeVault.keyring, activeVault.activeKeyId],
+  );
+
   const resetPasswordHandler =
     auth.authState === AuthState.SignedIn && auth.user?.email
       ? () => auth.resetPassword(auth.user!.email!)
@@ -280,7 +311,7 @@ function App() {
                 <ResetPasswordModal
                   isOpen={auth.isPasswordRecovery}
                   error={auth.error}
-                  onSubmit={activeVault.handlePasswordReset}
+                  onSubmit={handleUpdatePassword}
                   onDismiss={auth.clearPasswordRecovery}
                 />
                 <AuthErrorModal

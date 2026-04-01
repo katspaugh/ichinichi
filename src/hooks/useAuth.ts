@@ -15,14 +15,8 @@ export interface UseAuthReturn {
   hashError: string | null;
   isBusy: boolean;
   isPasswordRecovery: boolean;
-  signUp: (
-    email: string,
-    password: string,
-  ) => Promise<{ success: boolean; password?: string }>;
-  signIn: (
-    email: string,
-    password: string,
-  ) => Promise<{ success: boolean; password?: string }>;
+  signUp: (email: string, password: string) => void;
+  signIn: (email: string, password: string) => void;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ success: boolean }>;
   updatePassword: (password: string) => Promise<{ success: boolean }>;
@@ -365,7 +359,6 @@ export function useAuth(): UseAuthReturn {
       } finally {
         if (!cancelled) {
           dispatch({ type: "SESSION_CHANGED", session: null });
-          dispatch({ type: "SIGN_OUT" });
         }
       }
     };
@@ -378,17 +371,15 @@ export function useAuth(): UseAuthReturn {
   }, [state.phase]);
 
   const signUp = useCallback(
-    async (email: string, password: string) => {
+    (email: string, password: string) => {
       dispatch({ type: "SIGN_UP", email, password });
-      return { success: true, password };
     },
     [],
   );
 
   const signIn = useCallback(
-    async (email: string, password: string) => {
+    (email: string, password: string) => {
       dispatch({ type: "SIGN_IN", email, password });
-      return { success: true, password };
     },
     [],
   );
