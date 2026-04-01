@@ -12,6 +12,7 @@ import {
   DEFAULT_KDF_ITERATIONS,
   storeDeviceWrappedDEK,
   tryUnlockWithDeviceDEK,
+  tryGetDeviceEncryptedPassword,
   hasVaultMeta,
   createVault,
   createRandomVault,
@@ -33,6 +34,14 @@ export async function tryDeviceUnlockCloudKey(): Promise<{
 } | null> {
   const dek = await tryUnlockWithDeviceDEK();
   if (!dek) return null;
+
+  // If there is no device-encrypted password stored, we cannot guarantee
+  // the cloud keyring entries are wrapped with the current password.
+  // Return null so the caller falls through to password entry, which
+  // triggers unlockCloudVault → device DEK fallback → re-wrap.
+  const hasStoredPassword = await tryGetDeviceEncryptedPassword();
+  if (!hasStoredPassword) return null;
+
   const keyId = await computeKeyId(dek);
   return { vaultKey: dek, keyId };
 }
