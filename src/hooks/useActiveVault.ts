@@ -33,6 +33,7 @@ export interface UseActiveVaultReturn {
   handleSignUp: (email: string, password: string) => Promise<void>;
   handleSignOut: () => Promise<void>;
   handleCloudVaultUnlock: (password: string) => void;
+  handlePasswordReset: (password: string) => Promise<{ success: boolean }>;
   clearVaultError: () => void;
   setLocalPassword: (password: string | null) => void;
 }
@@ -160,6 +161,34 @@ export function useActiveVault({
     setAuthPassword(password);
   }, []);
 
+  const handlePasswordReset = useCallback(
+    async (newPassword: string): Promise<{ success: boolean }> => {
+      const result = await auth.updatePassword(newPassword);
+      if (!result.success) return { success: false };
+
+      // Re-wrap cloud keyring entries with the new password so other
+      // browsers can unlock using the new password.
+      if (auth.user?.id && cloudVault.keyring.size && cloudVault.primaryKeyId) {
+        try {
+          await vaultService.rewrapCloudKeyring({
+            userId: auth.user.id,
+            password: newPassword,
+            keyring: cloudVault.keyring,
+            primaryKeyId: cloudVault.primaryKeyId,
+          });
+        } catch (e) {
+          // Auth password already changed — can't roll back. Log and continue;
+          // user's current session still works via device key.
+          console.error("Failed to re-wrap cloud keyring:", e);
+        }
+      }
+
+      setAuthPassword(newPassword);
+      return { success: true };
+    },
+    [auth, cloudVault.keyring, cloudVault.primaryKeyId, vaultService],
+  );
+
   const clearVaultError = useCallback(() => {
     if (mode === AppMode.Cloud) {
       cloudVault.clearError();
@@ -187,6 +216,7 @@ export function useActiveVault({
     handleSignUp,
     handleSignOut,
     handleCloudVaultUnlock,
+    handlePasswordReset,
     clearVaultError,
     setLocalPassword,
   };

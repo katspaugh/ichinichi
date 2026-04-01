@@ -2,6 +2,7 @@
 import type { MockedFunction } from "vitest";
 import {
   unlockCloudVault,
+  rewrapCloudKeyring,
   bootstrapLocalVault,
   unlockLocalVault,
   tryDeviceUnlockCloudKey,
@@ -15,8 +16,10 @@ import {
   generateDEK,
   deriveKEK,
   wrapDEK,
+  unwrapDEK,
   generateSalt,
   DEFAULT_KDF_ITERATIONS,
+  storeDeviceWrappedDEK,
   closeVaultDb,
 } from "../storage/vault";
 import { computeKeyId } from "../storage/keyId";
@@ -350,5 +353,169 @@ describe("tryDeviceUnlockCloudKey", () => {
   it("returns null when no device DEK stored", async () => {
     const result = await tryDeviceUnlockCloudKey();
     expect(result).toBeNull();
+  });
+});
+
+describe("rewrapCloudKeyring", () => {
+  vi.setConfig({ testTimeout: 30000 });
+
+  beforeEach(async () => {
+    localStorage.clear();
+    await clearVaultDb();
+    mockFetchUserKeyring.mockReset();
+    mockSaveUserKeyringEntry.mockReset();
+  });
+
+  it("re-wraps all keys with new password", async () => {
+    const dek1 = await generateDEK();
+    const dek2 = await generateDEK();
+    const keyId1 = await computeKeyId(dek1);
+    const keyId2 = await computeKeyId(dek2);
+
+    const keyring = new Map<string, CryptoKey>();
+    keyring.set(keyId1, dek1);
+    keyring.set(keyId2, dek2);
+
+    mockSaveUserKeyringEntry.mockResolvedValue();
+
+    await rewrapCloudKeyring({
+      supabase: createMockSupabase() as never,
+      userId: "user-1",
+      password: "new-password",
+      keyring,
+      primaryKeyId: keyId1,
+    });
+
+    expect(mockSaveUserKeyringEntry).toHaveBeenCalledTimes(2);
+
+    // Verify each saved entry can be unwrapped with new password
+    for (const call of mockSaveUserKeyringEntry.mock.calls) {
+      const entry = call[2] as UserKeyringEntry;
+      const kek = await deriveKEK(
+        "new-password",
+        entry.kdfSalt,
+        entry.kdfIterations,
+      );
+      const unwrapped = await unwrapDEK(entry.wrappedDek, entry.dekIv, kek);
+      const originalDek = keyring.get(entry.keyId)!;
+      expect(await keysEqual(unwrapped, originalDek)).toBe(true);
+    }
+  });
+
+  it("preserves isPrimary flag correctly", async () => {
+    const dek1 = await generateDEK();
+    const dek2 = await generateDEK();
+    const keyId1 = await computeKeyId(dek1);
+    const keyId2 = await computeKeyId(dek2);
+
+    const keyring = new Map<string, CryptoKey>();
+    keyring.set(keyId1, dek1);
+    keyring.set(keyId2, dek2);
+
+    mockSaveUserKeyringEntry.mockResolvedValue();
+
+    await rewrapCloudKeyring({
+      supabase: createMockSupabase() as never,
+      userId: "user-1",
+      password: "pw",
+      keyring,
+      primaryKeyId: keyId1,
+    });
+
+    const saved = mockSaveUserKeyringEntry.mock.calls.map(
+      (c) => c[2] as UserKeyringEntry,
+    );
+    const primary = saved.find((e) => e.keyId === keyId1);
+    const secondary = saved.find((e) => e.keyId === keyId2);
+    expect(primary?.isPrimary).toBe(true);
+    expect(secondary?.isPrimary).toBe(false);
+  });
+
+  it("handles empty keyring gracefully", async () => {
+    mockSaveUserKeyringEntry.mockResolvedValue();
+
+    await rewrapCloudKeyring({
+      supabase: createMockSupabase() as never,
+      userId: "user-1",
+      password: "pw",
+      keyring: new Map(),
+      primaryKeyId: "none",
+    });
+
+    expect(mockSaveUserKeyringEntry).not.toHaveBeenCalled();
+  });
+});
+
+describe("unlockCloudVault device DEK fallback", () => {
+  vi.setConfig({ testTimeout: 30000 });
+
+  beforeEach(async () => {
+    localStorage.clear();
+    await clearVaultDb();
+    mockFetchUserKeyring.mockReset();
+    mockSaveUserKeyringEntry.mockReset();
+  });
+
+  it("falls back to device DEK when password unwrap fails", async () => {
+    const dek = await generateDEK();
+    const keyId = await computeKeyId(dek);
+
+    // Store device-wrapped DEK (simulating a previous session)
+    await storeDeviceWrappedDEK(dek);
+
+    // Create keyring entry wrapped with OLD password
+    const entry = await createKeyringEntry(dek, "old-password", true);
+    mockFetchUserKeyring.mockResolvedValue([entry]);
+    mockSaveUserKeyringEntry.mockResolvedValue();
+
+    // Unlock with NEW password — should fall back to device DEK and re-wrap
+    const result = await unlockCloudVault({
+      supabase: createMockSupabase() as never,
+      userId: "user-1",
+      password: "new-password",
+      localDek: null,
+      localKeyring: new Map(),
+    });
+
+    expect(result.vaultKey).not.toBeNull();
+    expect(await keysEqual(result.vaultKey!, dek)).toBe(true);
+    expect(result.keyring.has(keyId)).toBe(true);
+
+    // Verify re-wrap was called (saveUserKeyringEntry for the device DEK)
+    const rewrapCalls = mockSaveUserKeyringEntry.mock.calls.filter(
+      (c) => (c[2] as UserKeyringEntry).keyId === keyId,
+    );
+    expect(rewrapCalls.length).toBeGreaterThan(0);
+
+    // Verify re-wrapped entry can be unwrapped with new password
+    const rewrappedEntry = rewrapCalls[0][2] as UserKeyringEntry;
+    const kek = await deriveKEK(
+      "new-password",
+      rewrappedEntry.kdfSalt,
+      rewrappedEntry.kdfIterations,
+    );
+    const unwrapped = await unwrapDEK(
+      rewrappedEntry.wrappedDek,
+      rewrappedEntry.dekIv,
+      kek,
+    );
+    expect(await keysEqual(unwrapped, dek)).toBe(true);
+  });
+
+  it("throws when both password and device DEK fail", async () => {
+    const dek = await generateDEK();
+    // Keyring wrapped with old password, NO device DEK stored
+    const entry = await createKeyringEntry(dek, "old-password", true);
+    mockFetchUserKeyring.mockResolvedValue([entry]);
+
+    await expect(
+      unlockCloudVault({
+        supabase: createMockSupabase() as never,
+        userId: "user-1",
+        password: "wrong-password",
+        localDek: null,
+        localKeyring: new Map(),
+      }),
+    ).rejects.toThrow("password mismatch and no device key");
   });
 });

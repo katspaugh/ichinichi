@@ -280,7 +280,7 @@ function App() {
                 <ResetPasswordModal
                   isOpen={auth.isPasswordRecovery}
                   error={auth.error}
-                  onSubmit={auth.updatePassword}
+                  onSubmit={activeVault.handlePasswordReset}
                   onDismiss={auth.clearPasswordRecovery}
                 />
                 <AuthErrorModal

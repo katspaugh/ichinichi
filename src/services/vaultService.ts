@@ -37,6 +37,32 @@ export async function tryDeviceUnlockCloudKey(): Promise<{
   return { vaultKey: dek, keyId };
 }
 
+export async function rewrapCloudKeyring(options: {
+  supabase: SupabaseClient;
+  userId: string;
+  password: string;
+  keyring: Map<string, CryptoKey>;
+  primaryKeyId: string;
+}): Promise<void> {
+  const { supabase, userId, password, keyring, primaryKeyId } = options;
+
+  for (const [keyId, dek] of keyring.entries()) {
+    const salt = generateSalt();
+    const kek = await deriveKEK(password, salt, DEFAULT_KDF_ITERATIONS);
+    const wrapped = await wrapDEK(dek, kek);
+    const entry: UserKeyringEntry = {
+      keyId,
+      wrappedDek: wrapped.data,
+      dekIv: wrapped.iv,
+      kdfSalt: salt,
+      kdfIterations: DEFAULT_KDF_ITERATIONS,
+      version: 1,
+      isPrimary: keyId === primaryKeyId,
+    };
+    await saveUserKeyringEntry(supabase, userId, entry);
+  }
+}
+
 export async function unlockCloudVault(options: {
   supabase: SupabaseClient;
   userId: string;
@@ -53,12 +79,47 @@ export async function unlockCloudVault(options: {
   let dek: CryptoKey | null = null;
 
   if (existingKeyrings.length && !nextKeyring.size) {
+    let passwordUnwrapFailed = false;
     for (const entry of existingKeyrings) {
-      const kek = await deriveKEK(password, entry.kdfSalt, entry.kdfIterations);
-      const unwrapped = await unwrapDEK(entry.wrappedDek, entry.dekIv, kek);
-      nextKeyring.set(entry.keyId, unwrapped);
-      if (entry.isPrimary && !nextPrimaryId) {
-        nextPrimaryId = entry.keyId;
+      try {
+        const kek = await deriveKEK(password, entry.kdfSalt, entry.kdfIterations);
+        const unwrapped = await unwrapDEK(entry.wrappedDek, entry.dekIv, kek);
+        nextKeyring.set(entry.keyId, unwrapped);
+        if (entry.isPrimary && !nextPrimaryId) {
+          nextPrimaryId = entry.keyId;
+        }
+      } catch {
+        passwordUnwrapFailed = true;
+      }
+    }
+
+    // Retroactive fix: if password unwrap failed (e.g. keyring still wrapped
+    // with a pre-reset password), try device DEK as fallback and re-wrap.
+    if (passwordUnwrapFailed && !nextKeyring.size) {
+      const deviceResult = await tryUnlockWithDeviceDEK();
+      if (deviceResult) {
+        const deviceKeyId = await computeKeyId(deviceResult);
+        nextKeyring.set(deviceKeyId, deviceResult);
+        const primaryEntry = existingKeyrings.find((e) => e.isPrimary);
+        if (primaryEntry) {
+          nextPrimaryId = primaryEntry.keyId;
+        }
+        // If device DEK matches one of the existing entries, use its keyId;
+        // otherwise use the device-derived keyId as primary.
+        if (!nextPrimaryId) {
+          nextPrimaryId = deviceKeyId;
+        }
+        // Re-wrap all recovered keys with the current password
+        await rewrapCloudKeyring({
+          supabase,
+          userId,
+          password,
+          keyring: nextKeyring,
+          primaryKeyId: nextPrimaryId,
+        });
+      } else {
+        // No fallback available — rethrow so caller sees the unlock error
+        throw new Error("Unable to unlock vault: password mismatch and no device key available");
       }
     }
   }
@@ -204,6 +265,8 @@ export function createVaultService(supabase: SupabaseClient): VaultService {
     tryDeviceUnlockCloudKey,
     unlockCloudVault: (options) =>
       unlockCloudVault({ supabase, ...options }),
+    rewrapCloudKeyring: (options) =>
+      rewrapCloudKeyring({ supabase, ...options }),
     getHasLocalVault,
     bootstrapLocalVault,
     unlockLocalVault,

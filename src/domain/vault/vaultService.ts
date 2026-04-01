@@ -12,6 +12,12 @@ export interface VaultService {
     localDek: CryptoKey | null;
     localKeyring: Map<string, CryptoKey>;
   }): Promise<CloudVaultUnlockResult>;
+  rewrapCloudKeyring(options: {
+    userId: string;
+    password: string;
+    keyring: Map<string, CryptoKey>;
+    primaryKeyId: string;
+  }): Promise<void>;
   getHasLocalVault(): boolean;
   bootstrapLocalVault(): Promise<{
     hasVault: boolean;
