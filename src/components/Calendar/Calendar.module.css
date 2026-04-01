@@ -1,5 +1,6 @@
 .calendar {
   padding: var(--spacing-md);
+  width: 100%;
   max-width: 1600px;
   margin: 0 auto;
   flex: 1;
