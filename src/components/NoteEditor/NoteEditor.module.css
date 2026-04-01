@@ -32,12 +32,17 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: 3px;
-  margin-bottom: var(--spacing-lg);
+  padding-top: 3px;
+  padding-bottom: var(--spacing-lg);
   gap: var(--spacing-md);
   width: 100%;
   max-width: 65ch;
-  position: relative;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
 }
 
 .headerLeft {
@@ -491,17 +496,6 @@
   }
   100% {
     background-position: 0 50%;
-  }
-}
-
-@media (min-width: 769px) {
-  .header {
-    position: sticky;
-    top: 0;
-    z-index: 5;
-    background: var(--glass-bg);
-    backdrop-filter: var(--glass-blur);
-    -webkit-backdrop-filter: var(--glass-blur);
   }
 }
 

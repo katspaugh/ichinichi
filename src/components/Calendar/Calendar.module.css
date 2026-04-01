@@ -23,7 +23,6 @@
   grid-template-columns: repeat(4, 1fr);
   gap: var(--spacing-xl);
   flex: 1;
-  align-content: start;
 }
 
 .navButton {
@@ -74,6 +73,10 @@
 @media (max-width: 768px) {
   .calendar {
     padding-bottom: var(--spacing-md);
+  }
+
+  .grid {
+    align-content: start;
   }
 
   .calendar[data-scroll-snap] {
