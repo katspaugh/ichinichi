@@ -1,0 +1,25 @@
+id: no-empty-catch-in-stores
+language: typescript
+files:
+  - "src/stores/**/*.ts"
+  - "src/storage/**/*.ts"
+  - "src/domain/**/*.ts"
+rule:
+  kind: catch_clause
+  not:
+    has:
+      kind: statement_block
+      has:
+        any:
+          - kind: expression_statement
+          - kind: return_statement
+          - kind: if_statement
+          - kind: variable_declaration
+          - kind: throw_statement
+message: |
+  Empty catch block. Use reportError() from src/utils/errorReporter.ts.
+  For genuinely intentional suppressions, add // INTENTIONAL: <reason>.
+severity: warning
+note: |
+  Empty catch blocks hide bugs. All errors in stores, storage, and domain
+  code should be reported via reportError(context, error).

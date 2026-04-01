@@ -6,6 +6,7 @@ import {
   encodeUtf8,
   randomBytes,
 } from "./cryptoUtils";
+import { parseVaultMeta } from "./parsers";
 
 const VAULT_META_KEY = `${STORAGE_PREFIX}vault_meta_v1`;
 const DB_NAME = "dailynotes-vault";
@@ -34,8 +35,7 @@ export function loadVaultMeta(): VaultMeta | null {
   const raw = localStorage.getItem(VAULT_META_KEY);
   if (!raw) return null;
   try {
-    const parsed = JSON.parse(raw) as VaultMeta;
-    if (!parsed || parsed.version !== 1) return null;
+    const parsed = parseVaultMeta(JSON.parse(raw));
     return parsed;
   } catch {
     return null;

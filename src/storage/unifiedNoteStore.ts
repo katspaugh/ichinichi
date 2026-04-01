@@ -7,6 +7,11 @@ import {
 } from "./unifiedDb";
 import type { StorageError } from "../domain/errors";
 import { ok, err, type Result } from "../domain/result";
+import {
+  parseStringArray,
+  parseNoteRecord,
+  parseNoteMetaRecord,
+} from "./parsers";
 
 function toStorageError(error: unknown): StorageError {
   if (error instanceof Error) {
@@ -21,7 +26,8 @@ export async function getNoteRecord(date: string): Promise<NoteRecord | null> {
     const tx = db.transaction(NOTES_STORE, "readonly");
     const store = tx.objectStore(NOTES_STORE);
     const request = store.get(date);
-    request.onsuccess = () => resolve(request.result ?? null);
+    request.onsuccess = () =>
+      resolve(parseNoteRecord(request.result) ?? null);
     request.onerror = () => reject(request.error);
     tx.onerror = () => reject(tx.error);
   });
@@ -35,10 +41,12 @@ export async function getAllNoteRecordDates(): Promise<string[]> {
     const metaStore = tx.objectStore(NOTE_META_STORE);
     const keysRequest = notesStore.getAllKeys();
     keysRequest.onsuccess = () => {
-      const allKeys = (keysRequest.result ?? []) as string[];
+      const allKeys = parseStringArray(keysRequest.result) ?? [];
       const metaRequest = metaStore.getAll();
       metaRequest.onsuccess = () => {
-        const metas = metaRequest.result as NoteMetaRecord[];
+        const metas = (Array.isArray(metaRequest.result) ? metaRequest.result : [])
+          .map(parseNoteMetaRecord)
+          .filter(Boolean) as NoteMetaRecord[];
         const deletedDates = new Set(
           metas.filter((m) => m.deletedAt).map((m) => m.date),
         );
@@ -57,7 +65,12 @@ export async function getAllNoteRecords(): Promise<NoteRecord[]> {
     const tx = db.transaction(NOTES_STORE, "readonly");
     const store = tx.objectStore(NOTES_STORE);
     const request = store.getAll();
-    request.onsuccess = () => resolve(request.result ?? []);
+    request.onsuccess = () =>
+      resolve(
+        (Array.isArray(request.result) ? request.result : [])
+          .map(parseNoteRecord)
+          .filter(Boolean) as NoteRecord[],
+      );
     request.onerror = () => reject(request.error);
     tx.onerror = () => reject(tx.error);
   });
@@ -71,7 +84,8 @@ export async function getNoteMeta(
     const tx = db.transaction(NOTE_META_STORE, "readonly");
     const store = tx.objectStore(NOTE_META_STORE);
     const request = store.get(date);
-    request.onsuccess = () => resolve(request.result ?? null);
+    request.onsuccess = () =>
+      resolve(parseNoteMetaRecord(request.result) ?? null);
     request.onerror = () => reject(request.error);
     tx.onerror = () => reject(tx.error);
   });
@@ -83,7 +97,12 @@ export async function getAllNoteMeta(): Promise<NoteMetaRecord[]> {
     const tx = db.transaction(NOTE_META_STORE, "readonly");
     const store = tx.objectStore(NOTE_META_STORE);
     const request = store.getAll();
-    request.onsuccess = () => resolve(request.result ?? []);
+    request.onsuccess = () =>
+      resolve(
+        (Array.isArray(request.result) ? request.result : [])
+          .map(parseNoteMetaRecord)
+          .filter(Boolean) as NoteMetaRecord[],
+      );
     request.onerror = () => reject(request.error);
     tx.onerror = () => reject(tx.error);
   });
@@ -120,7 +139,7 @@ export async function deleteNoteRecord(date: string): Promise<void> {
     const metaStore = tx.objectStore(NOTE_META_STORE);
     const getRequest = metaStore.get(date);
     getRequest.onsuccess = () => {
-      const existing = getRequest.result as NoteMetaRecord | undefined;
+      const existing = parseNoteMetaRecord(getRequest.result) ?? undefined;
       if (existing) {
         metaStore.put({
           ...existing,
@@ -141,7 +160,7 @@ export async function deleteNoteAndMeta(date: string): Promise<void> {
     const metaStore = tx.objectStore(NOTE_META_STORE);
     const getRequest = metaStore.get(date);
     getRequest.onsuccess = () => {
-      const existing = getRequest.result as NoteMetaRecord | undefined;
+      const existing = parseNoteMetaRecord(getRequest.result) ?? undefined;
       if (existing) {
         metaStore.put({
           ...existing,
@@ -251,10 +270,12 @@ export async function markUnsyncedNotesAsPending(): Promise<void> {
     const metaStore = tx.objectStore(NOTE_META_STORE);
     const notesRequest = notesStore.getAllKeys();
     notesRequest.onsuccess = () => {
-      const noteKeys = new Set(notesRequest.result as string[]);
+      const noteKeys = new Set(parseStringArray(notesRequest.result) ?? []);
       const metaRequest = metaStore.getAll();
       metaRequest.onsuccess = () => {
-        const metas = metaRequest.result as NoteMetaRecord[];
+        const metas = (Array.isArray(metaRequest.result) ? metaRequest.result : [])
+          .map(parseNoteMetaRecord)
+          .filter(Boolean) as NoteMetaRecord[];
         for (const meta of metas) {
           if (!meta.pendingOp && !meta.remoteId && noteKeys.has(meta.date)) {
             metaStore.put({ ...meta, pendingOp: "upsert" });
@@ -276,7 +297,9 @@ export async function clearNoteSyncMetadata(): Promise<void> {
     const store = tx.objectStore(NOTE_META_STORE);
     const request = store.getAll();
     request.onsuccess = () => {
-      const metas = request.result as NoteMetaRecord[];
+      const metas = (Array.isArray(request.result) ? request.result : [])
+        .map(parseNoteMetaRecord)
+        .filter(Boolean) as NoteMetaRecord[];
       metas.forEach((meta) => {
         store.put({
           ...meta,

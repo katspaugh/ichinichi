@@ -1,15 +1,14 @@
 import { STORAGE_PREFIX } from "../utils/constants";
+import { parseCloudKeyIdStore, type CloudKeyIdStore } from "./parsers";
 
 const CLOUD_KEY_IDS_KEY = `${STORAGE_PREFIX}cloud_key_ids_v1`;
-
-type CloudKeyIdStore = Record<string, string[]>;
 
 function loadStore(): CloudKeyIdStore {
   if (typeof window === "undefined") return {};
   const raw = localStorage.getItem(CLOUD_KEY_IDS_KEY);
   if (!raw) return {};
   try {
-    return JSON.parse(raw) as CloudKeyIdStore;
+    return parseCloudKeyIdStore(JSON.parse(raw)) ?? {};
   } catch {
     return {};
   }

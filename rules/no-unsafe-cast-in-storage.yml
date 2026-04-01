@@ -1,0 +1,22 @@
+id: no-unsafe-cast-in-storage
+language: typescript
+files:
+  - "src/storage/**/*.ts"
+rule:
+  pattern: $EXPR as $TYPE
+  not:
+    any:
+      # Allow safe cast patterns used by parsers
+      - pattern: $EXPR as unknown as $TYPE
+      - pattern: $EXPR as const
+      - pattern: $EXPR as Record<string, unknown>
+      - pattern: $EXPR as string
+message: |
+  Unsafe `as` cast on external data in storage layer.
+  Use a parse function from `src/storage/parsers.ts` instead.
+  See AGENTS.md "Architecture Invariants" for details.
+severity: warning
+note: |
+  All data entering the app from IndexedDB, Supabase, localStorage JSON,
+  or decrypted payloads must pass through a runtime parse function.
+  Type assertions (`as T`) skip validation and mask schema drift.
