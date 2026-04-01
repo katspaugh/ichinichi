@@ -110,6 +110,7 @@
 
   /* Glass — light */
   --glass-bg: rgba(255, 251, 246, 0.6);
+  --modal-glass-bg: rgba(255, 251, 246, 0.85);
   --glass-border: rgba(255, 255, 250, 0.65);
   --glass-blur: blur(16px) saturate(180%);
   --glass-shadow: 0 1px 8px rgba(0, 0, 0, 0.03);
@@ -145,6 +146,7 @@ html.no-transition body * {
 /* Explicit dark mode - overrides system preference */
 :root[data-theme="dark"] {
   --glass-bg: rgba(26, 26, 26, 0.55);
+  --modal-glass-bg: rgba(26, 26, 26, 0.82);
   --glass-border: rgba(255, 255, 255, 0.08);
   --glass-blur: blur(16px) saturate(180%);
   --glass-shadow: 0 2px 16px rgba(0, 0, 0, 0.25);
@@ -178,6 +180,7 @@ html.no-transition body * {
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
     --glass-bg: rgba(26, 26, 26, 0.55);
+    --modal-glass-bg: rgba(26, 26, 26, 0.82);
     --glass-border: rgba(255, 255, 255, 0.08);
     --glass-blur: blur(16px) saturate(180%);
     --glass-shadow: 0 2px 16px rgba(0, 0, 0, 0.25);
