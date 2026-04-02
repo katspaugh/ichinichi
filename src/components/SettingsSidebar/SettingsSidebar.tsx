@@ -600,6 +600,10 @@ export function SettingsSidebar({
                 cleanupResult={debugKeyring.cleanupResult}
                 onCleanup={debugKeyring.cleanup}
                 onResetCleanupStatus={debugKeyring.resetCleanupStatus}
+                reencryptStatus={debugKeyring.reencryptStatus}
+                reencryptResult={debugKeyring.reencryptResult}
+                onReencrypt={debugKeyring.reencrypt}
+                onResetReencryptStatus={debugKeyring.resetReencryptStatus}
               />
             </>
           )}

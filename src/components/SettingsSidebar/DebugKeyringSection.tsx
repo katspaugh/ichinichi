@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { Key, Check, Trash2 } from "lucide-react";
+import { Key, Check, Trash2, RefreshCw } from "lucide-react";
 import { Button } from "../Button";
 import { Modal } from "../Modal";
 import { VaultPanel } from "../VaultPanel";
@@ -21,6 +21,10 @@ interface DebugKeyringSectionProps {
   cleanupResult: string | null;
   onCleanup: () => Promise<void>;
   onResetCleanupStatus: () => void;
+  reencryptStatus: ActionStatus;
+  reencryptResult: string | null;
+  onReencrypt: (password: string) => Promise<void>;
+  onResetReencryptStatus: () => void;
 }
 
 function typeLabel(info: DebugKeyInfo): string {
@@ -41,8 +45,13 @@ export function DebugKeyringSection({
   cleanupResult,
   onCleanup,
   onResetCleanupStatus,
+  reencryptStatus,
+  reencryptResult,
+  onReencrypt,
+  onResetReencryptStatus,
 }: DebugKeyringSectionProps) {
   const [rewrapOpen, setRewrapOpen] = useState(false);
+  const [reencryptOpen, setReencryptOpen] = useState(false);
   const [password, setPassword] = useState("");
 
   const handleRewrap = useCallback(async () => {
@@ -50,6 +59,12 @@ export function DebugKeyringSection({
     setPassword("");
     setRewrapOpen(false);
   }, [password, onRewrap]);
+
+  const handleReencrypt = useCallback(async () => {
+    await onReencrypt(password);
+    setPassword("");
+    setReencryptOpen(false);
+  }, [password, onReencrypt]);
 
   return (
     <div className={styles.section}>
@@ -134,6 +149,31 @@ export function DebugKeyringSection({
             </span>
           )}
 
+          <button
+            className={styles.actionButton}
+            type="button"
+            onClick={() => {
+              setReencryptOpen(true);
+              setPassword("");
+              onResetReencryptStatus();
+            }}
+          >
+            <RefreshCw className={styles.actionIcon} />
+            Re-encrypt all notes
+          </button>
+
+          {reencryptStatus === "success" && reencryptResult && (
+            <span className={debugStyles.statusMsg} data-variant="success">
+              <Check className={debugStyles.statusIcon} />
+              {reencryptResult}
+            </span>
+          )}
+          {reencryptStatus === "error" && reencryptResult && (
+            <span className={debugStyles.statusMsg} data-variant="error">
+              {reencryptResult}
+            </span>
+          )}
+
           <Modal isOpen={rewrapOpen} onClose={() => setRewrapOpen(false)}>
             <VaultPanel
               title="Rewrap all keys"
@@ -176,6 +216,53 @@ export function DebugKeyringSection({
                   disabled={!password || rewrapStatus === "rewrapping"}
                 >
                   {rewrapStatus === "rewrapping" ? "Rewrapping..." : "Rewrap"}
+                </Button>
+              </form>
+            </VaultPanel>
+          </Modal>
+
+          <Modal isOpen={reencryptOpen} onClose={() => setReencryptOpen(false)}>
+            <VaultPanel
+              title="Re-encrypt all notes"
+              helper="Re-encrypts all Supabase notes with the primary DEK, deletes all other keys, and syncs to local. Requires your Supabase password."
+            >
+              <form
+                className={formStyles.form}
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void handleReencrypt();
+                }}
+              >
+                <label
+                  className={formStyles.label}
+                  htmlFor="debug-reencrypt-password"
+                >
+                  Supabase password
+                </label>
+                <input
+                  id="debug-reencrypt-password"
+                  className={formStyles.input}
+                  type="password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    if (reencryptStatus === "error") onResetReencryptStatus();
+                  }}
+                  disabled={reencryptStatus === "busy"}
+                  required
+                  minLength={6}
+                />
+                {reencryptStatus === "error" && (
+                  <div className={formStyles.error}>{reencryptResult}</div>
+                )}
+                <Button
+                  className={formStyles.actionButton}
+                  variant="primary"
+                  type="submit"
+                  disabled={!password || reencryptStatus === "busy"}
+                >
+                  {reencryptStatus === "busy" ? "Re-encrypting..." : "Re-encrypt"}
                 </Button>
               </form>
             </VaultPanel>

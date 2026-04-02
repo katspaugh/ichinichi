@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { fetchUserKeyring } from "../storage/userKeyring";
 import { listLocalKeyIds } from "../storage/localKeyring";
-import { rewrapCloudKeyring, cleanupUnusedKeys } from "../services/vaultService";
+import { rewrapCloudKeyring, cleanupUnusedKeys, reencryptCloudNotes } from "../services/vaultService";
 import { supabase } from "../lib/supabase";
 
 export interface DebugKeyInfo {
@@ -23,6 +23,10 @@ export interface UseDebugKeyringReturn {
   cleanupResult: string | null;
   cleanup: () => Promise<void>;
   resetCleanupStatus: () => void;
+  reencryptStatus: ActionStatus;
+  reencryptResult: string | null;
+  reencrypt: (password: string) => Promise<void>;
+  resetReencryptStatus: () => void;
 }
 
 export function useDebugKeyring(
@@ -38,6 +42,8 @@ export function useDebugKeyring(
   const [rewrapError, setRewrapError] = useState<string | null>(null);
   const [cleanupStatus, setCleanupStatus] = useState<ActionStatus>("idle");
   const [cleanupResult, setCleanupResult] = useState<string | null>(null);
+  const [reencryptStatus, setReencryptStatus] = useState<ActionStatus>("idle");
+  const [reencryptResult, setReencryptResult] = useState<string | null>(null);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps -- keyring identity change signals new keys
   const localKeyIds = useMemo(
@@ -125,6 +131,37 @@ export function useDebugKeyring(
     setCleanupResult(null);
   }, []);
 
+  const reencrypt = useCallback(async (password: string) => {
+    if (!userId || !activeKeyId) return;
+    setReencryptStatus("busy");
+    setReencryptResult(null);
+    try {
+      const keysToSync = new Map<string, CryptoKey>();
+      for (const [keyId, key] of keyring.entries()) {
+        if (keyId !== "legacy") keysToSync.set(keyId, key);
+      }
+      const result = await reencryptCloudNotes({
+        supabase,
+        userId,
+        password,
+        keyring: keysToSync,
+        primaryKeyId: activeKeyId,
+      });
+      setReencryptStatus("success");
+      setReencryptResult(
+        `Re-encrypted ${result.reencrypted} note(s), removed ${result.deleted.length} old key(s)`,
+      );
+    } catch (err) {
+      setReencryptStatus("error");
+      setReencryptResult(err instanceof Error ? err.message : "Re-encrypt failed");
+    }
+  }, [userId, keyring, activeKeyId]);
+
+  const resetReencryptStatus = useCallback(() => {
+    setReencryptStatus("idle");
+    setReencryptResult(null);
+  }, []);
+
   return {
     keys,
     rewrapStatus,
@@ -135,5 +172,9 @@ export function useDebugKeyring(
     cleanupResult,
     cleanup,
     resetCleanupStatus,
+    reencryptStatus,
+    reencryptResult,
+    reencrypt,
+    resetReencryptStatus,
   };
 }
