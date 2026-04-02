@@ -418,6 +418,24 @@ export async function cleanupUnusedKeys(options: {
     reencrypted++;
   }
 
+  // Also collect keyIds used by images (both local and remote)
+  const { getAllImageMeta } = await import("../storage/unifiedImageStore");
+  const localImages = await getAllImageMeta();
+  for (const img of localImages) {
+    if (img.keyId) usedKeyIds.add(img.keyId);
+  }
+
+  const { data: remoteImages, error: imgError } = await supabase
+    .from("note_images")
+    .select("key_id")
+    .eq("user_id", userId)
+    .eq("deleted", false);
+  if (!imgError && remoteImages) {
+    for (const img of remoteImages) {
+      if (img.key_id) usedKeyIds.add(img.key_id);
+    }
+  }
+
   // Delete all non-primary keyring entries that are no longer referenced
   const entries = await fetchUserKeyring(supabase, userId);
   const deleted: string[] = [];
