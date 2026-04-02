@@ -21,19 +21,17 @@ A minimalist daily notes application designed to help you build and maintain a c
 - **Client-Side Encryption**: Your notes are encrypted before they leave your device
 - **Zero-Knowledge Architecture**: We can't read your notes, even if we wanted to
 - **AES-GCM Encryption**: Industry-standard cryptographic protection
-- **Device & Cloud Keys**: Multi-key support ensures your data is always secure
+- **Password-Derived Keys**: Your login password protects your encryption key
 
 ### 🎯 **Exceptional User Experience**
 
-- **Instant Start**: Write immediately—no account required
 - **Year-at-a-Glance**: Visual calendar shows your writing streak at a glance
-- **Seamless Sync**: Works offline, syncs when online
+- **Offline Reading**: Cached notes available offline after sign-in
 - **Responsive Design**: Beautiful on desktop, tablet, and mobile
 - **Keyboard Navigation**: Escape to close, arrows to navigate
 
 ## Features
 
-- **Local-First**: Notes live locally by default with optional cloud sync
 - **Visual Indicators**: Days with notes show a small dot indicator
 - **URL-Based Navigation**: Shareable URLs with year and date parameters
 - **Auto-Save**: Your work is saved automatically as you type
@@ -48,8 +46,8 @@ Visit the live demo: [Demo](https://ichinichi.app)
 - **TypeScript** - Type safety
 - **Vite** - Fast build tool and dev server
 - **CSS Custom Properties** - Theming system
-- **IndexedDB** - Local persistence
-- **Supabase** - Optional sync backend
+- **IndexedDB** - Offline cache
+- **Supabase** - Backend (auth, storage, sync)
 
 ## Getting Started
 
@@ -184,20 +182,18 @@ This is a standard Vite + React app and can be deployed to:
 - **No Overwhelm**: One note per day means no decision fatigue
 - **Protected Past**: Can't edit yesterday's note, so you focus on today
 - **Visual Progress**: See your writing streak grow throughout the year
-- **Frictionless**: Start writing in seconds, no setup required
 
 ### Privacy First
 
 - **Your Thoughts, Your Business**: E2EE means your reflections stay private
-- **Local by Default**: Your data lives on your device until you choose otherwise
-- **Optional Sync**: Use it locally forever, or sync when you're ready
+- **Zero Knowledge**: Server stores only encrypted data it cannot read
 
 ## User Flow
 
-1. Open the app and start writing immediately (local mode by default).
-2. After your first note, you can choose to sign in and sync, or keep using it locally.
-3. Signing in creates a cloud account and migrates your existing local notes.
-4. You can keep working offline; sync catches up when you are back online.
+1. Sign up or sign in to start writing.
+2. Your encryption key is derived from your login password — no separate vault password.
+3. Notes are encrypted client-side, synced to the cloud, and cached locally for offline reading.
+4. Signing out clears all cached data from the device.
 
 ## Project Structure
 
@@ -212,8 +208,10 @@ src/
 │   ├── useNotes.ts             # Note CRUD operations
 │   └── useUrlState.ts          # URL state management
 ├── storage/
-│   ├── noteStorage.ts          # Local encrypted notes
-│   └── vault.ts                # Key management
+│   ├── cache.ts                # IndexedDB offline cache
+│   ├── remoteNotes.ts          # Supabase gateway
+│   ├── noteRepository.ts       # Unified note repository
+│   └── imageRepository.ts      # Image encryption + storage
 ├── utils/
 │   ├── date.ts                 # Date utilities
 │   └── constants.ts            # App constants
@@ -232,31 +230,16 @@ Your notes are encrypted with **AES-GCM** before they ever leave your device. Th
 
 ### Key Management
 
-- **Local Mode**: Device-bound keys auto-unlock seamlessly
-- **Cloud Mode**: Password-derived keys with secure key wrapping
-- **Multi-Key Support**: Notes work across devices without re-encryption
+- **PBKDF2 Key Derivation**: Login password → KEK (600k iterations)
+- **Wrapped DEK**: Single data encryption key, wrapped with KEK, stored in Supabase
+- **Password Change**: Re-wraps the same DEK with new password — no re-encryption of notes
 
 ### Data Storage
 
-For a deeper explanation of the key hierarchy and unlock flow, see `docs/key-derivation.md`.
-For the data flow across local storage and cloud sync, see `docs/data-flow.md`.
-
-#### Local mode (default)
-
-- A device-bound vault key is created on first load without prompting.
-- Notes are encrypted with AES-GCM and stored in IndexedDB.
-- The vault can auto-unlock using a non-exportable device key stored in IndexedDB.
-
-#### Cloud mode (optional)
-
-- When you sign in, a password-derived key wraps the same vault key.
-- Notes are encrypted client-side before syncing to Supabase.
-- A local encrypted cache is kept for offline use and conflict resolution.
-
-#### Data durability
-
-- Clearing browser data deletes local notes and local keys.
-- Cloud sync acts as a backup once you sign in.
+- Notes are encrypted client-side with AES-GCM and stored in Supabase
+- An IndexedDB cache (`ichinichi-cache`) keeps encrypted notes for offline reading
+- Signing out clears the cache entirely
+- Clearing browser data only loses the cache; notes remain safe in the cloud
 
 ## Browser Support
 
@@ -287,7 +270,6 @@ npm run lint
 
 - **Minimalism**: Only essential features, no bloat—designed for daily use
 - **Privacy First**: End-to-end encryption by default, not an afterthought
-- **Local-First**: All data stays in your browser until you choose otherwise
 - **Type Safety**: Full TypeScript coverage for reliability
 - **Responsive**: Mobile-first design approach
 - **Accessibility**: Semantic HTML and keyboard navigation
