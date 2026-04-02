@@ -27,7 +27,7 @@ export interface UseAuthReturn {
   error: string | null;
   hashError: string | null;
   isBusy: boolean;
-  isRestoringDek: boolean;
+  isDekBusy: boolean;
   isPasswordRecovery: boolean;
   dek: CryptoKey | null;
   keyId: string | null;
@@ -733,7 +733,7 @@ export function useAuth(): UseAuthReturn {
     error: state.error,
     hashError: state.hashError,
     isBusy: state.isBusy,
-    isRestoringDek: state.phase === "restoringDek",
+    isDekBusy: state.phase === "restoringDek" || state.phase === "unlockingDek" || state.phase === "generatingDek",
     isPasswordRecovery: state.isPasswordRecovery,
     dek: state.dek,
     keyId: state.keyId,

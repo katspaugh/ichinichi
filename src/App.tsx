@@ -263,8 +263,8 @@ function AppContent() {
     );
   }
 
-  // Auth gate: restoring cached DEK — show loading
-  if (auth.isRestoringDek) {
+  // Auth gate: DEK in progress (restoring from cache, unlocking, or generating) — show loading
+  if (auth.isDekBusy) {
     return <div aria-busy="true" />;
   }
 
