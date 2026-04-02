@@ -24,6 +24,7 @@ interface NoteEditorViewProps {
   showReadonlyBadge: boolean;
   statusText: string | null;
   isStatusError?: boolean;
+  onRestore?: () => void;
   placeholderText: string;
   editorRef: RefObject<HTMLDivElement | null>;
   onInput?: (event: FormEvent<HTMLDivElement>) => void;
@@ -37,6 +38,7 @@ interface NoteEditorViewProps {
   dropIndicatorPosition?: DropIndicatorPosition | null;
   footer?: ReactNode;
   dailyWeather?: DailyWeatherData | null;
+  debugKeyId?: string | null;
 }
 
 export function NoteEditorView({
@@ -47,6 +49,7 @@ export function NoteEditorView({
   showReadonlyBadge,
   statusText,
   isStatusError = false,
+  onRestore,
   placeholderText,
   editorRef,
   onInput,
@@ -60,6 +63,7 @@ export function NoteEditorView({
   dropIndicatorPosition,
   footer,
   dailyWeather,
+  debugKeyId,
 }: NoteEditorViewProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bodyClassName = styles.body;
@@ -103,7 +107,9 @@ export function NoteEditorView({
         showReadonlyBadge={showReadonlyBadge}
         statusText={statusText}
         isStatusError={isStatusError}
+        onRestore={onRestore}
         dailyWeather={dailyWeather}
+        debugKeyId={debugKeyId}
       />
       <div className={bodyClassName}>
         <NoteEditorContent

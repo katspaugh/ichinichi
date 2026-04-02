@@ -68,3 +68,19 @@ export async function saveUserKeyringEntry(
     throw error;
   }
 }
+
+export async function deleteUserKeyringEntry(
+  supabase: SupabaseClient,
+  userId: string,
+  keyId: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from("user_keyrings")
+    .delete()
+    .eq("user_id", userId)
+    .eq("key_id", keyId);
+
+  if (error) {
+    throw error;
+  }
+}

@@ -1,21 +1,15 @@
 import { STORAGE_PREFIX } from "../utils/constants";
 import { base64ToBytes, bytesToBase64, randomBytes } from "./cryptoUtils";
+import { parseKeyringStore, type KeyringStore } from "./parsers";
 
 const KEYRING_STORAGE_KEY = `${STORAGE_PREFIX}keyring_v1`;
-
-interface KeyringEntry {
-  wrappedDek: string;
-  dekIv: string;
-}
-
-type KeyringStore = Record<string, KeyringEntry>;
 
 function loadKeyring(): KeyringStore {
   if (typeof window === "undefined") return {};
   const raw = localStorage.getItem(KEYRING_STORAGE_KEY);
   if (!raw) return {};
   try {
-    return JSON.parse(raw) as KeyringStore;
+    return parseKeyringStore(JSON.parse(raw)) ?? {};
   } catch {
     return {};
   }

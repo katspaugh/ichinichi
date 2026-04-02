@@ -15,6 +15,11 @@ import type { E2eeServiceFactory } from "../domain/crypto/e2eeService";
 import type { KeyringProvider } from "../domain/crypto/keyring";
 import { handleCloudAccountSwitch } from "../storage/accountSwitch";
 import { getCurrentAccountId } from "../storage/accountStore";
+import {
+  closeVaultDb,
+  storeDeviceEncryptedPassword,
+  tryGetDeviceEncryptedPassword,
+} from "../storage/vault";
 
 async function deleteUnifiedDb(): Promise<void> {
   closeUnifiedDb();
@@ -49,6 +54,7 @@ function createKeyring(keyId: string, vaultKey: CryptoKey): KeyringProvider {
 describe("account switch resets cloud sync state", () => {
   beforeEach(async () => {
     await deleteUnifiedDb();
+    closeVaultDb();
     localStorage.clear();
   });
 
@@ -103,5 +109,16 @@ describe("account switch resets cloud sync state", () => {
 
     await engine.sync();
     expect(gateway.pushNote).not.toHaveBeenCalled();
+  });
+
+  it("clears stored device password when switching to a different cloud account", async () => {
+    await storeDeviceEncryptedPassword("user-a-password");
+
+    await handleCloudAccountSwitch("user-a");
+    expect(await tryGetDeviceEncryptedPassword()).toBe("user-a-password");
+
+    await handleCloudAccountSwitch("user-b");
+
+    expect(await tryGetDeviceEncryptedPassword()).toBeNull();
   });
 });

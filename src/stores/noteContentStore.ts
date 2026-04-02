@@ -7,6 +7,7 @@ import { isNoteEmpty, isContentEmpty } from "../utils/sanitize";
 import { connectivity as defaultConnectivity } from "../services/connectivity";
 import type { RepositoryError } from "../domain/errors";
 import type { SavedWeather } from "../types";
+import { reportError } from "../utils/errorReporter";
 
 export interface ConnectivitySource {
   getOnline(): boolean;
@@ -40,6 +41,9 @@ export interface NoteContentState {
   _saveTimer: number | null;
   _savePromise: Promise<void> | null;
 
+  // Soft-delete
+  isSoftDeleted: boolean;
+
   // Remote refresh
   isRefreshing: boolean;
   hasRefreshedForDate: string | null;
@@ -60,6 +64,7 @@ export interface NoteContentState {
   dispose: () => Promise<void>;
   setContent: (content: string) => void;
   setWeather: (weather: SavedWeather | null) => void;
+  restoreNote: () => Promise<void>;
   flushSave: () => Promise<void>;
   applyRemoteUpdate: (content: string) => void;
   refreshFromRemote: () => Promise<void>;
@@ -159,6 +164,7 @@ export function createNoteContentStore(deps?: NoteContentStoreDeps) {
       error: null,
       loadedWithContent: false,
       weather: null,
+      isSoftDeleted: false,
       isRefreshing: false,
       hasRefreshedForDate: null,
       remoteCacheResult: null,
@@ -168,6 +174,22 @@ export function createNoteContentStore(deps?: NoteContentStoreDeps) {
     if (gen !== _loadGeneration) return; // superseded
 
     if (result.ok) {
+      if (!result.value && repository.getIncludingDeleted) {
+        // Check for soft-deleted note
+        const deletedResult = await repository.getIncludingDeleted(date);
+        if (gen !== _loadGeneration) return;
+        if (deletedResult.ok && deletedResult.value) {
+          set({
+            status: "ready",
+            content: deletedResult.value.content,
+            hasEdits: false,
+            error: null,
+            loadedWithContent: false,
+            isSoftDeleted: true,
+          });
+          return;
+        }
+      }
       const content = result.value?.content ?? "";
       set({
         status: "ready",
@@ -176,6 +198,7 @@ export function createNoteContentStore(deps?: NoteContentStoreDeps) {
         error: null,
         loadedWithContent: !isContentEmpty(content),
         weather: result.value?.weather ?? null,
+        isSoftDeleted: false,
       });
 
       // Auto-trigger remote refresh + cache check after load
@@ -211,6 +234,7 @@ export function createNoteContentStore(deps?: NoteContentStoreDeps) {
     saveError: null,
     _saveTimer: null,
     _savePromise: null,
+    isSoftDeleted: false,
     isRefreshing: false,
     hasRefreshedForDate: null,
     remoteCacheResult: null,
@@ -258,12 +282,24 @@ export function createNoteContentStore(deps?: NoteContentStoreDeps) {
         isSaving: false,
         _saveTimer: null,
         _savePromise: null,
+        isSoftDeleted: false,
         isRefreshing: false,
         hasRefreshedForDate: null,
         remoteCacheResult: null,
         repository: null,
         afterSave: null,
       });
+    },
+
+    restoreNote: async () => {
+      const { date, repository } = get();
+      if (!date || !repository?.restoreNote) return;
+      const result = await repository.restoreNote(date);
+      if (result.ok) {
+        set({ isSoftDeleted: false, loadedWithContent: true });
+        // Trigger save to create pendingOp (syncs back to cloud)
+        void get().refreshFromRemote();
+      }
     },
 
     setContent: (content) => {
@@ -280,7 +316,23 @@ export function createNoteContentStore(deps?: NoteContentStoreDeps) {
     },
 
     setWeather: (weather) => {
-      set({ weather });
+      const { weather: current, status } = get();
+      if (status !== "ready" && status !== "error") return;
+      // Shallow-compare to avoid spurious saves when same data arrives as new object
+      if (
+        weather === current ||
+        (weather != null &&
+          current != null &&
+          weather.icon === current.icon &&
+          weather.temperatureHigh === current.temperatureHigh &&
+          weather.temperatureLow === current.temperatureLow &&
+          weather.unit === current.unit &&
+          weather.city === current.city)
+      ) {
+        return;
+      }
+      set({ weather, hasEdits: true, error: null });
+      _scheduleSave();
     },
 
     flushSave: async () => {
@@ -393,10 +445,14 @@ export function createNoteContentStore(deps?: NoteContentStoreDeps) {
             hasRefreshedForDate: date,
           });
         } else {
-          if (remoteWeather) set({ weather: remoteWeather });
-          set({ isRefreshing: false, hasRefreshedForDate: date });
+          set({
+            weather: remoteWeather,
+            isRefreshing: false,
+            hasRefreshedForDate: date,
+          });
         }
-      } catch {
+      } catch (error) {
+        reportError("noteContentStore.refreshFromRemote", error);
         if (gen === _refreshGeneration) {
           set({ isRefreshing: false });
         }
@@ -425,8 +481,8 @@ export function createNoteContentStore(deps?: NoteContentStoreDeps) {
             });
           }
         }
-      } catch {
-        // Local read failed — not critical, skip
+      } catch (error) {
+        reportError("noteContentStore.reloadFromLocal", error);
       }
     },
 
@@ -459,8 +515,8 @@ export function createNoteContentStore(deps?: NoteContentStoreDeps) {
         if (current.date === date) {
           set({ remoteCacheResult: { date, hasRemote } });
         }
-      } catch {
-        // Local cache check failed — not critical
+      } catch (error) {
+        reportError("noteContentStore.checkRemoteCache", error);
       }
     },
 

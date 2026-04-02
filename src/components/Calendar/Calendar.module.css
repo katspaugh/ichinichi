@@ -1,36 +1,22 @@
 .calendar {
   padding: var(--spacing-md);
+  width: 100%;
   max-width: 1600px;
   margin: 0 auto;
-  height: 100vh;
-  min-height: 800px;
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .year {
   font-size: var(--font-size-2xl);
   font-weight: var(--font-weight-semibold);
+  line-height: 1;
   min-width: 120px;
   text-align: center;
-}
-
-.yearMonth {
-  font-size: var(--font-size-2xl);
-  font-weight: var(--font-weight-semibold);
-  min-width: 200px;
-  text-align: center;
-  background: transparent;
-  border: none;
-  color: var(--color-text);
-  cursor: pointer;
-  padding: var(--spacing-xs) var(--spacing-sm);
-  border-radius: var(--radius-sm);
-  transition: background-color 0.2s;
-}
-
-.yearMonth:hover {
-  background-color: var(--color-surface);
 }
 
 .grid {
@@ -40,15 +26,6 @@
   flex: 1;
   align-content: start;
 }
-
-.grid[data-month-view="true"] {
-  grid-template-columns: 1fr;
-  place-items: center;
-  max-width: 800px;
-  margin: 0 auto;
-  width: 100%;
-}
-
 
 .navButton {
   display: flex;
@@ -97,46 +74,22 @@
 
 @media (max-width: 768px) {
   .calendar {
-    padding-top: 0;
-    height: 100dvh;
-    min-height: 0;
-    overflow: hidden;
+    padding-bottom: var(--spacing-md);
   }
 
-  .calendar[data-month-view="true"] {
-    height: auto;
-    min-height: 100dvh;
-    overflow: visible;
-    padding-top: 64px;
-    overscroll-behavior: none;
-  }
-
-
-  .grid:not([data-month-view="true"]) {
-    overflow-y: auto;
+  .calendar[data-scroll-snap] {
     scroll-snap-type: y mandatory;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-    -webkit-overflow-scrolling: touch;
   }
 
-  .grid:not([data-month-view="true"])::-webkit-scrollbar {
-    display: none;
-  }
-
-  .grid:not([data-month-view="true"]) > * {
+  .grid > * {
     scroll-snap-align: start;
-  }
-
-  .yearMonth {
-    font-size: var(--font-size-base);
-    min-width: auto;
   }
 }
 
 @media (min-width: 1200px) {
   .calendar {
     box-sizing: border-box;
+    overflow: hidden;
   }
 
   .year {
@@ -144,43 +97,17 @@
     min-width: 100px;
   }
 
-  .yearMonth {
-    font-size: var(--font-size-xl);
-    min-width: 180px;
-  }
-
   .grid {
     grid-template-rows: repeat(3, 1fr);
+    align-content: stretch;
     gap: var(--spacing-md);
     overflow: hidden;
   }
-
-  .grid[data-month-view="true"] {
-    grid-template-rows: 1fr;
-    max-width: 1000px;
-    align-content: center;
-  }
 }
-
 
 /* Desktop PWA: window title bar provides enough top spacing */
 @media (display-mode: standalone) and (min-width: 769px) {
   .calendar {
     padding-top: 0;
   }
-}
-
-/* Month view with split layout (desktop) */
-@media (min-width: 769px) {
-  .calendar[data-month-view="true"] {
-    height: 100vh;
-    min-height: 800px;
-    overflow: hidden;
-  }
-}
-
-.calendar[data-month-view="true"] .grid {
-  grid-template-columns: 1fr;
-  max-width: none;
-  flex: none;
 }

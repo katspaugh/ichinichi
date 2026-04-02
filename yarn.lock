@@ -2152,6 +2152,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@mixmark-io/domino@npm:^2.2.0":
+  version: 2.2.0
+  resolution: "@mixmark-io/domino@npm:2.2.0"
+  checksum: 10c0/aa468a15f9217d425220fe6a4b3f9416cbe8e566ee14efc191c6d5cc04fe39338b16a90bbac190f28d44e69465db5f2cf95f479c621ce38060ca6b2a3d346e9d
+  languageName: node
+  linkType: hard
+
 "@napi-rs/wasm-runtime@npm:^1.1.1":
   version: 1.1.1
   resolution: "@napi-rs/wasm-runtime@npm:1.1.1"
@@ -2931,6 +2938,127 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@tauri-apps/cli-darwin-arm64@npm:2.10.1":
+  version: 2.10.1
+  resolution: "@tauri-apps/cli-darwin-arm64@npm:2.10.1"
+  conditions: os=darwin & cpu=arm64
+  languageName: node
+  linkType: hard
+
+"@tauri-apps/cli-darwin-x64@npm:2.10.1":
+  version: 2.10.1
+  resolution: "@tauri-apps/cli-darwin-x64@npm:2.10.1"
+  conditions: os=darwin & cpu=x64
+  languageName: node
+  linkType: hard
+
+"@tauri-apps/cli-linux-arm-gnueabihf@npm:2.10.1":
+  version: 2.10.1
+  resolution: "@tauri-apps/cli-linux-arm-gnueabihf@npm:2.10.1"
+  conditions: os=linux & cpu=arm
+  languageName: node
+  linkType: hard
+
+"@tauri-apps/cli-linux-arm64-gnu@npm:2.10.1":
+  version: 2.10.1
+  resolution: "@tauri-apps/cli-linux-arm64-gnu@npm:2.10.1"
+  conditions: os=linux & cpu=arm64 & libc=glibc
+  languageName: node
+  linkType: hard
+
+"@tauri-apps/cli-linux-arm64-musl@npm:2.10.1":
+  version: 2.10.1
+  resolution: "@tauri-apps/cli-linux-arm64-musl@npm:2.10.1"
+  conditions: os=linux & cpu=arm64 & libc=musl
+  languageName: node
+  linkType: hard
+
+"@tauri-apps/cli-linux-riscv64-gnu@npm:2.10.1":
+  version: 2.10.1
+  resolution: "@tauri-apps/cli-linux-riscv64-gnu@npm:2.10.1"
+  conditions: os=linux & cpu=riscv64 & libc=glibc
+  languageName: node
+  linkType: hard
+
+"@tauri-apps/cli-linux-x64-gnu@npm:2.10.1":
+  version: 2.10.1
+  resolution: "@tauri-apps/cli-linux-x64-gnu@npm:2.10.1"
+  conditions: os=linux & cpu=x64 & libc=glibc
+  languageName: node
+  linkType: hard
+
+"@tauri-apps/cli-linux-x64-musl@npm:2.10.1":
+  version: 2.10.1
+  resolution: "@tauri-apps/cli-linux-x64-musl@npm:2.10.1"
+  conditions: os=linux & cpu=x64 & libc=musl
+  languageName: node
+  linkType: hard
+
+"@tauri-apps/cli-win32-arm64-msvc@npm:2.10.1":
+  version: 2.10.1
+  resolution: "@tauri-apps/cli-win32-arm64-msvc@npm:2.10.1"
+  conditions: os=win32 & cpu=arm64
+  languageName: node
+  linkType: hard
+
+"@tauri-apps/cli-win32-ia32-msvc@npm:2.10.1":
+  version: 2.10.1
+  resolution: "@tauri-apps/cli-win32-ia32-msvc@npm:2.10.1"
+  conditions: os=win32 & cpu=ia32
+  languageName: node
+  linkType: hard
+
+"@tauri-apps/cli-win32-x64-msvc@npm:2.10.1":
+  version: 2.10.1
+  resolution: "@tauri-apps/cli-win32-x64-msvc@npm:2.10.1"
+  conditions: os=win32 & cpu=x64
+  languageName: node
+  linkType: hard
+
+"@tauri-apps/cli@npm:^2":
+  version: 2.10.1
+  resolution: "@tauri-apps/cli@npm:2.10.1"
+  dependencies:
+    "@tauri-apps/cli-darwin-arm64": "npm:2.10.1"
+    "@tauri-apps/cli-darwin-x64": "npm:2.10.1"
+    "@tauri-apps/cli-linux-arm-gnueabihf": "npm:2.10.1"
+    "@tauri-apps/cli-linux-arm64-gnu": "npm:2.10.1"
+    "@tauri-apps/cli-linux-arm64-musl": "npm:2.10.1"
+    "@tauri-apps/cli-linux-riscv64-gnu": "npm:2.10.1"
+    "@tauri-apps/cli-linux-x64-gnu": "npm:2.10.1"
+    "@tauri-apps/cli-linux-x64-musl": "npm:2.10.1"
+    "@tauri-apps/cli-win32-arm64-msvc": "npm:2.10.1"
+    "@tauri-apps/cli-win32-ia32-msvc": "npm:2.10.1"
+    "@tauri-apps/cli-win32-x64-msvc": "npm:2.10.1"
+  dependenciesMeta:
+    "@tauri-apps/cli-darwin-arm64":
+      optional: true
+    "@tauri-apps/cli-darwin-x64":
+      optional: true
+    "@tauri-apps/cli-linux-arm-gnueabihf":
+      optional: true
+    "@tauri-apps/cli-linux-arm64-gnu":
+      optional: true
+    "@tauri-apps/cli-linux-arm64-musl":
+      optional: true
+    "@tauri-apps/cli-linux-riscv64-gnu":
+      optional: true
+    "@tauri-apps/cli-linux-x64-gnu":
+      optional: true
+    "@tauri-apps/cli-linux-x64-musl":
+      optional: true
+    "@tauri-apps/cli-win32-arm64-msvc":
+      optional: true
+    "@tauri-apps/cli-win32-ia32-msvc":
+      optional: true
+    "@tauri-apps/cli-win32-x64-msvc":
+      optional: true
+  bin:
+    tauri: tauri.js
+  checksum: 10c0/a68f340a752092fc4f417fb7a8d4dc044031fe47c9c458ec3a1d25280d26f54dd7f33c97f797ce006936113b2d5ee54d25cef56bb84d803f1f11f7d3b5f81fd5
+  languageName: node
+  linkType: hard
+
 "@testing-library/dom@npm:^10.4.1":
   version: 10.4.1
   resolution: "@testing-library/dom@npm:10.4.1"
@@ -3125,6 +3253,13 @@ __metadata:
   version: 2.0.7
   resolution: "@types/trusted-types@npm:2.0.7"
   checksum: 10c0/4c4855f10de7c6c135e0d32ce462419d8abbbc33713b31d294596c0cc34ae1fa6112a2f9da729c8f7a20707782b0d69da3b1f8df6645b0366d08825ca1522e0c
+  languageName: node
+  linkType: hard
+
+"@types/turndown@npm:^5.0.6":
+  version: 5.0.6
+  resolution: "@types/turndown@npm:5.0.6"
+  checksum: 10c0/cc5648c115b67ba413782fd0a8ae273ad6b87940df770ab9a5fefe0303c368704013fca2a55dd08f46a2132a747912fd47f96a83162c47fd189babf1352ac4be
   languageName: node
   linkType: hard
 
@@ -4798,6 +4933,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"fflate@npm:^0.8.2":
+  version: 0.8.2
+  resolution: "fflate@npm:0.8.2"
+  checksum: 10c0/03448d630c0a583abea594835a9fdb2aaf7d67787055a761515bf4ed862913cfd693b4c4ffd5c3f3b355a70cf1e19033e9ae5aedcca103188aaff91b8bd6e293
+  languageName: node
+  linkType: hard
+
 "file-entry-cache@npm:^8.0.0":
   version: 8.0.0
   resolution: "file-entry-cache@npm:8.0.0"
@@ -4846,9 +4988,9 @@ __metadata:
   linkType: hard
 
 "flatted@npm:^3.2.9":
-  version: 3.4.1
-  resolution: "flatted@npm:3.4.1"
-  checksum: 10c0/3987a7f1e39bc7215cece001354313b462cdb4fb2dde0df4f7acd9e5016fbae56ee6fb3f0870b2150145033be8bda4f01af6f87a00946049651131bbfca7dfa6
+  version: 3.4.2
+  resolution: "flatted@npm:3.4.2"
+  checksum: 10c0/a65b67aae7172d6cdf63691be7de6c5cd5adbdfdfe2e9da1a09b617c9512ed794037741ee53d93114276bff3f93cd3b0d97d54f9b316e1e4885dde6e9ffdf7ed
   languageName: node
   linkType: hard
 
@@ -5270,12 +5412,14 @@ __metadata:
     "@playwright/mcp": "npm:^0.0.56"
     "@playwright/test": "npm:^1.57.0"
     "@supabase/supabase-js": "npm:^2.89.0"
+    "@tauri-apps/cli": "npm:^2"
     "@testing-library/dom": "npm:^10.4.1"
     "@testing-library/react": "npm:^16.1.0"
     "@types/dompurify": "npm:^3.2.0"
     "@types/node": "npm:^24.10.1"
     "@types/react": "npm:^19.2.5"
     "@types/react-dom": "npm:^19.2.3"
+    "@types/turndown": "npm:^5.0.6"
     "@vitejs/plugin-react": "npm:^6.0.1"
     cheerio: "npm:^1.0.0"
     dompurify: "npm:^3.3.1"
@@ -5284,6 +5428,7 @@ __metadata:
     eslint-plugin-react-hooks: "npm:^7.0.1"
     eslint-plugin-react-refresh: "npm:^0.4.24"
     fake-indexeddb: "npm:^6.2.3"
+    fflate: "npm:^0.8.2"
     globals: "npm:^16.5.0"
     husky: "npm:^9.1.7"
     jsdom: "npm:^28.1.0"
@@ -5293,6 +5438,7 @@ __metadata:
     react: "npm:^19.2.0"
     react-dom: "npm:^19.2.0"
     supabase: "npm:^2.70.5"
+    turndown: "npm:^7.2.2"
     typescript: "npm:~5.9.3"
     typescript-eslint: "npm:^8.46.4"
     vite: "npm:^8.0.0"
@@ -6629,9 +6775,9 @@ __metadata:
   linkType: hard
 
 "picomatch@npm:^2.2.2, picomatch@npm:^2.3.1":
-  version: 2.3.1
-  resolution: "picomatch@npm:2.3.1"
-  checksum: 10c0/26c02b8d06f03206fc2ab8d16f19960f2ff9e81a658f831ecb656d8f17d9edc799e8364b1f4a7873e89d9702dff96204be0fa26fe4181f6843f040f819dac4be
+  version: 2.3.2
+  resolution: "picomatch@npm:2.3.2"
+  checksum: 10c0/a554d1709e59be97d1acb9eaedbbc700a5c03dbd4579807baed95100b00420bc729335440ef15004ae2378984e2487a7c1cebd743cfdb72b6fa9ab69223c0d61
   languageName: node
   linkType: hard
 
@@ -7790,6 +7936,15 @@ __metadata:
   version: 2.8.1
   resolution: "tslib@npm:2.8.1"
   checksum: 10c0/9c4759110a19c53f992d9aae23aac5ced636e99887b51b9e61def52611732872ff7668757d4e4c61f19691e36f4da981cd9485e869b4a7408d689f6bf1f14e62
+  languageName: node
+  linkType: hard
+
+"turndown@npm:^7.2.2":
+  version: 7.2.2
+  resolution: "turndown@npm:7.2.2"
+  dependencies:
+    "@mixmark-io/domino": "npm:^2.2.0"
+  checksum: 10c0/ee09f7bd67c468505aad6c3a26b11269ca49ffce07eaa9c212926d068f242b11b4e955b31a58289f26674ff29f91209b29454907551dcaec7da712e524cc78c2
   languageName: node
   linkType: hard
 

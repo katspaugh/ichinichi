@@ -45,6 +45,11 @@
   height: 16px;
 }
 
+.preview {
+  margin-top: var(--spacing-md);
+  margin-bottom: 0;
+}
+
 .closeButton {
   margin-top: var(--spacing-md);
   align-self: center;

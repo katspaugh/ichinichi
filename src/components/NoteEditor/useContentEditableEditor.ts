@@ -12,10 +12,17 @@ import {
   restoreResilientCursorPosition,
 } from "../../services/editorTextTransforms/cursor";
 import { applySectionColors } from "../../services/sectionColors";
+import { applyFavicon } from "../../utils/linkFavicons";
 import { getTimestampLabel } from "../../services/timestampLabel";
 
 const TIMESTAMP_ATTR = "data-timestamp";
 const TIMESTAMP_LABEL_ATTR = "data-label";
+function applyFavicons(el: HTMLElement): void {
+  el.querySelectorAll<HTMLAnchorElement>("a[href]:not([data-favicon])").forEach(
+    applyFavicon,
+  );
+}
+
 const ADDITION_WINDOW_MS = 10 * 60 * 1000;
 const SECTION_TYPE_RE = /^\+([a-z][a-z-]*)$/;
 const ACTIVE_EDITING_GRACE_MS = 2000;
@@ -526,6 +533,7 @@ export function useContentEditableEditor({
       updateEmptyState();
       updateTimestampLabels(el);
       applySectionColors(el);
+      applyFavicons(el);
       return;
     }
     const nextContent = content || "";
@@ -534,6 +542,7 @@ export function useContentEditableEditor({
       updateEmptyState();
       updateTimestampLabels(el);
       applySectionColors(el);
+      applyFavicons(el);
       return;
     }
     // Save cursor as a path so it survives DOM replacement
@@ -548,6 +557,7 @@ export function useContentEditableEditor({
     updateEmptyState();
     updateTimestampLabels(el);
     applySectionColors(el);
+    applyFavicons(el);
     restoreResilientCursorPosition(el, savedCursor);
     isProgrammaticUpdateRef.current = false;
   }, [content, updateEmptyState, updateTimestampLabels]);
@@ -565,6 +575,11 @@ export function useContentEditableEditor({
     const hasContent = content.trim().length > 0;
     if (isMobile && hasContent) {
       hasAutoFocusedRef.current = true;
+      // Prime lastEditedBlockRef so first mobile tap doesn't trigger
+      // the "first edit of session" path and insert HR at wrong position
+      const blocks = el.querySelectorAll("p, div");
+      const lastBlock = blocks[blocks.length - 1];
+      lastEditedBlockRef.current = lastBlock ?? el;
       return;
     }
 
@@ -623,8 +638,9 @@ export function useContentEditableEditor({
     // Apply text transforms (HR insertion, linkify) with cursor preservation
     applyTextTransforms(el);
 
-    // Apply section header colors
+    // Apply section header colors and link favicons
     applySectionColors(el);
+    applyFavicons(el);
 
     // Clean up stale section headers whose text no longer matches +typename
     const sectionHeaders = el.querySelectorAll<HTMLElement>("[data-section-type]");

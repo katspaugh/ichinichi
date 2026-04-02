@@ -197,7 +197,7 @@ export function getWeekdayOptions(): Array<{
       dayIndex: (weekStart + index) % 7,
     }));
   }
-  const formatter = new Intl.DateTimeFormat(locale, { weekday: "short" });
+  const formatter = new Intl.DateTimeFormat(locale, { weekday: "short", timeZone: "UTC" });
   const baseDate = new Date(Date.UTC(2023, 0, 1));
   return Array.from({ length: 7 }, (_, index) => {
     const dayIndex = (weekStart + index) % 7;

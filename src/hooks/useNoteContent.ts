@@ -21,6 +21,7 @@ export interface UseNoteContentReturn {
   isSaving: boolean;
   isContentReady: boolean;
   isOfflineStub: boolean;
+  isSoftDeleted: boolean;
   /** Error from loading/decrypting the note (e.g. DecryptFailed) */
   error: RepositoryError | null;
   /** Error from the last failed save attempt */
@@ -30,6 +31,7 @@ export interface UseNoteContentReturn {
   /** Weather stored with the note (encrypted) */
   weather: SavedWeather | null;
   setWeather: (weather: SavedWeather | null) => void;
+  restoreNote: () => void;
 }
 
 // Zustand selectors for fine-grained re-renders
@@ -111,6 +113,7 @@ export function useNoteContent(
   const saveError = useStoreSelector(store, (s) => s.saveError);
   const remoteCacheResult = useStoreSelector(store, (s) => s.remoteCacheResult);
   const weather = useStoreSelector(store, (s) => s.weather);
+  const isSoftDeleted = useStoreSelector(store, (s) => s.isSoftDeleted);
 
   const isReady =
     status === "ready" || status === "error";
@@ -143,6 +146,10 @@ export function useNoteContent(
     () => store.getState().forceRefresh(),
     [store],
   );
+  const restoreNote = useCallback(
+    () => store.getState().restoreNote(),
+    [store],
+  );
 
   return {
     content,
@@ -152,10 +159,12 @@ export function useNoteContent(
     isSaving,
     isContentReady: isReady,
     isOfflineStub,
+    isSoftDeleted,
     error,
     saveError,
     forceRefresh,
     weather,
     setWeather: setWeatherCb,
+    restoreNote,
   };
 }

@@ -22,15 +22,14 @@ test.describe('Calendar Navigation', () => {
     await expect(page).toHaveURL(`/?year=${currentYear - 1}`);
   });
 
-  test('can enter and exit month view', async ({ page }) => {
+  test('clicking month with no notes stays in year view', async ({ page }) => {
     const monthButton = page.locator('button[aria-label*="View January"]');
     await monthButton.click({ force: true });
-    await expect(page).toHaveURL(/\?month=\d{4}-\d{2}/);
-    await expect(page.getByRole('button', { name: /Return to year/i })).toBeVisible();
-
-    const returnButton = page.getByRole('button', { name: /Return to year/i });
-    await returnButton.click({ force: true });
-    await expect(page).toHaveURL(/\?year=\d+$/);
+    // Month click navigates to latest note in month; with no notes, stays in year view
+    await expect(page).not.toHaveURL(/\?date=/);
+    // Year heading still visible
+    const currentYear = new Date().getFullYear();
+    await expect(page.getByText(String(currentYear), { exact: true })).toBeVisible();
   });
 
   test('today cell is clickable and opens note editor', async ({ page }) => {

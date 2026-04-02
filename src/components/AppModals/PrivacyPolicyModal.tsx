@@ -1,7 +1,7 @@
 import { Modal } from "../Modal";
 import { ModalCard } from "../ModalCard";
 import { Button } from "../Button";
-import styles from "./PrivacyPolicyModal.module.css";
+import styles from "./AboutModal.module.css";
 
 interface PrivacyPolicyModalProps {
   isOpen: boolean;

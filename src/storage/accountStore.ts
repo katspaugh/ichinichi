@@ -1,4 +1,5 @@
 import { STORAGE_PREFIX } from "../utils/constants";
+import { parseUserAccountMap } from "./parsers";
 
 const CURRENT_ACCOUNT_ID_KEY = `${STORAGE_PREFIX}account_current_v1`;
 const NEXT_ACCOUNT_ID_KEY = `${STORAGE_PREFIX}account_next_id_v1`;
@@ -14,7 +15,7 @@ function loadUserAccountMap(): UserAccountMap {
   const raw = localStorage.getItem(USER_ACCOUNT_MAP_KEY);
   if (!raw) return {};
   try {
-    return JSON.parse(raw) as UserAccountMap;
+    return parseUserAccountMap(JSON.parse(raw)) ?? {};
   } catch {
     return {};
   }

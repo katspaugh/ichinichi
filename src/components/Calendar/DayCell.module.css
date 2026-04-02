@@ -94,7 +94,7 @@
 
 @media (min-width: 1200px) {
   :global([data-month-view="true"]) .dayCell {
-    font-size: clamp(0.9rem, 1.9vh, 1.8rem);
+    font-size: clamp(0.75rem, 1.5vh, 1.4rem);
   }
 
   :global([data-month-view="true"]) .indicator {

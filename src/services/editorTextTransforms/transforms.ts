@@ -4,6 +4,7 @@
  */
 
 import { findUrls, normalizeUrl } from "../../utils/linkify";
+import { applyFavicon } from "../../utils/linkFavicons";
 import {
   findTextNodesMatching,
   isInsideAnchor,
@@ -190,6 +191,8 @@ export const linkifyTransform: TextTransform = {
     if (!selection) {
       return { transformed: false };
     }
+    const savedRange =
+      selection.rangeCount > 0 ? selection.getRangeAt(0).cloneRange() : null;
 
     // Process URLs in reverse order to maintain correct positions
     for (const { node: textNode, urls } of nodesToProcess) {
@@ -210,13 +213,22 @@ export const linkifyTransform: TextTransform = {
         if (anchor?.tagName === "A") {
           anchor.setAttribute("target", "_blank");
           anchor.setAttribute("rel", "noopener noreferrer");
+          applyFavicon(anchor as HTMLAnchorElement);
         }
+      }
+    }
+
+    if (savedRange) {
+      try {
+        selection.removeAllRanges();
+        selection.addRange(savedRange);
+      } catch {
+        // Ignore invalidated ranges and keep browser-managed caret position.
       }
     }
 
     return {
       transformed: true,
-      cursorPlacement: "restore",
     };
   },
 };

@@ -1,13 +1,9 @@
 import { STORAGE_PREFIX } from "../utils/constants";
 import { base64ToBytes, bytesToBase64, randomBytes } from "./cryptoUtils";
+import { parseCloudDekCachePayload, type CloudDekCachePayload } from "./parsers";
 
 const CLOUD_DEK_CACHE_KEY = `${STORAGE_PREFIX}cloud_dek_cache_v1`;
 const CACHE_IV_BYTES = 12;
-
-interface CloudDekCachePayload {
-  iv: string;
-  data: string;
-}
 
 export async function cacheCloudDek(
   localVaultKey: CryptoKey,
@@ -37,8 +33,8 @@ export async function restoreCloudDek(
   const raw = localStorage.getItem(CLOUD_DEK_CACHE_KEY);
   if (!raw) return null;
   try {
-    const parsed = JSON.parse(raw) as CloudDekCachePayload;
-    if (!parsed?.iv || !parsed?.data) return null;
+    const parsed = parseCloudDekCachePayload(JSON.parse(raw));
+    if (!parsed) return null;
     const iv = base64ToBytes(parsed.iv);
     const data = base64ToBytes(parsed.data);
     const decrypted = await crypto.subtle.decrypt(

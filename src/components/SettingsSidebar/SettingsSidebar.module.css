@@ -156,6 +156,11 @@
     border-color var(--transition-fast);
 }
 
+.actionButton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 .actionButtonPrimary {
   border-color: var(--color-primary);
   color: var(--color-primary);

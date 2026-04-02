@@ -1,13 +1,23 @@
 import { useCallback, useEffect, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Calendar } from "./components/Calendar";
 import { DayView } from "./components/Calendar/DayView";
+import { AppLayout } from "./components/AppLayout";
+import { Header } from "./components/Header";
 import { AppModals } from "./components/AppModals";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { UpdatePrompt } from "./components/UpdatePrompt";
 import { SettingsSidebar } from "./components/SettingsSidebar";
+import { SearchOverlay } from "./components/Search";
+import { exportNotesAsZip, downloadBlob } from "./services/exportNotes";
 import { AboutModal } from "./components/AppModals/AboutModal";
 import { PrivacyPolicyModal } from "./components/AppModals/PrivacyPolicyModal";
+import { ResetPasswordModal } from "./components/AppModals/ResetPasswordModal";
+import { AuthErrorModal } from "./components/AppModals/AuthErrorModal";
 import { AuthState } from "./hooks/useAuth";
+import { supabase } from "./lib/supabase";
+import { rewrapCloudKeyring } from "./services/vaultService";
+import { storeDeviceEncryptedPassword } from "./storage/vault";
 import { AppMode } from "./hooks/useAppMode";
 import { usePWA } from "./hooks/usePWA";
 import { useAppController } from "./controllers/useAppController";
@@ -17,6 +27,9 @@ import { NoteRepositoryProvider } from "./contexts/NoteRepositoryProvider";
 import { RoutingProvider } from "./contexts/RoutingProvider";
 import { WeatherProvider } from "./contexts/WeatherProvider";
 import { getTodayString, parseDate } from "./utils/date";
+import { useDebugMode } from "./hooks/useDebugMode";
+import { useDebugKeyring } from "./hooks/useDebugKeyring";
+import calendarStyles from "./components/Calendar/Calendar.module.css";
 
 function getLatestNoteInMonth(
   noteDates: Set<string>,
@@ -45,7 +58,10 @@ function getLatestNoteInMonth(
 function App() {
   const { routing, auth, appMode, activeVault, notes } = useAppController();
   const { needRefresh, updateServiceWorker, dismissUpdate } = usePWA();
+  const [isDebug, setDebug] = useDebugMode();
+  const debugKeyring = useDebugKeyring(activeVault.keyring, activeVault.activeKeyId, auth.user?.id ?? null, auth.authState === AuthState.SignedIn);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
   const [weekStartVersion, setWeekStartVersion] = useState(0);
@@ -100,6 +116,14 @@ function App() {
     setSettingsOpen(true);
   }, []);
 
+  const handleSearchClick = useCallback(() => {
+    setSearchOpen(true);
+  }, []);
+
+  const handleSearchClose = useCallback(() => {
+    setSearchOpen(false);
+  }, []);
+
   const handleOpenAbout = useCallback(() => {
     setSettingsOpen(false);
     setAboutOpen(true);
@@ -114,6 +138,14 @@ function App() {
     setWeekStartVersion((value) => value + 1);
   }, []);
 
+  const handleExport = useCallback(async () => {
+    if (!notes.repository) return;
+    const blob = await exportNotesAsZip(notes.repository);
+    if (!blob) return;
+    const today = new Date().toISOString().slice(0, 10);
+    downloadBlob(blob, `ichinichi-export-${today}.zip`);
+  }, [notes.repository]);
+
   const signInHandler =
     appMode.mode !== AppMode.Cloud && auth.authState !== AuthState.SignedIn
       ? appMode.switchToCloud
@@ -127,6 +159,51 @@ function App() {
     appMode.mode === AppMode.Cloud && auth.authState === AuthState.SignedIn
       ? activeVault.handleSignOut
       : undefined;
+
+  const handleUpdatePassword = useCallback(
+    async (password: string) => {
+      const result = await auth.updatePassword(password);
+      if (result.success && auth.user && activeVault.keyring.size) {
+        // Use the full merged keyring (minus synthetic "legacy" alias)
+        const keysToSync = new Map<string, CryptoKey>();
+        for (const [keyId, key] of activeVault.keyring.entries()) {
+          if (keyId !== "legacy") {
+            keysToSync.set(keyId, key);
+          }
+        }
+        if (keysToSync.size) {
+          await rewrapCloudKeyring({
+            supabase,
+            userId: auth.user.id,
+            newPassword: password,
+            keyring: keysToSync,
+            primaryKeyId: activeVault.activeKeyId,
+          });
+        }
+        // Store new password for session-restore re-wrapping
+        void storeDeviceEncryptedPassword(password);
+      }
+      return result;
+    },
+    [auth, activeVault.keyring, activeVault.activeKeyId],
+  );
+
+  const resetPasswordHandler =
+    auth.authState === AuthState.SignedIn && auth.user?.email
+      ? () => auth.resetPassword(auth.user!.email!)
+      : undefined;
+
+  // ⌘K / Ctrl+K global shortcut to open search
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   useEffect(() => {
     requestAnimationFrame(() => {
@@ -148,6 +225,26 @@ function App() {
     activeVault.authPassword,
   ]);
 
+  const headerNav = isDayView ? null : (
+    <>
+      <button
+        className={calendarStyles.navButton}
+        onClick={() => navigateToYear(year - 1)}
+        aria-label="Previous year"
+      >
+        <ChevronLeft className={calendarStyles.navIcon} />
+      </button>
+      <span className={calendarStyles.year}>{year}</span>
+      <button
+        className={calendarStyles.navButton}
+        onClick={() => navigateToYear(year + 1)}
+        aria-label="Next year"
+      >
+        <ChevronRight className={calendarStyles.navIcon} />
+      </button>
+    </>
+  );
+
   return (
     <RoutingProvider value={routing}>
       <AppModeProvider value={appMode}>
@@ -161,46 +258,61 @@ function App() {
                 resetLabel="Reload app"
                 onReset={() => window.location.reload()}
               >
-                {isDayView && date ? (
-                  <DayView
-                    weekStartVersion={weekStartVersion}
-                    date={date}
-                    noteDates={notes.noteDates}
-                    hasNote={notes.hasNote}
-                    onDayClick={navigateToDate}
-                    onMonthChange={handleDayViewMonthChange}
-                    onReturnToYear={handleReturnToYear}
-                    content={notes.content}
-                    onChange={notes.setContent}
-                    hasEdits={notes.hasEdits}
-                    isSaving={notes.isSaving}
-                    isDecrypting={notes.isDecrypting}
-                    isContentReady={notes.isContentReady}
-                    isOfflineStub={notes.isOfflineStub}
-                    noteError={notes.noteError}
-                    syncStatus={canSync ? notes.syncStatus : undefined}
-                    syncError={canSync ? notes.syncError : undefined}
-                    pendingOps={canSync ? notes.pendingOps : undefined}
-                    onMenuClick={handleMenuClick}
-                    onSignIn={signInHandler}
-                    onSyncClick={canSync ? handleSyncClick : undefined}
-                  />
-                ) : (
-                  <Calendar
-                    weekStartVersion={weekStartVersion}
-                    year={year}
-                    hasNote={notes.hasNote}
-                    onDayClick={navigateToDate}
-                    onYearChange={navigateToYear}
-                    onMonthClick={handleCalendarMonthClick}
-                    syncStatus={canSync ? notes.syncStatus : undefined}
-                    syncError={canSync ? notes.syncError : undefined}
-                    pendingOps={canSync ? notes.pendingOps : undefined}
-                    onMenuClick={handleMenuClick}
-                    onSignIn={signInHandler}
-                    onSyncClick={canSync ? handleSyncClick : undefined}
-                  />
-                )}
+                <AppLayout
+                  header={
+                    <Header
+                      onLogoClick={isDayView ? handleReturnToYear : undefined}
+                      syncStatus={canSync ? notes.syncStatus : undefined}
+                      syncError={canSync ? notes.syncError : undefined}
+                      pendingOps={canSync ? notes.pendingOps : undefined}
+                      isSaving={notes.isSaving}
+                      onMenuClick={handleMenuClick}
+                      onSearchClick={handleSearchClick}
+                      onSignIn={signInHandler}
+                      onSyncClick={canSync ? handleSyncClick : undefined}
+                    >
+                      {headerNav}
+                    </Header>
+                  }
+                >
+                  {isDayView && date ? (
+                    <DayView
+                      weekStartVersion={weekStartVersion}
+                      date={date}
+                      noteDates={notes.noteDates}
+                      hasNote={notes.hasNote}
+                      onDayClick={navigateToDate}
+                      onMonthChange={handleDayViewMonthChange}
+                      onReturnToYear={handleReturnToYear}
+                      content={notes.content}
+                      onChange={notes.setContent}
+                      hasEdits={notes.hasEdits}
+                      isSaving={notes.isSaving}
+                      isDecrypting={notes.isDecrypting}
+                      isContentReady={notes.isContentReady}
+                      isOfflineStub={notes.isOfflineStub}
+                      isSoftDeleted={notes.isSoftDeleted}
+                      onRestore={notes.restoreNote}
+                      noteError={notes.noteError}
+                    />
+                  ) : (
+                    <Calendar
+                      weekStartVersion={weekStartVersion}
+                      year={year}
+                      hasNote={notes.hasNote}
+                      onDayClick={navigateToDate}
+                      onMonthClick={handleCalendarMonthClick}
+                    />
+                  )}
+                </AppLayout>
+
+                <SearchOverlay
+                  open={searchOpen}
+                  onClose={handleSearchClose}
+                  onSelectDate={navigateToDate}
+                  repository={notes.repository}
+                  noteDates={notes.noteDates}
+                />
 
                 <SettingsSidebar
                   open={settingsOpen}
@@ -209,10 +321,15 @@ function App() {
                   isSignedIn={auth.authState === AuthState.SignedIn}
                   onSignIn={signInHandler}
                   onSignOut={signOutHandler}
+                  onResetPassword={resetPasswordHandler}
                   commitHash={commitHash}
                   onOpenAbout={handleOpenAbout}
                   onOpenPrivacy={handleOpenPrivacy}
                   onWeekStartChange={handleWeekStartChange}
+                  onExport={notes.repository ? handleExport : undefined}
+                  isDebug={isDebug}
+                  onDebugChange={setDebug}
+                  debugKeyring={isDebug ? debugKeyring : undefined}
                 />
 
                 <AppModals />
@@ -220,6 +337,17 @@ function App() {
                 <PrivacyPolicyModal
                   isOpen={privacyOpen}
                   onClose={() => setPrivacyOpen(false)}
+                />
+                <ResetPasswordModal
+                  isOpen={auth.isPasswordRecovery}
+                  error={auth.error}
+                  onSubmit={handleUpdatePassword}
+                  onDismiss={auth.clearPasswordRecovery}
+                />
+                <AuthErrorModal
+                  isOpen={!!auth.hashError}
+                  error={auth.hashError}
+                  onClose={auth.clearHashError}
                 />
 
                 {needRefresh && (

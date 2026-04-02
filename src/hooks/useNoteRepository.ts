@@ -43,6 +43,8 @@ export interface UseNoteRepositoryReturn {
   isDecrypting: boolean;
   isContentReady: boolean;
   isOfflineStub: boolean;
+  isSoftDeleted: boolean;
+  restoreNote: () => void;
   noteError: RepositoryError | null;
   repositoryVersion: number;
   invalidateRepository: () => void;
@@ -116,6 +118,8 @@ export function useNoteRepository({
     isSaving,
     isContentReady,
     isOfflineStub,
+    isSoftDeleted,
+    restoreNote,
     error: noteError,
   } = useNoteContent(date, repository, hasNote, handleAfterSave);
 
@@ -144,6 +148,8 @@ export function useNoteRepository({
     isDecrypting,
     isContentReady,
     isOfflineStub,
+    isSoftDeleted,
+    restoreNote,
     noteError,
     repositoryVersion,
     invalidateRepository,

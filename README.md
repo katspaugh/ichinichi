@@ -2,7 +2,8 @@
 
 A minimalist daily notes application designed to help you build and maintain a consistent writing habit. With end-to-end encryption and a focus on great UX, it's the perfect tool for personal reflection and daily journaling.
 
-<img width="1564" height="1061" alt="Image" src="https://github.com/user-attachments/assets/c7ce4046-7f63-46e9-aeb6-4d2bd7d67194" />
+<img width="1406" height="1061" alt="Image" src="https://github.com/user-attachments/assets/2be66a84-b428-4a0f-b4f0-436893a0a33d" />
+<img width="1491" height="1061" alt="Image" src="https://github.com/user-attachments/assets/5a884db8-5ebc-4ce6-b335-9dae7904fb35" />
 
 ## Why Ichinichi?
 

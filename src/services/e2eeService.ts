@@ -8,6 +8,7 @@ import {
   encodeUtf8,
   randomBytes,
 } from "../storage/cryptoUtils";
+import { parseDecryptedNotePayload } from "../storage/parsers";
 import {
   decryptImageBuffer,
   deriveImageKey,
@@ -100,13 +101,33 @@ export function createE2eeService(keyring: KeyringProvider): E2eeService {
       key,
       ciphertext,
     );
-    const parsed = JSON.parse(decodeUtf8(new Uint8Array(decrypted))) as {
-      content: string;
-      weather?: import("../types").SavedWeather | null;
+    const parsed = parseDecryptedNotePayload(
+      JSON.parse(decodeUtf8(new Uint8Array(decrypted))),
+    );
+    if (!parsed) return null;
+
+    const validateWeather = (
+      raw: unknown,
+    ): import("../types").SavedWeather | null => {
+      if (!raw || typeof raw !== "object") return null;
+      const w = raw as Record<string, unknown>;
+      if (w.unit !== "C" && w.unit !== "F") return null;
+      if (typeof w.icon !== "string") return null;
+      if (typeof w.temperatureHigh !== "number") return null;
+      if (typeof w.temperatureLow !== "number") return null;
+      if (typeof w.city !== "string") return null;
+      return {
+        icon: w.icon,
+        temperatureHigh: w.temperatureHigh,
+        temperatureLow: w.temperatureLow,
+        unit: w.unit,
+        city: w.city,
+      };
     };
+
     return {
       content: sanitizeHtml(parsed.content),
-      weather: parsed.weather ?? null,
+      weather: validateWeather((parsed as Record<string, unknown>).weather),
     };
   };
 

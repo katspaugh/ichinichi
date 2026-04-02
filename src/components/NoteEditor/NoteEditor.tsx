@@ -13,6 +13,7 @@ import { useWeatherContext } from "../../contexts/weatherContext";
 import { useServiceContext } from "../../contexts/serviceContext";
 import type { SavedWeather } from "../../types";
 import type { DailyWeatherData } from "../../features/weather/WeatherRepository";
+import { useDebugNoteKeyId } from "../../hooks/useDebugNoteKeyId";
 
 interface NoteEditorProps {
   date: string;
@@ -24,6 +25,8 @@ interface NoteEditorProps {
   isDecrypting?: boolean;
   isContentReady: boolean;
   isOfflineStub?: boolean;
+  isSoftDeleted?: boolean;
+  onRestore?: () => void;
   error?: { type: string; message: string } | null;
 }
 
@@ -34,10 +37,12 @@ export function NoteEditor({
   isDecrypting = false,
   isContentReady,
   isOfflineStub = false,
+  isSoftDeleted = false,
+  onRestore,
   error,
 }: NoteEditorProps) {
   const canEdit = canEditNote(date);
-  const isEditable = canEdit && !isDecrypting && isContentReady;
+  const isEditable = canEdit && !isDecrypting && isContentReady && !isSoftDeleted;
   const isMobile = window.matchMedia("(max-width: 768px)").matches;
   const autoFocus = isEditable && !(isMobile && content.trim().length > 0);
   const formattedDate = formatDateDisplay(date);
@@ -45,9 +50,11 @@ export function NoteEditor({
   const hasError = !!error;
   const statusText = hasError
     ? "Unable to decrypt note"
-    : isDecrypting
-      ? "Decrypting..."
-      : null;
+    : isSoftDeleted
+      ? "This note was deleted"
+      : isDecrypting
+        ? "Decrypting..."
+        : null;
   const placeholderText = getPlaceholderText({
     isContentReady,
     isDecrypting,
@@ -55,6 +62,8 @@ export function NoteEditor({
     isEditable,
     date,
   });
+
+  const debugKeyId = useDebugNoteKeyId(date, isContentReady);
 
   const { isDraggingImage, endImageDrag } = useImageDragState();
   const weather = useWeatherContext();
@@ -157,6 +166,7 @@ export function NoteEditor({
       showReadonlyBadge={!canEdit}
       statusText={statusText}
       isStatusError={hasError}
+      onRestore={isSoftDeleted ? onRestore : undefined}
       placeholderText={placeholderText}
       editorRef={editorRef}
       onInput={handleInput}
@@ -170,6 +180,7 @@ export function NoteEditor({
       dropIndicatorPosition={indicatorPosition}
       footer={null}
       dailyWeather={displayWeather}
+      debugKeyId={debugKeyId}
     />
   );
 }

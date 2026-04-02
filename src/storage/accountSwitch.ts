@@ -1,5 +1,5 @@
 import { clearCloudDekCache } from "./cloudCache";
-import { clearDeviceWrappedDEK } from "./vault";
+import { clearDeviceEncryptedPassword, clearDeviceWrappedDEK } from "./vault";
 import { closeUnifiedDb } from "./unifiedDb";
 import {
   bindUserToAccount,
@@ -9,11 +9,12 @@ import {
   getUserIdForAccount,
   setCurrentAccountId,
 } from "./accountStore";
+import { markUnsyncedNotesAsPending } from "./unifiedNoteStore";
 
 async function resetCloudUnlockState(): Promise<void> {
   closeUnifiedDb();
   clearCloudDekCache();
-  await clearDeviceWrappedDEK();
+  await Promise.all([clearDeviceWrappedDEK(), clearDeviceEncryptedPassword()]);
 }
 
 export async function handleCloudAccountSwitch(
@@ -34,6 +35,7 @@ export async function handleCloudAccountSwitch(
   const currentUserId = getUserIdForAccount(currentAccountId);
   if (!currentUserId) {
     bindUserToAccount(nextUserId, currentAccountId);
+    await markUnsyncedNotesAsPending();
     return;
   }
 

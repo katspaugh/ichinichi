@@ -37,7 +37,7 @@ test.describe('Note Editing', () => {
 
     // Clear the content
     await editor.click();
-    await page.keyboard.press('Meta+a');
+    await page.keyboard.press('ControlOrMeta+a');
     await page.keyboard.press('Backspace');
     await helpers.waitForSave();
 
@@ -56,14 +56,16 @@ test.describe('Note Editing', () => {
     expect(ariaLabel).not.toContain('has note');
   });
 
-  test('escape key closes the note modal', async ({ page, helpers }) => {
+  test('navigating to calendar hides the editor', async ({ page, helpers }) => {
     const todayDate = helpers.getTodayDate();
     await helpers.openNote(todayDate);
 
     const editor = page.locator('[data-note-editor="content"]');
     await expect(editor).toBeVisible();
 
-    await page.keyboard.press('Escape');
+    // Navigate back to year view
+    const currentYear = new Date().getFullYear();
+    await page.goto(`/?year=${currentYear}`);
     await expect(editor).not.toBeVisible();
   });
 });

@@ -39,6 +39,7 @@ export interface TestHelpers {
    * Open a note for a specific date
    */
   openNote: (date: string) => Promise<void>;
+  openNoteWithReload: (date: string) => Promise<void>;
 
   /**
    * Close the current note modal
@@ -79,6 +80,7 @@ export interface TestHelpers {
    * Navigate to a specific year in the calendar
    */
   navigateToYear: (year: number) => Promise<void>;
+  navigateToYearWithReload: (year: number) => Promise<void>;
 
   /**
    * Click on a day cell
@@ -99,30 +101,48 @@ export const test = base.extend<{ helpers: TestHelpers }>({
 
         // Clear all storage
         await page.evaluate(async () => {
-          // Clear known IndexedDB databases used by the app
-          const knownDatabases = [
-            'dailynotes-unified',
-            'dailynotes-vault',
-            'dailynotes-local',
-            'dailynotes-synced',
-          ];
-
-          // Delete databases and wait for completion
-          const deletePromises = knownDatabases.map(dbName => {
-            return new Promise<void>((resolve) => {
-              const request = indexedDB.deleteDatabase(dbName);
-              request.onsuccess = () => resolve();
-              request.onerror = () => resolve(); // Resolve even on error
-              request.onblocked = () => resolve(); // Resolve if blocked
-            });
-          });
-
-          await Promise.all(deletePromises);
-
-          // Clear localStorage
+          // Clear localStorage and sessionStorage first
           localStorage.clear();
-          // Clear sessionStorage
           sessionStorage.clear();
+
+          // Clear object stores instead of deleteDatabase to avoid race
+          // conditions: deleteDatabase gets blocked by open connections,
+          // then races with the next page load's indexedDB.open calls,
+          // causing 3s timeouts that break vault auto-unlock.
+          const clearDatabase = (dbName: string): Promise<void> =>
+            new Promise((resolve) => {
+              const timeout = setTimeout(resolve, 3000);
+              try {
+                const request = indexedDB.open(dbName);
+                request.onsuccess = () => {
+                  clearTimeout(timeout);
+                  const db = request.result;
+                  try {
+                    const names = Array.from(db.objectStoreNames);
+                    if (names.length === 0) {
+                      db.close();
+                      resolve();
+                      return;
+                    }
+                    const tx = db.transaction(names, 'readwrite');
+                    names.forEach(n => tx.objectStore(n).clear());
+                    tx.oncomplete = () => { db.close(); resolve(); };
+                    tx.onerror = () => { db.close(); resolve(); };
+                  } catch { db.close(); resolve(); }
+                };
+                request.onerror = () => {
+                  clearTimeout(timeout);
+                  resolve();
+                };
+              } catch { clearTimeout(timeout); resolve(); }
+            });
+
+          await Promise.all([
+            clearDatabase('dailynotes-unified'),
+            clearDatabase('dailynotes-vault'),
+            clearDatabase('dailynotes-local'),
+            clearDatabase('dailynotes-synced'),
+          ]);
         });
 
         // Navigate to app again (not reload) to start fresh with cleared storage
@@ -167,23 +187,18 @@ export const test = base.extend<{ helpers: TestHelpers }>({
         if (await maybeLaterButton.isVisible({ timeout: 3000 }).catch(() => false)) {
           await maybeLaterButton.click();
         }
-        // Wait for vault to be unlocked (needed to interact with notes)
-        await helpers.waitForVaultUnlocked();
       },
 
       setupLocalVault: async (password?: string) => {
+        const vaultPassword = password || 'testpassword123';
+
         // Wait for potential vault modal
         await page.waitForTimeout(500);
 
         // Check if vault password prompt appears
         const passwordInput = page.locator('#vault-password');
         if (await passwordInput.isVisible({ timeout: 3000 }).catch(() => false)) {
-          if (password) {
-            await passwordInput.fill(password);
-          } else {
-            // Use a default test password
-            await passwordInput.fill('testpassword123');
-          }
+          await passwordInput.fill(vaultPassword);
           await page.getByRole('button', { name: /Create vault|Unlock/i }).click();
           await page.waitForTimeout(1000);
         }
@@ -224,9 +239,23 @@ export const test = base.extend<{ helpers: TestHelpers }>({
 
         // Final wait for stability
         await page.waitForTimeout(200);
+
+        // Ensure vault is unlocked before proceeding
+        await helpers.waitForVaultUnlocked();
       },
 
       openNote: async (date: string) => {
+        // Prefer client-side navigation (preserves vault key in memory,
+        // avoids slow PBKDF2 re-derivation in webkit)
+        await page.evaluate((d) => {
+          window.history.pushState({}, '', `/?date=${d}`);
+          window.dispatchEvent(new PopStateEvent('popstate'));
+        }, date);
+        await page.waitForTimeout(300);
+        await helpers.waitForAppReady();
+      },
+
+      openNoteWithReload: async (date: string) => {
         await page.goto(`/?date=${date}`);
         await helpers.waitForAppReady();
       },
@@ -239,7 +268,7 @@ export const test = base.extend<{ helpers: TestHelpers }>({
       typeInEditor: async (content: string) => {
         const editor = page.locator('[data-note-editor="content"]');
         await editor.click();
-        await page.keyboard.press('Meta+a');
+        await page.keyboard.press('ControlOrMeta+a');
         await page.keyboard.type(content);
       },
 
@@ -289,7 +318,7 @@ export const test = base.extend<{ helpers: TestHelpers }>({
             () => document.documentElement.dataset.vaultUnlocked ?? "false"
           );
         }, {
-          timeout: 15000,
+          timeout: 90000,
         }).toBe("true");
       },
 
@@ -301,6 +330,17 @@ export const test = base.extend<{ helpers: TestHelpers }>({
       },
 
       navigateToYear: async (year: number) => {
+        // Prefer client-side navigation (preserves vault key in memory)
+        await page.evaluate((y) => {
+          window.history.pushState({}, '', `/?year=${y}`);
+          window.dispatchEvent(new PopStateEvent('popstate'));
+        }, year);
+        // Wait for the year to appear in the DOM
+        await expect(page.getByText(String(year))).toBeVisible({ timeout: 5000 });
+        await page.waitForTimeout(500);
+      },
+
+      navigateToYearWithReload: async (year: number) => {
         await page.goto(`/?year=${year}`);
         await helpers.waitForAppReady();
       },

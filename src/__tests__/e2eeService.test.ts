@@ -396,6 +396,80 @@ describe("createE2eeService", () => {
       expect(decrypted!.content).toBe(original);
     });
 
+    it("note weather survives encrypt/decrypt cycle", async () => {
+      const key = await createTestKey();
+      const keys = new Map([["key-1", key]]);
+      const keyring = createKeyringProvider(keys, "key-1");
+      const service = createE2eeService(keyring);
+
+      const weather = {
+        icon: "sunny",
+        temperatureHigh: 25,
+        temperatureLow: 15,
+        unit: "C" as const,
+        city: "Tokyo",
+      };
+
+      const encrypted = await service.encryptNoteContent({ content: "<p>Hello</p>", weather });
+      const record: NoteRecord = {
+        version: 1,
+        date: "01-01-2024",
+        keyId: encrypted!.keyId,
+        ciphertext: encrypted!.ciphertext,
+        nonce: encrypted!.nonce,
+        updatedAt: new Date().toISOString(),
+      };
+
+      const decrypted = await service.decryptNoteRecord(record);
+
+      expect(decrypted!.weather).toEqual(weather);
+    });
+
+    it("note without weather decrypts with null weather", async () => {
+      const key = await createTestKey();
+      const keys = new Map([["key-1", key]]);
+      const keyring = createKeyringProvider(keys, "key-1");
+      const service = createE2eeService(keyring);
+
+      const encrypted = await service.encryptNoteContent({ content: "<p>No weather</p>" });
+      const record: NoteRecord = {
+        version: 1,
+        date: "01-01-2024",
+        keyId: encrypted!.keyId,
+        ciphertext: encrypted!.ciphertext,
+        nonce: encrypted!.nonce,
+        updatedAt: new Date().toISOString(),
+      };
+
+      const decrypted = await service.decryptNoteRecord(record);
+
+      expect(decrypted!.weather).toBeNull();
+    });
+
+    it("invalid weather shape decrypts as null", async () => {
+      const key = await createTestKey();
+      const keys = new Map([["key-1", key]]);
+      const keyring = createKeyringProvider(keys, "key-1");
+      const service = createE2eeService(keyring);
+
+      const encrypted = await service.encryptNoteContent({
+        content: "<p>Bad weather</p>",
+        weather: { unit: "X" } as never,
+      });
+      const record: NoteRecord = {
+        version: 1,
+        date: "01-01-2024",
+        keyId: encrypted!.keyId,
+        ciphertext: encrypted!.ciphertext,
+        nonce: encrypted!.nonce,
+        updatedAt: new Date().toISOString(),
+      };
+
+      const decrypted = await service.decryptNoteRecord(record);
+
+      expect(decrypted!.weather).toBeNull();
+    });
+
     it("image blob survives encrypt/decrypt cycle", async () => {
       const key = await createTestKey();
       const keys = new Map([["key-1", key]]);

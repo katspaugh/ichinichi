@@ -641,7 +641,7 @@ describe("offline note loading", () => {
       expect(result.current.isOfflineStub).toBe(false);
     });
 
-    it("does not show offline stub for deleted note while online", async () => {
+    it("shows soft-deleted note content with isSoftDeleted flag", async () => {
       const { repository } = await setupLocalRepository();
       const testDate = "05-01-2025";
 
@@ -657,7 +657,8 @@ describe("offline note loading", () => {
 
       await waitFor(() => expect(result.current.isContentReady).toBe(true));
 
-      expect(result.current.content).toBe("");
+      expect(result.current.content).toBe("Temporary content");
+      expect(result.current.isSoftDeleted).toBe(true);
       expect(result.current.isOfflineStub).toBe(false);
     });
 

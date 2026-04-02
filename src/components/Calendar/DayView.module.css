@@ -1,0 +1,21 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding: var(--spacing-md);
+}
+
+@media (max-width: 768px) {
+  .root {
+    padding: 0;
+  }
+}
+
+/* Desktop PWA: window title bar provides enough top spacing */
+@media (display-mode: standalone) and (min-width: 769px) {
+  .root {
+    padding-top: 0;
+  }
+}

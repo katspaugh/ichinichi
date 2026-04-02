@@ -1,3 +1,5 @@
+import { applyFavicon } from "./linkFavicons";
+
 /**
  * URL pattern that matches common URLs followed by whitespace.
  * Only linkifies "complete" URLs (when user has finished typing by pressing space/enter).
@@ -132,6 +134,7 @@ export function linkifyElement(element: HTMLElement): boolean {
       if (anchor?.tagName === "A") {
         anchor.setAttribute("target", "_blank");
         anchor.setAttribute("rel", "noopener noreferrer");
+        applyFavicon(anchor as HTMLAnchorElement);
       }
     }
   }

@@ -18,7 +18,8 @@ body {
   line-height: 1.5;
   color: var(--color-text);
   background-color: var(--color-bg);
-  min-height: 100vh;
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 button {

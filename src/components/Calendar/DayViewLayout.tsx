@@ -38,6 +38,8 @@ interface DayViewLayoutProps {
   isDecrypting: boolean;
   isContentReady: boolean;
   isOfflineStub: boolean;
+  isSoftDeleted?: boolean;
+  onRestore?: () => void;
   noteError?: { type: string; message: string } | null;
 }
 
@@ -64,12 +66,14 @@ export function DayViewLayout({
   isDecrypting,
   isContentReady,
   isOfflineStub,
+  isSoftDeleted,
+  onRestore,
   noteError,
 }: DayViewLayoutProps) {
-  const [layoutEl, setLayoutEl] = useState<HTMLDivElement | null>(null);
+  const [editorPaneEl, setEditorPaneEl] = useState<HTMLDivElement | null>(null);
   useKeyboardInset();
 
-  useOverscrollNavigation(layoutEl, {
+  useOverscrollNavigation(editorPaneEl, {
     onOverscrollUp: canNavigatePrev ? onNavigatePrev : undefined,
     onOverscrollDown: canNavigateNext ? onNavigateNext : undefined,
   });
@@ -89,7 +93,6 @@ export function DayViewLayout({
   return (
     <div
       className={styles.layout}
-      ref={setLayoutEl}
       data-sidebar-collapsed={sidebarCollapsed || undefined}
     >
       {!sidebarCollapsed && (
@@ -165,7 +168,7 @@ export function DayViewLayout({
         </button>
       )}
 
-      <div className={styles.editorPane}>
+      <div className={styles.editorPane} ref={setEditorPaneEl}>
         {selectedDate ? (
           <ErrorBoundary
             title="Note editor crashed"
@@ -182,6 +185,8 @@ export function DayViewLayout({
               isDecrypting={isDecrypting}
               isContentReady={isContentReady}
               isOfflineStub={isOfflineStub}
+              isSoftDeleted={isSoftDeleted}
+              onRestore={onRestore}
               error={noteError}
             />
           </ErrorBoundary>

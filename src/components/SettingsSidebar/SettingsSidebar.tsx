@@ -3,6 +3,7 @@ import {
   User,
   LogOut,
   LogIn,
+  KeyRound,
   Moon,
   Sun,
   Monitor,
@@ -13,12 +14,16 @@ import {
   GitBranch,
   ChevronRight,
   ExternalLink,
+  Download,
   X,
+  Bug,
 } from "lucide-react";
 import { useTheme } from "@/hooks/useTheme";
 import type { ThemePreference } from "@/services/themePreferences";
 import { getWeekdayOptions, setWeekStartPreference } from "@/utils/date";
 import { useWeatherContext } from "@/contexts/weatherContext";
+import { DebugKeyringSection } from "./DebugKeyringSection";
+import type { UseDebugKeyringReturn } from "../../hooks/useDebugKeyring";
 import styles from "./SettingsSidebar.module.css";
 
 interface SettingsSidebarProps {
@@ -28,10 +33,15 @@ interface SettingsSidebarProps {
   isSignedIn: boolean;
   onSignIn?: () => void;
   onSignOut?: () => void;
+  onResetPassword?: () => void;
   commitHash: string;
   onOpenAbout?: () => void;
   onOpenPrivacy?: () => void;
   onWeekStartChange?: () => void;
+  onExport?: () => Promise<void>;
+  isDebug?: boolean;
+  onDebugChange?: (next: boolean) => void;
+  debugKeyring?: UseDebugKeyringReturn | null;
 }
 
 type WeatherState = ReturnType<typeof useWeatherContext>["state"];
@@ -55,10 +65,20 @@ function SettingsHeader({ onClose }: { onClose: () => void }) {
 function UserSection({
   userEmail,
   onSignOut,
+  onResetPassword,
 }: {
   userEmail: string;
   onSignOut?: () => void;
+  onResetPassword?: () => void;
 }) {
+  const [resetSent, setResetSent] = useState(false);
+
+  const handleResetPassword = useCallback(() => {
+    if (!onResetPassword || resetSent) return;
+    onResetPassword();
+    setResetSent(true);
+  }, [onResetPassword, resetSent]);
+
   return (
     <>
       <div className={styles.userRow}>
@@ -79,6 +99,18 @@ function UserSection({
         >
           <LogOut className={styles.actionIcon} />
           Sign out
+        </button>
+      )}
+
+      {onResetPassword && (
+        <button
+          className={styles.actionButton}
+          type="button"
+          onClick={handleResetPassword}
+          disabled={resetSent}
+        >
+          <KeyRound className={styles.actionIcon} />
+          {resetSent ? "Reset link sent!" : "Reset password"}
         </button>
       )}
 
@@ -267,6 +299,54 @@ function WeatherSection({
   );
 }
 
+function DataSection({
+  onExport,
+}: {
+  onExport: () => Promise<void>;
+}) {
+  const [status, setStatus] = useState<
+    "idle" | "exporting" | "done" | "empty" | "error"
+  >("idle");
+
+  const handleExport = useCallback(async () => {
+    if (status === "exporting") return;
+    setStatus("exporting");
+    try {
+      await onExport();
+      setStatus("done");
+    } catch {
+      setStatus("error");
+    }
+    setTimeout(() => setStatus("idle"), 2000);
+  }, [onExport, status]);
+
+  const label =
+    status === "exporting"
+      ? "Exporting..."
+      : status === "done"
+        ? "Exported!"
+        : status === "empty"
+          ? "No notes to export"
+          : status === "error"
+            ? "Export failed"
+            : "Export as Markdown";
+
+  return (
+    <div className={styles.section}>
+      <p className={styles.sectionLabel}>Data</p>
+      <button
+        className={styles.actionButton}
+        type="button"
+        onClick={handleExport}
+        disabled={status === "exporting"}
+      >
+        <Download className={styles.actionIcon} />
+        {label}
+      </button>
+    </div>
+  );
+}
+
 function LinksSection({
   onOpenPrivacy,
   onOpenAbout,
@@ -356,10 +436,15 @@ export function SettingsSidebar({
   isSignedIn,
   onSignIn,
   onSignOut,
+  onResetPassword,
   commitHash,
   onOpenAbout,
   onOpenPrivacy,
   onWeekStartChange,
+  onExport,
+  isDebug,
+  onDebugChange,
+  debugKeyring,
 }: SettingsSidebarProps) {
   const { theme, setTheme } = useTheme();
   const weather = useWeatherContext();
@@ -445,7 +530,7 @@ export function SettingsSidebar({
 
         <div className={styles.body}>
           {isSignedIn && userEmail ? (
-            <UserSection userEmail={userEmail} onSignOut={onSignOut} />
+            <UserSection userEmail={userEmail} onSignOut={onSignOut} onResetPassword={onResetPassword} />
           ) : onSignIn ? (
             <SignInSection onSignIn={onSignIn} />
           ) : null}
@@ -468,6 +553,61 @@ export function SettingsSidebar({
             onTempUnitChange={handleTempUnitChange}
             onShowWeatherChange={handleShowWeatherChange}
           />
+
+          {onExport && (
+            <>
+              <div className={styles.separator} />
+              <DataSection onExport={onExport} />
+            </>
+          )}
+
+          {onDebugChange && (
+            <>
+              <div className={styles.separator} />
+              <div className={styles.section}>
+                <p className={styles.sectionLabel}>Developer</p>
+                <div className={styles.toggleRow}>
+                  <span className={styles.rowLabel} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                    <Bug className={styles.actionIcon} />
+                    Debug mode
+                  </span>
+                  <button
+                    className={styles.switch}
+                    type="button"
+                    role="switch"
+                    aria-checked={isDebug}
+                    data-checked={isDebug}
+                    onClick={() => onDebugChange(!isDebug)}
+                  >
+                    <span className={styles.switchThumb} />
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+
+          {debugKeyring && (
+            <>
+              <div className={styles.separator} />
+              <DebugKeyringSection
+                keys={debugKeyring.keys}
+                isSignedIn={isSignedIn}
+                userEmail={userEmail ?? ""}
+                rewrapStatus={debugKeyring.rewrapStatus}
+                rewrapError={debugKeyring.rewrapError}
+                onRewrap={debugKeyring.rewrap}
+                onResetRewrapStatus={debugKeyring.resetRewrapStatus}
+                cleanupStatus={debugKeyring.cleanupStatus}
+                cleanupResult={debugKeyring.cleanupResult}
+                onCleanup={debugKeyring.cleanup}
+                onResetCleanupStatus={debugKeyring.resetCleanupStatus}
+                reencryptStatus={debugKeyring.reencryptStatus}
+                reencryptResult={debugKeyring.reencryptResult}
+                onReencrypt={debugKeyring.reencrypt}
+                onResetReencryptStatus={debugKeyring.resetReencryptStatus}
+              />
+            </>
+          )}
 
           <div className={styles.separator} />
 

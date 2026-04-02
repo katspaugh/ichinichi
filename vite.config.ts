@@ -7,6 +7,8 @@ import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 import { sriPlugin } from "./viteSriPlugin";
 
+const isTauri = !!process.env.TAURI_ENV_PLATFORM;
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const commitHash = (() => {
@@ -21,25 +23,26 @@ const commitHash = (() => {
 export default defineConfig({
   plugins: [
     react(),
-    VitePWA({
-      registerType: "prompt",
-      includeAssets: [
-        "favicons/favicon.ico",
-        "favicons/apple-touch-icon.png",
-        "favicons/android-chrome-192x192.png",
-        "favicons/android-chrome-512x512.png",
-      ],
-      manifest: false,
-      workbox: {
-        globPatterns: ["**/*.{js,css,html,ico,png,svg,woff,woff2}"],
-        navigateFallback: "index.html",
-        navigateFallbackDenylist: [/^\/api/],
-        importScripts: ["/share-target-sw.js"],
-      },
-      devOptions: {
-        enabled: false,
-      },
-    }),
+    !isTauri &&
+      VitePWA({
+        registerType: "prompt",
+        includeAssets: [
+          "favicons/favicon.ico",
+          "favicons/apple-touch-icon.png",
+          "favicons/android-chrome-192x192.png",
+          "favicons/android-chrome-512x512.png",
+        ],
+        manifest: false,
+        workbox: {
+          globPatterns: ["**/*.{js,css,html,ico,png,svg,woff,woff2}"],
+          navigateFallback: "index.html",
+          navigateFallbackDenylist: [/^\/api/],
+          importScripts: ["/share-target-sw.js"],
+        },
+        devOptions: {
+          enabled: false,
+        },
+      }),
     sriPlugin(),
   ],
   css: {
@@ -61,6 +64,12 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": resolve(__dirname, "./src"),
+      ...(isTauri && {
+        "virtual:pwa-register/react": resolve(
+          __dirname,
+          "src/stubs/pwaRegister.ts",
+        ),
+      }),
     },
   },
   build: {

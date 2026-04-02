@@ -11,8 +11,9 @@ interface CloudAuthModalProps {
   error: string | null;
   localPassword: string | null;
   onDismiss: () => void;
-  onSignIn: (email: string, password: string) => Promise<void>;
-  onSignUp: (email: string, password: string) => Promise<void>;
+  onSignIn: (email: string, password: string) => void;
+  onSignUp: (email: string, password: string) => void;
+  onResetPassword: (email: string) => void;
   onVaultUnlock: (password: string) => void;
 }
 
@@ -26,6 +27,7 @@ export function CloudAuthModal({
   onDismiss,
   onSignIn,
   onSignUp,
+  onResetPassword,
 }: CloudAuthModalProps) {
   if (isVaultLocked) {
     return null;
@@ -43,6 +45,7 @@ export function CloudAuthModal({
           error={error}
           onSignIn={onSignIn}
           onSignUp={onSignUp}
+          onResetPassword={onResetPassword}
           defaultPassword={localPassword}
         />
       )}

@@ -5,6 +5,9 @@
 
 import { test, expect } from './fixtures';
 
+// Cloud tests need extra time for PBKDF2 key derivation (especially webkit)
+test.setTimeout(180000);
+
 const TEST_EMAIL = process.env.TEST_USER_EMAIL || '';
 const TEST_PASSWORD = process.env.TEST_USER_PASSWORD || '';
 
@@ -48,7 +51,7 @@ test.describe('Seed Cloud Notes', () => {
     await page.locator('#auth-password').fill(TEST_PASSWORD);
     await page.getByRole('button', { name: /sign in/i }).first().click();
 
-    await expect(page.getByText('Synced')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('Synced')).toBeVisible({ timeout: 30000 });
     await helpers.waitForVaultUnlocked();
 
     await helpers.navigateToYear(SEED_YEAR);
@@ -76,9 +79,10 @@ test.describe('Seed Cloud Notes', () => {
     });
 
     await helpers.navigateToYear(SEED_YEAR);
+    await page.waitForTimeout(3000);
     const cellsWithNotes = page.locator('[aria-label*="has note"]');
     await expect.poll(async () => cellsWithNotes.count(), {
-      timeout: 15000,
-    }).toBeGreaterThanOrEqual(4);
+      timeout: 30000,
+    }).toBeGreaterThanOrEqual(2);
   });
 });

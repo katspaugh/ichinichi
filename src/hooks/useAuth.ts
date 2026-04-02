@@ -12,16 +12,16 @@ export interface UseAuthReturn {
   user: User | null;
   authState: AuthState;
   error: string | null;
+  hashError: string | null;
   isBusy: boolean;
-  signUp: (
-    email: string,
-    password: string,
-  ) => Promise<{ success: boolean; password?: string }>;
-  signIn: (
-    email: string,
-    password: string,
-  ) => Promise<{ success: boolean; password?: string }>;
+  isPasswordRecovery: boolean;
+  signUp: (email: string, password: string) => void;
+  signIn: (email: string, password: string) => void;
   signOut: () => Promise<void>;
+  resetPassword: (email: string) => Promise<{ success: boolean }>;
+  updatePassword: (password: string) => Promise<{ success: boolean }>;
+  clearPasswordRecovery: () => void;
+  clearHashError: () => void;
   clearError: () => void;
 }
 
@@ -60,7 +60,11 @@ type AuthEvent =
   | { type: "SIGN_UP"; email: string; password: string }
   | { type: "SIGN_OUT" }
   | { type: "AUTH_ERROR"; message: string }
-  | { type: "CLEAR_ERROR" };
+  | { type: "CLEAR_ERROR" }
+  | { type: "PASSWORD_RECOVERY" }
+  | { type: "CLEAR_PASSWORD_RECOVERY" }
+  | { type: "HASH_ERROR"; message: string }
+  | { type: "CLEAR_HASH_ERROR" };
 
 interface AuthContext {
   phase: AuthPhase;
@@ -71,6 +75,8 @@ interface AuthContext {
   online: boolean;
   signInInput: { email: string; password: string } | null;
   signUpInput: { email: string; password: string } | null;
+  isPasswordRecovery: boolean;
+  hashError: string | null;
 }
 
 const initialState: AuthContext = {
@@ -82,6 +88,8 @@ const initialState: AuthContext = {
   online: connectivity.getOnline(),
   signInInput: null,
   signUpInput: null,
+  isPasswordRecovery: false,
+  hashError: null,
 };
 
 function applySession(
@@ -183,12 +191,44 @@ export function authReducer(
         error: null,
         isBusy: true,
       };
+
+    case "PASSWORD_RECOVERY":
+      return { ...state, isPasswordRecovery: true };
+
+    case "CLEAR_PASSWORD_RECOVERY":
+      return { ...state, isPasswordRecovery: false };
+
+    case "HASH_ERROR":
+      return { ...state, hashError: event.message };
+
+    case "CLEAR_HASH_ERROR":
+      return { ...state, hashError: null };
   }
 }
 
 export function useAuth(): UseAuthReturn {
   const online = useConnectivity();
   const [state, dispatch] = useReducer(authReducer, initialState);
+
+  // Parse auth errors from URL hash (e.g. expired reset links)
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (!hash.includes("error_description=")) return;
+    const params = new URLSearchParams(hash.replace(/^#/, ""));
+    const description = params.get("error_description");
+    if (description) {
+      dispatch({
+        type: "HASH_ERROR",
+        message: description.replace(/\+/g, " "),
+      });
+      window.history.replaceState(
+        {},
+        "",
+        window.location.pathname + window.location.search,
+      );
+    }
+  }, []);
+
   // Bootstrap: getSession + onAuthStateChange listener
   useEffect(() => {
     let cancelled = false;
@@ -208,7 +248,10 @@ export function useAuth(): UseAuthReturn {
     void start();
 
     const { data } = supabase.auth.onAuthStateChange(
-      (_event, newSession) => {
+      (event, newSession) => {
+        if (event === "PASSWORD_RECOVERY") {
+          dispatch({ type: "PASSWORD_RECOVERY" });
+        }
         dispatch({ type: "SESSION_CHANGED", session: newSession });
       },
     );
@@ -337,7 +380,6 @@ export function useAuth(): UseAuthReturn {
       } finally {
         if (!cancelled) {
           dispatch({ type: "SESSION_CHANGED", session: null });
-          dispatch({ type: "SIGN_OUT" });
         }
       }
     };
@@ -350,23 +392,76 @@ export function useAuth(): UseAuthReturn {
   }, [state.phase]);
 
   const signUp = useCallback(
-    async (email: string, password: string) => {
+    (email: string, password: string) => {
       dispatch({ type: "SIGN_UP", email, password });
-      return { success: true, password };
     },
     [],
   );
 
   const signIn = useCallback(
-    async (email: string, password: string) => {
+    (email: string, password: string) => {
       dispatch({ type: "SIGN_IN", email, password });
-      return { success: true, password };
     },
     [],
   );
 
   const signOut = useCallback(async () => {
     dispatch({ type: "SIGN_OUT" });
+  }, []);
+
+  const resetPassword = useCallback(
+    async (email: string) => {
+      try {
+        const { error } = await supabase.auth.resetPasswordForEmail(email);
+        if (error) {
+          dispatch({ type: "AUTH_ERROR", message: formatAuthError(error) });
+          return { success: false };
+        }
+        return { success: true };
+      } catch (error) {
+        dispatch({
+          type: "AUTH_ERROR",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Unable to send reset email.",
+        });
+        return { success: false };
+      }
+    },
+    [],
+  );
+
+  const updatePassword = useCallback(
+    async (password: string) => {
+      try {
+        const { error } = await supabase.auth.updateUser({ password });
+        if (error) {
+          dispatch({ type: "AUTH_ERROR", message: formatAuthError(error) });
+          return { success: false };
+        }
+        dispatch({ type: "CLEAR_PASSWORD_RECOVERY" });
+        return { success: true };
+      } catch (error) {
+        dispatch({
+          type: "AUTH_ERROR",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Unable to update password.",
+        });
+        return { success: false };
+      }
+    },
+    [],
+  );
+
+  const clearPasswordRecovery = useCallback(() => {
+    dispatch({ type: "CLEAR_PASSWORD_RECOVERY" });
+  }, []);
+
+  const clearHashError = useCallback(() => {
+    dispatch({ type: "CLEAR_HASH_ERROR" });
   }, []);
 
   const clearError = useCallback(() => {
@@ -378,10 +473,16 @@ export function useAuth(): UseAuthReturn {
     user: state.session?.user ?? null,
     authState: state.authState,
     error: state.error,
+    hashError: state.hashError,
     isBusy: state.isBusy,
+    isPasswordRecovery: state.isPasswordRecovery,
     signUp,
     signIn,
     signOut,
+    resetPassword,
+    updatePassword,
+    clearPasswordRecovery,
+    clearHashError,
     clearError,
   };
 }

@@ -92,19 +92,17 @@ test.describe('Cloud Authentication', () => {
     expect(isInvalid).toBe(true);
   });
 
-  test('can sign in with valid credentials', async ({ page }) => {
+  test('can sign in with valid credentials', async ({ page, helpers }) => {
     test.skip(!TEST_EMAIL || !TEST_PASSWORD, 'Test credentials not configured');
 
-    // Open auth modal
-    const setupSyncButton = page.getByRole('button', { name: 'Sign in / sign up' });
+    // Clear storage and set up local vault first (required for cloud sync)
+    await helpers.clearStorageAndReload();
+    await helpers.dismissIntroModal();
+    await helpers.setupLocalVault();
+
+    // Sign in
     const signInButton = page.getByRole('button', { name: /Sign in/i });
-
-    if (await setupSyncButton.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await setupSyncButton.click();
-    } else {
-      await signInButton.click();
-    }
-
+    await signInButton.click();
     await expect(page.locator('#auth-email')).toBeVisible({ timeout: 5000 });
 
     // Switch to sign in mode if needed
@@ -117,27 +115,23 @@ test.describe('Cloud Authentication', () => {
       await toggleToSignIn.click();
     }
 
-    // Fill credentials
     await page.locator('#auth-email').fill(TEST_EMAIL);
     await page.locator('#auth-password').fill(TEST_PASSWORD);
-
-    // Submit
     await page.getByRole('button', { name: /sign in/i }).first().click();
 
-    // Wait for auth to complete
+    // Wait for vault unlock modal or auto-unlock
     await page.waitForTimeout(3000);
 
-    // Should now see the calendar with sign out button or vault unlock modal
-    const hasSignOut = await page
-      .getByRole('button', { name: /Sign out/i })
-      .isVisible({ timeout: 5000 })
-      .catch(() => false);
-    const hasVaultModal = await page
-      .locator('#vault-password')
-      .isVisible({ timeout: 1000 })
-      .catch(() => false);
+    // Handle vault unlock if needed
+    const vaultInput = page.locator('#vault-password');
+    if (await vaultInput.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await vaultInput.fill(TEST_PASSWORD);
+      await page.getByRole('button', { name: /unlock/i }).click();
+      await page.waitForTimeout(2000);
+    }
 
-    expect(hasSignOut || hasVaultModal).toBe(true);
+    // Should be synced
+    await expect(page.getByText('Synced')).toBeVisible({ timeout: 30000 });
   });
 
   test('shows sign out button when authenticated', async ({ page, helpers }) => {
@@ -181,7 +175,8 @@ test.describe('Cloud Authentication', () => {
     // Should be synced
     await expect(page.getByText('Synced')).toBeVisible({ timeout: 10000 });
 
-    // Sign out button should be visible in header
+    // Sign out button should be visible in Settings panel
+    await page.getByRole('button', { name: /Open settings/i }).click();
     const signOutButton = page.getByRole('button', { name: /Sign out/i }).first();
     await expect(signOutButton).toBeVisible({ timeout: 5000 });
   });
@@ -227,12 +222,17 @@ test.describe('Cloud Authentication', () => {
     // Should be synced
     await expect(page.getByText('Synced')).toBeVisible({ timeout: 10000 });
 
-    // Click sign out
+    // Open settings and click sign out
+    await page.getByRole('button', { name: /Open settings/i }).click();
     const signOutButton = page.getByRole('button', { name: /Sign out/i }).first();
     await signOutButton.click();
 
-    // Should show sign in button again
-    await expect(page.getByRole('button', { name: /Sign in/i })).toBeVisible({ timeout: 10000 });
+    // Close settings panel if still open
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
+
+    // Should show sign in button again (use exact match to avoid matching "Sign in to sync" in settings)
+    await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible({ timeout: 10000 });
   });
 });
 
@@ -244,17 +244,12 @@ test.describe('Sync Status', () => {
     test.skip(!TEST_EMAIL || !TEST_PASSWORD, 'Test credentials not configured');
 
     await helpers.clearStorageAndReload();
+    await helpers.dismissIntroModal();
+    await helpers.setupLocalVault();
 
-    // Open auth modal
-    const setupSyncButton = page.getByRole('button', { name: 'Sign in / sign up' });
+    // Sign in
     const signInButton = page.getByRole('button', { name: /Sign in/i });
-
-    if (await setupSyncButton.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await setupSyncButton.click();
-    } else {
-      await signInButton.click();
-    }
-
+    await signInButton.click();
     await expect(page.locator('#auth-email')).toBeVisible({ timeout: 5000 });
 
     const createAccountButton = page.getByRole('button', { name: /Create an account/i });
@@ -270,17 +265,18 @@ test.describe('Sync Status', () => {
     await page.locator('#auth-password').fill(TEST_PASSWORD);
     await page.getByRole('button', { name: /sign in/i }).first().click();
 
+    // Wait for vault unlock modal or auto-unlock
+    await page.waitForTimeout(3000);
+
     // Handle vault unlock if needed
     const vaultInput = page.locator('#vault-password');
-    if (await vaultInput.isVisible({ timeout: 5000 }).catch(() => false)) {
+    if (await vaultInput.isVisible({ timeout: 2000 }).catch(() => false)) {
       await vaultInput.fill(TEST_PASSWORD);
       await page.getByRole('button', { name: /unlock/i }).click();
+      await page.waitForTimeout(2000);
     }
 
-    await helpers.waitForAppReady();
-
     // Sync indicator should show some status
-    const syncIndicator = page.locator('[class*="sync"]');
-    await expect(syncIndicator.first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('Synced')).toBeVisible({ timeout: 30000 });
   });
 });
