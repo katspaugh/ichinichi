@@ -1,5 +1,5 @@
 import { useUrlState } from "../hooks/useUrlState";
-import { useAuthContext } from "../contexts/AuthProvider";
+import { useAuthContext } from "../contexts/authContext";
 import { useNoteRepository } from "../hooks/useNoteRepository";
 
 export function useAppController() {

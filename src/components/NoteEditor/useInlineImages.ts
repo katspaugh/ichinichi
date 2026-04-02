@@ -1,26 +1,26 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { RefObject } from "react";
-import { useNoteRepositoryContext } from "../../contexts/noteRepositoryContext";
+import type { ImageRepository } from "../../storage/imageRepository";
 import { compressImage } from "../../utils/imageCompression";
-import { ImageUrlManager } from "../../utils/imageUrlManager";
 
 interface UseInlineImageUploadOptions {
   date: string;
   isEditable: boolean;
+  imageRepository: ImageRepository | null;
 }
 
 interface UseInlineImageUrlsOptions {
   date: string;
   content: string;
   editorRef: RefObject<HTMLDivElement | null>;
+  imageRepository: ImageRepository | null;
 }
 
 export function useInlineImageUpload({
   date,
   isEditable,
+  imageRepository,
 }: UseInlineImageUploadOptions) {
-  const { imageRepository } = useNoteRepositoryContext();
-
   const uploadInlineImage = useCallback(
     async (
       file: File,
@@ -36,20 +36,15 @@ export function useInlineImageUpload({
 
       const compressed = await compressImage(file);
 
-      const result = await imageRepository.upload(
+      const meta = await imageRepository.uploadImage(
         date,
-        compressed.blob,
+        new File([compressed.blob], file.name, { type: compressed.blob.type }),
         "inline",
-        file.name,
         { width: compressed.width, height: compressed.height },
       );
 
-      if (!result.ok) {
-        throw new Error(result.error.message);
-      }
-
       return {
-        id: result.value.id,
+        id: meta.id,
         width: compressed.width,
         height: compressed.height,
         filename: file.name,
@@ -67,19 +62,20 @@ export function useInlineImageUrls({
   date,
   content,
   editorRef,
+  imageRepository,
 }: UseInlineImageUrlsOptions) {
-  const { imageRepository } = useNoteRepositoryContext();
   const metaCacheRef = useRef<Map<string, { width: number; height: number }>>(
     new Map(),
   );
   const dateRef = useRef<string | null>(null);
   const repoRef = useRef<typeof imageRepository>(null);
-  const managerRef = useRef<ImageUrlManager | null>(null);
+  const urlCacheRef = useRef<Map<string, string>>(new Map());
   const ownerId = useId();
   const ownerIdRef = useRef(`note-editor-${ownerId}`);
   const currentIdsRef = useRef<Set<string>>(new Set());
   const [metaVersion, setMetaVersion] = useState(0);
 
+  // Load image meta for current date
   useEffect(() => {
     if (!imageRepository) return;
     if (dateRef.current === date && repoRef.current === imageRepository) return;
@@ -90,48 +86,37 @@ export function useInlineImageUrls({
     currentIdsRef.current = new Set();
 
     const loadMeta = async () => {
-      const result = await imageRepository.getByNoteDate(date);
-      if (result.ok) {
-        const map = new Map<string, { width: number; height: number }>();
-        result.value.forEach((meta) => {
-          if (meta.width > 0 && meta.height > 0) {
-            map.set(meta.id, { width: meta.width, height: meta.height });
-          }
-        });
-        metaCacheRef.current = map;
-      } else {
-        metaCacheRef.current = new Map();
-      }
+      const metas = await imageRepository.getImagesByDate(date);
+      const map = new Map<string, { width: number; height: number }>();
+      metas.forEach((meta) => {
+        if (meta.width > 0 && meta.height > 0) {
+          map.set(meta.id, { width: meta.width, height: meta.height });
+        }
+      });
+      metaCacheRef.current = map;
       setMetaVersion((value) => value + 1);
     };
 
     void loadMeta();
   }, [date, imageRepository]);
 
+  // Revoke object URLs on unmount
   useEffect(() => {
-    if (!imageRepository) return;
-    const manager = new ImageUrlManager(imageRepository);
-    const ownerId = ownerIdRef.current;
-    managerRef.current = manager;
+    const urls = urlCacheRef.current;
     return () => {
-      manager.releaseOwner(ownerId);
-      managerRef.current = null;
+      urls.forEach((url) => URL.revokeObjectURL(url));
+      urls.clear();
       currentIdsRef.current = new Set();
     };
   }, [imageRepository]);
 
+  // Resolve image URLs in editor
   useEffect(() => {
     const contentEl = editorRef.current;
-    const manager = managerRef.current;
-    if (!contentEl || !manager) {
-      return;
-    }
+    if (!contentEl || !imageRepository) return;
 
     const images = contentEl.querySelectorAll("img[data-image-id]");
     if (!images.length) {
-      currentIdsRef.current.forEach((imageId) => {
-        manager.releaseImage(imageId, ownerIdRef.current);
-      });
       currentIdsRef.current = new Set();
       return;
     }
@@ -140,9 +125,7 @@ export function useInlineImageUrls({
 
     images.forEach((img) => {
       const imageId = img.getAttribute("data-image-id");
-      if (!imageId || imageId === "uploading") {
-        return;
-      }
+      if (!imageId || imageId === "uploading") return;
 
       nextIds.add(imageId);
 
@@ -154,23 +137,32 @@ export function useInlineImageUrls({
         }
       }
 
+      // Already resolved
+      const cached = urlCacheRef.current.get(imageId);
+      if (cached && img.getAttribute("src") === cached) return;
+
       img.setAttribute("data-image-loading", "true");
 
-      manager
-        .acquireUrl(imageId, ownerIdRef.current)
-        .then((url) => {
-          if (!url) {
-            return;
-          }
+      const mimeType =
+        metaCacheRef.current.get(imageId) ? "image/jpeg" : "image/jpeg";
+
+      imageRepository
+        .getImage(imageId, mimeType)
+        .then((blob) => {
+          if (!blob) return;
+
+          const url = URL.createObjectURL(blob);
+          // Revoke old URL if exists
+          const old = urlCacheRef.current.get(imageId);
+          if (old) URL.revokeObjectURL(old);
+          urlCacheRef.current.set(imageId, url);
 
           const currentImg = editorRef.current?.querySelector(
             `img[data-image-id="${imageId}"]`,
           );
           if (currentImg && currentImg.getAttribute("src") !== url) {
-            // Save scroll position before setting src to prevent iOS Safari scroll jump
             const scrollTop = editorRef.current?.scrollTop ?? 0;
             currentImg.setAttribute("src", url);
-            // Restore scroll position immediately
             if (editorRef.current) {
               editorRef.current.scrollTop = scrollTop;
             }
@@ -195,11 +187,17 @@ export function useInlineImageUrls({
         });
     });
 
+    // Release URLs for images no longer in DOM
     currentIdsRef.current.forEach((imageId) => {
       if (!nextIds.has(imageId)) {
-        manager.releaseImage(imageId, ownerIdRef.current);
+        const url = urlCacheRef.current.get(imageId);
+        if (url) {
+          URL.revokeObjectURL(url);
+          urlCacheRef.current.delete(imageId);
+        }
       }
     });
     currentIdsRef.current = nextIds;
+    void ownerIdRef.current; // suppress unused
   }, [content, editorRef, imageRepository, metaVersion]);
 }

@@ -138,7 +138,7 @@ function AppContent() {
   }, [notes.repository]);
 
   const handleSyncClick = useCallback(() => {
-    notes.triggerSync({ immediate: true });
+    notes.triggerSync();
   }, [notes]);
 
   const signOutHandler =

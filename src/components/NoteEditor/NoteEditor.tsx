@@ -10,6 +10,8 @@ import { useImageDragState } from "./useImageDragState";
 import { useDropIndicator } from "./useDropIndicator";
 import { useShareTarget } from "../../hooks/useShareTarget";
 import { useWeatherContext } from "../../contexts/weatherContext";
+import { useImages } from "../../hooks/useImages";
+import { useAuthContext } from "../../contexts/authContext";
 
 interface NoteEditorProps {
   date: string;
@@ -53,10 +55,17 @@ export function NoteEditor({
   const { isDraggingImage, endImageDrag } = useImageDragState();
   const weather = useWeatherContext();
   const { state: weatherState } = weather;
+  const auth = useAuthContext();
+  const imageRepository = useImages({
+    userId: auth.user?.id ?? null,
+    dek: auth.dek,
+    keyId: auth.keyId,
+  });
 
   const { onImageDrop } = useInlineImageUpload({
     date,
     isEditable,
+    imageRepository,
   });
 
   const {
@@ -106,6 +115,7 @@ export function NoteEditor({
     date,
     content,
     editorRef,
+    imageRepository,
   });
 
   // Auto-insert images shared via Web Share Target API

@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import type { RepositoryError } from "../domain/errors";
-import { useNoteContent, type UseNoteContentReturn } from "./useNoteContent";
+import { useNoteContent } from "./useNoteContent";
 import { useNoteDates } from "./useNoteDates";
 import { useSync, type UseSyncReturn } from "./useSync";
 import { createNoteRepository, type NoteRepository } from "../storage/noteRepository";

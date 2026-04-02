@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { authReducer, type AuthContext, type AuthEvent } from "../hooks/useAuth";
+import { authReducer, type AuthContext } from "../hooks/useAuth";
 import { AuthState } from "../types";
 
 const makeInitialState = (overrides?: Partial<AuthContext>): AuthContext => ({

@@ -23,6 +23,7 @@ import {
 // Node 18+: webcrypto available as globalThis.crypto
 beforeAll(() => {
   if (!globalThis.crypto) {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { webcrypto } = require("crypto");
     Object.defineProperty(globalThis, "crypto", {
       value: webcrypto,
