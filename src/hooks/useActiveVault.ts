@@ -96,6 +96,8 @@ export function useActiveVault({
   // Cloud keyring fetched after device-only unlock (keys from other devices).
   const [fetchedCloudKeys, setFetchedCloudKeys] = useState<Map<string, CryptoKey>>(new Map());
   const [fetchedCloudPrimaryId, setFetchedCloudPrimaryId] = useState<string | null>(null);
+  // Whether the post-device-unlock cloud key fetch has completed (success or error).
+  const [cloudKeysFetched, setCloudKeysFetched] = useState(false);
 
   const mergedKeyring = useMemo(() => {
     const merged = new Map<string, CryptoKey>();
@@ -172,6 +174,8 @@ export function useActiveVault({
         }
       } catch (e) {
         console.error("Failed to fetch cloud keyring after device unlock:", e);
+      } finally {
+        if (!cancelled) setCloudKeysFetched(true);
       }
     })();
     return () => { cancelled = true; };
@@ -198,6 +202,9 @@ export function useActiveVault({
     ) {
       return;
     }
+    // On device-only unlock, wait for cloud key fetch to complete so
+    // mergedKeyring includes all cloud keys before rewrapping.
+    if (!authPassword && !cloudKeysFetched) return;
     const cacheKey = `${auth.user.id}:${effectivePassword}`;
     if (hasSyncedKeyringRef.current === cacheKey) return;
     hasSyncedKeyringRef.current = cacheKey;
@@ -218,7 +225,7 @@ export function useActiveVault({
       keyring: keysToSync,
       primaryKeyId: activeKeyId,
     });
-  }, [mode, auth.user, effectivePassword, cloudVault.isReady, mergedKeyring, activeKeyId]);
+  }, [mode, auth.user, effectivePassword, cloudVault.isReady, mergedKeyring, activeKeyId, authPassword, cloudKeysFetched]);
 
   const isVaultReady =
     mode === AppMode.Cloud ? cloudVault.isReady : localVault.isReady;
