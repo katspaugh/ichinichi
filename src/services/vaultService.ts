@@ -309,32 +309,116 @@ export async function fetchAndUnwrapCloudKeyring(options: {
   return { keyring, primaryKeyId };
 }
 
+const NOTE_IV_BYTES = 12;
+
 export async function cleanupUnusedKeys(options: {
   supabase: SupabaseClient;
   userId: string;
   activeKeyId: string | null;
-}): Promise<{ deleted: string[]; kept: string[] }> {
-  const { supabase, userId, activeKeyId } = options;
+  keyring: Map<string, CryptoKey>;
+}): Promise<{ deleted: string[]; reencrypted: number; kept: string[] }> {
+  const { supabase, userId, activeKeyId, keyring } = options;
 
-  // Collect keyIds referenced by local notes (IndexedDB)
-  const { getAllNoteRecords } = await import("../storage/unifiedNoteStore");
-  const localRecords = await getAllNoteRecords();
-  const usedKeyIds = new Set(localRecords.map((r) => r.keyId));
+  const primaryKey = activeKeyId ? keyring.get(activeKeyId) : null;
 
-  // Collect keyIds referenced by remote notes (Supabase)
+  // Fetch remote notes and re-encrypt any that use non-primary keys
   const { data: remoteRows, error: remoteError } = await supabase
     .from("notes")
-    .select("key_id")
+    .select("*")
     .eq("user_id", userId)
     .eq("deleted", false);
 
   if (remoteError) throw remoteError;
+
+  const { setNoteAndMeta, getNoteMeta } = await import("../storage/unifiedNoteStore");
+  const usedKeyIds = new Set<string>();
+  let reencrypted = 0;
+
   for (const row of remoteRows ?? []) {
-    const keyId = (row as Record<string, unknown>).key_id;
-    if (typeof keyId === "string") usedKeyIds.add(keyId);
+    const note = parseRemoteNoteRow(row);
+    if (!note) continue;
+
+    // If note uses primary key, keep as-is
+    if (note.key_id === activeKeyId) {
+      usedKeyIds.add(note.key_id);
+      continue;
+    }
+
+    // Try to re-encrypt to primary key
+    const oldKey = keyring.get(note.key_id ?? "legacy");
+    if (!oldKey || !primaryKey || !activeKeyId) {
+      // Can't re-encrypt — must keep this key
+      if (note.key_id) usedKeyIds.add(note.key_id);
+      continue;
+    }
+
+    const iv = base64ToBytes(note.nonce);
+    const ciphertext = base64ToBytes(note.ciphertext);
+    const decrypted = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv },
+      oldKey,
+      ciphertext,
+    );
+    const parsed = parseDecryptedNotePayload(
+      JSON.parse(decodeUtf8(new Uint8Array(decrypted))),
+    );
+    if (!parsed) {
+      if (note.key_id) usedKeyIds.add(note.key_id);
+      continue;
+    }
+
+    const newIv = randomBytes(NOTE_IV_BYTES);
+    const envelope = { content: sanitizeHtml(parsed.content) };
+    const plaintext = encodeUtf8(JSON.stringify(envelope));
+    const encrypted = await crypto.subtle.encrypt(
+      { name: "AES-GCM", iv: newIv },
+      primaryKey,
+      plaintext,
+    );
+
+    const newCiphertext = bytesToBase64(new Uint8Array(encrypted));
+    const newNonce = bytesToBase64(newIv);
+    const now = new Date().toISOString();
+
+    const { data: pushData, error: pushError } = await supabase.rpc("push_note", {
+      p_id: note.id,
+      p_user_id: userId,
+      p_date: note.date,
+      p_key_id: activeKeyId,
+      p_ciphertext: newCiphertext,
+      p_nonce: newNonce,
+      p_revision: note.revision,
+      p_updated_at: now,
+      p_deleted: false,
+    });
+    if (pushError) throw pushError;
+
+    const pushed = parseRemoteNoteRow(pushData);
+    const existingMeta = await getNoteMeta(note.date);
+    await setNoteAndMeta(
+      {
+        version: 1,
+        date: note.date,
+        keyId: activeKeyId,
+        ciphertext: newCiphertext,
+        nonce: newNonce,
+        updatedAt: now,
+      },
+      {
+        date: note.date,
+        revision: pushed?.revision ?? note.revision + 1,
+        serverRevision: pushed?.revision ?? note.revision + 1,
+        remoteId: note.id,
+        serverUpdatedAt: pushed?.server_updated_at ?? now,
+        lastSyncedAt: now,
+        pendingOp: null,
+        deletedAt: existingMeta?.deletedAt ?? null,
+      },
+    );
+    reencrypted++;
   }
 
-  // Fetch all keyring entries and determine which to delete
+  // Delete all non-primary keyring entries that are no longer referenced
   const entries = await fetchUserKeyring(supabase, userId);
   const deleted: string[] = [];
   const kept: string[] = [];
@@ -354,10 +438,8 @@ export async function cleanupUnusedKeys(options: {
     removeLocalWrappedKeys(deleted);
   }
 
-  return { deleted, kept };
+  return { deleted, reencrypted, kept };
 }
-
-const NOTE_IV_BYTES = 12;
 
 export async function reencryptCloudNotes(options: {
   supabase: SupabaseClient;

@@ -109,22 +109,27 @@ export function useDebugKeyring(
     setCleanupStatus("busy");
     setCleanupResult(null);
     try {
+      const keysToSync = new Map<string, CryptoKey>();
+      for (const [keyId, key] of keyring.entries()) {
+        if (keyId !== "legacy") keysToSync.set(keyId, key);
+      }
       const result = await cleanupUnusedKeys({
         supabase,
         userId,
         activeKeyId,
+        keyring: keysToSync,
       });
+      const parts: string[] = [];
+      if (result.reencrypted) parts.push(`re-encrypted ${result.reencrypted} note(s)`);
+      if (result.deleted.length) parts.push(`removed ${result.deleted.length} key(s)`);
+      if (!parts.length) parts.push(`all ${result.kept.length} cloud key(s) are in use`);
       setCleanupStatus("success");
-      setCleanupResult(
-        result.deleted.length
-          ? `Removed ${result.deleted.length} unused cloud key(s), kept ${result.kept.length}`
-          : `All ${result.kept.length} cloud key(s) are in use`,
-      );
+      setCleanupResult(parts.join(", "));
     } catch (err) {
       setCleanupStatus("error");
       setCleanupResult(err instanceof Error ? err.message : "Cleanup failed");
     }
-  }, [userId, activeKeyId]);
+  }, [userId, activeKeyId, keyring]);
 
   const resetCleanupStatus = useCallback(() => {
     setCleanupStatus("idle");
