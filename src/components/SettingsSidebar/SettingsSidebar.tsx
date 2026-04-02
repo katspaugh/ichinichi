@@ -567,9 +567,9 @@ export function SettingsSidebar({
               <div className={styles.section}>
                 <p className={styles.sectionLabel}>Developer</p>
                 <div className={styles.toggleRow}>
-                  <span className={styles.rowLabel}>
+                  <span className={styles.rowLabel} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                     <Bug className={styles.actionIcon} />
-                    {" "}Debug mode
+                    Debug mode
                   </span>
                   <button
                     className={styles.switch}
