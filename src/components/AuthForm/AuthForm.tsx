@@ -9,7 +9,6 @@ interface AuthFormProps {
   onSignIn: (email: string, password: string) => void;
   onSignUp: (email: string, password: string) => void;
   onResetPassword?: (email: string) => void;
-  defaultPassword?: string | null;
 }
 
 interface AuthFormState {
@@ -51,12 +50,11 @@ export function AuthForm({
   onSignIn,
   onSignUp,
   onResetPassword,
-  defaultPassword,
 }: AuthFormProps) {
   const [state, dispatch] = useReducer(authFormReducer, {
     mode: "signin",
     email: "",
-    password: defaultPassword || "",
+    password: "",
     resetSent: false,
   });
 

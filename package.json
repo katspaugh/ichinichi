@@ -41,8 +41,6 @@
     "@playwright/mcp": "^0.0.56",
     "@playwright/test": "^1.57.0",
     "@tauri-apps/cli": "^2",
-    "@testing-library/dom": "^10.4.1",
-    "@testing-library/react": "^16.1.0",
     "@types/dompurify": "^3.2.0",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.5",

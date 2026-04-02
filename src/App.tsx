@@ -14,6 +14,7 @@ import { PrivacyPolicyModal } from "./components/AppModals/PrivacyPolicyModal";
 import { ResetPasswordModal } from "./components/AppModals/ResetPasswordModal";
 import { AuthErrorModal } from "./components/AppModals/AuthErrorModal";
 import { AuthState } from "./hooks/useAuth";
+import { AuthForm } from "./components/AuthForm";
 import { supabase } from "./lib/supabase";
 import { generateSalt, deriveKEK, wrapDEK, saveKeyring } from "./crypto";
 import { usePWA } from "./hooks/usePWA";
@@ -194,10 +195,17 @@ function AppContent() {
     return null;
   }
 
-  // Auth gate: signed out — show only modals for auth
+  // Auth gate: signed out — show sign-in form
   if (auth.authState === AuthState.SignedOut) {
     return (
       <>
+        <AuthForm
+          isBusy={auth.isBusy}
+          error={auth.error}
+          onSignIn={auth.signIn}
+          onSignUp={auth.signUp}
+          onResetPassword={(email) => { void auth.resetPassword(email); }}
+        />
         <ResetPasswordModal
           isOpen={auth.isPasswordRecovery}
           error={auth.error}
