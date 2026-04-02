@@ -229,7 +229,9 @@ export async function fetchKeyring(
     .select("*")
     .eq("user_id", userId)
     .eq("is_primary", true)
-    .single();
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
   if (error || !data) return null;
   return data as KeyringEntry;
 }
@@ -239,7 +241,14 @@ export async function saveKeyring(
   userId: string,
   entry: KeyringEntry,
 ): Promise<void> {
+  // Delete existing primary keyrings before inserting new one
+  // (PK is user_id+key_id, so upsert with a new key_id would insert, not update)
   await supabase
     .from("user_keyrings")
-    .upsert({ ...entry, user_id: userId });
+    .delete()
+    .eq("user_id", userId)
+    .eq("is_primary", true);
+  await supabase
+    .from("user_keyrings")
+    .insert({ ...entry, user_id: userId });
 }
