@@ -53,7 +53,7 @@ export function DebugKeyringSection({
 
   return (
     <div className={styles.section}>
-      <p className={styles.sectionLabel}>Debug: Key Ring</p>
+      <p className={styles.sectionLabel}>Debug: key ring</p>
 
       <div className={debugStyles.keyList}>
         {keys.map((info) => (
@@ -99,7 +99,7 @@ export function DebugKeyringSection({
             }}
           >
             <Key className={styles.actionIcon} />
-            Rewrap All Keys
+            Rewrap all keys
           </button>
 
           {rewrapStatus === "success" && (
@@ -119,7 +119,7 @@ export function DebugKeyringSection({
             }}
           >
             <Trash2 className={styles.actionIcon} />
-            {cleanupStatus === "busy" ? "Cleaning up..." : "Clean up Keys"}
+            {cleanupStatus === "busy" ? "Cleaning up..." : "Clean up keys"}
           </button>
 
           {cleanupStatus === "success" && cleanupResult && (
