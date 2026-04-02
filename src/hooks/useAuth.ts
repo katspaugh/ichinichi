@@ -170,6 +170,7 @@ export function authReducer(
           return {
             ...state,
             ...sessionUpdate,
+            isBusy: false,
             dek: null,
             keyId: null,
             dekInput: null,
