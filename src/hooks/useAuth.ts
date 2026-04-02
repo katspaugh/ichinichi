@@ -325,13 +325,11 @@ async function doSignOut(cancelled: Cancelled): Promise<AuthEvent> {
     // Best effort
   }
   if (cancelled()) return { type: "CLEAR_ERROR" };
-  try {
-    await clearAll();
-    await deleteDatabase();
-    await clearDekCache();
-  } catch (e) {
-    reportError("useAuth.signOut.clearCache", e);
-  }
+  // Fire cleanup concurrently — don't let any single operation block sign-out
+  await Promise.allSettled([
+    clearAll().then(() => deleteDatabase()),
+    clearDekCache(),
+  ]);
   return { type: "PHASE_DONE", phase: Phase.SigningOut };
 }
 

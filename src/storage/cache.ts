@@ -196,5 +196,6 @@ export async function deleteDatabase(): Promise<void> {
     const req = indexedDB.deleteDatabase(DB_NAME);
     req.onsuccess = () => resolve();
     req.onerror = (e) => reject((e.target as IDBRequest).error);
+    req.onblocked = () => resolve(); // Don't hang if connections linger
   });
 }
