@@ -6,8 +6,9 @@ It is derived from the current codebase with file references.
 ## 1) Product Overview
 
 - Minimal daily notes app: one note per day, year-at-a-glance calendar.
-- Local-first; optional cloud sync.
+- Cloud-only with E2EE. Auth required before any content.
 - Notes encrypted client-side; past notes read-only; only today editable.
+- Offline signed-in users can read cached entries from IndexedDB but cannot write. Editor becomes read-only.
 
 Refs: src/App.tsx, src/README.md, src/utils/noteRules.ts
 
@@ -21,10 +22,10 @@ Refs: src/App.tsx, src/README.md, src/utils/noteRules.ts
 
 Ref: src/types/index.ts
 
-### 2.2 SyncedNote
+### 2.2 CachedNoteRecord
 
-- Adds: id?, revision, serverUpdatedAt?, deleted?.
-- revision increments per local edit; used in conflict resolution.
+- date, ciphertext, nonce, keyId, updatedAt, revision, remoteId.
+- Stored in IndexedDB cache; populated from Supabase sync.
 
 Ref: src/types/index.ts
 
@@ -44,91 +45,45 @@ Ref: src/types/index.ts
 
 Refs: src/utils/date.ts, src/utils/noteRules.ts, src/components/Calendar/DayCell.tsx
 
-## 4) App Modes
+## 4) App Mode
 
-### 4.1 Local Mode (default)
-
-- Notes stored locally in a single unified IndexedDB dataset.
-- No account required; local storage is the source of truth.
-
-### 4.2 Cloud Mode (opt-in)
-
-- Authenticated via Supabase.
-- Cloud is a replica: notes are synced on save and during periodic sync.
-- The same local dataset is used in both modes.
-
-Refs: src/hooks/useAppMode.ts, src/hooks/useNoteRepository.ts
+Cloud-only. User must sign in before reading or writing. Supabase is the source of truth; IndexedDB serves as a read-only cache for offline access.
 
 ## 5) Authentication Flow (Supabase)
 
-- signUp: creates user; if email confirmation required, user remains unauthenticated
-  until confirmed.
-- signIn: authenticates with email + password.
-- signOut: clears session.
-- Auth state controls mode: signed-in forces Cloud mode.
+- signUp: creates user, generates DEK, wraps with password-derived KEK, stores keyring entry in Supabase user_keyrings. If email confirmation required, user remains unauthenticated until confirmed.
+- signIn: authenticates with email + password, fetches keyring from Supabase, unwraps DEK using password-derived KEK.
+- signOut: clears session and all cached data (IndexedDB, in-memory keys). Keeps UI preferences.
 
-Refs: src/hooks/useAuth.ts, src/hooks/useAppMode.ts
+Refs: src/hooks/useAuth.ts
 
-## 6) Vault and Key Management
+## 6) Key Management
 
-### 6.1 Vault Storage
+- Single DEK per user, derived from login password via PBKDF2 (SHA-256, 600k iterations).
+- DEK stored as a wrapped keyring entry in Supabase `user_keyrings` table (is_primary = true).
+- On sign-up: generate DEK, wrap with password-derived KEK, store in user_keyrings.
+- On sign-in: fetch keyring from Supabase, unwrap DEK using password-derived KEK.
+- No local vault, no device key, no multi-key rotation.
 
-- Vault metadata stored in localStorage: key dailynote_vault_meta_v1.
-- Device key stored in IndexedDB: dailynotes-vault / keys.
-
-Ref: src/storage/vault.ts
-
-### 6.2 Local Vault
-
-- On first load, if device key available, creates a random vault without asking for
-  a password.
-- If device key is unavailable, user must set a password to create the vault.
-- Password uses PBKDF2 (SHA-256, 600k iterations) to wrap the DEK.
-- Device-wrapped key stored when possible for auto-unlock.
-
-Refs: src/hooks/useLocalVault.ts, src/storage/vault.ts
-
-### 6.3 Cloud Vault
-
-- On sign-in, tries to unlock with device-wrapped DEK first.
-- If not available, uses password to derive KEK and unwrap DEKs from Supabase user_keyrings.
-- New cloud users: generate DEK (or reuse local vault key), wrap with KEK, save to
-  user_keyrings as primary.
-- All locally known keys are uploaded to user_keyrings on sign-in.
-- Device-wrapped DEK stored for future auto-unlock.
-
-Refs: src/hooks/useVault.ts, src/storage/userKeyring.ts, src/storage/vault.ts
-
-### 6.4 Cloud DEK Cache
-
-- Cloud DEK is cached locally, encrypted with the local vault key.
-- Stored in localStorage as dailynote_cloud_dek_cache_v1.
-
-Ref: src/storage/cloudCache.ts
+Ref: src/crypto.ts
 
 ## 7) Storage Architecture
 
-### 7.1 Unified Local Dataset
+### 7.1 Supabase (Source of Truth)
 
-- IndexedDB: dailynotes-unified.
-- Object stores: notes, note_meta, images, image_meta, sync_state.
-- Notes stored encrypted (content only) with metadata in note_meta.
-- Images stored encrypted locally with metadata in image_meta.
-- Notes/images carry key_id to select the correct DEK.
+- Notes stored in Supabase `notes` table (encrypted client-side, AES-GCM).
+- Images uploaded as encrypted blobs to Supabase Storage bucket `note-images`.
+- `user_keyrings` stores single wrapped DEK entry (is_primary = true).
+- Writes go directly to Supabase.
 
-Refs: src/storage/unifiedDb.ts, src/storage/unifiedNoteRepository.ts,
-src/storage/unifiedImageRepository.ts
+### 7.2 IndexedDB Cache (Read-Only)
 
-### 7.2 Cloud Replication (Supabase)
+- Cache DB: `ichinichi-cache`.
+- Object stores: notes, images, image_meta, sync_state.
+- Populated via pull-only sync from Supabase.
+- Used for offline read access only; no local writes.
 
-- Notes replicated to Supabase notes table (encrypted client-side).
-- Images uploaded as encrypted blobs to Supabase Storage.
-- note_images stores metadata for ciphertext blobs and thumbnails.
-- user_keyrings stores wrapped DEKs (multi-key support).
-- note key_id indicates which DEK to use for decryption.
-
-Refs: src/storage/unifiedSyncedNoteRepository.ts, src/storage/unifiedImageSyncService.ts,
-supabase/migrations/20260201_update_note_images_for_encryption.sql
+Refs: src/storage/cache.ts, src/storage/remoteNotes.ts, src/storage/noteRepository.ts
 
 ## 8) Note Editing and Sanitization
 
@@ -167,53 +122,30 @@ Refs: src/hooks/useUrlState.ts, src/utils/urlState.ts
 Refs: src/hooks/useNoteNavigation.ts, src/hooks/useNoteKeyboardNav.ts,
 src/hooks/useSwipeGesture.ts, src/utils/noteNavigation.ts
 
-## 12) Sync System (Cloud Mode)
+## 12) Sync System
 
-### 12.1 Sync Triggering
+### 12.1 Model
 
-- Debounced sync (2s) on changes.
-- Immediate sync on closing note with edits.
-- Immediate sync on pagehide/beforeunload.
+- Pull-only: fetch notes since cursor from Supabase → update IndexedDB cache.
+- Writes go directly to Supabase (no pending ops queue, no local dirty tracking).
+- No conflict resolution needed — Supabase is single source of truth.
 
-Refs: src/hooks/useSync.ts, src/components/AppModals.tsx
+### 12.2 Sync Triggering
 
-### 12.2 Sync Status
+- On sign-in (initial sync).
+- On window focus.
+- Periodic (every 30s).
+- On realtime event (Supabase realtime subscription on `notes` table).
+
+### 12.3 Sync Status
 
 - Idle, Syncing, Synced, Offline, Error.
 
-Refs: src/types/index.ts, src/components/SyncIndicator/SyncIndicator.tsx
-
-### 12.3 Conflict Resolution
-
-- Last-write-wins by updatedAt timestamp.
-- Tie-breaker: higher revision wins.
-
-Ref: src/storage/unifiedSyncedNoteRepository.ts
-
-### 12.4 Sync Algorithm (High Level)
-
-1. If offline, set status to Offline, return.
-2. Push pending local ops (upsert/delete) to Supabase.
-3. Pull remote updates using cursor (server_updated_at > last cursor).
-4. Apply remote updates only when newer; never infer deletions from missing index.
-
-Ref: src/storage/unifiedSyncedNoteRepository.ts
-
-### 12.5 Optimistic Concurrency
-
-- Remote updates use server_updated_at to detect conflicts.
-- Conflict triggers re-fetch and resolution.
-
-Ref: src/storage/remoteNotesGateway.ts
+Refs: src/hooks/useSync.ts, src/storage/remoteNotes.ts
 
 ## 13) Legacy Migration
 
-- Legacy migration has been removed; unified storage is now the single source
-  of truth for local and synced notes/images.
-- E2EE boundary: storage persists encrypted envelopes only; plaintext is
-  hydrated in domain repositories via the E2EE service.
-
-Ref: src/services/e2eeService.ts
+- Legacy migration removed. Cloud-only architecture; no local-first migration needed.
 
 ## 14) Inline Images
 
@@ -228,104 +160,30 @@ src/utils/imageResolver.ts
 
 ## 15) UI Modals and Flows
 
-- Intro modal (first run) to start writing or set up sync.
-- Mode choice modal after first local note exists.
-- Local vault unlock modal if required.
-- Cloud auth modal for sign-in/sign-up or confirmation.
-- Vault error modal if unlock fails.
+- Intro modal → auth required (sign-in / sign-up).
+- Authenticated + DEK unlocked → app renders.
+- Offline → read-only mode (visual indicator, save disabled).
+- Sign-out → clear all cached data, show intro modal.
 
 Refs: src/components/AppModals.tsx
 
 ---
 
-# Sync-Focused Diagnostics (Potential Bug Vectors)
+# Known Edge Cases
 
-This section highlights systemic issues and edge cases that can affect sync
-correctness and data consistency.
+## A) Image Reference Integrity
 
-## A) Delete Semantics and Missing Remote Index
-
-- In sync, missing remote dates are treated as deletions for local notes, but only
-  if the remote index is non-empty.
-- If the remote index is empty due to transient errors or slow propagation, this
-  prevents wipes but can leave stale notes un-deleted.
-
-Ref: src/storage/unifiedSyncedNoteRepository.ts
-
-## B) Dirty Notes and Offline Reads
-
-- If a local note is dirty, get() returns the local version and skips remote fetch.
-- This can cause the UI to show stale content if a remote update exists but local
-  dirty flag remains true (e.g., interrupted sync).
-
-Ref: src/storage/unifiedSyncedNoteRepository.ts
-
-## C) Conflict Resolution and UpdatedAt Accuracy
-
-- Conflict resolution depends on updatedAt timestamps, which are client-generated.
-- Clock drift between devices can cause a device to win incorrectly.
-
-Ref: src/storage/remoteNotesGateway.ts
-
-## D) Revision Conflicts
-
-- Push uses server_updated_at for optimistic concurrency.
-- If server_updated_at is null or mismatched due to previous client state, the
-  update can fail and fall into conflict handling.
-
-Ref: src/storage/remoteNotesGateway.ts
-
-## E) Dirty Flag Handling
-
-- Dirty is set on save and cleared only after sync updates local note.
-- If sync fails mid-cycle, dirty may remain true and block later remote updates.
-
-Ref: src/storage/unifiedSyncedNoteRepository.ts
-
-## F) Migration Timing
-
-- Unified migration should complete before sync begins, otherwise ordering
-  issues can cause duplicate updates or conflict resolution on incomplete data.
-
-Ref: src/storage/unifiedMigration.ts
-
-## G) Cloud Key Caching
-
-- Cloud DEK cached with local vault key. If local vault rotates or is reset,
-  cached cloud key becomes unreadable.
-- Device-wrapped DEK is the primary fallback but might not exist on some browsers.
-
-Refs: src/storage/cloudCache.ts, src/storage/vault.ts
-
-## H) Image Sync Consistency
-
-- Images are unencrypted in cloud mode; note content references images via
-  data-image-id with no explicit sync ordering.
 - A note can reference an image ID that failed to upload or was deleted,
   resulting in broken inline images.
 
-Refs: src/storage/cloudImageStorage.ts, src/utils/imageResolver.ts
-
-## I) Note Dates Source
-
-- Date lists are derived from the notes table (local cache after sync).
-- No separate index table is maintained, so date presence matches note records.
-
-## J) Content Sanitization Differences
+## B) Content Sanitization Differences
 
 - Content is sanitized on save and on decrypt.
-- If sanitize rules change, previously stored content could render differently
-  between local and remote versions, producing subtle diffs.
+- If sanitize rules change, previously stored content could render differently.
 
 Ref: src/utils/sanitize.ts
 
----
+## C) Offline Cache Staleness
 
-# Reimplementation Checklist (Condensed)
-
-- Same date format and edit rules.
-- Same vault flows and storage locations.
-- Same IndexedDB schemas and encryption routines.
-- Same sync algorithm and conflict resolution.
-- Same URL routing and modal flows.
-- Same inline image upload + resolution behavior.
+- IndexedDB cache may be stale if user was offline for extended period.
+- Cache is updated on next successful sync after reconnection.
