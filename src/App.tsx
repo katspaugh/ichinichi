@@ -381,6 +381,9 @@ function AppContent() {
               onOpenPrivacy={handleOpenPrivacy}
               onWeekStartChange={handleWeekStartChange}
               onExport={notes.repository ? handleExport : undefined}
+              dek={auth.dek}
+              keyId={auth.keyId}
+              userId={auth.user?.id}
             />
 
             <AboutModal isOpen={aboutOpen} onClose={() => setAboutOpen(false)} />

@@ -20,6 +20,9 @@ import { useTheme } from "@/hooks/useTheme";
 import type { ThemePreference } from "@/services/themePreferences";
 import { getWeekdayOptions, setWeekStartPreference } from "@/utils/date";
 import { useWeatherContext } from "@/contexts/weatherContext";
+import { useDebugMode } from "@/hooks/useDebugMode";
+import { useDebugKeyring } from "@/hooks/useDebugKeyring";
+import { DebugKeyringSection } from "./DebugKeyringSection";
 import styles from "./SettingsSidebar.module.css";
 
 interface SettingsSidebarProps {
@@ -34,6 +37,9 @@ interface SettingsSidebarProps {
   onOpenPrivacy?: () => void;
   onWeekStartChange?: () => void;
   onExport?: () => Promise<void>;
+  dek?: CryptoKey | null;
+  keyId?: string | null;
+  userId?: string | null;
 }
 
 type WeatherState = ReturnType<typeof useWeatherContext>["state"];
@@ -416,9 +422,14 @@ export function SettingsSidebar({
   onOpenPrivacy,
   onWeekStartChange,
   onExport,
+  dek,
+  keyId,
+  userId,
 }: SettingsSidebarProps) {
   const { theme, setTheme } = useTheme();
   const weather = useWeatherContext();
+  const [isDebug, setDebug] = useDebugMode();
+  const debugKeyring = useDebugKeyring(dek ?? null, keyId ?? null, userId ?? null, isSignedIn);
   const { state: weatherState } = weather;
   const [weekStart, setWeekStart] = useState(
     () => getWeekdayOptions()[0]?.dayIndex ?? 0,
@@ -537,6 +548,48 @@ export function SettingsSidebar({
             onOpenAbout={onOpenAbout}
             commitHash={commitHash}
           />
+
+          <div className={styles.separator} />
+
+          <div className={styles.section}>
+            <div className={styles.toggleRow}>
+              <span className={styles.rowLabel}>Debug mode</span>
+              <button
+                className={styles.switch}
+                type="button"
+                role="switch"
+                aria-checked={isDebug}
+                data-checked={isDebug}
+                onClick={() => setDebug(!isDebug)}
+              >
+                <span className={styles.switchThumb} />
+              </button>
+            </div>
+          </div>
+
+          {isDebug && isSignedIn && userEmail && (
+            <>
+              <div className={styles.separator} />
+              <DebugKeyringSection
+                cloudKeys={debugKeyring.cloudKeys}
+                activeKeyId={keyId ?? null}
+                isSignedIn={isSignedIn}
+                userEmail={userEmail}
+                rewrapStatus={debugKeyring.rewrapStatus}
+                rewrapError={debugKeyring.rewrapError}
+                onRewrap={debugKeyring.rewrap}
+                onResetRewrapStatus={debugKeyring.resetRewrapStatus}
+                cleanupStatus={debugKeyring.cleanupStatus}
+                cleanupResult={debugKeyring.cleanupResult}
+                onCleanup={debugKeyring.cleanup}
+                onResetCleanupStatus={debugKeyring.resetCleanupStatus}
+                reencryptStatus={debugKeyring.reencryptStatus}
+                reencryptResult={debugKeyring.reencryptResult}
+                onReencrypt={debugKeyring.reencrypt}
+                onResetReencryptStatus={debugKeyring.resetReencryptStatus}
+              />
+            </>
+          )}
         </div>
       </aside>
     </div>

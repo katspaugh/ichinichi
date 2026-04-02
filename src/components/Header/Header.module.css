@@ -17,14 +17,12 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-lg);
-  flex: 1;
-  min-width: 0;
 }
 
 .headerRight {
   display: flex;
   align-items: center;
-  gap: var(--spacing-md);
+  gap: var(--spacing-sm);
 }
 
 .appLogo {
