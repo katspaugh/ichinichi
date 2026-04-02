@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { Key, Check } from "lucide-react";
+import { Key, Check, Trash2 } from "lucide-react";
 import { Button } from "../Button";
 import { Modal } from "../Modal";
 import { VaultPanel } from "../VaultPanel";
@@ -8,6 +8,8 @@ import styles from "./SettingsSidebar.module.css";
 import formStyles from "../VaultPanel/VaultPanel.module.css";
 import debugStyles from "./DebugKeyringSection.module.css";
 
+type ActionStatus = "idle" | "busy" | "success" | "error";
+
 interface DebugKeyringSectionProps {
   keys: DebugKeyInfo[];
   isSignedIn: boolean;
@@ -15,6 +17,10 @@ interface DebugKeyringSectionProps {
   rewrapError: string | null;
   onRewrap: (password: string) => Promise<void>;
   onResetRewrapStatus: () => void;
+  cleanupStatus: ActionStatus;
+  cleanupResult: string | null;
+  onCleanup: () => Promise<void>;
+  onResetCleanupStatus: () => void;
 }
 
 function typeLabel(info: DebugKeyInfo): string {
@@ -31,6 +37,10 @@ export function DebugKeyringSection({
   rewrapError,
   onRewrap,
   onResetRewrapStatus,
+  cleanupStatus,
+  cleanupResult,
+  onCleanup,
+  onResetCleanupStatus,
 }: DebugKeyringSectionProps) {
   const [rewrapOpen, setRewrapOpen] = useState(false);
   const [password, setPassword] = useState("");
@@ -96,6 +106,31 @@ export function DebugKeyringSection({
             <span className={debugStyles.statusMsg} data-variant="success">
               <Check className={debugStyles.statusIcon} />
               All keys rewrapped
+            </span>
+          )}
+
+          <button
+            className={styles.actionButton}
+            type="button"
+            disabled={cleanupStatus === "busy"}
+            onClick={() => {
+              onResetCleanupStatus();
+              void onCleanup();
+            }}
+          >
+            <Trash2 className={styles.actionIcon} />
+            {cleanupStatus === "busy" ? "Cleaning up..." : "Clean up Keys"}
+          </button>
+
+          {cleanupStatus === "success" && cleanupResult && (
+            <span className={debugStyles.statusMsg} data-variant="success">
+              <Check className={debugStyles.statusIcon} />
+              {cleanupResult}
+            </span>
+          )}
+          {cleanupStatus === "error" && cleanupResult && (
+            <span className={debugStyles.statusMsg} data-variant="error">
+              {cleanupResult}
             </span>
           )}
 

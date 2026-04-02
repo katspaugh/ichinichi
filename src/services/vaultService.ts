@@ -1,6 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { VaultService } from "../domain/vault/vaultService";
-import { fetchUserKeyring, saveUserKeyringEntry } from "../storage/userKeyring";
+import {
+  fetchUserKeyring,
+  saveUserKeyringEntry,
+  deleteUserKeyringEntry,
+} from "../storage/userKeyring";
 import type { UserKeyringEntry } from "../storage/userKeyring";
 import { computeKeyId } from "../storage/keyId";
 import {
@@ -272,6 +276,72 @@ export async function unlockLocalVault(options: {
     vaultKey: key,
     hasVault: true,
   };
+}
+
+export async function fetchAndUnwrapCloudKeyring(options: {
+  supabase: SupabaseClient;
+  userId: string;
+  password: string;
+}): Promise<{ keyring: Map<string, CryptoKey>; primaryKeyId: string | null }> {
+  const { supabase, userId, password } = options;
+  const entries = await fetchUserKeyring(supabase, userId);
+  const keyring = new Map<string, CryptoKey>();
+  let primaryKeyId: string | null = null;
+
+  for (const entry of entries) {
+    try {
+      const kek = await deriveKEK(password, entry.kdfSalt, entry.kdfIterations);
+      const unwrapped = await unwrapDEK(entry.wrappedDek, entry.dekIv, kek);
+      keyring.set(entry.keyId, unwrapped);
+      if (entry.isPrimary) primaryKeyId = entry.keyId;
+    } catch {
+      // Skip entries that can't be unwrapped with this password
+    }
+  }
+
+  return { keyring, primaryKeyId };
+}
+
+export async function cleanupUnusedKeys(options: {
+  supabase: SupabaseClient;
+  userId: string;
+  activeKeyId: string | null;
+}): Promise<{ deleted: string[]; kept: string[] }> {
+  const { supabase, userId, activeKeyId } = options;
+
+  // Collect keyIds referenced by local notes (IndexedDB)
+  const { getAllNoteRecords } = await import("../storage/unifiedNoteStore");
+  const localRecords = await getAllNoteRecords();
+  const usedKeyIds = new Set(localRecords.map((r) => r.keyId));
+
+  // Collect keyIds referenced by remote notes (Supabase)
+  const { data: remoteRows, error: remoteError } = await supabase
+    .from("notes")
+    .select("key_id")
+    .eq("user_id", userId)
+    .eq("deleted", false);
+
+  if (remoteError) throw remoteError;
+  for (const row of remoteRows ?? []) {
+    const keyId = (row as Record<string, unknown>).key_id;
+    if (typeof keyId === "string") usedKeyIds.add(keyId);
+  }
+
+  // Fetch all keyring entries and determine which to delete
+  const entries = await fetchUserKeyring(supabase, userId);
+  const deleted: string[] = [];
+  const kept: string[] = [];
+
+  for (const entry of entries) {
+    if (entry.keyId === activeKeyId || usedKeyIds.has(entry.keyId)) {
+      kept.push(entry.keyId);
+    } else {
+      await deleteUserKeyringEntry(supabase, userId, entry.keyId);
+      deleted.push(entry.keyId);
+    }
+  }
+
+  return { deleted, kept };
 }
 
 export function createVaultService(supabase: SupabaseClient): VaultService {

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { fetchUserKeyring } from "../storage/userKeyring";
 import { listLocalKeyIds } from "../storage/localKeyring";
-import { rewrapCloudKeyring } from "../services/vaultService";
+import { rewrapCloudKeyring, cleanupUnusedKeys } from "../services/vaultService";
 import { supabase } from "../lib/supabase";
 
 export interface DebugKeyInfo {
@@ -11,12 +11,18 @@ export interface DebugKeyInfo {
   isPrimary: boolean;
 }
 
+type ActionStatus = "idle" | "busy" | "success" | "error";
+
 export interface UseDebugKeyringReturn {
   keys: DebugKeyInfo[];
   rewrapStatus: "idle" | "rewrapping" | "success" | "error";
   rewrapError: string | null;
   rewrap: (password: string) => Promise<void>;
   resetRewrapStatus: () => void;
+  cleanupStatus: ActionStatus;
+  cleanupResult: string | null;
+  cleanup: () => Promise<void>;
+  resetCleanupStatus: () => void;
 }
 
 export function useDebugKeyring(
@@ -30,6 +36,8 @@ export function useDebugKeyring(
     "idle" | "rewrapping" | "success" | "error"
   >("idle");
   const [rewrapError, setRewrapError] = useState<string | null>(null);
+  const [cleanupStatus, setCleanupStatus] = useState<ActionStatus>("idle");
+  const [cleanupResult, setCleanupResult] = useState<string | null>(null);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps -- keyring identity change signals new keys
   const localKeyIds = useMemo(
@@ -90,5 +98,42 @@ export function useDebugKeyring(
     setRewrapError(null);
   }, []);
 
-  return { keys, rewrapStatus, rewrapError, rewrap, resetRewrapStatus };
+  const cleanup = useCallback(async () => {
+    if (!userId) return;
+    setCleanupStatus("busy");
+    setCleanupResult(null);
+    try {
+      const result = await cleanupUnusedKeys({
+        supabase,
+        userId,
+        activeKeyId,
+      });
+      setCleanupStatus("success");
+      setCleanupResult(
+        result.deleted.length
+          ? `Deleted ${result.deleted.length} unused key(s), kept ${result.kept.length}`
+          : `All ${result.kept.length} key(s) are in use`,
+      );
+    } catch (err) {
+      setCleanupStatus("error");
+      setCleanupResult(err instanceof Error ? err.message : "Cleanup failed");
+    }
+  }, [userId, activeKeyId]);
+
+  const resetCleanupStatus = useCallback(() => {
+    setCleanupStatus("idle");
+    setCleanupResult(null);
+  }, []);
+
+  return {
+    keys,
+    rewrapStatus,
+    rewrapError,
+    rewrap,
+    resetRewrapStatus,
+    cleanupStatus,
+    cleanupResult,
+    cleanup,
+    resetCleanupStatus,
+  };
 }

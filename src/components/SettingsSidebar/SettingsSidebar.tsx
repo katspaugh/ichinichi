@@ -596,6 +596,10 @@ export function SettingsSidebar({
                 rewrapError={debugKeyring.rewrapError}
                 onRewrap={debugKeyring.rewrap}
                 onResetRewrapStatus={debugKeyring.resetRewrapStatus}
+                cleanupStatus={debugKeyring.cleanupStatus}
+                cleanupResult={debugKeyring.cleanupResult}
+                onCleanup={debugKeyring.cleanup}
+                onResetCleanupStatus={debugKeyring.resetCleanupStatus}
               />
             </>
           )}

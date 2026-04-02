@@ -8,7 +8,10 @@ import { useServiceContext } from "../contexts/serviceContext";
 import { useVaultMachine } from "./useVaultMachine";
 import { handleCloudAccountSwitch } from "../storage/accountSwitch";
 import { closeUnifiedDb } from "../storage/unifiedDb";
-import { ensureCloudKeyringPassword } from "../services/vaultService";
+import {
+  ensureCloudKeyringPassword,
+  fetchAndUnwrapCloudKeyring,
+} from "../services/vaultService";
 import {
   storeDeviceEncryptedPassword,
   tryGetDeviceEncryptedPassword,
@@ -90,25 +93,32 @@ export function useActiveVault({
     void handleCloudAccountSwitch(auth.user?.id ?? null);
   }, [auth.user?.id]);
 
+  // Cloud keyring fetched after device-only unlock (keys from other devices).
+  const [fetchedCloudKeys, setFetchedCloudKeys] = useState<Map<string, CryptoKey>>(new Map());
+  const [fetchedCloudPrimaryId, setFetchedCloudPrimaryId] = useState<string | null>(null);
+
   const mergedKeyring = useMemo(() => {
     const merged = new Map<string, CryptoKey>();
     state.context.localKeyring.forEach((value, key) => merged.set(key, value));
     cloudVault.keyring.forEach((value, key) => merged.set(key, value));
-    if (cloudVault.primaryKeyId && !merged.has("legacy")) {
-      const primary = cloudVault.keyring.get(cloudVault.primaryKeyId);
+    fetchedCloudKeys.forEach((value, key) => merged.set(key, value));
+    const effectivePrimaryId = fetchedCloudPrimaryId ?? cloudVault.primaryKeyId;
+    if (effectivePrimaryId && !merged.has("legacy")) {
+      const primary = merged.get(effectivePrimaryId);
       if (primary) {
         merged.set("legacy", primary);
       }
     }
     return merged;
-  }, [state.context.localKeyring, cloudVault.keyring, cloudVault.primaryKeyId]);
+  }, [state.context.localKeyring, cloudVault.keyring, cloudVault.primaryKeyId, fetchedCloudKeys, fetchedCloudPrimaryId]);
 
   const cloudPrimaryKey =
     cloudVault.vaultKey ?? state.context.restoredCloudVaultKey;
 
+  const cloudPrimaryKeyId = fetchedCloudPrimaryId ?? cloudVault.primaryKeyId;
   const candidateKeyId =
-    mode === AppMode.Cloud && cloudVault.primaryKeyId
-      ? cloudVault.primaryKeyId
+    mode === AppMode.Cloud && cloudPrimaryKeyId
+      ? cloudPrimaryKeyId
       : state.context.localKeyId;
   const activeKeyId =
     candidateKeyId && mergedKeyring.has(candidateKeyId) ? candidateKeyId : null;
@@ -134,6 +144,38 @@ export function useActiveVault({
     });
     return () => { cancelled = true; };
   }, [mode, auth.user, authPassword, cloudVault.isReady]);
+
+  // After device-only unlock, fetch the full cloud keyring so keys from
+  // other devices (e.g. a PWA installation) are available for decryption.
+  const hasFetchedCloudKeysRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (mode !== AppMode.Cloud || !auth.user || !devicePassword || !cloudVault.isReady) return;
+    // Password unlock already fetches all keys — only needed after device unlock.
+    if (authPassword) return;
+
+    const cacheKey = `${auth.user.id}:${devicePassword}`;
+    if (hasFetchedCloudKeysRef.current === cacheKey) return;
+    hasFetchedCloudKeysRef.current = cacheKey;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const result = await fetchAndUnwrapCloudKeyring({
+          supabase,
+          userId: auth.user!.id,
+          password: devicePassword,
+        });
+        if (cancelled) return;
+        if (result.keyring.size) {
+          setFetchedCloudKeys(result.keyring);
+          if (result.primaryKeyId) setFetchedCloudPrimaryId(result.primaryKeyId);
+        }
+      } catch (e) {
+        console.error("Failed to fetch cloud keyring after device unlock:", e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [mode, auth.user, devicePassword, authPassword, cloudVault.isReady]);
 
   // Persist auth password device-encrypted whenever it changes.
   useEffect(() => {
