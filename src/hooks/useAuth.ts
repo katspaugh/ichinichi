@@ -4,7 +4,6 @@ import { supabase } from "../lib/supabase";
 import { AUTH_HAS_LOGGED_IN_KEY } from "../utils/constants";
 import { AuthState } from "../types";
 export { AuthState } from "../types";
-import { connectivity } from "../services/connectivity";
 import { useConnectivity } from "./useConnectivity";
 import {
   fetchKeyring,
@@ -19,6 +18,8 @@ import {
 import { clearAll, deleteDatabase } from "../storage/cache";
 import { cacheDek, loadCachedDek, clearDekCache } from "../storage/dekCache";
 import { reportError } from "../utils/errorReporter";
+
+// ─── Public API ──────────────────────────────────────────────────────────────
 
 export interface UseAuthReturn {
   session: Session | null;
@@ -42,6 +43,72 @@ export interface UseAuthReturn {
   clearError: () => void;
 }
 
+// ─── Phase enum ──────────────────────────────────────────────────────────────
+
+export const Phase = {
+  Bootstrapping: "bootstrapping",
+  RestoringDek: "restoringDek",
+  Idle: "idle",
+  SigningIn: "signingIn",
+  SigningUp: "signingUp",
+  SigningOut: "signingOut",
+  UnlockingDek: "unlockingDek",
+  GeneratingDek: "generatingDek",
+} as const;
+
+export type Phase = (typeof Phase)[keyof typeof Phase];
+
+// ─── State & events ─────────────────────────────────────────────────────────
+
+export interface AuthContext {
+  phase: Phase;
+  session: Session | null;
+  authState: AuthState;
+  error: string | null;
+  isBusy: boolean;
+  online: boolean;
+  signInInput: { email: string; password: string } | null;
+  signUpInput: { email: string; password: string } | null;
+  dekInput: { password: string } | null;
+  dek: CryptoKey | null;
+  keyId: string | null;
+  isPasswordRecovery: boolean;
+  hashError: string | null;
+}
+
+export type AuthEvent =
+  | { type: "BOOTSTRAP_SESSION"; session: Session | null }
+  | { type: "SIGN_IN"; email: string; password: string }
+  | { type: "SIGN_UP"; email: string; password: string }
+  | { type: "SIGN_OUT" }
+  | { type: "UNLOCK_DEK"; password: string }
+  | { type: "PHASE_DONE"; phase: Phase; session?: Session | null; dek?: CryptoKey; keyId?: string }
+  | { type: "PHASE_ERROR"; message: string }
+  | { type: "CLEAR_ERROR" }
+  | { type: "PASSWORD_RECOVERY" }
+  | { type: "CLEAR_PASSWORD_RECOVERY" }
+  | { type: "HASH_ERROR"; message: string }
+  | { type: "CLEAR_HASH_ERROR" }
+  | { type: "INPUTS_CHANGED"; online: boolean };
+
+export const initialState: AuthContext = {
+  phase: Phase.Bootstrapping,
+  session: null,
+  authState: AuthState.Loading,
+  error: null,
+  isBusy: false,
+  online: navigator.onLine,
+  signInInput: null,
+  signUpInput: null,
+  dekInput: null,
+  dek: null,
+  keyId: null,
+  isPasswordRecovery: false,
+  hashError: null,
+};
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
 function formatAuthError(error: AuthError): string {
   if (error.message.includes("Invalid login credentials")) {
     return "Invalid email or password.";
@@ -58,263 +125,154 @@ function formatAuthError(error: AuthError): string {
   return error.message;
 }
 
-function isSessionMissingError(error: AuthError | null): boolean {
-  return Boolean(error && error.name === "AuthSessionMissingError");
-}
-
-export type AuthPhase =
-  | "bootstrapping"
-  | "restoringDek"
-  | "idle"
-  | "signingIn"
-  | "signingUp"
-  | "signingOut"
-  | "unlockingDek"
-  | "generatingDek";
-
-export type AuthEvent =
-  | { type: "SESSION_CHANGED"; session: Session | null }
-  | { type: "SESSION_VALIDATED"; session: Session | null }
-  | { type: "INPUTS_CHANGED"; online: boolean }
-  | { type: "SIGN_IN"; email: string; password: string }
-  | { type: "SIGN_UP"; email: string; password: string }
-  | { type: "SIGN_OUT" }
-  | { type: "SIGN_OUT_COMPLETE" }
-  | { type: "AUTH_ERROR"; message: string }
-  | { type: "CLEAR_ERROR" }
-  | { type: "PASSWORD_RECOVERY" }
-  | { type: "CLEAR_PASSWORD_RECOVERY" }
-  | { type: "HASH_ERROR"; message: string }
-  | { type: "CLEAR_HASH_ERROR" }
-  | { type: "DEK_UNLOCKED"; dek: CryptoKey; keyId: string }
-  | { type: "DEK_ERROR"; message: string }
-  | { type: "UNLOCK_DEK"; password: string };
-
-export interface AuthContext {
-  phase: AuthPhase;
-  session: Session | null;
-  authState: AuthState;
-  error: string | null;
-  isBusy: boolean;
-  online: boolean;
-  signInInput: { email: string; password: string } | null;
-  signUpInput: { email: string; password: string } | null;
-  dekInput: { password: string } | null;
-  dek: CryptoKey | null;
-  keyId: string | null;
-  isPasswordRecovery: boolean;
-  hashError: string | null;
-}
-
-export const initialState: AuthContext = {
-  phase: "bootstrapping",
-  session: null,
-  authState: AuthState.Loading,
-  error: null,
-  isBusy: false,
-  online: connectivity.getOnline(),
-  signInInput: null,
-  signUpInput: null,
-  dekInput: null,
-  dek: null,
-  keyId: null,
-  isPasswordRecovery: false,
-  hashError: null,
-};
-
-function applySession(
-  session: Session | null,
-): Partial<AuthContext> {
-  return {
-    session,
-    authState: session ? AuthState.SignedIn : AuthState.SignedOut,
-  };
-}
-
 function markHasLoggedIn(session: Session | null): void {
   if (typeof window === "undefined") return;
-  if (session) {
-    localStorage.setItem(AUTH_HAS_LOGGED_IN_KEY, "1");
-  }
+  if (session) localStorage.setItem(AUTH_HAS_LOGGED_IN_KEY, "1");
 }
+
+// ─── Reducer ────────────────────────────────────────────────────────────────
 
 export function authReducer(
   state: AuthContext,
   event: AuthEvent,
 ): AuthContext {
   switch (event.type) {
-    case "CLEAR_ERROR":
-      return { ...state, error: null };
-
-    case "INPUTS_CHANGED":
-      return { ...state, online: event.online };
-
-    case "AUTH_ERROR":
+    case "BOOTSTRAP_SESSION": {
+      markHasLoggedIn(event.session);
+      if (!event.session) {
+        return {
+          ...state,
+          phase: Phase.Idle,
+          session: null,
+          authState: AuthState.SignedOut,
+        };
+      }
+      // Auto-transition: has session → try restoring cached DEK
       return {
         ...state,
-        error: event.message,
-        isBusy: false,
-        phase: state.phase === "bootstrapping"
-          ? state.phase
-          : "idle",
+        phase: Phase.RestoringDek,
+        session: event.session,
+        authState: AuthState.SignedIn,
       };
-
-    case "SESSION_CHANGED": {
-      markHasLoggedIn(event.session);
-      const sessionUpdate = applySession(event.session);
-
-      // Null session: clear DEK state
-      if (!event.session) {
-        // Keep signingOut phase so the effect can finish cleanup
-        if (state.phase === "signingOut") {
-          return {
-            ...state,
-            ...sessionUpdate,
-            isBusy: false,
-            dek: null,
-            keyId: null,
-            dekInput: null,
-          };
-        }
-        return {
-          ...state,
-          ...sessionUpdate,
-          phase: "idle",
-          isBusy: false,
-          dek: null,
-          keyId: null,
-          dekInput: null,
-          signInInput: null,
-          signUpInput: null,
-        };
-      }
-
-      // Bootstrap with valid session: try restoring cached DEK
-      if (state.phase === "bootstrapping") {
-        return {
-          ...state,
-          ...sessionUpdate,
-          phase: "restoringDek",
-        };
-      }
-
-      // Don't disrupt DEK operations with duplicate session events
-      if (state.phase === "restoringDek" || state.phase === "unlockingDek" || state.phase === "generatingDek") {
-        return state;
-      }
-
-      // Sign-in with valid session: auto-transition to unlockingDek
-      if (state.phase === "signingIn" && state.signInInput) {
-        return {
-          ...state,
-          ...sessionUpdate,
-          phase: "unlockingDek",
-          dekInput: { password: state.signInInput.password },
-          signInInput: null,
-        };
-      }
-
-      // Sign-up with valid session: auto-transition to generatingDek
-      if (state.phase === "signingUp" && state.signUpInput) {
-        return {
-          ...state,
-          ...sessionUpdate,
-          phase: "generatingDek",
-          dekInput: { password: state.signUpInput.password },
-          signUpInput: null,
-        };
-      }
-
-      // signingOut or other phases
-      if (state.phase === "signingOut") {
-        return {
-          ...state,
-          ...sessionUpdate,
-          phase: "idle",
-          isBusy: false,
-        };
-      }
-
-      return { ...state, ...sessionUpdate };
     }
 
-    case "SESSION_VALIDATED":
-      return { ...state, ...applySession(event.session) };
-
     case "SIGN_IN":
-      if (state.phase !== "idle") return state;
+      if (state.phase !== Phase.Idle) return state;
       return {
         ...state,
-        phase: "signingIn",
+        phase: Phase.SigningIn,
         error: null,
         isBusy: true,
         signInInput: { email: event.email, password: event.password },
       };
 
     case "SIGN_UP":
-      if (state.phase !== "idle") return state;
+      if (state.phase !== Phase.Idle) return state;
       return {
         ...state,
-        phase: "signingUp",
+        phase: Phase.SigningUp,
         error: null,
         isBusy: true,
         signUpInput: { email: event.email, password: event.password },
       };
 
-    case "SIGN_OUT_COMPLETE":
-      return {
-        ...state,
-        phase: "idle",
-        isBusy: false,
-        dek: null,
-        keyId: null,
-        dekInput: null,
-        signInInput: null,
-        signUpInput: null,
-        session: null,
-        authState: AuthState.SignedOut,
-      };
-
     case "SIGN_OUT":
-      if (state.phase === "signingOut") {
-        return { ...state, phase: "idle", isBusy: false };
-      }
-      if (state.phase !== "idle") return state;
+      if (state.phase !== Phase.Idle) return state;
       return {
         ...state,
-        phase: "signingOut",
+        phase: Phase.SigningOut,
         error: null,
         isBusy: true,
       };
 
     case "UNLOCK_DEK":
-      if (state.phase !== "idle" || !state.session) return state;
+      if (state.phase !== Phase.Idle || !state.session) return state;
       return {
         ...state,
-        phase: "unlockingDek",
+        phase: Phase.UnlockingDek,
         error: null,
         isBusy: true,
         dekInput: { password: event.password },
       };
 
-    case "DEK_UNLOCKED":
-      return {
-        ...state,
-        dek: event.dek,
-        keyId: event.keyId,
-        dekInput: null,
-        phase: "idle",
-        isBusy: false,
-      };
+    case "PHASE_DONE": {
+      // Only accept completions for the current phase
+      if (event.phase !== state.phase) return state;
 
-    case "DEK_ERROR":
+      switch (event.phase) {
+        case Phase.SigningIn:
+          // Auto-transition: sign-in done → unlock DEK
+          return {
+            ...state,
+            phase: Phase.UnlockingDek,
+            session: event.session ?? null,
+            authState: event.session ? AuthState.SignedIn : state.authState,
+            dekInput: state.signInInput
+              ? { password: state.signInInput.password }
+              : null,
+            signInInput: null,
+          };
+
+        case Phase.SigningUp:
+          // Auto-transition: sign-up done → generate DEK
+          return {
+            ...state,
+            phase: Phase.GeneratingDek,
+            session: event.session ?? null,
+            authState: event.session ? AuthState.SignedIn : state.authState,
+            dekInput: state.signUpInput
+              ? { password: state.signUpInput.password }
+              : null,
+            signUpInput: null,
+          };
+
+        case Phase.SigningOut:
+          return {
+            ...state,
+            phase: Phase.Idle,
+            isBusy: false,
+            session: null,
+            authState: AuthState.SignedOut,
+            dek: null,
+            keyId: null,
+            dekInput: null,
+            signInInput: null,
+            signUpInput: null,
+          };
+
+        case Phase.RestoringDek:
+        case Phase.UnlockingDek:
+        case Phase.GeneratingDek:
+          return {
+            ...state,
+            phase: Phase.Idle,
+            isBusy: false,
+            dek: event.dek ?? null,
+            keyId: event.keyId ?? null,
+            dekInput: null,
+          };
+
+        default:
+          return state;
+      }
+    }
+
+    case "PHASE_ERROR":
       return {
         ...state,
         error: event.message,
-        dekInput: null,
-        phase: "idle",
         isBusy: false,
+        phase: state.phase === Phase.Bootstrapping ? state.phase : Phase.Idle,
+        dekInput: null,
+        signInInput: null,
+        signUpInput: null,
       };
+
+    case "CLEAR_ERROR":
+      return { ...state, error: null };
+
+    case "INPUTS_CHANGED":
+      return { ...state, online: event.online };
 
     case "PASSWORD_RECOVERY":
       return { ...state, isPasswordRecovery: true };
@@ -330,55 +288,169 @@ export function authReducer(
   }
 }
 
+// ─── Async workers (one per phase) ──────────────────────────────────────────
+
+type Cancelled = () => boolean;
+
+async function doSignIn(
+  state: AuthContext,
+  cancelled: Cancelled,
+): Promise<AuthEvent> {
+  if (!state.signInInput) return { type: "PHASE_ERROR", message: "Missing input" };
+  const { email, password } = state.signInInput;
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  if (cancelled()) return { type: "CLEAR_ERROR" }; // discarded
+  if (error) return { type: "PHASE_ERROR", message: formatAuthError(error) };
+  markHasLoggedIn(data.session);
+  return { type: "PHASE_DONE", phase: Phase.SigningIn, session: data.session };
+}
+
+async function doSignUp(
+  state: AuthContext,
+  cancelled: Cancelled,
+): Promise<AuthEvent> {
+  if (!state.signUpInput) return { type: "PHASE_ERROR", message: "Missing input" };
+  const { email, password } = state.signUpInput;
+  const { data, error } = await supabase.auth.signUp({ email, password });
+  if (cancelled()) return { type: "CLEAR_ERROR" };
+  if (error) return { type: "PHASE_ERROR", message: formatAuthError(error) };
+  markHasLoggedIn(data.session);
+  return { type: "PHASE_DONE", phase: Phase.SigningUp, session: data.session };
+}
+
+async function doSignOut(cancelled: Cancelled): Promise<AuthEvent> {
+  try {
+    await supabase.auth.signOut({ scope: "local" });
+  } catch {
+    // Best effort
+  }
+  if (cancelled()) return { type: "CLEAR_ERROR" };
+  try {
+    await clearAll();
+    await deleteDatabase();
+    await clearDekCache();
+  } catch (e) {
+    reportError("useAuth.signOut.clearCache", e);
+  }
+  return { type: "PHASE_DONE", phase: Phase.SigningOut };
+}
+
+async function doRestoreDek(
+  state: AuthContext,
+  cancelled: Cancelled,
+): Promise<AuthEvent> {
+  const userId = state.session?.user.id;
+  if (!userId) return { type: "PHASE_ERROR", message: "" };
+
+  const cached = await loadCachedDek();
+  if (cancelled()) return { type: "CLEAR_ERROR" };
+
+  if (cached) {
+    const keyring = await fetchKeyring(supabase, userId);
+    if (cancelled()) return { type: "CLEAR_ERROR" };
+
+    if (keyring && keyring.key_id === cached.keyId) {
+      return { type: "PHASE_DONE", phase: Phase.RestoringDek, dek: cached.dek, keyId: cached.keyId };
+    }
+    await clearDekCache();
+  }
+
+  // No valid cache — fall back to manual unlock
+  return { type: "PHASE_DONE", phase: Phase.RestoringDek };
+}
+
+async function doUnlockDek(
+  state: AuthContext,
+  cancelled: Cancelled,
+): Promise<AuthEvent> {
+  const userId = state.session?.user.id;
+  const password = state.dekInput?.password;
+  if (!userId || !password) return { type: "PHASE_ERROR", message: "Missing session or password" };
+
+  const keyring = await fetchKeyring(supabase, userId);
+  if (cancelled()) return { type: "CLEAR_ERROR" };
+
+  if (!keyring) {
+    // No keyring yet (pre-E2EE account) — generate one
+    return doGenerateDek(state, cancelled);
+  }
+
+  const kek = await deriveKEK(password, keyring.kdf_salt, keyring.kdf_iterations);
+  if (cancelled()) return { type: "CLEAR_ERROR" };
+  const dek = await unwrapDEK(keyring.wrapped_dek, keyring.dek_iv, kek);
+  if (cancelled()) return { type: "CLEAR_ERROR" };
+  const keyId = await computeKeyId(dek);
+  if (cancelled()) return { type: "CLEAR_ERROR" };
+  await cacheDek(dek, keyId);
+  return { type: "PHASE_DONE", phase: Phase.UnlockingDek, dek, keyId };
+}
+
+async function doGenerateDek(
+  state: AuthContext,
+  cancelled: Cancelled,
+): Promise<AuthEvent> {
+  const userId = state.session?.user.id;
+  const password = state.dekInput?.password;
+  if (!userId || !password) return { type: "PHASE_ERROR", message: "Missing session or password" };
+
+  const dek = await generateDEK();
+  if (cancelled()) return { type: "CLEAR_ERROR" };
+  const keyId = await computeKeyId(dek);
+  if (cancelled()) return { type: "CLEAR_ERROR" };
+  const salt = generateSalt();
+  const kek = await deriveKEK(password, salt, 600_000);
+  if (cancelled()) return { type: "CLEAR_ERROR" };
+  const wrapped = await wrapDEK(dek, kek);
+  if (cancelled()) return { type: "CLEAR_ERROR" };
+  await saveKeyring(supabase, userId, {
+    key_id: keyId,
+    wrapped_dek: wrapped.data,
+    dek_iv: wrapped.iv,
+    kdf_salt: salt,
+    kdf_iterations: 600_000,
+    is_primary: true,
+  });
+  if (cancelled()) return { type: "CLEAR_ERROR" };
+  await cacheDek(dek, keyId);
+  return { type: "PHASE_DONE", phase: Phase.GeneratingDek, dek, keyId };
+}
+
+// ─── Hook ───────────────────────────────────────────────────────────────────
+
 export function useAuth(): UseAuthReturn {
   const online = useConnectivity();
   const [state, dispatch] = useReducer(authReducer, initialState);
 
-  // Parse auth errors from URL hash (e.g. expired reset links)
-  useEffect(() => {
-    const hash = window.location.hash;
-    if (!hash.includes("error_description=")) return;
-    const params = new URLSearchParams(hash.replace(/^#/, ""));
-    const description = params.get("error_description");
-    if (description) {
-      dispatch({
-        type: "HASH_ERROR",
-        message: description.replace(/\+/g, " "),
-      });
-      window.history.replaceState(
-        {},
-        "",
-        window.location.pathname + window.location.search,
-      );
-    }
-  }, []);
-
-  // Bootstrap: getSession + onAuthStateChange listener
+  // Effect 1: Bootstrap — get initial session, listen for password recovery
   useEffect(() => {
     let cancelled = false;
 
+    // Parse auth errors from URL hash (e.g. expired reset links)
+    const hash = window.location.hash;
+    if (hash.includes("error_description=")) {
+      const params = new URLSearchParams(hash.replace(/^#/, ""));
+      const description = params.get("error_description");
+      if (description) {
+        dispatch({ type: "HASH_ERROR", message: description.replace(/\+/g, " ") });
+        window.history.replaceState({}, "", window.location.pathname + window.location.search);
+      }
+    }
+
     const start = async () => {
-      const {
-        data: { session: initialSession },
-      } = await supabase.auth.getSession();
+      const { data: { session } } = await supabase.auth.getSession();
       if (!cancelled) {
-        dispatch({
-          type: "SESSION_CHANGED",
-          session: initialSession,
-        });
+        dispatch({ type: "BOOTSTRAP_SESSION", session });
       }
     };
-
     void start();
 
-    const { data } = supabase.auth.onAuthStateChange(
-      (event, newSession) => {
-        if (event === "PASSWORD_RECOVERY") {
-          dispatch({ type: "PASSWORD_RECOVERY" });
-        }
-        dispatch({ type: "SESSION_CHANGED", session: newSession });
-      },
-    );
+    // Only listen for password recovery — all other auth changes are
+    // handled by our own effects, so we don't need onAuthStateChange.
+    const { data } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") {
+        dispatch({ type: "PASSWORD_RECOVERY" });
+      }
+    });
 
     return () => {
       cancelled = true;
@@ -386,306 +458,66 @@ export function useAuth(): UseAuthReturn {
     };
   }, []);
 
-  // Forward online changes
+  // Effect 2: Phase-gated async worker
+  useEffect(() => {
+    let worker: Promise<AuthEvent> | null = null;
+    let cancelled = false;
+    const isCancelled = () => cancelled;
+
+    switch (state.phase) {
+      case Phase.SigningIn:
+        worker = doSignIn(state, isCancelled);
+        break;
+      case Phase.SigningUp:
+        worker = doSignUp(state, isCancelled);
+        break;
+      case Phase.SigningOut:
+        worker = doSignOut(isCancelled);
+        break;
+      case Phase.RestoringDek:
+        worker = doRestoreDek(state, isCancelled);
+        break;
+      case Phase.UnlockingDek:
+        worker = doUnlockDek(state, isCancelled);
+        break;
+      case Phase.GeneratingDek:
+        worker = doGenerateDek(state, isCancelled);
+        break;
+    }
+
+    if (worker) {
+      worker
+        .then((event) => {
+          if (!cancelled) dispatch(event);
+        })
+        .catch((err) => {
+          if (!cancelled) {
+            reportError(`useAuth.${state.phase}`, err);
+            dispatch({
+              type: "PHASE_ERROR",
+              message: err instanceof Error ? err.message : "An error occurred",
+            });
+          }
+        });
+    }
+
+    return () => { cancelled = true; };
+  }, [state.phase, state.signInInput, state.signUpInput, state.dekInput, state.session]);
+
+  // Effect 3: Forward online state
   useEffect(() => {
     dispatch({ type: "INPUTS_CHANGED", online });
   }, [online]);
 
-  // Session validation on reconnect
-  useEffect(() => {
-    if (state.session && online && !state.isBusy) {
-      dispatch({
-        type: "SESSION_VALIDATED",
-        session: state.session,
-      });
-    }
-  }, [state.session, state.isBusy, online]);
+  // ─── Callbacks ──────────────────────────────────────────────────────────
 
-  // Sign in effect
-  useEffect(() => {
-    if (state.phase !== "signingIn" || !state.signInInput) return;
-
-    let cancelled = false;
-    const { email, password } = state.signInInput;
-
-    const run = async () => {
-      try {
-        const { data, error } =
-          await supabase.auth.signInWithPassword({ email, password });
-        if (cancelled) return;
-        if (error) {
-          dispatch({
-            type: "AUTH_ERROR",
-            message: formatAuthError(error),
-          });
-        } else {
-          dispatch({
-            type: "SESSION_CHANGED",
-            session: data.session ?? null,
-          });
-        }
-      } catch (error) {
-        if (cancelled) return;
-        dispatch({
-          type: "AUTH_ERROR",
-          message:
-            error instanceof Error
-              ? error.message
-              : "Unable to sign in.",
-        });
-      }
-    };
-
-    void run();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [state.phase, state.signInInput]);
-
-  // Sign up effect
-  useEffect(() => {
-    if (state.phase !== "signingUp" || !state.signUpInput) return;
-
-    let cancelled = false;
-    const { email, password } = state.signUpInput;
-
-    const run = async () => {
-      try {
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-        });
-        if (cancelled) return;
-        if (error) {
-          dispatch({
-            type: "AUTH_ERROR",
-            message: formatAuthError(error),
-          });
-          return;
-        }
-        dispatch({
-          type: "SESSION_CHANGED",
-          session: data.session ?? null,
-        });
-      } catch (error) {
-        if (cancelled) return;
-        dispatch({
-          type: "AUTH_ERROR",
-          message:
-            error instanceof Error
-              ? error.message
-              : "Unable to sign up.",
-        });
-      }
-    };
-
-    void run();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [state.phase, state.signUpInput]);
-
-  // Sign out effect
-  useEffect(() => {
-    if (state.phase !== "signingOut") return;
-
-    let cancelled = false;
-
-    const run = async () => {
-      try {
-        const { error } = await supabase.auth.signOut({
-          scope: "local",
-        });
-        if (isSessionMissingError(error)) {
-          await supabase.auth.getUser();
-        }
-      } finally {
-        if (!cancelled) {
-          try {
-            await clearAll();
-            await deleteDatabase();
-            await clearDekCache();
-          } catch (e) {
-            reportError("useAuth.signOut.clearCache", e);
-          }
-          dispatch({ type: "SIGN_OUT_COMPLETE" });
-        }
-      }
-    };
-
-    void run();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [state.phase]);
-
-  // Restore cached DEK on bootstrap
-  useEffect(() => {
-    if (state.phase !== "restoringDek" || !state.session) return;
-
-    let cancelled = false;
-    const userId = state.session.user.id;
-
-    const run = async () => {
-      try {
-        const cached = await loadCachedDek();
-        if (cancelled) return;
-
-        if (cached) {
-          // Verify cached DEK matches the primary keyring on Supabase
-          const keyring = await fetchKeyring(supabase, userId);
-          if (cancelled) return;
-
-          if (keyring && keyring.key_id === cached.keyId) {
-            dispatch({ type: "DEK_UNLOCKED", dek: cached.dek, keyId: cached.keyId });
-            return;
-          }
-
-          // Mismatch or no keyring — discard stale cache
-          await clearDekCache();
-        }
-
-        if (cancelled) return;
-        // No valid cache — fall back to manual unlock
-        dispatch({ type: "DEK_ERROR", message: "" });
-      } catch {
-        if (cancelled) return;
-        dispatch({ type: "DEK_ERROR", message: "" });
-      }
-    };
-
-    void run();
-
-    return () => { cancelled = true; };
-  }, [state.phase, state.session]);
-
-  // Unlock DEK effect
-  useEffect(() => {
-    if (state.phase !== "unlockingDek" || !state.dekInput || !state.session) return;
-
-    let cancelled = false;
-    const { password } = state.dekInput;
-    const userId = state.session.user.id;
-
-    const run = async () => {
-      try {
-        const keyring = await fetchKeyring(supabase, userId);
-        if (cancelled) return;
-
-        if (!keyring) {
-          // No keyring yet (e.g. existing account from before E2EE) — generate one
-          const dek = await generateDEK();
-          if (cancelled) return;
-          const keyId = await computeKeyId(dek);
-          if (cancelled) return;
-          const salt = generateSalt();
-          const kek = await deriveKEK(password, salt, 600_000);
-          if (cancelled) return;
-          const wrapped = await wrapDEK(dek, kek);
-          if (cancelled) return;
-          await saveKeyring(supabase, userId, {
-            key_id: keyId,
-            wrapped_dek: wrapped.data,
-            dek_iv: wrapped.iv,
-            kdf_salt: salt,
-            kdf_iterations: 600_000,
-            is_primary: true,
-          });
-          if (cancelled) return;
-          await cacheDek(dek, keyId);
-          if (cancelled) return;
-          dispatch({ type: "DEK_UNLOCKED", dek, keyId });
-          return;
-        }
-
-        const kek = await deriveKEK(password, keyring.kdf_salt, keyring.kdf_iterations);
-        if (cancelled) return;
-        const dek = await unwrapDEK(keyring.wrapped_dek, keyring.dek_iv, kek);
-        if (cancelled) return;
-        const keyId = await computeKeyId(dek);
-        if (cancelled) return;
-        await cacheDek(dek, keyId);
-        if (cancelled) return;
-        dispatch({ type: "DEK_UNLOCKED", dek, keyId });
-      } catch (error) {
-        if (cancelled) return;
-        reportError("useAuth.unlockDek", error);
-        dispatch({
-          type: "DEK_ERROR",
-          message: error instanceof Error ? error.message : "Failed to unlock encryption key",
-        });
-      }
-    };
-
-    void run();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [state.phase, state.dekInput, state.session]);
-
-  // Generate DEK effect
-  useEffect(() => {
-    if (state.phase !== "generatingDek" || !state.dekInput || !state.session) return;
-
-    let cancelled = false;
-    const { password } = state.dekInput;
-    const userId = state.session.user.id;
-
-    const run = async () => {
-      try {
-        const dek = await generateDEK();
-        if (cancelled) return;
-        const keyId = await computeKeyId(dek);
-        if (cancelled) return;
-        const salt = generateSalt();
-        const kek = await deriveKEK(password, salt, 600_000);
-        if (cancelled) return;
-        const wrapped = await wrapDEK(dek, kek);
-        if (cancelled) return;
-        await saveKeyring(supabase, userId, {
-          key_id: keyId,
-          wrapped_dek: wrapped.data,
-          dek_iv: wrapped.iv,
-          kdf_salt: salt,
-          kdf_iterations: 600_000,
-          is_primary: true,
-        });
-        if (cancelled) return;
-        await cacheDek(dek, keyId);
-        if (cancelled) return;
-        dispatch({ type: "DEK_UNLOCKED", dek, keyId });
-      } catch (error) {
-        if (cancelled) return;
-        reportError("useAuth.generateDek", error);
-        dispatch({
-          type: "DEK_ERROR",
-          message: error instanceof Error ? error.message : "Failed to generate encryption key",
-        });
-      }
-    };
-
-    void run();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [state.phase, state.dekInput, state.session]);
-
-  const signUp = useCallback(
-    (email: string, password: string) => {
-      dispatch({ type: "SIGN_UP", email, password });
-    },
+  const signIn = useCallback(
+    (email: string, password: string) => dispatch({ type: "SIGN_IN", email, password }),
     [],
   );
 
-  const signIn = useCallback(
-    (email: string, password: string) => {
-      dispatch({ type: "SIGN_IN", email, password });
-    },
+  const signUp = useCallback(
+    (email: string, password: string) => dispatch({ type: "SIGN_UP", email, password }),
     [],
   );
 
@@ -697,64 +529,44 @@ export function useAuth(): UseAuthReturn {
     dispatch({ type: "UNLOCK_DEK", password });
   }, []);
 
-  const resetPassword = useCallback(
-    async (email: string) => {
-      try {
-        const { error } = await supabase.auth.resetPasswordForEmail(email);
-        if (error) {
-          dispatch({ type: "AUTH_ERROR", message: formatAuthError(error) });
-          return { success: false };
-        }
-        return { success: true };
-      } catch (error) {
-        dispatch({
-          type: "AUTH_ERROR",
-          message:
-            error instanceof Error
-              ? error.message
-              : "Unable to send reset email.",
-        });
+  const resetPassword = useCallback(async (email: string) => {
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email);
+      if (error) {
+        dispatch({ type: "PHASE_ERROR", message: formatAuthError(error) });
         return { success: false };
       }
-    },
-    [],
-  );
+      return { success: true };
+    } catch (error) {
+      dispatch({
+        type: "PHASE_ERROR",
+        message: error instanceof Error ? error.message : "Unable to send reset email.",
+      });
+      return { success: false };
+    }
+  }, []);
 
-  const updatePassword = useCallback(
-    async (password: string) => {
-      try {
-        const { error } = await supabase.auth.updateUser({ password });
-        if (error) {
-          dispatch({ type: "AUTH_ERROR", message: formatAuthError(error) });
-          return { success: false };
-        }
-        dispatch({ type: "CLEAR_PASSWORD_RECOVERY" });
-        return { success: true };
-      } catch (error) {
-        dispatch({
-          type: "AUTH_ERROR",
-          message:
-            error instanceof Error
-              ? error.message
-              : "Unable to update password.",
-        });
+  const updatePassword = useCallback(async (password: string) => {
+    try {
+      const { error } = await supabase.auth.updateUser({ password });
+      if (error) {
+        dispatch({ type: "PHASE_ERROR", message: formatAuthError(error) });
         return { success: false };
       }
-    },
-    [],
-  );
-
-  const clearPasswordRecovery = useCallback(() => {
-    dispatch({ type: "CLEAR_PASSWORD_RECOVERY" });
+      dispatch({ type: "CLEAR_PASSWORD_RECOVERY" });
+      return { success: true };
+    } catch (error) {
+      dispatch({
+        type: "PHASE_ERROR",
+        message: error instanceof Error ? error.message : "Unable to update password.",
+      });
+      return { success: false };
+    }
   }, []);
 
-  const clearHashError = useCallback(() => {
-    dispatch({ type: "CLEAR_HASH_ERROR" });
-  }, []);
-
-  const clearError = useCallback(() => {
-    dispatch({ type: "CLEAR_ERROR" });
-  }, []);
+  const clearPasswordRecovery = useCallback(() => dispatch({ type: "CLEAR_PASSWORD_RECOVERY" }), []);
+  const clearHashError = useCallback(() => dispatch({ type: "CLEAR_HASH_ERROR" }), []);
+  const clearError = useCallback(() => dispatch({ type: "CLEAR_ERROR" }), []);
 
   return {
     session: state.session,
@@ -763,7 +575,7 @@ export function useAuth(): UseAuthReturn {
     error: state.error,
     hashError: state.hashError,
     isBusy: state.isBusy,
-    isDekBusy: state.phase === "restoringDek" || state.phase === "unlockingDek" || state.phase === "generatingDek",
+    isDekBusy: state.phase === Phase.RestoringDek || state.phase === Phase.UnlockingDek || state.phase === Phase.GeneratingDek,
     isPasswordRecovery: state.isPasswordRecovery,
     dek: state.dek,
     keyId: state.keyId,

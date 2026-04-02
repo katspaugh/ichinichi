@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { authReducer, type AuthContext } from "../hooks/useAuth";
+import { authReducer, Phase, type AuthContext } from "../hooks/useAuth";
 import { AuthState } from "../types";
 
 const makeInitialState = (overrides?: Partial<AuthContext>): AuthContext => ({
-  phase: "idle",
+  phase: Phase.Idle,
   session: null,
   authState: AuthState.SignedOut,
   error: null,
@@ -28,145 +28,126 @@ const fakeSession = {
 const fakeDek = {} as CryptoKey;
 
 describe("authReducer", () => {
-  it("SIGN_IN from idle → signingIn, isBusy true, signInInput set", () => {
+  // ─── Bootstrap ──────────────────────────────────────────────────────────
+
+  it("BOOTSTRAP_SESSION with session → RestoringDek", () => {
+    const state = makeInitialState({ phase: Phase.Bootstrapping, authState: AuthState.Loading });
+    const next = authReducer(state, { type: "BOOTSTRAP_SESSION", session: fakeSession });
+    expect(next.phase).toBe(Phase.RestoringDek);
+    expect(next.authState).toBe(AuthState.SignedIn);
+    expect(next.session).toBe(fakeSession);
+  });
+
+  it("BOOTSTRAP_SESSION with null → Idle + SignedOut", () => {
+    const state = makeInitialState({ phase: Phase.Bootstrapping, authState: AuthState.Loading });
+    const next = authReducer(state, { type: "BOOTSTRAP_SESSION", session: null });
+    expect(next.phase).toBe(Phase.Idle);
+    expect(next.authState).toBe(AuthState.SignedOut);
+  });
+
+  // ─── Sign in ────────────────────────────────────────────────────────────
+
+  it("SIGN_IN from Idle → SigningIn, isBusy true", () => {
     const state = makeInitialState();
     const next = authReducer(state, { type: "SIGN_IN", email: "a@b.com", password: "pass" });
-    expect(next.phase).toBe("signingIn");
+    expect(next.phase).toBe(Phase.SigningIn);
     expect(next.isBusy).toBe(true);
     expect(next.signInInput).toEqual({ email: "a@b.com", password: "pass" });
     expect(next.error).toBeNull();
   });
 
-  it("SIGN_UP from idle → signingUp, isBusy true, signUpInput set", () => {
-    const state = makeInitialState();
-    const next = authReducer(state, { type: "SIGN_UP", email: "a@b.com", password: "pass" });
-    expect(next.phase).toBe("signingUp");
-    expect(next.isBusy).toBe(true);
-    expect(next.signUpInput).toEqual({ email: "a@b.com", password: "pass" });
+  it("SIGN_IN ignored when not Idle", () => {
+    const state = makeInitialState({ phase: Phase.SigningIn });
+    const next = authReducer(state, { type: "SIGN_IN", email: "a@b.com", password: "p" });
+    expect(next).toBe(state);
   });
 
-  it("SESSION_CHANGED with session during signingIn → unlockingDek, dekInput set from signInInput", () => {
+  it("PHASE_DONE for SigningIn → auto-transition to UnlockingDek", () => {
     const state = makeInitialState({
-      phase: "signingIn",
+      phase: Phase.SigningIn,
       isBusy: true,
       signInInput: { email: "a@b.com", password: "secret" },
     });
-    const next = authReducer(state, { type: "SESSION_CHANGED", session: fakeSession });
-    expect(next.phase).toBe("unlockingDek");
+    const next = authReducer(state, { type: "PHASE_DONE", phase: Phase.SigningIn, session: fakeSession });
+    expect(next.phase).toBe(Phase.UnlockingDek);
     expect(next.dekInput).toEqual({ password: "secret" });
     expect(next.signInInput).toBeNull();
     expect(next.session).toBe(fakeSession);
     expect(next.authState).toBe(AuthState.SignedIn);
   });
 
-  it("SESSION_CHANGED with session during signingUp → generatingDek, dekInput set from signUpInput", () => {
+  // ─── Sign up ────────────────────────────────────────────────────────────
+
+  it("SIGN_UP from Idle → SigningUp, isBusy true", () => {
+    const state = makeInitialState();
+    const next = authReducer(state, { type: "SIGN_UP", email: "a@b.com", password: "pass" });
+    expect(next.phase).toBe(Phase.SigningUp);
+    expect(next.isBusy).toBe(true);
+    expect(next.signUpInput).toEqual({ email: "a@b.com", password: "pass" });
+  });
+
+  it("PHASE_DONE for SigningUp → auto-transition to GeneratingDek", () => {
     const state = makeInitialState({
-      phase: "signingUp",
+      phase: Phase.SigningUp,
       isBusy: true,
       signUpInput: { email: "a@b.com", password: "secret" },
     });
-    const next = authReducer(state, { type: "SESSION_CHANGED", session: fakeSession });
-    expect(next.phase).toBe("generatingDek");
+    const next = authReducer(state, { type: "PHASE_DONE", phase: Phase.SigningUp, session: fakeSession });
+    expect(next.phase).toBe(Phase.GeneratingDek);
     expect(next.dekInput).toEqual({ password: "secret" });
     expect(next.signUpInput).toBeNull();
-    expect(next.session).toBe(fakeSession);
     expect(next.authState).toBe(AuthState.SignedIn);
   });
 
-  it("DEK_UNLOCKED → stores dek + keyId, idle, isBusy false", () => {
+  // ─── DEK operations ────────────────────────────────────────────────────
+
+  it("PHASE_DONE for UnlockingDek → stores dek + keyId, Idle", () => {
     const state = makeInitialState({
-      phase: "unlockingDek",
+      phase: Phase.UnlockingDek,
       isBusy: true,
       dekInput: { password: "pass" },
       session: fakeSession,
     });
-    const next = authReducer(state, { type: "DEK_UNLOCKED", dek: fakeDek, keyId: "key-1" });
-    expect(next.phase).toBe("idle");
+    const next = authReducer(state, { type: "PHASE_DONE", phase: Phase.UnlockingDek, dek: fakeDek, keyId: "key-1" });
+    expect(next.phase).toBe(Phase.Idle);
     expect(next.dek).toBe(fakeDek);
     expect(next.keyId).toBe("key-1");
     expect(next.dekInput).toBeNull();
     expect(next.isBusy).toBe(false);
   });
 
-  it("DEK_ERROR → stores error, idle, clears dekInput", () => {
+  it("PHASE_DONE for RestoringDek without dek → Idle, dek null (manual unlock needed)", () => {
     const state = makeInitialState({
-      phase: "unlockingDek",
-      isBusy: true,
-      dekInput: { password: "pass" },
-      session: fakeSession,
-    });
-    const next = authReducer(state, { type: "DEK_ERROR", message: "No encryption key found" });
-    expect(next.phase).toBe("idle");
-    expect(next.error).toBe("No encryption key found");
-    expect(next.dekInput).toBeNull();
-    expect(next.isBusy).toBe(false);
-  });
-
-  it("SESSION_CHANGED with null → clears dek + keyId + dekInput", () => {
-    const state = makeInitialState({
-      phase: "idle",
+      phase: Phase.RestoringDek,
       session: fakeSession,
       authState: AuthState.SignedIn,
-      dek: fakeDek,
-      keyId: "key-1",
-      dekInput: { password: "pass" },
     });
-    const next = authReducer(state, { type: "SESSION_CHANGED", session: null });
-    expect(next.dek).toBeNull();
-    expect(next.keyId).toBeNull();
-    expect(next.dekInput).toBeNull();
-    expect(next.authState).toBe(AuthState.SignedOut);
-    expect(next.session).toBeNull();
-  });
-
-  it("SESSION_CHANGED with null during signingOut keeps phase", () => {
-    const state = makeInitialState({
-      phase: "signingOut",
-      session: fakeSession,
-      authState: AuthState.SignedIn,
-      dek: fakeDek,
-      keyId: "key-1",
-    });
-    const next = authReducer(state, { type: "SESSION_CHANGED", session: null });
-    expect(next.phase).toBe("signingOut"); // not idle — effect still cleaning up
-    expect(next.dek).toBeNull();
-    expect(next.keyId).toBeNull();
-    expect(next.authState).toBe(AuthState.SignedOut);
-  });
-
-  it("SIGN_OUT_COMPLETE → idle, clears all state", () => {
-    const state = makeInitialState({
-      phase: "signingOut",
-      session: fakeSession,
-      authState: AuthState.SignedIn,
-      isBusy: true,
-    });
-    const next = authReducer(state, { type: "SIGN_OUT_COMPLETE" });
-    expect(next.phase).toBe("idle");
-    expect(next.isBusy).toBe(false);
-    expect(next.session).toBeNull();
-    expect(next.authState).toBe(AuthState.SignedOut);
+    const next = authReducer(state, { type: "PHASE_DONE", phase: Phase.RestoringDek });
+    expect(next.phase).toBe(Phase.Idle);
     expect(next.dek).toBeNull();
   });
 
-  it("SIGN_OUT from idle → signingOut, isBusy true", () => {
-    const state = makeInitialState();
-    const next = authReducer(state, { type: "SIGN_OUT" });
-    expect(next.phase).toBe("signingOut");
-    expect(next.isBusy).toBe(true);
-    expect(next.error).toBeNull();
+  it("PHASE_DONE for RestoringDek with dek → Idle, dek set", () => {
+    const state = makeInitialState({
+      phase: Phase.RestoringDek,
+      session: fakeSession,
+      authState: AuthState.SignedIn,
+    });
+    const next = authReducer(state, { type: "PHASE_DONE", phase: Phase.RestoringDek, dek: fakeDek, keyId: "key-1" });
+    expect(next.phase).toBe(Phase.Idle);
+    expect(next.dek).toBe(fakeDek);
+    expect(next.keyId).toBe("key-1");
   });
 
-  it("UNLOCK_DEK → unlockingDek with dekInput when idle + session", () => {
+  it("UNLOCK_DEK → UnlockingDek with dekInput when Idle + session", () => {
     const state = makeInitialState({
       session: fakeSession,
       authState: AuthState.SignedIn,
     });
     const next = authReducer(state, { type: "UNLOCK_DEK", password: "mypass" });
-    expect(next.phase).toBe("unlockingDek");
+    expect(next.phase).toBe(Phase.UnlockingDek);
     expect(next.dekInput).toEqual({ password: "mypass" });
     expect(next.isBusy).toBe(true);
-    expect(next.error).toBeNull();
   });
 
   it("UNLOCK_DEK ignored when no session", () => {
@@ -175,47 +156,55 @@ describe("authReducer", () => {
     expect(next).toBe(state);
   });
 
-  it("SIGN_IN ignored when not idle", () => {
-    const state = makeInitialState({ phase: "signingIn" });
-    const next = authReducer(state, { type: "SIGN_IN", email: "a@b.com", password: "p" });
-    expect(next).toBe(state);
+  // ─── Sign out ───────────────────────────────────────────────────────────
+
+  it("SIGN_OUT from Idle → SigningOut, isBusy true", () => {
+    const state = makeInitialState();
+    const next = authReducer(state, { type: "SIGN_OUT" });
+    expect(next.phase).toBe(Phase.SigningOut);
+    expect(next.isBusy).toBe(true);
   });
 
-  it("AUTH_ERROR during bootstrapping keeps phase", () => {
-    const state = makeInitialState({ phase: "bootstrapping" });
-    const next = authReducer(state, { type: "AUTH_ERROR", message: "oops" });
-    expect(next.phase).toBe("bootstrapping");
-    expect(next.error).toBe("oops");
+  it("PHASE_DONE for SigningOut → Idle, clears all state", () => {
+    const state = makeInitialState({
+      phase: Phase.SigningOut,
+      session: fakeSession,
+      authState: AuthState.SignedIn,
+      dek: fakeDek,
+      keyId: "key-1",
+      isBusy: true,
+    });
+    const next = authReducer(state, { type: "PHASE_DONE", phase: Phase.SigningOut });
+    expect(next.phase).toBe(Phase.Idle);
+    expect(next.isBusy).toBe(false);
+    expect(next.session).toBeNull();
+    expect(next.authState).toBe(AuthState.SignedOut);
+    expect(next.dek).toBeNull();
+    expect(next.keyId).toBeNull();
   });
 
-  it("AUTH_ERROR during signingIn → idle", () => {
-    const state = makeInitialState({ phase: "signingIn", isBusy: true });
-    const next = authReducer(state, { type: "AUTH_ERROR", message: "bad" });
-    expect(next.phase).toBe("idle");
+  // ─── Errors ─────────────────────────────────────────────────────────────
+
+  it("PHASE_ERROR during SigningIn → Idle", () => {
+    const state = makeInitialState({ phase: Phase.SigningIn, isBusy: true });
+    const next = authReducer(state, { type: "PHASE_ERROR", message: "bad" });
+    expect(next.phase).toBe(Phase.Idle);
     expect(next.isBusy).toBe(false);
     expect(next.error).toBe("bad");
   });
 
-  it("SESSION_CHANGED during bootstrapping → restoringDek", () => {
-    const state = makeInitialState({
-      phase: "bootstrapping",
-      authState: AuthState.Loading,
-    });
-    const next = authReducer(state, { type: "SESSION_CHANGED", session: fakeSession });
-    expect(next.phase).toBe("restoringDek");
-    expect(next.authState).toBe(AuthState.SignedIn);
-    expect(next.dek).toBeNull(); // DEK restored by effect
+  it("PHASE_ERROR during Bootstrapping keeps phase", () => {
+    const state = makeInitialState({ phase: Phase.Bootstrapping });
+    const next = authReducer(state, { type: "PHASE_ERROR", message: "oops" });
+    expect(next.phase).toBe(Phase.Bootstrapping);
+    expect(next.error).toBe("oops");
   });
 
-  it("SESSION_CHANGED during DEK phases is ignored (no disruption)", () => {
-    for (const phase of ["restoringDek", "unlockingDek", "generatingDek"] as const) {
-      const state = makeInitialState({
-        phase,
-        authState: AuthState.SignedIn,
-        session: fakeSession,
-      });
-      const next = authReducer(state, { type: "SESSION_CHANGED", session: fakeSession });
-      expect(next).toBe(state); // same reference — no re-render
-    }
+  // ─── Phase mismatch guard ──────────────────────────────────────────────
+
+  it("PHASE_DONE ignored when phase doesn't match", () => {
+    const state = makeInitialState({ phase: Phase.Idle });
+    const next = authReducer(state, { type: "PHASE_DONE", phase: Phase.SigningIn, session: fakeSession });
+    expect(next).toBe(state);
   });
 });
