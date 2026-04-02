@@ -17,6 +17,7 @@ import {
   computeKeyId,
 } from "../crypto";
 import { clearAll, deleteDatabase } from "../storage/cache";
+import { cacheDek, loadCachedDek, clearDekCache } from "../storage/dekCache";
 import { reportError } from "../utils/errorReporter";
 
 export interface UseAuthReturn {
@@ -26,6 +27,7 @@ export interface UseAuthReturn {
   error: string | null;
   hashError: string | null;
   isBusy: boolean;
+  isRestoringDek: boolean;
   isPasswordRecovery: boolean;
   dek: CryptoKey | null;
   keyId: string | null;
@@ -62,6 +64,7 @@ function isSessionMissingError(error: AuthError | null): boolean {
 
 export type AuthPhase =
   | "bootstrapping"
+  | "restoringDek"
   | "idle"
   | "signingIn"
   | "signingUp"
@@ -174,12 +177,12 @@ export function authReducer(
         };
       }
 
-      // Bootstrap with valid session: idle, no DEK (UI will prompt)
+      // Bootstrap with valid session: try restoring cached DEK
       if (state.phase === "bootstrapping") {
         return {
           ...state,
           ...sessionUpdate,
-          phase: "idle",
+          phase: "restoringDek",
         };
       }
 
@@ -472,6 +475,7 @@ export function useAuth(): UseAuthReturn {
           try {
             await clearAll();
             await deleteDatabase();
+            await clearDekCache();
           } catch (e) {
             reportError("useAuth.signOut.clearCache", e);
           }
@@ -486,6 +490,53 @@ export function useAuth(): UseAuthReturn {
       cancelled = true;
     };
   }, [state.phase]);
+
+  // Restore cached DEK on bootstrap
+  useEffect(() => {
+    if (state.phase !== "restoringDek" || !state.session) return;
+
+    let cancelled = false;
+    const userId = state.session.user.id;
+
+    const run = async () => {
+      try {
+        const cached = await loadCachedDek();
+        if (cancelled) return;
+
+        if (cached) {
+          // Verify cached DEK matches the primary keyring on Supabase
+          const keyring = await fetchKeyring(supabase, userId);
+          if (cancelled) return;
+
+          if (keyring && keyring.key_id === cached.keyId) {
+            dispatch({ type: "DEK_UNLOCKED", dek: cached.dek, keyId: cached.keyId });
+            return;
+          }
+
+          // Mismatch or no keyring — discard stale cache
+          await clearDekCache();
+        }
+
+        if (cancelled) return;
+        // No valid cache — fall back to manual unlock
+        dispatch({ type: "DEK_ERROR", message: "" });
+      } catch {
+        if (cancelled) return;
+        dispatch({ type: "DEK_ERROR", message: "" });
+      }
+    };
+
+    void run();
+
+    return () => { cancelled = true; };
+  }, [state.phase, state.session]);
+
+  // Cache DEK when unlocked (skip if just restored from cache)
+  useEffect(() => {
+    if (state.dek && state.keyId && state.phase === "idle") {
+      void cacheDek(state.dek, state.keyId);
+    }
+  }, [state.dek, state.keyId, state.phase]);
 
   // Unlock DEK effect
   useEffect(() => {
@@ -682,6 +733,7 @@ export function useAuth(): UseAuthReturn {
     error: state.error,
     hashError: state.hashError,
     isBusy: state.isBusy,
+    isRestoringDek: state.phase === "restoringDek",
     isPasswordRecovery: state.isPasswordRecovery,
     dek: state.dek,
     keyId: state.keyId,

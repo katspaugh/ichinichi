@@ -166,14 +166,14 @@ describe("authReducer", () => {
     expect(next.error).toBe("bad");
   });
 
-  it("SESSION_CHANGED during bootstrapping → idle", () => {
+  it("SESSION_CHANGED during bootstrapping → restoringDek", () => {
     const state = makeInitialState({
       phase: "bootstrapping",
       authState: AuthState.Loading,
     });
     const next = authReducer(state, { type: "SESSION_CHANGED", session: fakeSession });
-    expect(next.phase).toBe("idle");
+    expect(next.phase).toBe("restoringDek");
     expect(next.authState).toBe(AuthState.SignedIn);
-    expect(next.dek).toBeNull(); // no DEK yet — UI will prompt
+    expect(next.dek).toBeNull(); // DEK restored by effect
   });
 });

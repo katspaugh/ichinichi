@@ -263,6 +263,11 @@ function AppContent() {
     );
   }
 
+  // Auth gate: restoring cached DEK — show loading
+  if (auth.isRestoringDek) {
+    return <div aria-busy="true" />;
+  }
+
   // Auth gate: signed in but DEK not unlocked — show unlock prompt
   if (auth.dek === null) {
     return (
