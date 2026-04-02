@@ -1,121 +1,136 @@
-import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { SupabaseClient } from "../lib/supabase";
+import type { RemoteNotes } from "../storage/remoteNotes";
+import type { RemoteNoteRow } from "../storage/parsers";
+import {
+  setCachedNote,
+  deleteCachedNote,
+  getSyncCursor,
+  setSyncCursor,
+} from "../storage/cache";
 import { SyncStatus } from "../types";
-import type { PendingOpsSummary, Syncable } from "../domain/sync";
-import type { SyncStore, SyncStoreState } from "../stores/syncStore";
-import { formatSyncError } from "../utils/syncError";
-import { useServiceContext } from "../contexts/serviceContext";
+import { useConnectivity } from "./useConnectivity";
+import { reportError } from "../utils/errorReporter";
 
-interface UseSyncReturn {
-  syncStatus: SyncStatus;
-  syncError: string | null;
-  lastSynced: Date | null;
-  triggerSync: (options?: { immediate?: boolean }) => void;
-  queueIdleSync: (options?: { delayMs?: number }) => void;
-  pendingOps: PendingOpsSummary;
-  realtimeConnected: boolean;
-  /** Date of the last note changed via realtime subscription */
-  lastRealtimeChangedDate: string | null;
-  /** Clear the lastRealtimeChangedDate after consuming it */
-  clearRealtimeChanged: () => void;
-  /** Monotonically increasing counter of completed syncs */
-  syncCompletionCount: number;
-}
+export async function syncAll(remote: RemoteNotes): Promise<void> {
+  const cursor = await getSyncCursor();
+  const rows: RemoteNoteRow[] = await remote.fetchNotesSince(cursor);
 
-function useStoreSel<T>(
-  store: SyncStore,
-  selector: (state: SyncStoreState) => T,
-): T {
-  return useSyncExternalStore(
-    store.subscribe,
-    () => selector(store.getState()),
-    () => selector(store.getState()),
-  );
-}
+  let latestCursor: string | null = cursor;
 
-export function useSync(
-  repository: Syncable | null,
-  options?: {
-    enabled?: boolean;
-    userId?: string | null;
-    supabase?: SupabaseClient | null;
-  },
-): UseSyncReturn {
-  const { syncStore: store } = useServiceContext();
-  const syncEnabled = options?.enabled ?? !!repository;
-  const userId = options?.userId ?? null;
-  const supabase = options?.supabase ?? null;
-
-  const prevRepoRef = useRef<Syncable | null>(null);
-  const prevEnabledRef = useRef(false);
-
-  useEffect(() => {
-    const repoChanged = repository !== prevRepoRef.current;
-    const enabledChanged = syncEnabled !== prevEnabledRef.current;
-    prevRepoRef.current = repository;
-    prevEnabledRef.current = syncEnabled;
-
-    if (syncEnabled && repository && userId && supabase) {
-      if (repoChanged || enabledChanged) {
-        store.getState().init({ repository, userId, supabase });
-      }
+  for (const row of rows) {
+    if (row.deleted) {
+      await deleteCachedNote(row.date);
     } else {
-      if (!store.getState()._disposed) {
-        store.getState().dispose();
-      }
+      await setCachedNote({
+        date: row.date,
+        ciphertext: row.ciphertext,
+        nonce: row.nonce,
+        keyId: row.key_id ?? "legacy",
+        updatedAt: row.updated_at,
+        revision: row.revision,
+        remoteId: row.id,
+      });
     }
 
-    return () => {
-      if (!store.getState()._disposed) {
-        store.getState().dispose();
-      }
-    };
-  }, [repository, syncEnabled, userId, supabase, store]);
+    if (
+      latestCursor === null ||
+      row.server_updated_at > latestCursor
+    ) {
+      latestCursor = row.server_updated_at;
+    }
+  }
 
-  const syncStatus = useStoreSel(store, (s) => s.status);
-  const syncError = useStoreSel(store, (s) =>
-    s.syncError ? formatSyncError(s.syncError) : null,
-  );
-  const lastSynced = useStoreSel(store, (s) => s.lastSynced);
-  const pendingOps = useStoreSel(store, (s) => s.pendingOps);
-  const realtimeConnected = useStoreSel(store, (s) => s.realtimeConnected);
-  const lastRealtimeChangedDate = useStoreSel(
-    store,
-    (s) => s.lastRealtimeChangedDate,
-  );
-  const syncCompletionCount = useStoreSel(
-    store,
-    (s) => s.syncCompletionCount,
-  );
+  if (latestCursor !== null && latestCursor !== cursor) {
+    await setSyncCursor(latestCursor);
+  }
+}
 
-  const triggerSync = useCallback(
-    (opts?: { immediate?: boolean }) => {
-      store.getState().requestSync(opts);
-    },
-    [store],
-  );
+interface UseSyncOptions {
+  remote: RemoteNotes | null;
+  supabase: SupabaseClient | null;
+  userId: string | null;
+  enabled: boolean;
+  onSyncComplete?: () => void;
+}
 
-  const queueIdleSync = useCallback(
-    (opts?: { delayMs?: number }) => {
-      store.getState().queueIdleSync(opts);
-    },
-    [store],
-  );
+export interface UseSyncReturn {
+  syncStatus: SyncStatus;
+  triggerSync: () => void;
+}
 
-  const clearRealtimeChanged = useCallback(() => {
-    store.getState().clearRealtimeChanged();
-  }, [store]);
+export function useSync(options: UseSyncOptions): UseSyncReturn {
+  const { remote, supabase, userId, enabled, onSyncComplete } = options;
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>(SyncStatus.Idle);
+  const online = useConnectivity();
+  const syncingRef = useRef(false);
+  const onSyncCompleteRef = useRef(onSyncComplete);
+  onSyncCompleteRef.current = onSyncComplete;
 
-  return {
-    syncStatus,
-    syncError,
-    lastSynced,
-    triggerSync,
-    queueIdleSync,
-    pendingOps,
-    realtimeConnected,
-    lastRealtimeChangedDate,
-    clearRealtimeChanged,
-    syncCompletionCount,
-  };
+  const doSync = useCallback(async () => {
+    if (!remote || !enabled || syncingRef.current) return;
+    syncingRef.current = true;
+    setSyncStatus(SyncStatus.Syncing);
+    try {
+      await syncAll(remote);
+      setSyncStatus(SyncStatus.Synced);
+      onSyncCompleteRef.current?.();
+    } catch (err) {
+      setSyncStatus(SyncStatus.Error);
+      reportError("useSync.doSync", err);
+    } finally {
+      syncingRef.current = false;
+    }
+  }, [remote, enabled]);
+
+  // Initial sync
+  useEffect(() => {
+    if (enabled && remote && online) {
+      doSync();
+    }
+  }, [enabled, remote, online, doSync]);
+
+  // Periodic sync
+  useEffect(() => {
+    if (!enabled || !remote || !online) return;
+    const id = setInterval(doSync, 30_000);
+    return () => clearInterval(id);
+  }, [enabled, remote, online, doSync]);
+
+  // Focus sync
+  useEffect(() => {
+    if (!enabled || !remote) return;
+    window.addEventListener("focus", doSync);
+    return () => window.removeEventListener("focus", doSync);
+  }, [enabled, remote, doSync]);
+
+  // Realtime sync
+  useEffect(() => {
+    if (!supabase || !userId || !enabled) return;
+    const channel = supabase
+      .channel(`notes:${userId}`)
+      .on(
+        "postgres_changes" as Parameters<ReturnType<SupabaseClient["channel"]>["on"]>[0],
+        {
+          event: "*",
+          schema: "public",
+          table: "notes",
+          filter: `user_id=eq.${userId}`,
+        },
+        () => { doSync(); },
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [supabase, userId, enabled, doSync]);
+
+  // Offline detection
+  useEffect(() => {
+    if (!online && enabled) {
+      setSyncStatus(SyncStatus.Offline);
+    }
+  }, [online, enabled]);
+
+  const triggerSync = useCallback(() => { doSync(); }, [doSync]);
+
+  return { syncStatus, triggerSync };
 }
