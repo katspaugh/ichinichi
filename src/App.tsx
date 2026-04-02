@@ -13,6 +13,7 @@ import { AboutModal } from "./components/AppModals/AboutModal";
 import { PrivacyPolicyModal } from "./components/AppModals/PrivacyPolicyModal";
 import { ResetPasswordModal } from "./components/AppModals/ResetPasswordModal";
 import { AuthErrorModal } from "./components/AppModals/AuthErrorModal";
+import { UnlockModal } from "./components/AppModals/UnlockModal";
 import { AuthState } from "./hooks/useAuth";
 import { AuthForm } from "./components/AuthForm";
 import { IntroModal } from "./components/AppModals/IntroModal";
@@ -266,16 +267,12 @@ function AppContent() {
   if (auth.dek === null) {
     return (
       <>
-        <ResetPasswordModal
+        <UnlockModal
           isOpen={true}
           error={auth.error}
-          onSubmit={async (password: string) => {
-            auth.unlockDek(password);
-            return { success: true };
-          }}
-          onDismiss={() => {
-            // Can't dismiss — must unlock
-          }}
+          isBusy={auth.isBusy}
+          onSubmit={auth.unlockDek}
+          onSignOut={() => { void auth.signOut(); }}
         />
         <AuthErrorModal
           isOpen={!!auth.hashError}
