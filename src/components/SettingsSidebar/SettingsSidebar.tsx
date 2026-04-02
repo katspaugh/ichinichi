@@ -592,6 +592,7 @@ export function SettingsSidebar({
               <DebugKeyringSection
                 keys={debugKeyring.keys}
                 isSignedIn={isSignedIn}
+                userEmail={userEmail ?? ""}
                 rewrapStatus={debugKeyring.rewrapStatus}
                 rewrapError={debugKeyring.rewrapError}
                 onRewrap={debugKeyring.rewrap}

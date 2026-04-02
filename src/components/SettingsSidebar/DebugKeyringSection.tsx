@@ -13,6 +13,7 @@ type ActionStatus = "idle" | "busy" | "success" | "error";
 interface DebugKeyringSectionProps {
   keys: DebugKeyInfo[];
   isSignedIn: boolean;
+  userEmail: string;
   rewrapStatus: "idle" | "rewrapping" | "success" | "error";
   rewrapError: string | null;
   onRewrap: (password: string) => Promise<void>;
@@ -34,9 +35,91 @@ function typeLabel(info: DebugKeyInfo): string {
   return "memory";
 }
 
+function DebugPasswordModal({
+  isOpen,
+  onClose,
+  title,
+  helper,
+  userEmail,
+  idPrefix,
+  passwordAutoComplete,
+  isBusy,
+  error,
+  onSubmit,
+  submitLabel,
+  busyLabel,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  title: string;
+  helper: string;
+  userEmail: string;
+  idPrefix: string;
+  passwordAutoComplete: string;
+  isBusy: boolean;
+  error: string | null;
+  onSubmit: (password: string) => void;
+  submitLabel: string;
+  busyLabel: string;
+}) {
+  const [password, setPassword] = useState("");
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose}>
+      <VaultPanel title={title} helper={helper}>
+        <form
+          className={formStyles.form}
+          onSubmit={(e) => {
+            e.preventDefault();
+            onSubmit(password);
+            setPassword("");
+          }}
+        >
+          <label className={formStyles.label} htmlFor={`${idPrefix}-email`}>
+            Email
+          </label>
+          <input
+            id={`${idPrefix}-email`}
+            className={formStyles.input}
+            type="email"
+            autoComplete="email"
+            value={userEmail}
+            readOnly
+            tabIndex={-1}
+          />
+          <label className={formStyles.label} htmlFor={`${idPrefix}-password`}>
+            Password
+          </label>
+          <input
+            id={`${idPrefix}-password`}
+            className={formStyles.input}
+            type="password"
+            autoComplete={passwordAutoComplete}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            disabled={isBusy}
+            required
+            minLength={6}
+          />
+          {error && <div className={formStyles.error}>{error}</div>}
+          <Button
+            className={formStyles.actionButton}
+            variant="primary"
+            type="submit"
+            disabled={!password || isBusy}
+          >
+            {isBusy ? busyLabel : submitLabel}
+          </Button>
+        </form>
+      </VaultPanel>
+    </Modal>
+  );
+}
+
 export function DebugKeyringSection({
   keys,
   isSignedIn,
+  userEmail,
   rewrapStatus,
   rewrapError,
   onRewrap,
@@ -52,19 +135,20 @@ export function DebugKeyringSection({
 }: DebugKeyringSectionProps) {
   const [rewrapOpen, setRewrapOpen] = useState(false);
   const [reencryptOpen, setReencryptOpen] = useState(false);
-  const [password, setPassword] = useState("");
 
-  const handleRewrap = useCallback(async () => {
-    await onRewrap(password);
-    setPassword("");
-    setRewrapOpen(false);
-  }, [password, onRewrap]);
+  const handleRewrap = useCallback(
+    (password: string) => {
+      void onRewrap(password).then(() => setRewrapOpen(false));
+    },
+    [onRewrap],
+  );
 
-  const handleReencrypt = useCallback(async () => {
-    await onReencrypt(password);
-    setPassword("");
-    setReencryptOpen(false);
-  }, [password, onReencrypt]);
+  const handleReencrypt = useCallback(
+    (password: string) => {
+      void onReencrypt(password).then(() => setReencryptOpen(false));
+    },
+    [onReencrypt],
+  );
 
   return (
     <div className={styles.section}>
@@ -109,7 +193,6 @@ export function DebugKeyringSection({
             type="button"
             onClick={() => {
               setRewrapOpen(true);
-              setPassword("");
               onResetRewrapStatus();
             }}
           >
@@ -154,7 +237,6 @@ export function DebugKeyringSection({
             type="button"
             onClick={() => {
               setReencryptOpen(true);
-              setPassword("");
               onResetReencryptStatus();
             }}
           >
@@ -174,99 +256,35 @@ export function DebugKeyringSection({
             </span>
           )}
 
-          <Modal isOpen={rewrapOpen} onClose={() => setRewrapOpen(false)}>
-            <VaultPanel
-              title="Rewrap all keys"
-              helper="Enter a new password to re-encrypt all DEKs and upload to Supabase."
-            >
-              <form
-                className={formStyles.form}
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  void handleRewrap();
-                }}
-              >
-                <label
-                  className={formStyles.label}
-                  htmlFor="debug-rewrap-password"
-                >
-                  New password
-                </label>
-                <input
-                  id="debug-rewrap-password"
-                  className={formStyles.input}
-                  type="password"
-                  autoComplete="new-password"
-                  value={password}
-                  onChange={(e) => {
-                    setPassword(e.target.value);
-                    if (rewrapStatus === "error") onResetRewrapStatus();
-                  }}
-                  disabled={rewrapStatus === "rewrapping"}
-                  required
-                  minLength={6}
-                />
-                {rewrapStatus === "error" && (
-                  <div className={formStyles.error}>{rewrapError}</div>
-                )}
-                <Button
-                  className={formStyles.actionButton}
-                  variant="primary"
-                  type="submit"
-                  disabled={!password || rewrapStatus === "rewrapping"}
-                >
-                  {rewrapStatus === "rewrapping" ? "Rewrapping..." : "Rewrap"}
-                </Button>
-              </form>
-            </VaultPanel>
-          </Modal>
+          <DebugPasswordModal
+            isOpen={rewrapOpen}
+            onClose={() => setRewrapOpen(false)}
+            title="Rewrap all keys"
+            helper="Enter a new password to re-encrypt all DEKs and upload to Supabase."
+            userEmail={userEmail}
+            idPrefix="debug-rewrap"
+            passwordAutoComplete="new-password"
+            isBusy={rewrapStatus === "rewrapping"}
+            error={rewrapStatus === "error" ? rewrapError : null}
+            onSubmit={handleRewrap}
+            submitLabel="Rewrap"
+            busyLabel="Rewrapping..."
+          />
 
-          <Modal isOpen={reencryptOpen} onClose={() => setReencryptOpen(false)}>
-            <VaultPanel
-              title="Re-encrypt all notes"
-              helper="Re-encrypts all Supabase notes with the primary DEK, deletes all other keys, and syncs to local. Requires your Supabase password."
-            >
-              <form
-                className={formStyles.form}
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  void handleReencrypt();
-                }}
-              >
-                <label
-                  className={formStyles.label}
-                  htmlFor="debug-reencrypt-password"
-                >
-                  Supabase password
-                </label>
-                <input
-                  id="debug-reencrypt-password"
-                  className={formStyles.input}
-                  type="password"
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={(e) => {
-                    setPassword(e.target.value);
-                    if (reencryptStatus === "error") onResetReencryptStatus();
-                  }}
-                  disabled={reencryptStatus === "busy"}
-                  required
-                  minLength={6}
-                />
-                {reencryptStatus === "error" && (
-                  <div className={formStyles.error}>{reencryptResult}</div>
-                )}
-                <Button
-                  className={formStyles.actionButton}
-                  variant="primary"
-                  type="submit"
-                  disabled={!password || reencryptStatus === "busy"}
-                >
-                  {reencryptStatus === "busy" ? "Re-encrypting..." : "Re-encrypt"}
-                </Button>
-              </form>
-            </VaultPanel>
-          </Modal>
+          <DebugPasswordModal
+            isOpen={reencryptOpen}
+            onClose={() => setReencryptOpen(false)}
+            title="Re-encrypt all notes"
+            helper="Re-encrypts all Supabase notes with the primary DEK, deletes all other keys, and syncs to local. Requires your Supabase password."
+            userEmail={userEmail}
+            idPrefix="debug-reencrypt"
+            passwordAutoComplete="current-password"
+            isBusy={reencryptStatus === "busy"}
+            error={reencryptStatus === "error" ? reencryptResult : null}
+            onSubmit={handleReencrypt}
+            submitLabel="Re-encrypt"
+            busyLabel="Re-encrypting..."
+          />
         </>
       )}
     </div>
