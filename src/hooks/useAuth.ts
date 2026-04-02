@@ -186,6 +186,11 @@ export function authReducer(
         };
       }
 
+      // Don't disrupt DEK restoration with duplicate session events
+      if (state.phase === "restoringDek") {
+        return state;
+      }
+
       // Sign-in with valid session: auto-transition to unlockingDek
       if (state.phase === "signingIn" && state.signInInput) {
         return {
@@ -531,10 +536,12 @@ export function useAuth(): UseAuthReturn {
     return () => { cancelled = true; };
   }, [state.phase, state.session]);
 
-  // Cache DEK when unlocked (skip if just restored from cache)
+  // Cache DEK when unlocked
   useEffect(() => {
     if (state.dek && state.keyId && state.phase === "idle") {
-      void cacheDek(state.dek, state.keyId);
+      cacheDek(state.dek, state.keyId).catch((e) => {
+        reportError("useAuth.cacheDek", e);
+      });
     }
   }, [state.dek, state.keyId, state.phase]);
 

@@ -176,4 +176,14 @@ describe("authReducer", () => {
     expect(next.authState).toBe(AuthState.SignedIn);
     expect(next.dek).toBeNull(); // DEK restored by effect
   });
+
+  it("SESSION_CHANGED during restoringDek is ignored (no disruption)", () => {
+    const state = makeInitialState({
+      phase: "restoringDek",
+      authState: AuthState.SignedIn,
+      session: fakeSession,
+    });
+    const next = authReducer(state, { type: "SESSION_CHANGED", session: fakeSession });
+    expect(next).toBe(state); // same reference — no re-render
+  });
 });
