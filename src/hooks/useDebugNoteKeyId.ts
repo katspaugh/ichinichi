@@ -6,7 +6,7 @@ export function useDebugNoteKeyId(
   date: string,
   isContentReady: boolean,
 ): string | null {
-  const isDebug = useDebugMode();
+  const [isDebug] = useDebugMode();
   const [keyId, setKeyId] = useState<string | null>(null);
 
   useEffect(() => {

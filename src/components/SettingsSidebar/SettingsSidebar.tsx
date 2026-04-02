@@ -16,6 +16,7 @@ import {
   ExternalLink,
   Download,
   X,
+  Bug,
 } from "lucide-react";
 import { useTheme } from "@/hooks/useTheme";
 import type { ThemePreference } from "@/services/themePreferences";
@@ -38,6 +39,8 @@ interface SettingsSidebarProps {
   onOpenPrivacy?: () => void;
   onWeekStartChange?: () => void;
   onExport?: () => Promise<void>;
+  isDebug?: boolean;
+  onDebugChange?: (next: boolean) => void;
   debugKeyring?: UseDebugKeyringReturn | null;
 }
 
@@ -439,6 +442,8 @@ export function SettingsSidebar({
   onOpenPrivacy,
   onWeekStartChange,
   onExport,
+  isDebug,
+  onDebugChange,
   debugKeyring,
 }: SettingsSidebarProps) {
   const { theme, setTheme } = useTheme();
@@ -553,6 +558,31 @@ export function SettingsSidebar({
             <>
               <div className={styles.separator} />
               <DataSection onExport={onExport} />
+            </>
+          )}
+
+          {onDebugChange && (
+            <>
+              <div className={styles.separator} />
+              <div className={styles.section}>
+                <p className={styles.sectionLabel}>Developer</p>
+                <div className={styles.toggleRow}>
+                  <span className={styles.rowLabel}>
+                    <Bug className={styles.actionIcon} />
+                    {" "}Debug mode
+                  </span>
+                  <button
+                    className={styles.switch}
+                    type="button"
+                    role="switch"
+                    aria-checked={isDebug}
+                    data-checked={isDebug}
+                    onClick={() => onDebugChange(!isDebug)}
+                  >
+                    <span className={styles.switchThumb} />
+                  </button>
+                </div>
+              </div>
             </>
           )}
 
