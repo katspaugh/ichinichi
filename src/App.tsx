@@ -15,6 +15,8 @@ import { ResetPasswordModal } from "./components/AppModals/ResetPasswordModal";
 import { AuthErrorModal } from "./components/AppModals/AuthErrorModal";
 import { AuthState } from "./hooks/useAuth";
 import { AuthForm } from "./components/AuthForm";
+import { IntroModal } from "./components/AppModals/IntroModal";
+import { Modal } from "./components/Modal";
 import { supabase } from "./lib/supabase";
 import { generateSalt, deriveKEK, wrapDEK, saveKeyring } from "./crypto";
 import { usePWA } from "./hooks/usePWA";
@@ -196,17 +198,55 @@ function AppContent() {
     return <div aria-busy="true" />;
   }
 
-  // Auth gate: signed out — show sign-in form
+  // Auth gate: signed out — show calendar with intro or auth modal
   if (auth.authState === AuthState.SignedOut) {
+    const showAuthForm = !routing.showIntro;
     return (
       <>
-        <AuthForm
-          isBusy={auth.isBusy}
-          error={auth.error}
-          onSignIn={auth.signIn}
-          onSignUp={auth.signUp}
-          onResetPassword={(email) => { void auth.resetPassword(email); }}
+        <AppLayout
+          header={
+            <Header
+              syncStatus="idle"
+              isSaving={false}
+            >
+              <>
+                <button
+                  className={calendarStyles.navButton}
+                  onClick={() => navigateToYear(year - 1)}
+                  aria-label="Previous year"
+                >
+                  <ChevronLeft className={calendarStyles.navIcon} />
+                </button>
+                <span className={calendarStyles.year}>{year}</span>
+                <button
+                  className={calendarStyles.navButton}
+                  onClick={() => navigateToYear(year + 1)}
+                  aria-label="Next year"
+                >
+                  <ChevronRight className={calendarStyles.navIcon} />
+                </button>
+              </>
+            </Header>
+          }
+        >
+          <Calendar year={year} hasNote={() => false} />
+        </AppLayout>
+
+        <IntroModal
+          isOpen={routing.showIntro}
+          onGetStarted={routing.dismissIntro}
         />
+
+        <Modal isOpen={showAuthForm} onClose={() => {}}>
+          <AuthForm
+            isBusy={auth.isBusy}
+            error={auth.error}
+            onSignIn={auth.signIn}
+            onSignUp={auth.signUp}
+            onResetPassword={(email) => { void auth.resetPassword(email); }}
+          />
+        </Modal>
+
         <ResetPasswordModal
           isOpen={auth.isPasswordRecovery}
           error={auth.error}
