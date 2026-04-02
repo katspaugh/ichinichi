@@ -190,9 +190,10 @@ function AppContent() {
     });
   }, []);
 
-  // Auth gate: loading state
+  // Auth gate: loading state — render nothing visible but keep DOM non-empty
+  // to avoid flash of unstyled content during Supabase session check
   if (auth.authState === AuthState.Loading) {
-    return null;
+    return <div aria-busy="true" />;
   }
 
   // Auth gate: signed out — show sign-in form

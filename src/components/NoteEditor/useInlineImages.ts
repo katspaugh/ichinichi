@@ -64,7 +64,7 @@ export function useInlineImageUrls({
   editorRef,
   imageRepository,
 }: UseInlineImageUrlsOptions) {
-  const metaCacheRef = useRef<Map<string, { width: number; height: number }>>(
+  const metaCacheRef = useRef<Map<string, { width: number; height: number; mimeType: string }>>(
     new Map(),
   );
   const dateRef = useRef<string | null>(null);
@@ -82,15 +82,15 @@ export function useInlineImageUrls({
 
     dateRef.current = date;
     repoRef.current = imageRepository;
-    metaCacheRef.current = new Map();
+    metaCacheRef.current = new Map<string, { width: number; height: number; mimeType: string }>();
     currentIdsRef.current = new Set();
 
     const loadMeta = async () => {
       const metas = await imageRepository.getImagesByDate(date);
-      const map = new Map<string, { width: number; height: number }>();
+      const map = new Map<string, { width: number; height: number; mimeType: string }>();
       metas.forEach((meta) => {
         if (meta.width > 0 && meta.height > 0) {
-          map.set(meta.id, { width: meta.width, height: meta.height });
+          map.set(meta.id, { width: meta.width, height: meta.height, mimeType: meta.mimeType });
         }
       });
       metaCacheRef.current = map;
@@ -143,8 +143,8 @@ export function useInlineImageUrls({
 
       img.setAttribute("data-image-loading", "true");
 
-      const mimeType =
-        metaCacheRef.current.get(imageId) ? "image/jpeg" : "image/jpeg";
+      const meta = metaCacheRef.current.get(imageId);
+      const mimeType = meta?.mimeType ?? "image/jpeg";
 
       imageRepository
         .getImage(imageId, mimeType)
