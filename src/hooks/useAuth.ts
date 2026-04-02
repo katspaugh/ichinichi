@@ -344,13 +344,9 @@ async function doRestoreDek(
   if (cancelled()) return { type: "CLEAR_ERROR" };
 
   if (cached) {
-    const keyring = await fetchKeyring(supabase, userId);
-    if (cancelled()) return { type: "CLEAR_ERROR" };
-
-    if (keyring && keyring.key_id === cached.keyId) {
-      return { type: "PHASE_DONE", phase: Phase.RestoringDek, dek: cached.dek, keyId: cached.keyId };
-    }
-    await clearDekCache();
+    // Device-bound cache is trusted — written by our own code after
+    // successful DEK unwrap. No need to verify against cloud keyring.
+    return { type: "PHASE_DONE", phase: Phase.RestoringDek, dek: cached.dek, keyId: cached.keyId };
   }
 
   // No valid cache — fall back to manual unlock
