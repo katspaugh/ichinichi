@@ -27,4 +27,4 @@ export type VaultError =
   | { type: "UnlockFailed"; message: string; context?: ErrorContext }
   | { type: "Unknown"; message: string; context?: ErrorContext };
 
-export type RepositoryError = StorageError | CryptoError;
+export type RepositoryError = StorageError | CryptoError | SyncError;
