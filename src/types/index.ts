@@ -1,8 +1,17 @@
+export interface SavedWeather {
+  icon: string;
+  temperatureHigh: number;
+  temperatureLow: number;
+  unit: "C" | "F";
+  city: string;
+}
+
 export interface Note {
   date: string; // "DD-MM-YYYY"
   content: string;
   sectionTypes?: string[];
   updatedAt: string; // ISO timestamp
+  weather?: SavedWeather | null;
 }
 
 // Encrypted envelope for storage/sync layers (ciphertext only, no plaintext)

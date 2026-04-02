@@ -2,7 +2,7 @@ import type { NoteCrypto } from "../crypto/noteCrypto";
 import type { NoteSyncEngine } from "../sync/noteSyncEngine";
 import type { RepositoryError } from "../errors";
 import { ok, err, type Result } from "../result";
-import type { Note } from "../../types";
+import type { Note, SavedWeather } from "../../types";
 import { extractSectionTypes } from "../../utils/sectionTypes";
 import type {
   SyncCapableNoteRepository,
@@ -35,6 +35,7 @@ export function createSyncedNoteRepository(
           content: decrypted.value.content,
           sectionTypes: extractSectionTypes(decrypted.value.content),
           updatedAt: record.updatedAt,
+          weather: decrypted.value.weather ?? null,
         });
       } catch (error) {
         return err({
@@ -44,9 +45,13 @@ export function createSyncedNoteRepository(
       }
     },
 
-    async save(date: string, content: string): Promise<Result<void, RepositoryError>> {
+    async save(
+      date: string,
+      content: string,
+      weather?: SavedWeather | null,
+    ): Promise<Result<void, RepositoryError>> {
       try {
-        const encrypted = await crypto.encrypt(content);
+        const encrypted = await crypto.encrypt({ content, weather });
         if (!encrypted.ok) return encrypted;
         const state = await envelopePort.getState(date);
         const existingMeta = state.meta;
@@ -184,6 +189,7 @@ export function createSyncedNoteRepository(
           content: decrypted.value.content,
           sectionTypes: extractSectionTypes(decrypted.value.content),
           updatedAt: envelope.updatedAt,
+          weather: decrypted.value.weather ?? null,
         });
       } catch (error) {
         return err({

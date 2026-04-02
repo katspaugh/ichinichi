@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 import type { DragEvent } from "react";
 import { formatDateDisplay, isToday } from "../../utils/date";
 import { canEditNote } from "../../utils/noteRules";
@@ -10,6 +10,9 @@ import { useImageDragState } from "./useImageDragState";
 import { useDropIndicator } from "./useDropIndicator";
 import { useShareTarget } from "../../hooks/useShareTarget";
 import { useWeatherContext } from "../../contexts/weatherContext";
+import { useServiceContext } from "../../contexts/serviceContext";
+import type { SavedWeather } from "../../types";
+import type { DailyWeatherData } from "../../features/weather/WeatherRepository";
 import { useDebugNoteKeyId } from "../../hooks/useDebugNoteKeyId";
 
 interface NoteEditorProps {
@@ -65,6 +68,37 @@ export function NoteEditor({
   const { isDraggingImage, endImageDrag } = useImageDragState();
   const weather = useWeatherContext();
   const { state: weatherState } = weather;
+
+  // Stored weather from encrypted note payload
+  const { noteContentStore } = useServiceContext();
+  const storedWeather = useSyncExternalStore(
+    noteContentStore.subscribe,
+    () => noteContentStore.getState().weather,
+  );
+
+  // Push live weather into store for today's notes so it gets encrypted
+  const liveWeather = weatherState.dailyWeather;
+  useEffect(() => {
+    if (!isToday(date) || !weatherState.showWeather || !liveWeather) return;
+    const saved: SavedWeather = {
+      icon: liveWeather.icon,
+      temperatureHigh: liveWeather.temperatureHigh,
+      temperatureLow: liveWeather.temperatureLow,
+      unit: liveWeather.unit,
+      city: liveWeather.city,
+    };
+    noteContentStore.getState().setWeather(saved);
+  }, [date, liveWeather, weatherState.showWeather, noteContentStore]);
+
+  // Display: live weather for today, stored weather for past notes
+  const displayWeather: DailyWeatherData | null = useMemo(() => {
+    if (!weatherState.showWeather) return null;
+    if (isToday(date) && liveWeather) return liveWeather;
+    if (storedWeather) {
+      return { ...storedWeather, timestamp: 0 };
+    }
+    return null;
+  }, [date, liveWeather, storedWeather, weatherState.showWeather]);
 
   const { onImageDrop } = useInlineImageUpload({
     date,
@@ -145,7 +179,7 @@ export function NoteEditor({
       isDraggingImage={isDraggingImage}
       dropIndicatorPosition={indicatorPosition}
       footer={null}
-      dailyWeather={weatherState.showWeather && isToday(date) ? weatherState.dailyWeather : null}
+      dailyWeather={displayWeather}
       debugKeyId={debugKeyId}
     />
   );

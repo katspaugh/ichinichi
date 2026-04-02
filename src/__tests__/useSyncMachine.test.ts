@@ -152,6 +152,7 @@ describe("noteContentStore — idle save delay", () => {
     expect(repository.save).toHaveBeenCalledWith(
       "16-01-2026",
       "draft with more text",
+      null,
     );
 
     vi.useRealTimers();

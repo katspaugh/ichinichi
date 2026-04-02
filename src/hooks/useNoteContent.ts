@@ -7,6 +7,7 @@ import {
   type NoteContentStore,
 } from "../stores/noteContentStore";
 import type { RepositoryError } from "../domain/errors";
+import type { SavedWeather } from "../types";
 import { useServiceContext } from "../contexts/serviceContext";
 
 export type { SaveSnapshot };
@@ -27,6 +28,9 @@ export interface UseNoteContentReturn {
   saveError: RepositoryError | null;
   /** Force a refresh from remote (used for realtime updates) */
   forceRefresh: () => void;
+  /** Weather stored with the note (encrypted) */
+  weather: SavedWeather | null;
+  setWeather: (weather: SavedWeather | null) => void;
   restoreNote: () => void;
 }
 
@@ -108,6 +112,7 @@ export function useNoteContent(
   const error = useStoreSelector(store, (s) => s.error);
   const saveError = useStoreSelector(store, (s) => s.saveError);
   const remoteCacheResult = useStoreSelector(store, (s) => s.remoteCacheResult);
+  const weather = useStoreSelector(store, (s) => s.weather);
   const isSoftDeleted = useStoreSelector(store, (s) => s.isSoftDeleted);
 
   const isReady =
@@ -133,6 +138,10 @@ export function useNoteContent(
     (newContent: string) => store.getState().setContent(newContent),
     [store],
   );
+  const setWeatherCb = useCallback(
+    (w: SavedWeather | null) => store.getState().setWeather(w),
+    [store],
+  );
   const forceRefresh = useCallback(
     () => store.getState().forceRefresh(),
     [store],
@@ -154,6 +163,8 @@ export function useNoteContent(
     error,
     saveError,
     forceRefresh,
+    weather,
+    setWeather: setWeatherCb,
     restoreNote,
   };
 }

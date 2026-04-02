@@ -516,6 +516,12 @@
   }
 }
 
+@media (min-width: 769px) and (max-width: 930px) {
+  .header {
+    left: 160px;
+  }
+}
+
 /* Desktop PWA: window title bar provides enough top spacing */
 @media (display-mode: standalone) and (min-width: 769px) {
   .editor {

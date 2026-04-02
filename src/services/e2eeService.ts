@@ -71,7 +71,10 @@ export function createE2eeService(keyring: KeyringProvider): E2eeService {
     if (!key) return null;
     const iv = randomBytes(NOTE_IV_BYTES);
     const sanitized = sanitizeHtml(payload.content);
-    const envelope = { content: sanitized };
+    const envelope: Record<string, unknown> = { content: sanitized };
+    if (payload.weather) {
+      envelope.weather = payload.weather;
+    }
     const plaintext = encodeUtf8(JSON.stringify(envelope));
     const encrypted = await crypto.subtle.encrypt(
       { name: "AES-GCM", iv },
@@ -102,8 +105,29 @@ export function createE2eeService(keyring: KeyringProvider): E2eeService {
       JSON.parse(decodeUtf8(new Uint8Array(decrypted))),
     );
     if (!parsed) return null;
+
+    const validateWeather = (
+      raw: unknown,
+    ): import("../types").SavedWeather | null => {
+      if (!raw || typeof raw !== "object") return null;
+      const w = raw as Record<string, unknown>;
+      if (w.unit !== "C" && w.unit !== "F") return null;
+      if (typeof w.icon !== "string") return null;
+      if (typeof w.temperatureHigh !== "number") return null;
+      if (typeof w.temperatureLow !== "number") return null;
+      if (typeof w.city !== "string") return null;
+      return {
+        icon: w.icon,
+        temperatureHigh: w.temperatureHigh,
+        temperatureLow: w.temperatureLow,
+        unit: w.unit,
+        city: w.city,
+      };
+    };
+
     return {
       content: sanitizeHtml(parsed.content),
+      weather: validateWeather((parsed as Record<string, unknown>).weather),
     };
   };
 
