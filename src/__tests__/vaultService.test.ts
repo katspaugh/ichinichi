@@ -183,11 +183,10 @@ describe("unlockCloudVault", () => {
     );
   });
 
-  it("merges local DEK not in cloud keyring as non-primary", async () => {
+  it("does not upload local DEK when cloud keyrings already exist", async () => {
     const cloudDek = await generateDEK();
     const localDek = await generateDEK();
     const cloudEntry = await createKeyringEntry(cloudDek, "test-password", true);
-    const localKeyId = await computeKeyId(localDek);
 
     mockFetchUserKeyring.mockResolvedValue([cloudEntry]);
     mockSaveUserKeyringEntry.mockResolvedValue();
@@ -200,18 +199,13 @@ describe("unlockCloudVault", () => {
       localKeyring: new Map(),
     });
 
-    expect(result.keyring.size).toBe(2);
+    expect(result.keyring.size).toBe(1);
     expect(result.keyring.has(cloudEntry.keyId)).toBe(true);
-    expect(result.keyring.has(localKeyId)).toBe(true);
     expect(result.primaryKeyId).toBe(cloudEntry.keyId);
-    expect(mockSaveUserKeyringEntry).toHaveBeenCalledWith(
-      expect.anything(),
-      "user-1",
-      expect.objectContaining({ keyId: localKeyId, isPrimary: false }),
-    );
+    expect(mockSaveUserKeyringEntry).not.toHaveBeenCalled();
   });
 
-  it("merges local keyring entries not in cloud", async () => {
+  it("does not upload local keyring entries when cloud keyrings exist", async () => {
     const cloudDek = await generateDEK();
     const localKey1 = await generateDEK();
     const localKey2 = await generateDEK();
@@ -232,8 +226,8 @@ describe("unlockCloudVault", () => {
       localKeyring,
     });
 
-    expect(result.keyring.size).toBe(3);
-    expect(mockSaveUserKeyringEntry).toHaveBeenCalledTimes(2);
+    expect(result.keyring.size).toBe(1);
+    expect(mockSaveUserKeyringEntry).not.toHaveBeenCalled();
   });
 
   it("falls back to device DEK when password is wrong without rewrapping", async () => {

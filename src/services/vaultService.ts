@@ -136,43 +136,48 @@ export async function unlockCloudVault(options: {
     nextPrimaryId = keyId;
   }
 
-  if (localDek) {
-    const localKeyId = await computeKeyId(localDek);
-    if (!nextKeyring.has(localKeyId)) {
-      const salt = generateSalt();
-      const kek = await deriveKEK(password, salt, DEFAULT_KDF_ITERATIONS);
-      const wrapped = await wrapDEK(localDek, kek);
-      const entry: UserKeyringEntry = {
-        keyId: localKeyId,
-        wrappedDek: wrapped.data,
-        dekIv: wrapped.iv,
-        kdfSalt: salt,
-        kdfIterations: DEFAULT_KDF_ITERATIONS,
-        version: 1,
-        isPrimary: false,
-      };
-      await saveUserKeyringEntry(supabase, userId, entry);
-      nextKeyring.set(localKeyId, localDek);
+  // Only upload local keys to cloud when there are no existing cloud keyrings.
+  // When cloud keyrings exist, the cloud primary is authoritative — uploading
+  // a fresh local DEK from every new browser would pollute the keyring.
+  if (!existingKeyrings.length) {
+    if (localDek) {
+      const localKeyId = await computeKeyId(localDek);
+      if (!nextKeyring.has(localKeyId)) {
+        const salt = generateSalt();
+        const kek = await deriveKEK(password, salt, DEFAULT_KDF_ITERATIONS);
+        const wrapped = await wrapDEK(localDek, kek);
+        const entry: UserKeyringEntry = {
+          keyId: localKeyId,
+          wrappedDek: wrapped.data,
+          dekIv: wrapped.iv,
+          kdfSalt: salt,
+          kdfIterations: DEFAULT_KDF_ITERATIONS,
+          version: 1,
+          isPrimary: false,
+        };
+        await saveUserKeyringEntry(supabase, userId, entry);
+        nextKeyring.set(localKeyId, localDek);
+      }
     }
-  }
 
-  if (localKeyring.size) {
-    for (const [keyId, key] of localKeyring.entries()) {
-      if (nextKeyring.has(keyId)) continue;
-      const salt = generateSalt();
-      const kek = await deriveKEK(password, salt, DEFAULT_KDF_ITERATIONS);
-      const wrapped = await wrapDEK(key, kek);
-      const entry: UserKeyringEntry = {
-        keyId,
-        wrappedDek: wrapped.data,
-        dekIv: wrapped.iv,
-        kdfSalt: salt,
-        kdfIterations: DEFAULT_KDF_ITERATIONS,
-        version: 1,
-        isPrimary: false,
-      };
-      await saveUserKeyringEntry(supabase, userId, entry);
-      nextKeyring.set(keyId, key);
+    if (localKeyring.size) {
+      for (const [keyId, key] of localKeyring.entries()) {
+        if (nextKeyring.has(keyId)) continue;
+        const salt = generateSalt();
+        const kek = await deriveKEK(password, salt, DEFAULT_KDF_ITERATIONS);
+        const wrapped = await wrapDEK(key, kek);
+        const entry: UserKeyringEntry = {
+          keyId,
+          wrappedDek: wrapped.data,
+          dekIv: wrapped.iv,
+          kdfSalt: salt,
+          kdfIterations: DEFAULT_KDF_ITERATIONS,
+          version: 1,
+          isPrimary: false,
+        };
+        await saveUserKeyringEntry(supabase, userId, entry);
+        nextKeyring.set(keyId, key);
+      }
     }
   }
 
