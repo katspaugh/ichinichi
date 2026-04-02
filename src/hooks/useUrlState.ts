@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { getTodayString, isFuture, parseDate } from "../utils/date";
 import { AuthState, ViewType } from "../types";
-import { AppMode } from "../utils/appMode";
 import {
   resolveUrlState,
   serializeUrlState,
@@ -17,20 +16,16 @@ function shouldShowIntro(search: string): boolean {
   return localStorage.getItem(AUTH_HAS_LOGGED_IN_KEY) !== "1";
 }
 
-function shouldGateAuth(mode: AppMode): boolean {
+function shouldGateAuth(): boolean {
   if (typeof window === "undefined") return false;
-  return (
-    mode === AppMode.Cloud &&
-    localStorage.getItem(AUTH_HAS_LOGGED_IN_KEY) === "1"
-  );
+  return localStorage.getItem(AUTH_HAS_LOGGED_IN_KEY) === "1";
 }
 
 interface UseUrlStateProps {
   authState: AuthState;
-  mode: AppMode;
 }
 
-export function useUrlState({ authState, mode }: UseUrlStateProps) {
+export function useUrlState({ authState }: UseUrlStateProps) {
   const initialShowIntro =
     typeof window === "undefined"
       ? false
@@ -60,8 +55,8 @@ export function useUrlState({ authState, mode }: UseUrlStateProps) {
 
   // Gate note view when user has logged in before but session expired
   const isAuthGated = useMemo(() => {
-    return shouldGateAuth(mode) && authState !== AuthState.SignedIn;
-  }, [authState, mode]);
+    return shouldGateAuth() && authState !== AuthState.SignedIn;
+  }, [authState]);
 
   // Effective state: if auth-gated, force calendar view
   const effectiveState = useMemo(() => {

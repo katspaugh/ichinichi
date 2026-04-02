@@ -1,8 +1,5 @@
 import { createStore } from "zustand/vanilla";
-import {
-  isSyncCapableNoteRepository,
-  type NoteRepository,
-} from "../storage/noteRepository";
+import type { NoteRepository } from "../storage/noteRepository";
 import { connectivity as defaultConnectivity } from "../services/connectivity";
 import type { ConnectivitySource } from "./noteContentStore";
 
@@ -50,52 +47,16 @@ export function createNoteDatesStore(deps?: NoteDatesStoreDeps) {
     const _doRefresh = async () => {
       const gen = ++_refreshGeneration;
       const { repository, year } = get();
-      const online = conn.getOnline();
-      const syncRepository = isSyncCapableNoteRepository(repository)
-        ? repository
-        : null;
-
       if (!repository || get()._disposed) {
         set({ noteDates: new Set(), isRefreshing: false });
         return;
       }
-
       set({ isRefreshing: true });
-
-      // Load local dates first — but only show them if we won't immediately
-      // fetch remote dates (avoids dots blinking: local → local+remote)
-      let hasLocalSnapshot = false;
-      const willFetchRemote = online && syncRepository;
-      if (syncRepository) {
-        const localResult = await syncRepository.getAllLocalDatesForYear(year);
-        if (gen !== _refreshGeneration || get()._disposed) return; // superseded or disposed
-        if (localResult.ok) {
-          hasLocalSnapshot = true;
-          if (!willFetchRemote) {
-            set({ noteDates: new Set(localResult.value) });
-          }
-        } else if (!willFetchRemote) {
-          set({ noteDates: new Set() });
-        }
+      const result = await repository.getAllDatesForYear(year);
+      if (gen !== _refreshGeneration || get()._disposed) return;
+      if (result.ok) {
+        set({ noteDates: new Set(result.value) });
       }
-
-      // Refresh from remote if online
-      if (willFetchRemote) {
-        await syncRepository.refreshDates(year);
-        if (gen !== _refreshGeneration || get()._disposed) return; // superseded or disposed
-      }
-
-      // Load full dates (local + remote merged)
-      const datesResult = await repository.getAllDatesForYear(year);
-
-      if (gen !== _refreshGeneration || get()._disposed) return; // superseded or disposed
-
-      if (datesResult.ok) {
-        set({ noteDates: new Set(datesResult.value) });
-      } else if (!hasLocalSnapshot) {
-        set({ noteDates: new Set() });
-      }
-
       set({ isRefreshing: false });
     };
 

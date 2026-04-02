@@ -1,38 +1,26 @@
 import { useCallback, useEffect, useMemo } from "react";
-import type { User } from "@supabase/supabase-js";
 import type { RepositoryError } from "../domain/errors";
-import { useNoteContent } from "./useNoteContent";
+import { useNoteContent, type UseNoteContentReturn } from "./useNoteContent";
 import { useNoteDates } from "./useNoteDates";
-import { useSync } from "./useSync";
-import { useSyncedFactories } from "./useSyncedFactories";
-import { useRepositoryFactory } from "./useRepositoryFactory";
-import type { SyncCapableNoteRepository } from "../storage/noteRepository";
-import { isSyncCapableNoteRepository } from "../storage/noteRepository";
-import type { ImageRepository } from "../storage/imageRepository";
-import { AppMode } from "./useAppMode";
-import { useServiceContext } from "../contexts/serviceContext";
-import { createStoreCoordinator } from "../stores/storeCoordinator";
+import { useSync, type UseSyncReturn } from "./useSync";
+import { createNoteRepository, type NoteRepository } from "../storage/noteRepository";
+import { createRemoteNotes } from "../storage/remoteNotes";
+import { supabase } from "../lib/supabase";
+import { connectivity } from "../services/connectivity";
+import { noteContentStore } from "../stores/noteContentStore";
 
 interface UseNoteRepositoryProps {
-  mode: AppMode;
-  authUser: User | null;
-  vaultKey: CryptoKey | null;
-  keyring: Map<string, CryptoKey>;
-  activeKeyId: string | null;
+  userId: string | null;
+  dek: CryptoKey | null;
+  keyId: string | null;
   date: string | null;
   year: number;
 }
 
 export interface UseNoteRepositoryReturn {
-  repository: ReturnType<typeof useRepositoryFactory>["repository"];
-  imageRepository: ImageRepository | null;
-  syncedRepo: SyncCapableNoteRepository | null;
-  syncStatus: ReturnType<typeof useSync>["syncStatus"];
-  syncError: ReturnType<typeof useSync>["syncError"];
-  triggerSync: ReturnType<typeof useSync>["triggerSync"];
-  queueIdleSync: ReturnType<typeof useSync>["queueIdleSync"];
-  pendingOps: ReturnType<typeof useSync>["pendingOps"];
-  capabilities: { canSync: boolean; canUploadImages: boolean };
+  repository: NoteRepository | null;
+  syncStatus: UseSyncReturn["syncStatus"];
+  triggerSync: UseSyncReturn["triggerSync"];
   content: string;
   setContent: (content: string) => void;
   hasEdits: boolean;
@@ -42,72 +30,52 @@ export interface UseNoteRepositoryReturn {
   refreshNoteDates: (options?: { immediate?: boolean }) => void;
   isDecrypting: boolean;
   isContentReady: boolean;
-  isOfflineStub: boolean;
-  isSoftDeleted: boolean;
-  restoreNote: () => void;
   noteError: RepositoryError | null;
-  repositoryVersion: number;
-  invalidateRepository: () => void;
 }
 
 export function useNoteRepository({
-  mode,
-  authUser,
-  vaultKey,
-  keyring,
-  activeKeyId,
+  userId,
+  dek,
+  keyId,
   date,
   year,
 }: UseNoteRepositoryProps): UseNoteRepositoryReturn {
-  const {
-    supabase,
-    e2eeFactory,
-    noteContentStore,
-    syncStore,
-  } = useServiceContext();
-  const userId = authUser?.id ?? null;
+  const remote = useMemo(
+    () => (userId ? createRemoteNotes(supabase, userId) : null),
+    [userId],
+  );
 
-  const syncedFactories = useSyncedFactories(supabase, e2eeFactory);
+  const repository = useMemo(
+    () =>
+      dek && keyId && remote
+        ? createNoteRepository({ dek, keyId, remote, connectivity })
+        : null,
+    [dek, keyId, remote],
+  );
 
-  const { repository, imageRepository, repositoryVersion, invalidateRepository } =
-    useRepositoryFactory({
-      mode,
-      userId,
-      vaultKey,
-      keyring,
-      activeKeyId,
-      syncedFactories,
-    });
-
-  const syncedRepo =
-    mode === AppMode.Cloud &&
-    userId &&
-    isSyncCapableNoteRepository(repository)
-      ? repository
-      : null;
-  const syncEnabled =
-    syncedRepo !== null && !!vaultKey && !!activeKeyId;
-
-  const { syncStatus, syncError, triggerSync, queueIdleSync, pendingOps } =
-    useSync(syncedRepo, { enabled: syncEnabled, userId, supabase });
+  const enabled = !!remote && !!repository;
 
   const { hasNote, noteDates, refreshNoteDates, applyNoteChange } =
     useNoteDates(repository, year);
 
-  const capabilities = useMemo(
-    () => ({
-      canSync: !!syncedRepo,
-      canUploadImages: !!imageRepository,
-    }),
-    [syncedRepo, imageRepository],
-  );
+  const handleSyncComplete = useCallback(() => {
+    refreshNoteDates({ immediate: true });
+    void noteContentStore.getState().reloadFromLocal();
+  }, [refreshNoteDates]);
+
+  const { syncStatus, triggerSync } = useSync({
+    remote,
+    supabase: enabled ? supabase : null,
+    userId,
+    enabled,
+    onSyncComplete: handleSyncComplete,
+  });
 
   const handleAfterSave = useCallback(
     (snapshot: { date: string; isEmpty: boolean }) => {
       applyNoteChange(snapshot.date, snapshot.isEmpty);
-      queueIdleSync();
     },
-    [applyNoteChange, queueIdleSync],
+    [applyNoteChange],
   );
 
   const {
@@ -117,27 +85,13 @@ export function useNoteRepository({
     hasEdits,
     isSaving,
     isContentReady,
-    isOfflineStub,
-    isSoftDeleted,
-    restoreNote,
     error: noteError,
-  } = useNoteContent(date, repository, hasNote, handleAfterSave);
-
-  // Cross-store coordination: sync completion/realtime -> refresh note
-  useEffect(() => {
-    return createStoreCoordinator(syncStore, noteContentStore);
-  }, [syncStore, noteContentStore]);
+  } = useNoteContent(date, repository, handleAfterSave);
 
   return {
     repository,
-    imageRepository,
-    syncedRepo,
     syncStatus,
-    syncError,
     triggerSync,
-    queueIdleSync,
-    pendingOps,
-    capabilities,
     content,
     setContent,
     hasEdits,
@@ -147,11 +101,6 @@ export function useNoteRepository({
     refreshNoteDates,
     isDecrypting,
     isContentReady,
-    isOfflineStub,
-    isSoftDeleted,
-    restoreNote,
     noteError,
-    repositoryVersion,
-    invalidateRepository,
   };
 }
