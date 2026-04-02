@@ -6,6 +6,18 @@ import { AuthState } from "../types";
 export { AuthState } from "../types";
 import { connectivity } from "../services/connectivity";
 import { useConnectivity } from "./useConnectivity";
+import {
+  fetchKeyring,
+  saveKeyring,
+  deriveKEK,
+  generateDEK,
+  generateSalt,
+  wrapDEK,
+  unwrapDEK,
+  computeKeyId,
+} from "../crypto";
+import { clearAll, deleteDatabase } from "../storage/cache";
+import { reportError } from "../utils/errorReporter";
 
 export interface UseAuthReturn {
   session: Session | null;
@@ -15,9 +27,12 @@ export interface UseAuthReturn {
   hashError: string | null;
   isBusy: boolean;
   isPasswordRecovery: boolean;
+  dek: CryptoKey | null;
+  keyId: string | null;
   signUp: (email: string, password: string) => void;
   signIn: (email: string, password: string) => void;
   signOut: () => Promise<void>;
+  unlockDek: (password: string) => void;
   resetPassword: (email: string) => Promise<{ success: boolean }>;
   updatePassword: (password: string) => Promise<{ success: boolean }>;
   clearPasswordRecovery: () => void;
@@ -45,14 +60,16 @@ function isSessionMissingError(error: AuthError | null): boolean {
   return Boolean(error && error.name === "AuthSessionMissingError");
 }
 
-type AuthPhase =
+export type AuthPhase =
   | "bootstrapping"
   | "idle"
   | "signingIn"
   | "signingUp"
-  | "signingOut";
+  | "signingOut"
+  | "unlockingDek"
+  | "generatingDek";
 
-type AuthEvent =
+export type AuthEvent =
   | { type: "SESSION_CHANGED"; session: Session | null }
   | { type: "SESSION_VALIDATED"; session: Session | null }
   | { type: "INPUTS_CHANGED"; online: boolean }
@@ -64,9 +81,12 @@ type AuthEvent =
   | { type: "PASSWORD_RECOVERY" }
   | { type: "CLEAR_PASSWORD_RECOVERY" }
   | { type: "HASH_ERROR"; message: string }
-  | { type: "CLEAR_HASH_ERROR" };
+  | { type: "CLEAR_HASH_ERROR" }
+  | { type: "DEK_UNLOCKED"; dek: CryptoKey; keyId: string }
+  | { type: "DEK_ERROR"; message: string }
+  | { type: "UNLOCK_DEK"; password: string };
 
-interface AuthContext {
+export interface AuthContext {
   phase: AuthPhase;
   session: Session | null;
   authState: AuthState;
@@ -75,11 +95,14 @@ interface AuthContext {
   online: boolean;
   signInInput: { email: string; password: string } | null;
   signUpInput: { email: string; password: string } | null;
+  dekInput: { password: string } | null;
+  dek: CryptoKey | null;
+  keyId: string | null;
   isPasswordRecovery: boolean;
   hashError: string | null;
 }
 
-const initialState: AuthContext = {
+export const initialState: AuthContext = {
   phase: "bootstrapping",
   session: null,
   authState: AuthState.Loading,
@@ -88,6 +111,9 @@ const initialState: AuthContext = {
   online: connectivity.getOnline(),
   signInInput: null,
   signUpInput: null,
+  dekInput: null,
+  dek: null,
+  keyId: null,
   isPasswordRecovery: false,
   hashError: null,
 };
@@ -133,6 +159,22 @@ export function authReducer(
       markHasLoggedIn(event.session);
       const sessionUpdate = applySession(event.session);
 
+      // Null session: clear DEK state
+      if (!event.session) {
+        return {
+          ...state,
+          ...sessionUpdate,
+          phase: state.phase === "bootstrapping" ? "idle" : "idle",
+          isBusy: false,
+          dek: null,
+          keyId: null,
+          dekInput: null,
+          signInInput: null,
+          signUpInput: null,
+        };
+      }
+
+      // Bootstrap with valid session: idle, no DEK (UI will prompt)
       if (state.phase === "bootstrapping") {
         return {
           ...state,
@@ -141,11 +183,30 @@ export function authReducer(
         };
       }
 
-      if (
-        state.phase === "signingIn" ||
-        state.phase === "signingUp" ||
-        state.phase === "signingOut"
-      ) {
+      // Sign-in with valid session: auto-transition to unlockingDek
+      if (state.phase === "signingIn" && state.signInInput) {
+        return {
+          ...state,
+          ...sessionUpdate,
+          phase: "unlockingDek",
+          dekInput: { password: state.signInInput.password },
+          signInInput: null,
+        };
+      }
+
+      // Sign-up with valid session: auto-transition to generatingDek
+      if (state.phase === "signingUp" && state.signUpInput) {
+        return {
+          ...state,
+          ...sessionUpdate,
+          phase: "generatingDek",
+          dekInput: { password: state.signUpInput.password },
+          signUpInput: null,
+        };
+      }
+
+      // signingOut or other phases
+      if (state.phase === "signingOut") {
         return {
           ...state,
           ...sessionUpdate,
@@ -190,6 +251,35 @@ export function authReducer(
         phase: "signingOut",
         error: null,
         isBusy: true,
+      };
+
+    case "UNLOCK_DEK":
+      if (state.phase !== "idle" || !state.session) return state;
+      return {
+        ...state,
+        phase: "unlockingDek",
+        error: null,
+        isBusy: true,
+        dekInput: { password: event.password },
+      };
+
+    case "DEK_UNLOCKED":
+      return {
+        ...state,
+        dek: event.dek,
+        keyId: event.keyId,
+        dekInput: null,
+        phase: "idle",
+        isBusy: false,
+      };
+
+    case "DEK_ERROR":
+      return {
+        ...state,
+        error: event.message,
+        dekInput: null,
+        phase: "idle",
+        isBusy: false,
       };
 
     case "PASSWORD_RECOVERY":
@@ -379,6 +469,12 @@ export function useAuth(): UseAuthReturn {
         }
       } finally {
         if (!cancelled) {
+          try {
+            await clearAll();
+            await deleteDatabase();
+          } catch (e) {
+            reportError("useAuth.signOut.clearCache", e);
+          }
           dispatch({ type: "SESSION_CHANGED", session: null });
         }
       }
@@ -390,6 +486,92 @@ export function useAuth(): UseAuthReturn {
       cancelled = true;
     };
   }, [state.phase]);
+
+  // Unlock DEK effect
+  useEffect(() => {
+    if (state.phase !== "unlockingDek" || !state.dekInput || !state.session) return;
+
+    let cancelled = false;
+    const { password } = state.dekInput;
+    const userId = state.session.user.id;
+
+    const run = async () => {
+      try {
+        const keyring = await fetchKeyring(supabase, userId);
+        if (cancelled) return;
+        if (!keyring) {
+          dispatch({ type: "DEK_ERROR", message: "No encryption key found" });
+          return;
+        }
+        const kek = await deriveKEK(password, keyring.kdf_salt, keyring.kdf_iterations);
+        if (cancelled) return;
+        const dek = await unwrapDEK(keyring.wrapped_dek, keyring.dek_iv, kek);
+        if (cancelled) return;
+        const keyId = await computeKeyId(dek);
+        if (cancelled) return;
+        dispatch({ type: "DEK_UNLOCKED", dek, keyId });
+      } catch (error) {
+        if (cancelled) return;
+        reportError("useAuth.unlockDek", error);
+        dispatch({
+          type: "DEK_ERROR",
+          message: error instanceof Error ? error.message : "Failed to unlock encryption key",
+        });
+      }
+    };
+
+    void run();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [state.phase, state.dekInput, state.session]);
+
+  // Generate DEK effect
+  useEffect(() => {
+    if (state.phase !== "generatingDek" || !state.dekInput || !state.session) return;
+
+    let cancelled = false;
+    const { password } = state.dekInput;
+    const userId = state.session.user.id;
+
+    const run = async () => {
+      try {
+        const dek = await generateDEK();
+        if (cancelled) return;
+        const keyId = await computeKeyId(dek);
+        if (cancelled) return;
+        const salt = generateSalt();
+        const kek = await deriveKEK(password, salt, 600_000);
+        if (cancelled) return;
+        const wrapped = await wrapDEK(dek, kek);
+        if (cancelled) return;
+        await saveKeyring(supabase, userId, {
+          key_id: keyId,
+          wrapped_dek: wrapped.data,
+          dek_iv: wrapped.iv,
+          kdf_salt: salt,
+          kdf_iterations: 600_000,
+          is_primary: true,
+        });
+        if (cancelled) return;
+        dispatch({ type: "DEK_UNLOCKED", dek, keyId });
+      } catch (error) {
+        if (cancelled) return;
+        reportError("useAuth.generateDek", error);
+        dispatch({
+          type: "DEK_ERROR",
+          message: error instanceof Error ? error.message : "Failed to generate encryption key",
+        });
+      }
+    };
+
+    void run();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [state.phase, state.dekInput, state.session]);
 
   const signUp = useCallback(
     (email: string, password: string) => {
@@ -407,6 +589,10 @@ export function useAuth(): UseAuthReturn {
 
   const signOut = useCallback(async () => {
     dispatch({ type: "SIGN_OUT" });
+  }, []);
+
+  const unlockDek = useCallback((password: string) => {
+    dispatch({ type: "UNLOCK_DEK", password });
   }, []);
 
   const resetPassword = useCallback(
@@ -476,9 +662,12 @@ export function useAuth(): UseAuthReturn {
     hashError: state.hashError,
     isBusy: state.isBusy,
     isPasswordRecovery: state.isPasswordRecovery,
+    dek: state.dek,
+    keyId: state.keyId,
     signUp,
     signIn,
     signOut,
+    unlockDek,
     resetPassword,
     updatePassword,
     clearPasswordRecovery,
