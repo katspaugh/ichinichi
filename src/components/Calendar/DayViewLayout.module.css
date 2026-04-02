@@ -143,6 +143,7 @@
     flex-direction: row;
     --sidebar-width: 33%;
     --header-margin: 0;
+    --editor-h-padding: var(--spacing-xl);
   }
 
   .layout[data-sidebar-collapsed] {
@@ -196,6 +197,10 @@
 
 /* Large desktop: better proportions */
 @media (min-width: 1200px) {
+  .layout {
+    --editor-h-padding: var(--spacing-2xl);
+  }
+
   .monthGridWrap {
     min-height: 440px;
     max-height: 60vh;

@@ -71,13 +71,10 @@
   color: color-mix(in srgb, var(--color-text) 40%, var(--color-text-muted));
   white-space: nowrap;
   flex-shrink: 0;
+  margin-top: 2px;
+  margin-left: var(--spacing-sm);
 }
 
-@media (min-width: 1300px) {
-  .weatherLabel {
-    margin-left: auto;
-  }
-}
 
 .readonlyBadge {
   font-size: var(--font-size-xs);
@@ -504,13 +501,13 @@
   }
 }
 
+
 /* Desktop: fixed header in app header row */
 @media (min-width: 769px) {
   .header {
     position: fixed;
     top: var(--spacing-md);
-    left: calc(var(--spacing-md) + var(--sidebar-width, 30%) + var(--spacing-md) + var(--spacing-xl));
-    right: calc(var(--spacing-md) + var(--spacing-xl));
+    left: calc(var(--spacing-md) + var(--sidebar-width, 30%) + var(--spacing-md) + var(--editor-h-padding, var(--spacing-xl)));
     margin: 3px var(--header-margin, 0) 0;
     z-index: 5;
   }

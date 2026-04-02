@@ -22,7 +22,9 @@
 .headerRight {
   display: flex;
   align-items: center;
-  gap: var(--spacing-sm);
+  gap: var(--spacing-md);
+  position: relative;
+  z-index: 6;
 }
 
 .appLogo {
