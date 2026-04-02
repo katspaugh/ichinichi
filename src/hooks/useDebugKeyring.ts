@@ -54,7 +54,7 @@ export function useDebugKeyring(
       }
     });
     return () => { cancelled = true; };
-  }, [isSignedIn, userId, keyring, rewrapStatus]);
+  }, [isSignedIn, userId, keyring, rewrapStatus, cleanupStatus]);
 
   const keys = useMemo(() => {
     const result: DebugKeyInfo[] = [];
@@ -111,8 +111,8 @@ export function useDebugKeyring(
       setCleanupStatus("success");
       setCleanupResult(
         result.deleted.length
-          ? `Deleted ${result.deleted.length} unused key(s), kept ${result.kept.length}`
-          : `All ${result.kept.length} key(s) are in use`,
+          ? `Removed ${result.deleted.length} unused cloud key(s), kept ${result.kept.length}`
+          : `All ${result.kept.length} cloud key(s) are in use`,
       );
     } catch (err) {
       setCleanupStatus("error");

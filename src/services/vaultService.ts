@@ -341,6 +341,12 @@ export async function cleanupUnusedKeys(options: {
     }
   }
 
+  // Also remove deleted keys from local storage
+  if (deleted.length) {
+    const { removeLocalWrappedKeys } = await import("../storage/localKeyring");
+    removeLocalWrappedKeys(deleted);
+  }
+
   return { deleted, kept };
 }
 
