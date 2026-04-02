@@ -10,7 +10,6 @@ import { useImageDragState } from "./useImageDragState";
 import { useDropIndicator } from "./useDropIndicator";
 import { useShareTarget } from "../../hooks/useShareTarget";
 import { useWeatherContext } from "../../contexts/weatherContext";
-import { useDebugNoteKeyId } from "../../hooks/useDebugNoteKeyId";
 
 interface NoteEditorProps {
   date: string;
@@ -50,8 +49,6 @@ export function NoteEditor({
     isEditable,
     date,
   });
-
-  const debugKeyId = useDebugNoteKeyId(date, isContentReady);
 
   const { isDraggingImage, endImageDrag } = useImageDragState();
   const weather = useWeatherContext();
@@ -136,7 +133,7 @@ export function NoteEditor({
       dropIndicatorPosition={indicatorPosition}
       footer={null}
       dailyWeather={weatherState.showWeather && isToday(date) ? weatherState.dailyWeather : null}
-      debugKeyId={debugKeyId}
+      debugKeyId={null}
     />
   );
 }
