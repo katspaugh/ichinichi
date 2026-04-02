@@ -499,10 +499,31 @@ export function useAuth(): UseAuthReturn {
       try {
         const keyring = await fetchKeyring(supabase, userId);
         if (cancelled) return;
+
         if (!keyring) {
-          dispatch({ type: "DEK_ERROR", message: "No encryption key found" });
+          // No keyring yet (e.g. existing account from before E2EE) — generate one
+          const dek = await generateDEK();
+          if (cancelled) return;
+          const keyId = await computeKeyId(dek);
+          if (cancelled) return;
+          const salt = generateSalt();
+          const kek = await deriveKEK(password, salt, 600_000);
+          if (cancelled) return;
+          const wrapped = await wrapDEK(dek, kek);
+          if (cancelled) return;
+          await saveKeyring(supabase, userId, {
+            key_id: keyId,
+            wrapped_dek: wrapped.data,
+            dek_iv: wrapped.iv,
+            kdf_salt: salt,
+            kdf_iterations: 600_000,
+            is_primary: true,
+          });
+          if (cancelled) return;
+          dispatch({ type: "DEK_UNLOCKED", dek, keyId });
           return;
         }
+
         const kek = await deriveKEK(password, keyring.kdf_salt, keyring.kdf_iterations);
         if (cancelled) return;
         const dek = await unwrapDEK(keyring.wrapped_dek, keyring.dek_iv, kek);
