@@ -123,6 +123,14 @@ export function useSync(options: UseSyncOptions): UseSyncReturn {
     return () => { supabase.removeChannel(channel); };
   }, [supabase, userId, enabled, doSync]);
 
+  // Reset sync state when disabled (e.g. sign-out)
+  useEffect(() => {
+    if (!enabled) {
+      syncingRef.current = false;
+      setSyncStatus(SyncStatus.Idle);
+    }
+  }, [enabled]);
+
   // Offline detection
   useEffect(() => {
     if (!online && enabled) {
