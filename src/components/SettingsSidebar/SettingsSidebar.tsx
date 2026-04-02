@@ -2,7 +2,6 @@ import { useState, useCallback, useEffect } from "react";
 import {
   User,
   LogOut,
-  LogIn,
   KeyRound,
   Moon,
   Sun,
@@ -16,14 +15,11 @@ import {
   ExternalLink,
   Download,
   X,
-  Bug,
 } from "lucide-react";
 import { useTheme } from "@/hooks/useTheme";
 import type { ThemePreference } from "@/services/themePreferences";
 import { getWeekdayOptions, setWeekStartPreference } from "@/utils/date";
 import { useWeatherContext } from "@/contexts/weatherContext";
-import { DebugKeyringSection } from "./DebugKeyringSection";
-import type { UseDebugKeyringReturn } from "../../hooks/useDebugKeyring";
 import styles from "./SettingsSidebar.module.css";
 
 interface SettingsSidebarProps {
@@ -31,7 +27,6 @@ interface SettingsSidebarProps {
   onOpenChange: (open: boolean) => void;
   userEmail?: string | null;
   isSignedIn: boolean;
-  onSignIn?: () => void;
   onSignOut?: () => void;
   onResetPassword?: () => void;
   commitHash: string;
@@ -39,9 +34,6 @@ interface SettingsSidebarProps {
   onOpenPrivacy?: () => void;
   onWeekStartChange?: () => void;
   onExport?: () => Promise<void>;
-  isDebug?: boolean;
-  onDebugChange?: (next: boolean) => void;
-  debugKeyring?: UseDebugKeyringReturn | null;
 }
 
 type WeatherState = ReturnType<typeof useWeatherContext>["state"];
@@ -113,23 +105,6 @@ function UserSection({
           {resetSent ? "Reset link sent!" : "Reset password"}
         </button>
       )}
-
-      <div className={styles.separator} />
-    </>
-  );
-}
-
-function SignInSection({ onSignIn }: { onSignIn: () => void }) {
-  return (
-    <>
-      <button
-        className={`${styles.actionButton} ${styles.actionButtonPrimary}`}
-        type="button"
-        onClick={onSignIn}
-      >
-        <LogIn className={styles.actionIcon} />
-        Sign in to sync
-      </button>
 
       <div className={styles.separator} />
     </>
@@ -434,7 +409,6 @@ export function SettingsSidebar({
   onOpenChange,
   userEmail,
   isSignedIn,
-  onSignIn,
   onSignOut,
   onResetPassword,
   commitHash,
@@ -442,9 +416,6 @@ export function SettingsSidebar({
   onOpenPrivacy,
   onWeekStartChange,
   onExport,
-  isDebug,
-  onDebugChange,
-  debugKeyring,
 }: SettingsSidebarProps) {
   const { theme, setTheme } = useTheme();
   const weather = useWeatherContext();
@@ -531,8 +502,6 @@ export function SettingsSidebar({
         <div className={styles.body}>
           {isSignedIn && userEmail ? (
             <UserSection userEmail={userEmail} onSignOut={onSignOut} onResetPassword={onResetPassword} />
-          ) : onSignIn ? (
-            <SignInSection onSignIn={onSignIn} />
           ) : null}
 
           <AppearanceSection theme={theme} onThemeChange={handleThemeChange} />
@@ -558,54 +527,6 @@ export function SettingsSidebar({
             <>
               <div className={styles.separator} />
               <DataSection onExport={onExport} />
-            </>
-          )}
-
-          {onDebugChange && (
-            <>
-              <div className={styles.separator} />
-              <div className={styles.section}>
-                <p className={styles.sectionLabel}>Developer</p>
-                <div className={styles.toggleRow}>
-                  <span className={styles.rowLabel} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                    <Bug className={styles.actionIcon} />
-                    Debug mode
-                  </span>
-                  <button
-                    className={styles.switch}
-                    type="button"
-                    role="switch"
-                    aria-checked={isDebug}
-                    data-checked={isDebug}
-                    onClick={() => onDebugChange(!isDebug)}
-                  >
-                    <span className={styles.switchThumb} />
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
-
-          {debugKeyring && (
-            <>
-              <div className={styles.separator} />
-              <DebugKeyringSection
-                keys={debugKeyring.keys}
-                isSignedIn={isSignedIn}
-                userEmail={userEmail ?? ""}
-                rewrapStatus={debugKeyring.rewrapStatus}
-                rewrapError={debugKeyring.rewrapError}
-                onRewrap={debugKeyring.rewrap}
-                onResetRewrapStatus={debugKeyring.resetRewrapStatus}
-                cleanupStatus={debugKeyring.cleanupStatus}
-                cleanupResult={debugKeyring.cleanupResult}
-                onCleanup={debugKeyring.cleanup}
-                onResetCleanupStatus={debugKeyring.resetCleanupStatus}
-                reencryptStatus={debugKeyring.reencryptStatus}
-                reencryptResult={debugKeyring.reencryptResult}
-                onReencrypt={debugKeyring.reencrypt}
-                onResetReencryptStatus={debugKeyring.resetReencryptStatus}
-              />
             </>
           )}
 

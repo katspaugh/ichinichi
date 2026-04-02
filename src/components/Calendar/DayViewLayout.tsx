@@ -37,9 +37,6 @@ interface DayViewLayoutProps {
   isSaving: boolean;
   isDecrypting: boolean;
   isContentReady: boolean;
-  isOfflineStub: boolean;
-  isSoftDeleted?: boolean;
-  onRestore?: () => void;
   noteError?: { type: string; message: string } | null;
 }
 
@@ -65,9 +62,6 @@ export function DayViewLayout({
   isSaving,
   isDecrypting,
   isContentReady,
-  isOfflineStub,
-  isSoftDeleted,
-  onRestore,
   noteError,
 }: DayViewLayoutProps) {
   const [editorPaneEl, setEditorPaneEl] = useState<HTMLDivElement | null>(null);
@@ -184,9 +178,6 @@ export function DayViewLayout({
               isSaving={isSaving}
               isDecrypting={isDecrypting}
               isContentReady={isContentReady}
-              isOfflineStub={isOfflineStub}
-              isSoftDeleted={isSoftDeleted}
-              onRestore={onRestore}
               error={noteError}
             />
           </ErrorBoundary>

@@ -19,9 +19,6 @@ interface DayViewProps {
   isSaving: boolean;
   isDecrypting: boolean;
   isContentReady: boolean;
-  isOfflineStub: boolean;
-  isSoftDeleted?: boolean;
-  onRestore?: () => void;
   noteError?: { type: string; message: string } | null;
   now?: Date;
   weekStartVersion?: number;
@@ -40,9 +37,6 @@ export function DayView({
   isSaving,
   isDecrypting,
   isContentReady,
-  isOfflineStub,
-  isSoftDeleted,
-  onRestore,
   noteError,
   now,
   weekStartVersion,
@@ -118,9 +112,6 @@ export function DayView({
         isSaving={isSaving}
         isDecrypting={isDecrypting}
         isContentReady={isContentReady}
-        isOfflineStub={isOfflineStub}
-        isSoftDeleted={isSoftDeleted}
-        onRestore={onRestore}
         noteError={noteError}
       />
     </div>

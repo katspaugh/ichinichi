@@ -3,7 +3,6 @@ import { Menu, Search } from "lucide-react";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { SyncIndicator } from "../SyncIndicator";
 import type { SyncStatus } from "../../types";
-import type { PendingOpsSummary } from "../../domain/sync";
 import styles from "./Header.module.css";
 
 interface AppLogoProps {
@@ -55,26 +54,20 @@ function AppLogo({ onClick }: AppLogoProps) {
 interface HeaderProps {
   children?: ReactNode;
   syncStatus?: SyncStatus;
-  syncError?: string | null;
-  pendingOps?: PendingOpsSummary;
   isSaving?: boolean;
   onLogoClick?: () => void;
   onMenuClick?: () => void;
   onSearchClick?: () => void;
-  onSignIn?: () => void;
   onSyncClick?: () => void;
 }
 
 export function Header({
   children,
   syncStatus,
-  syncError,
-  pendingOps,
   isSaving,
   onLogoClick,
   onMenuClick,
   onSearchClick,
-  onSignIn,
   onSyncClick,
 }: HeaderProps) {
   return (
@@ -92,10 +85,7 @@ export function Header({
         >
           <SyncIndicator
             status={syncStatus}
-            pendingOps={pendingOps}
-            errorMessage={syncError ?? undefined}
             isSaving={isSaving}
-            onSignIn={onSignIn}
             onSyncClick={onSyncClick}
           />
         </ErrorBoundary>

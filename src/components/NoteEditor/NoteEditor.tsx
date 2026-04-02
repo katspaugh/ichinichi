@@ -21,9 +21,6 @@ interface NoteEditorProps {
   isSaving: boolean;
   isDecrypting?: boolean;
   isContentReady: boolean;
-  isOfflineStub?: boolean;
-  isSoftDeleted?: boolean;
-  onRestore?: () => void;
   error?: { type: string; message: string } | null;
 }
 
@@ -33,13 +30,10 @@ export function NoteEditor({
   onChange,
   isDecrypting = false,
   isContentReady,
-  isOfflineStub = false,
-  isSoftDeleted = false,
-  onRestore,
   error,
 }: NoteEditorProps) {
   const canEdit = canEditNote(date);
-  const isEditable = canEdit && !isDecrypting && isContentReady && !isSoftDeleted;
+  const isEditable = canEdit && !isDecrypting && isContentReady;
   const isMobile = window.matchMedia("(max-width: 768px)").matches;
   const autoFocus = isEditable && !(isMobile && content.trim().length > 0);
   const formattedDate = formatDateDisplay(date);
@@ -47,15 +41,12 @@ export function NoteEditor({
   const hasError = !!error;
   const statusText = hasError
     ? "Unable to decrypt note"
-    : isSoftDeleted
-      ? "This note was deleted"
-      : isDecrypting
-        ? "Decrypting..."
-        : null;
+    : isDecrypting
+      ? "Decrypting..."
+      : null;
   const placeholderText = getPlaceholderText({
     isContentReady,
     isDecrypting,
-    isOfflineStub,
     isEditable,
     date,
   });
@@ -132,7 +123,6 @@ export function NoteEditor({
       showReadonlyBadge={!canEdit}
       statusText={statusText}
       isStatusError={hasError}
-      onRestore={isSoftDeleted ? onRestore : undefined}
       placeholderText={placeholderText}
       editorRef={editorRef}
       onInput={handleInput}

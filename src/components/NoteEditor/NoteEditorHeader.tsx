@@ -10,7 +10,6 @@ interface NoteEditorHeaderProps {
   showReadonlyBadge: boolean;
   statusText: string | null;
   isStatusError?: boolean;
-  onRestore?: () => void;
   dailyWeather?: DailyWeatherData | null;
   debugKeyId?: string | null;
 }
@@ -21,7 +20,6 @@ export function NoteEditorHeader({
   showReadonlyBadge,
   statusText,
   isStatusError = false,
-  onRestore,
   dailyWeather,
   debugKeyId,
 }: NoteEditorHeaderProps) {
@@ -61,14 +59,6 @@ export function NoteEditorHeader({
           aria-live="polite"
         >
           {statusText}
-          {onRestore && (
-            <button
-              className={styles.restoreButton}
-              onClick={onRestore}
-            >
-              Restore
-            </button>
-          )}
         </span>
       )}
     </div>

@@ -90,17 +90,14 @@ export function getFutureEmptyMessage(dateStr: string): string {
 export function getPlaceholderText(options: {
   isContentReady: boolean;
   isDecrypting: boolean;
-  isOfflineStub: boolean;
   isEditable: boolean;
   date: string;
   now?: Date;
 }): string {
-  const { isContentReady, isDecrypting, isOfflineStub, isEditable, date, now } =
+  const { isContentReady, isDecrypting, isEditable, date, now } =
     options;
 
   if (!isContentReady || isDecrypting) return "Loading...";
-  if (isOfflineStub)
-    return "This note can't be loaded while offline. Go online to view it.";
   if (isEditable) return getJournalingPrompt(date, now);
   if (isFuture(date)) return getFutureEmptyMessage(date);
   return getPastEmptyMessage(date);

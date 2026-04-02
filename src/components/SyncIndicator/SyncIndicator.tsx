@@ -1,34 +1,17 @@
 import { SyncStatus } from "../../types";
-import type { PendingOpsSummary } from "../../domain/sync";
 import styles from "./SyncIndicator.module.css";
 
 interface SyncIndicatorProps {
   status?: SyncStatus;
-  pendingOps?: PendingOpsSummary;
-  errorMessage?: string;
   isSaving?: boolean;
-  onSignIn?: () => void;
   onSyncClick?: () => void;
 }
 
 export function SyncIndicator({
   status,
-  pendingOps,
-  errorMessage,
   isSaving,
-  onSignIn,
   onSyncClick,
 }: SyncIndicatorProps) {
-  const hasPendingOps = (pendingOps?.total ?? 0) > 0;
-
-  // Show sign in button when no status (not signed in)
-  if (!status && onSignIn) {
-    return (
-      <button className={styles.indicator} onClick={onSignIn}>
-        Sign in
-      </button>
-    );
-  }
 
   const getLabel = () => {
     switch (status) {
@@ -42,7 +25,6 @@ export function SyncIndicator({
         break;
     }
     if (isSaving) return "Saving...";
-    if (hasPendingOps && status === SyncStatus.Idle) return "Saved";
     if (status === SyncStatus.Synced) return "Synced";
     return "";
   };
@@ -56,15 +38,12 @@ export function SyncIndicator({
 
   const classSuffix = isSaving
     ? "saving"
-    : hasPendingOps && status === SyncStatus.Idle
-      ? "saved"
-      : status ?? "";
+    : status ?? "";
   const statusClassMap: Record<string, string | undefined> = {
     [SyncStatus.Synced]: styles.synced,
     [SyncStatus.Error]: styles.error,
     [SyncStatus.Offline]: styles.offline,
     saving: styles.saving,
-    saved: styles.synced,
   };
   const statusClass = statusClassMap[classSuffix];
 
@@ -75,7 +54,6 @@ export function SyncIndicator({
       <button
         className={[styles.indicator, statusClass].filter(Boolean).join(" ")}
         onClick={onSyncClick}
-        title={status === SyncStatus.Error ? errorMessage : undefined}
       >
         {label}
       </button>
@@ -85,7 +63,6 @@ export function SyncIndicator({
   return (
     <span
       className={[styles.indicator, statusClass].filter(Boolean).join(" ")}
-      title={status === SyncStatus.Error ? errorMessage : undefined}
     >
       {(status === SyncStatus.Syncing || isSaving) && (
         <span className={styles.spinner} />
