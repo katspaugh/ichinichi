@@ -3,10 +3,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { useActiveVault } from "../hooks/useActiveVault";
 import { AppMode } from "../hooks/useAppMode";
 import { AuthState } from "../types";
-import {
-  ensureCloudKeyringPassword,
-  fetchAndUnwrapCloudKeyring,
-} from "../services/vaultService";
+import { fetchAndUnwrapCloudKeyring } from "../services/vaultService";
 import {
   storeDeviceEncryptedPassword,
   tryGetDeviceEncryptedPassword,
@@ -174,11 +171,6 @@ describe("useActiveVault", () => {
     await waitFor(() =>
       expect(result.current.keyring.has("fetched-key")).toBe(true),
     );
-    // After fetching cloud keys, the sync effect rewraps all keys with the
-    // device password to ensure consistent cloud keyring state.
-    await waitFor(() =>
-      expect(ensureCloudKeyringPassword).toHaveBeenCalledTimes(1),
-    );
   });
 
   it("stores the typed password without auto-rewrapping on manual unlock", async () => {
@@ -210,11 +202,6 @@ describe("useActiveVault", () => {
       expect(storeDeviceEncryptedPassword).toHaveBeenCalledWith(
         "typed-password",
       ),
-    );
-    // Manual password unlock triggers the sync effect to ensure all keys
-    // are wrapped with the current password in the cloud keyring.
-    await waitFor(() =>
-      expect(ensureCloudKeyringPassword).toHaveBeenCalledTimes(1),
     );
   });
 });

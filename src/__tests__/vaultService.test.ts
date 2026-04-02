@@ -236,7 +236,7 @@ describe("unlockCloudVault", () => {
     expect(mockSaveUserKeyringEntry).toHaveBeenCalledTimes(2);
   });
 
-  it("falls back to device DEK when password is wrong and re-wraps", async () => {
+  it("falls back to device DEK when password is wrong without rewrapping", async () => {
     const existingDek = await generateDEK();
     const entry = await createKeyringEntry(existingDek, "old-password", true);
     mockFetchUserKeyring.mockResolvedValue([entry]);
@@ -257,25 +257,8 @@ describe("unlockCloudVault", () => {
     expect(result.vaultKey).not.toBeNull();
     expect(await keysEqual(result.vaultKey!, existingDek)).toBe(true);
 
-    // Should have re-wrapped with new password
-    expect(mockSaveUserKeyringEntry).toHaveBeenCalled();
-    const rewrapCall = mockSaveUserKeyringEntry.mock.calls.find(
-      (call) => call[2].kdfSalt !== entry.kdfSalt,
-    );
-    expect(rewrapCall).toBeDefined();
-    const rewrappedEntry = rewrapCall![2];
-
-    // Verify new password can now unlock
-    mockFetchUserKeyring.mockResolvedValue([rewrappedEntry]);
-    const secondResult = await unlockCloudVault({
-      supabase: createMockSupabase() as never,
-      userId: "user-1",
-      password: "new-password",
-      localDek: null,
-      localKeyring: new Map(),
-    });
-    expect(secondResult.vaultKey).not.toBeNull();
-    expect(await keysEqual(secondResult.vaultKey!, existingDek)).toBe(true);
+    // Should NOT rewrap on page load — rewrap only on password reset or debug button
+    expect(mockSaveUserKeyringEntry).not.toHaveBeenCalled();
   });
 
   it("throws when password is wrong and no device DEK available", async () => {

@@ -8,10 +8,7 @@ import { useServiceContext } from "../contexts/serviceContext";
 import { useVaultMachine } from "./useVaultMachine";
 import { handleCloudAccountSwitch } from "../storage/accountSwitch";
 import { closeUnifiedDb } from "../storage/unifiedDb";
-import {
-  ensureCloudKeyringPassword,
-  fetchAndUnwrapCloudKeyring,
-} from "../services/vaultService";
+import { fetchAndUnwrapCloudKeyring } from "../services/vaultService";
 import {
   storeDeviceEncryptedPassword,
   tryGetDeviceEncryptedPassword,
@@ -188,47 +185,16 @@ export function useActiveVault({
     }
   }, [authPassword]);
 
-  // Sync all available keys to cloud keyring when password is available.
-  // Covers: stale wrapping after password reset, local keys not yet in cloud.
-  const effectivePassword = authPassword ?? devicePassword;
-  const hasSyncedKeyringRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (
-      mode !== AppMode.Cloud ||
-      !auth.user ||
-      !effectivePassword ||
-      !cloudVault.isReady ||
-      !mergedKeyring.size
-    ) {
-      return;
-    }
-    // On device-only unlock, wait for cloud key fetch to complete so
-    // mergedKeyring includes all cloud keys before rewrapping.
-    if (!authPassword && !cloudKeysFetched) return;
-    const cacheKey = `${auth.user.id}:${effectivePassword}`;
-    if (hasSyncedKeyringRef.current === cacheKey) return;
-    hasSyncedKeyringRef.current = cacheKey;
 
-    // Filter out "legacy" — it's a synthetic alias, not a real keyId
-    const keysToSync = new Map<string, CryptoKey>();
-    for (const [keyId, key] of mergedKeyring.entries()) {
-      if (keyId !== "legacy") {
-        keysToSync.set(keyId, key);
-      }
-    }
-    if (!keysToSync.size) return;
-
-    void ensureCloudKeyringPassword({
-      supabase,
-      userId: auth.user.id,
-      password: effectivePassword,
-      keyring: keysToSync,
-      primaryKeyId: activeKeyId,
-    });
-  }, [mode, auth.user, effectivePassword, cloudVault.isReady, mergedKeyring, activeKeyId, authPassword, cloudKeysFetched]);
-
+  // For device-only unlock (no typed password), wait for cloud key fetch
+  // to complete before reporting ready — otherwise notes from other devices
+  // can't be decrypted until a manual refresh triggers the fetch.
+  const needsCloudKeyFetch =
+    mode === AppMode.Cloud && cloudVault.isReady && !authPassword && devicePassword != null;
   const isVaultReady =
-    mode === AppMode.Cloud ? cloudVault.isReady : localVault.isReady;
+    mode === AppMode.Cloud
+      ? cloudVault.isReady && (!needsCloudKeyFetch || cloudKeysFetched)
+      : localVault.isReady;
   const isVaultLocked =
     mode === AppMode.Cloud ? cloudVault.isLocked : localVault.isLocked;
   const vaultError =
