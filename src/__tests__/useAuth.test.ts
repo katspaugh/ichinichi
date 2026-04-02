@@ -177,13 +177,15 @@ describe("authReducer", () => {
     expect(next.dek).toBeNull(); // DEK restored by effect
   });
 
-  it("SESSION_CHANGED during restoringDek is ignored (no disruption)", () => {
-    const state = makeInitialState({
-      phase: "restoringDek",
-      authState: AuthState.SignedIn,
-      session: fakeSession,
-    });
-    const next = authReducer(state, { type: "SESSION_CHANGED", session: fakeSession });
-    expect(next).toBe(state); // same reference — no re-render
+  it("SESSION_CHANGED during DEK phases is ignored (no disruption)", () => {
+    for (const phase of ["restoringDek", "unlockingDek", "generatingDek"] as const) {
+      const state = makeInitialState({
+        phase,
+        authState: AuthState.SignedIn,
+        session: fakeSession,
+      });
+      const next = authReducer(state, { type: "SESSION_CHANGED", session: fakeSession });
+      expect(next).toBe(state); // same reference — no re-render
+    }
   });
 });

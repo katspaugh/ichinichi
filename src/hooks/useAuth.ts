@@ -186,8 +186,8 @@ export function authReducer(
         };
       }
 
-      // Don't disrupt DEK restoration with duplicate session events
-      if (state.phase === "restoringDek") {
+      // Don't disrupt DEK operations with duplicate session events
+      if (state.phase === "restoringDek" || state.phase === "unlockingDek" || state.phase === "generatingDek") {
         return state;
       }
 
@@ -536,15 +536,6 @@ export function useAuth(): UseAuthReturn {
     return () => { cancelled = true; };
   }, [state.phase, state.session]);
 
-  // Cache DEK when unlocked
-  useEffect(() => {
-    if (state.dek && state.keyId && state.phase === "idle") {
-      cacheDek(state.dek, state.keyId).catch((e) => {
-        reportError("useAuth.cacheDek", e);
-      });
-    }
-  }, [state.dek, state.keyId, state.phase]);
-
   // Unlock DEK effect
   useEffect(() => {
     if (state.phase !== "unlockingDek" || !state.dekInput || !state.session) return;
@@ -578,6 +569,8 @@ export function useAuth(): UseAuthReturn {
             is_primary: true,
           });
           if (cancelled) return;
+          await cacheDek(dek, keyId);
+          if (cancelled) return;
           dispatch({ type: "DEK_UNLOCKED", dek, keyId });
           return;
         }
@@ -587,6 +580,8 @@ export function useAuth(): UseAuthReturn {
         const dek = await unwrapDEK(keyring.wrapped_dek, keyring.dek_iv, kek);
         if (cancelled) return;
         const keyId = await computeKeyId(dek);
+        if (cancelled) return;
+        await cacheDek(dek, keyId);
         if (cancelled) return;
         dispatch({ type: "DEK_UNLOCKED", dek, keyId });
       } catch (error) {
@@ -633,6 +628,8 @@ export function useAuth(): UseAuthReturn {
           kdf_iterations: 600_000,
           is_primary: true,
         });
+        if (cancelled) return;
+        await cacheDek(dek, keyId);
         if (cancelled) return;
         dispatch({ type: "DEK_UNLOCKED", dek, keyId });
       } catch (error) {
