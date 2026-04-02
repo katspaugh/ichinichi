@@ -12,6 +12,7 @@ interface NoteEditorHeaderProps {
   isStatusError?: boolean;
   onRestore?: () => void;
   dailyWeather?: DailyWeatherData | null;
+  debugKeyId?: string | null;
 }
 
 export function NoteEditorHeader({
@@ -22,6 +23,7 @@ export function NoteEditorHeader({
   isStatusError = false,
   onRestore,
   dailyWeather,
+  debugKeyId,
 }: NoteEditorHeaderProps) {
   const parsed = parseDate(date);
   const moonEmoji = parsed ? getMoonPhaseEmoji(parsed) : "";
@@ -41,6 +43,11 @@ export function NoteEditorHeader({
         )}
         {showReadonlyBadge && (
           <span className={styles.readonlyBadge}>Read only</span>
+        )}
+        {debugKeyId && (
+          <code className={styles.debugKeyBadge} title={debugKeyId}>
+            {debugKeyId.slice(0, 8)}
+          </code>
         )}
       </div>
       {statusText && (

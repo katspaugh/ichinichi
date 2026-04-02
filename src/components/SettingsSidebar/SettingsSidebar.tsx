@@ -21,6 +21,7 @@ import { useTheme } from "@/hooks/useTheme";
 import type { ThemePreference } from "@/services/themePreferences";
 import { getWeekdayOptions, setWeekStartPreference } from "@/utils/date";
 import { useWeatherContext } from "@/contexts/weatherContext";
+import { DebugKeyringSection } from "./DebugKeyringSection";
 import styles from "./SettingsSidebar.module.css";
 
 interface SettingsSidebarProps {
@@ -36,6 +37,10 @@ interface SettingsSidebarProps {
   onOpenPrivacy?: () => void;
   onWeekStartChange?: () => void;
   onExport?: () => Promise<void>;
+  isDebug?: boolean;
+  keyring?: Map<string, CryptoKey>;
+  activeKeyId?: string | null;
+  userId?: string | null;
 }
 
 type WeatherState = ReturnType<typeof useWeatherContext>["state"];
@@ -436,6 +441,10 @@ export function SettingsSidebar({
   onOpenPrivacy,
   onWeekStartChange,
   onExport,
+  isDebug = false,
+  keyring,
+  activeKeyId,
+  userId,
 }: SettingsSidebarProps) {
   const { theme, setTheme } = useTheme();
   const weather = useWeatherContext();
@@ -549,6 +558,18 @@ export function SettingsSidebar({
             <>
               <div className={styles.separator} />
               <DataSection onExport={onExport} />
+            </>
+          )}
+
+          {isDebug && keyring && (
+            <>
+              <div className={styles.separator} />
+              <DebugKeyringSection
+                keyring={keyring}
+                activeKeyId={activeKeyId ?? null}
+                userId={userId ?? null}
+                isSignedIn={isSignedIn}
+              />
             </>
           )}
 

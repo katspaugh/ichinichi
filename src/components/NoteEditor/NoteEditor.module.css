@@ -88,6 +88,16 @@
   white-space: nowrap;
 }
 
+.debugKeyBadge {
+  font-family: var(--font-family-mono);
+  font-size: 11px;
+  color: var(--color-text-muted);
+  background-color: var(--color-surface-hover);
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+}
+
 .toolbar {
   position: sticky;
   bottom: 0;

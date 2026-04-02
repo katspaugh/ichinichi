@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { DragEvent } from "react";
 import { formatDateDisplay, isToday } from "../../utils/date";
 import { canEditNote } from "../../utils/noteRules";
@@ -10,6 +10,8 @@ import { useImageDragState } from "./useImageDragState";
 import { useDropIndicator } from "./useDropIndicator";
 import { useShareTarget } from "../../hooks/useShareTarget";
 import { useWeatherContext } from "../../contexts/weatherContext";
+import { useDebugMode } from "../../hooks/useDebugMode";
+import { getNoteRecord } from "../../storage/unifiedNoteStore";
 
 interface NoteEditorProps {
   date: string;
@@ -58,6 +60,20 @@ export function NoteEditor({
     isEditable,
     date,
   });
+
+  const isDebug = useDebugMode();
+  const [debugKeyId, setDebugKeyId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!isDebug) {
+      setDebugKeyId(null);
+      return;
+    }
+    let cancelled = false;
+    void getNoteRecord(date).then((record) => {
+      if (!cancelled) setDebugKeyId(record?.keyId ?? null);
+    });
+    return () => { cancelled = true; };
+  }, [isDebug, date, isContentReady]);
 
   const { isDraggingImage, endImageDrag } = useImageDragState();
   const weather = useWeatherContext();
@@ -143,6 +159,7 @@ export function NoteEditor({
       dropIndicatorPosition={indicatorPosition}
       footer={null}
       dailyWeather={weatherState.showWeather && isToday(date) ? weatherState.dailyWeather : null}
+      debugKeyId={debugKeyId}
     />
   );
 }

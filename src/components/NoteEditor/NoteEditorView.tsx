@@ -38,6 +38,7 @@ interface NoteEditorViewProps {
   dropIndicatorPosition?: DropIndicatorPosition | null;
   footer?: ReactNode;
   dailyWeather?: DailyWeatherData | null;
+  debugKeyId?: string | null;
 }
 
 export function NoteEditorView({
@@ -62,6 +63,7 @@ export function NoteEditorView({
   dropIndicatorPosition,
   footer,
   dailyWeather,
+  debugKeyId,
 }: NoteEditorViewProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bodyClassName = styles.body;
@@ -107,6 +109,7 @@ export function NoteEditorView({
         isStatusError={isStatusError}
         onRestore={onRestore}
         dailyWeather={dailyWeather}
+        debugKeyId={debugKeyId}
       />
       <div className={bodyClassName}>
         <NoteEditorContent
