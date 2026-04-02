@@ -1,102 +1,45 @@
-import { useState, useEffect, useCallback } from "react";
-import { Key, Check, AlertCircle } from "lucide-react";
+import { useState, useCallback } from "react";
+import { Key, Check } from "lucide-react";
 import { Button } from "../Button";
 import { Modal } from "../Modal";
 import { VaultPanel } from "../VaultPanel";
-import { fetchUserKeyring } from "../../storage/userKeyring";
-import { listLocalKeyIds } from "../../storage/localKeyring";
-import { rewrapCloudKeyring } from "../../services/vaultService";
-import { supabase } from "../../lib/supabase";
+import type { DebugKeyInfo } from "../../hooks/useDebugKeyring";
 import styles from "./SettingsSidebar.module.css";
 import formStyles from "../VaultPanel/VaultPanel.module.css";
 import debugStyles from "./DebugKeyringSection.module.css";
 
 interface DebugKeyringSectionProps {
-  keyring: Map<string, CryptoKey>;
-  activeKeyId: string | null;
-  userId: string | null;
+  keys: DebugKeyInfo[];
   isSignedIn: boolean;
+  rewrapStatus: "idle" | "rewrapping" | "success" | "error";
+  rewrapError: string | null;
+  onRewrap: (password: string) => Promise<void>;
+  onResetRewrapStatus: () => void;
 }
 
-interface KeyInfo {
-  keyId: string;
-  inLocal: boolean;
-  inCloud: boolean;
-  isPrimary: boolean;
+function typeLabel(info: DebugKeyInfo): string {
+  if (info.inLocal && info.inCloud) return "both";
+  if (info.inLocal) return "local";
+  if (info.inCloud) return "cloud";
+  return "memory";
 }
 
 export function DebugKeyringSection({
-  keyring,
-  activeKeyId,
-  userId,
+  keys,
   isSignedIn,
+  rewrapStatus,
+  rewrapError,
+  onRewrap,
+  onResetRewrapStatus,
 }: DebugKeyringSectionProps) {
-  const [cloudKeyIds, setCloudKeyIds] = useState<Set<string>>(new Set());
-  const [localKeyIds, setLocalKeyIds] = useState<Set<string>>(new Set());
   const [rewrapOpen, setRewrapOpen] = useState(false);
   const [password, setPassword] = useState("");
-  const [rewrapStatus, setRewrapStatus] = useState<
-    "idle" | "rewrapping" | "success" | "error"
-  >("idle");
-  const [rewrapError, setRewrapError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setLocalKeyIds(new Set(listLocalKeyIds()));
-  }, [keyring]);
-
-  useEffect(() => {
-    if (!isSignedIn || !userId) return;
-    let cancelled = false;
-    void fetchUserKeyring(supabase, userId).then((entries) => {
-      if (!cancelled) {
-        setCloudKeyIds(new Set(entries.map((e) => e.keyId)));
-      }
-    });
-    return () => { cancelled = true; };
-  }, [isSignedIn, userId, keyring, rewrapStatus]);
-
-  const keys: KeyInfo[] = [];
-  for (const [keyId] of keyring.entries()) {
-    if (keyId === "legacy") continue;
-    keys.push({
-      keyId,
-      inLocal: localKeyIds.has(keyId),
-      inCloud: cloudKeyIds.has(keyId),
-      isPrimary: keyId === activeKeyId,
-    });
-  }
 
   const handleRewrap = useCallback(async () => {
-    if (!password || !userId) return;
-    setRewrapStatus("rewrapping");
-    setRewrapError(null);
-    try {
-      const keysToSync = new Map<string, CryptoKey>();
-      for (const [keyId, key] of keyring.entries()) {
-        if (keyId !== "legacy") keysToSync.set(keyId, key);
-      }
-      await rewrapCloudKeyring({
-        supabase,
-        userId,
-        newPassword: password,
-        keyring: keysToSync,
-        primaryKeyId: activeKeyId,
-      });
-      setRewrapStatus("success");
-      setPassword("");
-      setRewrapOpen(false);
-    } catch (err) {
-      setRewrapStatus("error");
-      setRewrapError(err instanceof Error ? err.message : "Rewrap failed");
-    }
-  }, [password, userId, keyring, activeKeyId]);
-
-  const typeLabel = (info: KeyInfo) => {
-    if (info.inLocal && info.inCloud) return "both";
-    if (info.inLocal) return "local";
-    if (info.inCloud) return "cloud";
-    return "memory";
-  };
+    await onRewrap(password);
+    setPassword("");
+    setRewrapOpen(false);
+  }, [password, onRewrap]);
 
   return (
     <div className={styles.section}>
@@ -134,7 +77,7 @@ export function DebugKeyringSection({
         )}
       </div>
 
-      {isSignedIn && userId && keys.length > 0 && (
+      {isSignedIn && keys.length > 0 && (
         <>
           <button
             className={styles.actionButton}
@@ -142,8 +85,7 @@ export function DebugKeyringSection({
             onClick={() => {
               setRewrapOpen(true);
               setPassword("");
-              setRewrapStatus("idle");
-              setRewrapError(null);
+              onResetRewrapStatus();
             }}
           >
             <Key className={styles.actionIcon} />
@@ -183,7 +125,7 @@ export function DebugKeyringSection({
                   value={password}
                   onChange={(e) => {
                     setPassword(e.target.value);
-                    if (rewrapStatus === "error") setRewrapStatus("idle");
+                    if (rewrapStatus === "error") onResetRewrapStatus();
                   }}
                   disabled={rewrapStatus === "rewrapping"}
                   required

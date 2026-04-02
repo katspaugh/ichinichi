@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback } from "react";
 import type { DragEvent } from "react";
 import { formatDateDisplay, isToday } from "../../utils/date";
 import { canEditNote } from "../../utils/noteRules";
@@ -10,8 +10,7 @@ import { useImageDragState } from "./useImageDragState";
 import { useDropIndicator } from "./useDropIndicator";
 import { useShareTarget } from "../../hooks/useShareTarget";
 import { useWeatherContext } from "../../contexts/weatherContext";
-import { useDebugMode } from "../../hooks/useDebugMode";
-import { getNoteRecord } from "../../storage/unifiedNoteStore";
+import { useDebugNoteKeyId } from "../../hooks/useDebugNoteKeyId";
 
 interface NoteEditorProps {
   date: string;
@@ -61,19 +60,7 @@ export function NoteEditor({
     date,
   });
 
-  const isDebug = useDebugMode();
-  const [debugKeyId, setDebugKeyId] = useState<string | null>(null);
-  useEffect(() => {
-    if (!isDebug) {
-      setDebugKeyId(null);
-      return;
-    }
-    let cancelled = false;
-    void getNoteRecord(date).then((record) => {
-      if (!cancelled) setDebugKeyId(record?.keyId ?? null);
-    });
-    return () => { cancelled = true; };
-  }, [isDebug, date, isContentReady]);
+  const debugKeyId = useDebugNoteKeyId(date, isContentReady);
 
   const { isDraggingImage, endImageDrag } = useImageDragState();
   const weather = useWeatherContext();

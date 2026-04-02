@@ -28,6 +28,7 @@ import { RoutingProvider } from "./contexts/RoutingProvider";
 import { WeatherProvider } from "./contexts/WeatherProvider";
 import { getTodayString, parseDate } from "./utils/date";
 import { useDebugMode } from "./hooks/useDebugMode";
+import { useDebugKeyring } from "./hooks/useDebugKeyring";
 import calendarStyles from "./components/Calendar/Calendar.module.css";
 
 function getLatestNoteInMonth(
@@ -58,6 +59,7 @@ function App() {
   const { routing, auth, appMode, activeVault, notes } = useAppController();
   const { needRefresh, updateServiceWorker, dismissUpdate } = usePWA();
   const isDebug = useDebugMode();
+  const debugKeyring = useDebugKeyring(activeVault.keyring, activeVault.activeKeyId, auth.user?.id ?? null, auth.authState === AuthState.SignedIn);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
@@ -325,10 +327,7 @@ function App() {
                   onOpenPrivacy={handleOpenPrivacy}
                   onWeekStartChange={handleWeekStartChange}
                   onExport={notes.repository ? handleExport : undefined}
-                  isDebug={isDebug}
-                  keyring={activeVault.keyring}
-                  activeKeyId={activeVault.activeKeyId}
-                  userId={auth.user?.id}
+                  debugKeyring={isDebug ? debugKeyring : undefined}
                 />
 
                 <AppModals />

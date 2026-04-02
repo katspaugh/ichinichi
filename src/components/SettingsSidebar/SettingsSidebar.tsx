@@ -22,6 +22,7 @@ import type { ThemePreference } from "@/services/themePreferences";
 import { getWeekdayOptions, setWeekStartPreference } from "@/utils/date";
 import { useWeatherContext } from "@/contexts/weatherContext";
 import { DebugKeyringSection } from "./DebugKeyringSection";
+import type { UseDebugKeyringReturn } from "../../hooks/useDebugKeyring";
 import styles from "./SettingsSidebar.module.css";
 
 interface SettingsSidebarProps {
@@ -37,10 +38,7 @@ interface SettingsSidebarProps {
   onOpenPrivacy?: () => void;
   onWeekStartChange?: () => void;
   onExport?: () => Promise<void>;
-  isDebug?: boolean;
-  keyring?: Map<string, CryptoKey>;
-  activeKeyId?: string | null;
-  userId?: string | null;
+  debugKeyring?: UseDebugKeyringReturn | null;
 }
 
 type WeatherState = ReturnType<typeof useWeatherContext>["state"];
@@ -441,10 +439,7 @@ export function SettingsSidebar({
   onOpenPrivacy,
   onWeekStartChange,
   onExport,
-  isDebug = false,
-  keyring,
-  activeKeyId,
-  userId,
+  debugKeyring,
 }: SettingsSidebarProps) {
   const { theme, setTheme } = useTheme();
   const weather = useWeatherContext();
@@ -561,14 +556,16 @@ export function SettingsSidebar({
             </>
           )}
 
-          {isDebug && keyring && (
+          {debugKeyring && (
             <>
               <div className={styles.separator} />
               <DebugKeyringSection
-                keyring={keyring}
-                activeKeyId={activeKeyId ?? null}
-                userId={userId ?? null}
+                keys={debugKeyring.keys}
                 isSignedIn={isSignedIn}
+                rewrapStatus={debugKeyring.rewrapStatus}
+                rewrapError={debugKeyring.rewrapError}
+                onRewrap={debugKeyring.rewrap}
+                onResetRewrapStatus={debugKeyring.resetRewrapStatus}
               />
             </>
           )}
