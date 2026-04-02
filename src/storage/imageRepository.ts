@@ -70,7 +70,7 @@ export function createImageRepository(deps: ImageRepositoryDeps): ImageRepositor
         void bytes;
         return null;
       } catch (err) {
-        reportError(err as Error);
+        reportError('imageRepository.getImage', err);
         return null;
       }
     },
