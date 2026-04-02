@@ -119,6 +119,36 @@ describe("authReducer", () => {
     expect(next.session).toBeNull();
   });
 
+  it("SESSION_CHANGED with null during signingOut keeps phase", () => {
+    const state = makeInitialState({
+      phase: "signingOut",
+      session: fakeSession,
+      authState: AuthState.SignedIn,
+      dek: fakeDek,
+      keyId: "key-1",
+    });
+    const next = authReducer(state, { type: "SESSION_CHANGED", session: null });
+    expect(next.phase).toBe("signingOut"); // not idle — effect still cleaning up
+    expect(next.dek).toBeNull();
+    expect(next.keyId).toBeNull();
+    expect(next.authState).toBe(AuthState.SignedOut);
+  });
+
+  it("SIGN_OUT_COMPLETE → idle, clears all state", () => {
+    const state = makeInitialState({
+      phase: "signingOut",
+      session: fakeSession,
+      authState: AuthState.SignedIn,
+      isBusy: true,
+    });
+    const next = authReducer(state, { type: "SIGN_OUT_COMPLETE" });
+    expect(next.phase).toBe("idle");
+    expect(next.isBusy).toBe(false);
+    expect(next.session).toBeNull();
+    expect(next.authState).toBe(AuthState.SignedOut);
+    expect(next.dek).toBeNull();
+  });
+
   it("SIGN_OUT from idle → signingOut, isBusy true", () => {
     const state = makeInitialState();
     const next = authReducer(state, { type: "SIGN_OUT" });

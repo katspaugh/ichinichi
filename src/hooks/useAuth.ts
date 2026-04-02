@@ -79,6 +79,7 @@ export type AuthEvent =
   | { type: "SIGN_IN"; email: string; password: string }
   | { type: "SIGN_UP"; email: string; password: string }
   | { type: "SIGN_OUT" }
+  | { type: "SIGN_OUT_COMPLETE" }
   | { type: "AUTH_ERROR"; message: string }
   | { type: "CLEAR_ERROR" }
   | { type: "PASSWORD_RECOVERY" }
@@ -164,10 +165,20 @@ export function authReducer(
 
       // Null session: clear DEK state
       if (!event.session) {
+        // Keep signingOut phase so the effect can finish cleanup
+        if (state.phase === "signingOut") {
+          return {
+            ...state,
+            ...sessionUpdate,
+            dek: null,
+            keyId: null,
+            dekInput: null,
+          };
+        }
         return {
           ...state,
           ...sessionUpdate,
-          phase: state.phase === "bootstrapping" ? "idle" : "idle",
+          phase: "idle",
           isBusy: false,
           dek: null,
           keyId: null,
@@ -247,6 +258,20 @@ export function authReducer(
         error: null,
         isBusy: true,
         signUpInput: { email: event.email, password: event.password },
+      };
+
+    case "SIGN_OUT_COMPLETE":
+      return {
+        ...state,
+        phase: "idle",
+        isBusy: false,
+        dek: null,
+        keyId: null,
+        dekInput: null,
+        signInInput: null,
+        signUpInput: null,
+        session: null,
+        authState: AuthState.SignedOut,
       };
 
     case "SIGN_OUT":
@@ -484,7 +509,7 @@ export function useAuth(): UseAuthReturn {
           } catch (e) {
             reportError("useAuth.signOut.clearCache", e);
           }
-          dispatch({ type: "SESSION_CHANGED", session: null });
+          dispatch({ type: "SIGN_OUT_COMPLETE" });
         }
       }
     };
