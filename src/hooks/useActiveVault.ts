@@ -64,6 +64,8 @@ export function useActiveVault({
     localKeyring: state.context.localKeyring,
   });
 
+  const prevUserIdRef = useRef<string | null>(null);
+
   useEffect(() => {
     send({
       type: "INPUTS_CHANGED",
@@ -75,7 +77,11 @@ export function useActiveVault({
       cloudPrimaryKeyId: cloudVault.primaryKeyId,
       localKeyring: state.context.localKeyring,
     });
-    void handleCloudAccountSwitch(auth.user?.id ?? null);
+    const userId = auth.user?.id ?? null;
+    if (userId !== prevUserIdRef.current) {
+      prevUserIdRef.current = userId;
+      void handleCloudAccountSwitch(userId);
+    }
   }, [
     send,
     vaultService,

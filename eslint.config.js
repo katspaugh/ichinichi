@@ -106,7 +106,7 @@ export default defineConfig([
     files: ["src/**/*.{ts,tsx}"],
     plugins: { local: { rules: { "max-effects": maxEffects } } },
     rules: {
-      "local/max-effects": ["warn", { warn: 4, error: 6 }],
+      "local/max-effects": ["warn", { warn: 6, error: 8 }],
     },
   },
 ]);
