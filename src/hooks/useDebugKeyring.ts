@@ -45,9 +45,9 @@ export function useDebugKeyring(
   const [reencryptStatus, setReencryptStatus] = useState<ActionStatus>("idle");
   const [reencryptResult, setReencryptResult] = useState<string | null>(null);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- keyring identity change signals new keys
   const localKeyIds = useMemo(
     () => new Set(listLocalKeyIds()),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyring identity change signals new keys
     [keyring],
   );
 

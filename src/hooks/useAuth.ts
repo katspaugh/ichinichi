@@ -210,27 +210,25 @@ export function useAuth(): UseAuthReturn {
   const online = useConnectivity();
   const [state, dispatch] = useReducer(authReducer, initialState);
 
-  // Parse auth errors from URL hash (e.g. expired reset links)
+  // Bootstrap: parse hash errors + getSession + onAuthStateChange
   useEffect(() => {
     const hash = window.location.hash;
-    if (!hash.includes("error_description=")) return;
-    const params = new URLSearchParams(hash.replace(/^#/, ""));
-    const description = params.get("error_description");
-    if (description) {
-      dispatch({
-        type: "HASH_ERROR",
-        message: description.replace(/\+/g, " "),
-      });
-      window.history.replaceState(
-        {},
-        "",
-        window.location.pathname + window.location.search,
-      );
+    if (hash.includes("error_description=")) {
+      const params = new URLSearchParams(hash.replace(/^#/, ""));
+      const description = params.get("error_description");
+      if (description) {
+        dispatch({
+          type: "HASH_ERROR",
+          message: description.replace(/\+/g, " "),
+        });
+        window.history.replaceState(
+          {},
+          "",
+          window.location.pathname + window.location.search,
+        );
+      }
     }
-  }, []);
 
-  // Bootstrap: getSession + onAuthStateChange listener
-  useEffect(() => {
     let cancelled = false;
 
     const start = async () => {
@@ -262,134 +260,115 @@ export function useAuth(): UseAuthReturn {
     };
   }, []);
 
-  // Forward online changes
+  // Forward online changes + validate session on reconnect
   useEffect(() => {
     dispatch({ type: "INPUTS_CHANGED", online });
-  }, [online]);
-
-  // Session validation on reconnect
-  useEffect(() => {
     if (state.session && online && !state.isBusy) {
       dispatch({
         type: "SESSION_VALIDATED",
         session: state.session,
       });
     }
-  }, [state.session, state.isBusy, online]);
+  }, [online, state.session, state.isBusy]);
 
-  // Sign in effect
+  // Phase-driven auth operations (sign in / sign up / sign out)
   useEffect(() => {
-    if (state.phase !== "signingIn" || !state.signInInput) return;
+    if (state.phase === "signingIn" && state.signInInput) {
+      let cancelled = false;
+      const { email, password } = state.signInInput;
 
-    let cancelled = false;
-    const { email, password } = state.signInInput;
-
-    const run = async () => {
-      try {
-        const { data, error } =
-          await supabase.auth.signInWithPassword({ email, password });
-        if (cancelled) return;
-        if (error) {
+      const run = async () => {
+        try {
+          const { data, error } =
+            await supabase.auth.signInWithPassword({ email, password });
+          if (cancelled) return;
+          if (error) {
+            dispatch({
+              type: "AUTH_ERROR",
+              message: formatAuthError(error),
+            });
+          } else {
+            dispatch({
+              type: "SESSION_CHANGED",
+              session: data.session ?? null,
+            });
+          }
+        } catch (error) {
+          if (cancelled) return;
           dispatch({
             type: "AUTH_ERROR",
-            message: formatAuthError(error),
+            message:
+              error instanceof Error
+                ? error.message
+                : "Unable to sign in.",
           });
-        } else {
+        }
+      };
+
+      void run();
+      return () => { cancelled = true; };
+    }
+
+    if (state.phase === "signingUp" && state.signUpInput) {
+      let cancelled = false;
+      const { email, password } = state.signUpInput;
+
+      const run = async () => {
+        try {
+          const { data, error } = await supabase.auth.signUp({
+            email,
+            password,
+          });
+          if (cancelled) return;
+          if (error) {
+            dispatch({
+              type: "AUTH_ERROR",
+              message: formatAuthError(error),
+            });
+            return;
+          }
           dispatch({
             type: "SESSION_CHANGED",
             session: data.session ?? null,
           });
-        }
-      } catch (error) {
-        if (cancelled) return;
-        dispatch({
-          type: "AUTH_ERROR",
-          message:
-            error instanceof Error
-              ? error.message
-              : "Unable to sign in.",
-        });
-      }
-    };
-
-    void run();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [state.phase, state.signInInput]);
-
-  // Sign up effect
-  useEffect(() => {
-    if (state.phase !== "signingUp" || !state.signUpInput) return;
-
-    let cancelled = false;
-    const { email, password } = state.signUpInput;
-
-    const run = async () => {
-      try {
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-        });
-        if (cancelled) return;
-        if (error) {
+        } catch (error) {
+          if (cancelled) return;
           dispatch({
             type: "AUTH_ERROR",
-            message: formatAuthError(error),
+            message:
+              error instanceof Error
+                ? error.message
+                : "Unable to sign up.",
           });
-          return;
         }
-        dispatch({
-          type: "SESSION_CHANGED",
-          session: data.session ?? null,
-        });
-      } catch (error) {
-        if (cancelled) return;
-        dispatch({
-          type: "AUTH_ERROR",
-          message:
-            error instanceof Error
-              ? error.message
-              : "Unable to sign up.",
-        });
-      }
-    };
+      };
 
-    void run();
+      void run();
+      return () => { cancelled = true; };
+    }
 
-    return () => {
-      cancelled = true;
-    };
-  }, [state.phase, state.signUpInput]);
+    if (state.phase === "signingOut") {
+      let cancelled = false;
 
-  // Sign out effect
-  useEffect(() => {
-    if (state.phase !== "signingOut") return;
-
-    let cancelled = false;
-
-    const run = async () => {
-      try {
-        const { error } = await supabase.auth.signOut({
-          scope: "local",
-        });
-        if (isSessionMissingError(error)) {
-          await supabase.auth.getUser();
+      const run = async () => {
+        try {
+          const { error } = await supabase.auth.signOut({
+            scope: "local",
+          });
+          if (isSessionMissingError(error)) {
+            await supabase.auth.getUser();
+          }
+        } finally {
+          if (!cancelled) {
+            dispatch({ type: "SESSION_CHANGED", session: null });
+          }
         }
-      } finally {
-        if (!cancelled) {
-          dispatch({ type: "SESSION_CHANGED", session: null });
-        }
-      }
-    };
+      };
 
-    void run();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [state.phase]);
+      void run();
+      return () => { cancelled = true; };
+    }
+  }, [state.phase, state.signInInput, state.signUpInput]);
 
   const signUp = useCallback(
     (email: string, password: string) => {
