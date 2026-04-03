@@ -75,17 +75,13 @@ export function useUrlState({ authState, mode }: UseUrlStateProps) {
     return state;
   }, [isAuthGated, state]);
 
-  // Track if we're gated to skip initial redirect
+  // Sync refs for state and auth-gate tracking
   useEffect(() => {
     stateRef.current = state;
-  }, [state]);
-
-  // Handle browser back/forward navigation
-  useEffect(() => {
     if (isAuthGated) {
       skippedRedirectRef.current = true;
     }
-  }, [isAuthGated]);
+  }, [state, isAuthGated]);
 
   // Handle browser back/forward navigation
   useEffect(() => {

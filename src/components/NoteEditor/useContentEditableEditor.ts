@@ -250,15 +250,6 @@ export function useContentEditableEditor({
     onChangeRef.current(html);
   }, []);
 
-  useEffect(() => {
-    if (showWeather) return;
-    const el = editorRef.current;
-    if (!el) return;
-    if (clearWeatherFromEditor?.(el)) {
-      syncEditorContent();
-    }
-  }, [content, showWeather, clearWeatherFromEditor, syncEditorContent]);
-
   const insertTimestampHrIfNeeded = useCallback(() => {
     const el = editorRef.current;
     if (!el) return;
@@ -489,82 +480,70 @@ export function useContentEditableEditor({
 
   useEffect(() => {
     isEditableRef.current = isEditable;
-  }, [isEditable]);
-
-  useEffect(() => {
     onChangeRef.current = onChange;
     onUserInputRef.current = onUserInput;
     onImageDropRef.current = onImageDrop;
     onDropCompleteRef.current = onDropComplete;
-  }, [onChange, onUserInput, onImageDrop, onDropComplete]);
+  }, [isEditable, onChange, onUserInput, onImageDrop, onDropComplete]);
 
   useEffect(() => {
     const el = editorRef.current;
-    if (!el) return;
-    el.setAttribute("data-placeholder", placeholderText);
+    if (el) {
+      el.setAttribute("data-placeholder", placeholderText);
+    }
   }, [placeholderText]);
 
+  // Content sync + weather clearing + auto-focus
   useEffect(() => {
     const el = editorRef.current;
     if (!el) return;
-    // Skip innerHTML update if this content change came from local user input
-    // This prevents scroll jumps on mobile caused by re-setting innerHTML
+
+    // Clear weather widget if needed
+    if (!showWeather && clearWeatherFromEditor?.(el)) {
+      syncEditorContent();
+    }
+
+    // Content sync
     if (isLocalEditRef.current) {
       isLocalEditRef.current = false;
       lastContentRef.current = content || "";
       updateEmptyState();
-      return;
-    }
-    // Skip external content reset while images are uploading to avoid
-    // disconnecting placeholder elements from the DOM
-    if (uploadInProgressRef.current > 0) {
-      return;
-    }
-    // Skip external updates while user is actively editing to prevent
-    // stale async reads (reloadFromLocal/refreshFromRemote) from
-    // overwriting the DOM and jumping the cursor.
-    if (
+    } else if (uploadInProgressRef.current > 0) {
+      // Skip external content reset while images are uploading
+    } else if (
       lastHandleInputRef.current &&
       Date.now() - lastHandleInputRef.current < ACTIVE_EDITING_GRACE_MS
     ) {
-      return;
-    }
-    if (content === lastContentRef.current) {
+      // Skip external updates while user is actively editing
+    } else if (content === lastContentRef.current) {
       updateEmptyState();
       updateTimestampLabels(el);
       applySectionColors(el);
       applyFavicons(el);
-      return;
+    } else {
+      const nextContent = content || "";
+      if (nextContent === el.innerHTML) {
+        lastContentRef.current = nextContent;
+        updateEmptyState();
+        updateTimestampLabels(el);
+        applySectionColors(el);
+        applyFavicons(el);
+      } else {
+        const savedCursor = saveResilientCursorPosition(el);
+        isProgrammaticUpdateRef.current = true;
+        el.innerHTML = nextContent; // Sanitized content from our own store
+        lastContentRef.current = nextContent;
+        lastEditedBlockRef.current = null;
+        updateEmptyState();
+        updateTimestampLabels(el);
+        applySectionColors(el);
+        applyFavicons(el);
+        restoreResilientCursorPosition(el, savedCursor);
+        isProgrammaticUpdateRef.current = false;
+      }
     }
-    const nextContent = content || "";
-    if (nextContent === el.innerHTML) {
-      lastContentRef.current = nextContent;
-      updateEmptyState();
-      updateTimestampLabels(el);
-      applySectionColors(el);
-      applyFavicons(el);
-      return;
-    }
-    // Save cursor as a path so it survives DOM replacement
-    const savedCursor = saveResilientCursorPosition(el);
-    // Guard against synthetic input/beforeinput events that mobile
-    // browsers may fire when innerHTML is set programmatically.
-    isProgrammaticUpdateRef.current = true;
-    el.innerHTML = nextContent; // Sanitized content from our own store
-    lastContentRef.current = nextContent;
-    // Reset stale DOM ref — old nodes are detached after innerHTML set
-    lastEditedBlockRef.current = null;
-    updateEmptyState();
-    updateTimestampLabels(el);
-    applySectionColors(el);
-    applyFavicons(el);
-    restoreResilientCursorPosition(el, savedCursor);
-    isProgrammaticUpdateRef.current = false;
-  }, [content, updateEmptyState, updateTimestampLabels]);
 
-  useEffect(() => {
-    const el = editorRef.current;
-    if (!el) return;
+    // Auto-focus
     if (!isEditable) {
       hasAutoFocusedRef.current = false;
       return;
@@ -575,8 +554,6 @@ export function useContentEditableEditor({
     const hasContent = content.trim().length > 0;
     if (isMobile && hasContent) {
       hasAutoFocusedRef.current = true;
-      // Prime lastEditedBlockRef so first mobile tap doesn't trigger
-      // the "first edit of session" path and insert HR at wrong position
       const blocks = el.querySelectorAll("p, div");
       const lastBlock = blocks[blocks.length - 1];
       lastEditedBlockRef.current = lastBlock ?? el;
@@ -588,23 +565,16 @@ export function useContentEditableEditor({
     const hasImages = el.querySelector("img") !== null;
     if (hasText || hasImages) {
       placeCaretAtEnd(el);
-
-      // Prime lastEditedBlockRef to the last block element.
-      // This ensures that if the user presses Enter to create a new block,
-      // it will be detected as a block change (enabling timestamp insertion).
-      // Look for the last P or DIV, not just the last child (which might be an HR).
       const blocks = el.querySelectorAll("p, div");
       const lastBlock = blocks[blocks.length - 1];
       if (lastBlock) {
         lastEditedBlockRef.current = lastBlock;
       } else {
-        // No blocks found, use the editor itself as fallback
-        // This prevents the first-edit path from inserting at the beginning
         lastEditedBlockRef.current = el;
       }
     }
     hasAutoFocusedRef.current = true;
-  }, [content, isEditable]);
+  }, [content, isEditable, showWeather, clearWeatherFromEditor, syncEditorContent, updateEmptyState, updateTimestampLabels]);
 
   const handleInput = useCallback(() => {
     if (!isEditableRef.current) return;

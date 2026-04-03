@@ -64,6 +64,8 @@ export function useActiveVault({
     localKeyring: state.context.localKeyring,
   });
 
+  const prevUserIdRef = useRef<string | null>(null);
+
   useEffect(() => {
     send({
       type: "INPUTS_CHANGED",
@@ -75,6 +77,11 @@ export function useActiveVault({
       cloudPrimaryKeyId: cloudVault.primaryKeyId,
       localKeyring: state.context.localKeyring,
     });
+    const userId = auth.user?.id ?? null;
+    if (userId !== prevUserIdRef.current) {
+      prevUserIdRef.current = userId;
+      void handleCloudAccountSwitch(userId);
+    }
   }, [
     send,
     vaultService,
@@ -85,10 +92,6 @@ export function useActiveVault({
     cloudVault.primaryKeyId,
     state.context.localKeyring,
   ]);
-
-  useEffect(() => {
-    void handleCloudAccountSwitch(auth.user?.id ?? null);
-  }, [auth.user?.id]);
 
   // Cloud keyring fetched after device-only unlock (keys from other devices).
   const [fetchedCloudKeys, setFetchedCloudKeys] = useState<Map<string, CryptoKey>>(new Map());
@@ -125,44 +128,28 @@ export function useActiveVault({
     ? (mergedKeyring.get(activeKeyId) ?? null)
     : null;
 
-  // On session restore, retrieve device-encrypted password so we can
-  // re-wrap the cloud keyring even without the user typing their password.
+  // On session restore, retrieve device-encrypted password and fetch
+  // cloud keyring so keys from other devices are available for decryption.
   const [devicePassword, setDevicePassword] = useState<string | null>(null);
-  useEffect(() => {
-    if (
-      mode !== AppMode.Cloud ||
-      !auth.user ||
-      authPassword ||
-      !cloudVault.isReady
-    ) {
-      return;
-    }
-    let cancelled = false;
-    void tryGetDeviceEncryptedPassword().then((pw) => {
-      if (!cancelled && pw) setDevicePassword(pw);
-    });
-    return () => { cancelled = true; };
-  }, [mode, auth.user, authPassword, cloudVault.isReady]);
-
-  // After device-only unlock, fetch the full cloud keyring so keys from
-  // other devices (e.g. a PWA installation) are available for decryption.
   const hasFetchedCloudKeysRef = useRef<string | null>(null);
   useEffect(() => {
-    if (mode !== AppMode.Cloud || !auth.user || !devicePassword || !cloudVault.isReady) return;
-    // Password unlock already fetches all keys — only needed after device unlock.
-    if (authPassword) return;
-
-    const cacheKey = `${auth.user.id}:${devicePassword}`;
-    if (hasFetchedCloudKeysRef.current === cacheKey) return;
-    hasFetchedCloudKeysRef.current = cacheKey;
+    if (mode !== AppMode.Cloud || !auth.user || authPassword || !cloudVault.isReady) return;
 
     let cancelled = false;
     void (async () => {
+      const pw = await tryGetDeviceEncryptedPassword();
+      if (cancelled || !pw) return;
+      setDevicePassword(pw);
+
+      const cacheKey = `${auth.user!.id}:${pw}`;
+      if (hasFetchedCloudKeysRef.current === cacheKey) return;
+      hasFetchedCloudKeysRef.current = cacheKey;
+
       try {
         const result = await fetchAndUnwrapCloudKeyring({
           supabase,
           userId: auth.user!.id,
-          password: devicePassword,
+          password: pw,
         });
         if (cancelled) return;
         if (result.keyring.size) {
@@ -176,15 +163,7 @@ export function useActiveVault({
       }
     })();
     return () => { cancelled = true; };
-  }, [mode, auth.user, devicePassword, authPassword, cloudVault.isReady]);
-
-  // Persist auth password device-encrypted whenever it changes.
-  useEffect(() => {
-    if (authPassword) {
-      void storeDeviceEncryptedPassword(authPassword);
-    }
-  }, [authPassword]);
-
+  }, [mode, auth.user, authPassword, cloudVault.isReady]);
 
   // For device-only unlock (no typed password), wait for cloud key fetch
   // to complete before reporting ready — otherwise notes from other devices
@@ -214,6 +193,13 @@ export function useActiveVault({
 
   const pendingPasswordRef = useRef<string | null>(null);
 
+  // Persist auth password device-encrypted whenever it changes
+  useEffect(() => {
+    if (authPassword) {
+      void storeDeviceEncryptedPassword(authPassword);
+    }
+  }, [authPassword]);
+
   // Set authPassword + switch to Cloud only after auth actually succeeds
   useEffect(() => {
     if (auth.authState === AuthState.SignedIn && pendingPasswordRef.current) {
@@ -225,7 +211,6 @@ export function useActiveVault({
       !auth.isBusy &&
       pendingPasswordRef.current
     ) {
-      // Auth failed — clear pending password
       pendingPasswordRef.current = null;
     }
   }, [auth.authState, auth.isBusy, setMode]);

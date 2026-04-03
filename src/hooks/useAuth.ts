@@ -210,27 +210,25 @@ export function useAuth(): UseAuthReturn {
   const online = useConnectivity();
   const [state, dispatch] = useReducer(authReducer, initialState);
 
-  // Parse auth errors from URL hash (e.g. expired reset links)
+  // Bootstrap: parse hash errors + getSession + onAuthStateChange
   useEffect(() => {
     const hash = window.location.hash;
-    if (!hash.includes("error_description=")) return;
-    const params = new URLSearchParams(hash.replace(/^#/, ""));
-    const description = params.get("error_description");
-    if (description) {
-      dispatch({
-        type: "HASH_ERROR",
-        message: description.replace(/\+/g, " "),
-      });
-      window.history.replaceState(
-        {},
-        "",
-        window.location.pathname + window.location.search,
-      );
+    if (hash.includes("error_description=")) {
+      const params = new URLSearchParams(hash.replace(/^#/, ""));
+      const description = params.get("error_description");
+      if (description) {
+        dispatch({
+          type: "HASH_ERROR",
+          message: description.replace(/\+/g, " "),
+        });
+        window.history.replaceState(
+          {},
+          "",
+          window.location.pathname + window.location.search,
+        );
+      }
     }
-  }, []);
 
-  // Bootstrap: getSession + onAuthStateChange listener
-  useEffect(() => {
     let cancelled = false;
 
     const start = async () => {
@@ -262,20 +260,18 @@ export function useAuth(): UseAuthReturn {
     };
   }, []);
 
-  // Forward online changes
+  // Forward online changes + validate session on reconnect
   useEffect(() => {
-    dispatch({ type: "INPUTS_CHANGED", online });
-  }, [online]);
-
-  // Session validation on reconnect
-  useEffect(() => {
+    if (state.online !== online) {
+      dispatch({ type: "INPUTS_CHANGED", online });
+    }
     if (state.session && online && !state.isBusy) {
       dispatch({
         type: "SESSION_VALIDATED",
         session: state.session,
       });
     }
-  }, [state.session, state.isBusy, online]);
+  }, [online, state.online, state.session, state.isBusy]);
 
   // Sign in effect
   useEffect(() => {
