@@ -12,7 +12,7 @@ import { useShareTarget } from "../../hooks/useShareTarget";
 import { useWeatherContext } from "../../contexts/weatherContext";
 import { useServiceContext } from "../../contexts/serviceContext";
 import type { SavedWeather } from "../../types";
-import type { DailyWeatherData } from "../../features/weather/WeatherRepository";
+import type { DailyWeatherData } from "../../domain/weather/WeatherRepository";
 import { useDebugNoteKeyId } from "../../hooks/useDebugNoteKeyId";
 
 interface NoteEditorProps {
@@ -100,6 +100,11 @@ export function NoteEditor({
     return null;
   }, [date, liveWeather, storedWeather, weatherState.showWeather]);
 
+  const weatherLabel = useMemo(() => {
+    if (!displayWeather) return null;
+    return weather.formatWeatherLabel(displayWeather);
+  }, [displayWeather, weather]);
+
   const { onImageDrop } = useInlineImageUpload({
     date,
     isEditable,
@@ -179,7 +184,7 @@ export function NoteEditor({
       isDraggingImage={isDraggingImage}
       dropIndicatorPosition={indicatorPosition}
       footer={null}
-      dailyWeather={displayWeather}
+      weatherLabel={weatherLabel}
       debugKeyId={debugKeyId}
     />
   );

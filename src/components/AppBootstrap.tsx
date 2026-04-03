@@ -2,7 +2,7 @@ import { useLayoutEffect, useSyncExternalStore } from "react";
 import App from "../App";
 import { Calendar } from "./Calendar";
 import { ServiceProvider } from "../contexts/ServiceProvider";
-import { supabase } from "../lib/supabase";
+import { supabase } from "../services/supabase";
 
 interface AppBootstrapProps {
   shouldHydrate: boolean;

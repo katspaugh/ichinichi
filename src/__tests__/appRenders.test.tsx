@@ -2,10 +2,10 @@
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import App from "../App";
 import { ServiceProvider } from "../contexts/ServiceProvider";
-import { supabase } from "../lib/supabase";
+import { supabase } from "../services/supabase";
 
 // Mock Supabase client
-vi.mock("../lib/supabase", () => ({
+vi.mock("../services/supabase", () => ({
   supabase: {
     auth: {
       getSession: vi.fn(async () => ({

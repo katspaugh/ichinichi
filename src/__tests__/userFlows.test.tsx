@@ -19,7 +19,7 @@ import {
 } from "@testing-library/react";
 import App from "../App";
 import { ServiceProvider } from "../contexts/ServiceProvider";
-import { supabase } from "../lib/supabase";
+import { supabase } from "../services/supabase";
 import { closeUnifiedDb } from "../storage/unifiedDb";
 import { getAllAccountDbNames } from "../storage/accountStore";
 import { closeVaultDb } from "../storage/vault";
@@ -32,7 +32,7 @@ const SAVE_IDLE_DELAY_MS = 500;
 // Supabase Mock
 // ============================================================================
 
-vi.mock("../lib/supabase", () => ({
+vi.mock("../services/supabase", () => ({
   supabase: {
     auth: {
       getSession: vi.fn(async () => ({

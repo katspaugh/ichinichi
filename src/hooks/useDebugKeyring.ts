@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { fetchUserKeyring } from "../storage/userKeyring";
 import { listLocalKeyIds } from "../storage/localKeyring";
 import { rewrapCloudKeyring, cleanupUnusedKeys, reencryptCloudNotes } from "../services/vaultService";
-import { supabase } from "../lib/supabase";
+import { supabase } from "../services/supabase";
 
 export interface DebugKeyInfo {
   keyId: string;

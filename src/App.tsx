@@ -15,7 +15,7 @@ import { PrivacyPolicyModal } from "./components/AppModals/PrivacyPolicyModal";
 import { ResetPasswordModal } from "./components/AppModals/ResetPasswordModal";
 import { AuthErrorModal } from "./components/AppModals/AuthErrorModal";
 import { AuthState } from "./hooks/useAuth";
-import { supabase } from "./lib/supabase";
+import { supabase } from "./services/supabase";
 import { rewrapCloudKeyring } from "./services/vaultService";
 import { storeDeviceEncryptedPassword } from "./storage/vault";
 import { AppMode } from "./hooks/useAppMode";

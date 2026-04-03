@@ -1,4 +1,4 @@
-import { useWeatherFeature } from "../features/weather/useWeatherFeature";
+import { useWeatherFeature } from "../domain/weather/useWeatherFeature";
 import { WeatherContext } from "./weatherContext";
 
 export function WeatherProvider({ children }: { children: React.ReactNode }) {

@@ -14,7 +14,7 @@ import {
   tryGetDeviceEncryptedPassword,
   clearDeviceEncryptedPassword,
 } from "../storage/vault";
-import { supabase } from "../lib/supabase";
+import { supabase } from "../services/supabase";
 
 interface UseActiveVaultProps {
   auth: UseAuthReturn;

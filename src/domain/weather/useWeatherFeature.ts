@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
 import { LocationProvider } from "./LocationProvider";
 import { WeatherRepository, type DailyWeatherData } from "./WeatherRepository";
-import { clearWeatherFromEditor } from "./WeatherDom";
+import { clearWeatherFromEditor, formatDailyWeatherLabel } from "./WeatherDom";
 import {
   getLocationCoords,
   getLocationKind,
@@ -183,6 +183,7 @@ export function useWeatherFeature() {
     setShowWeather,
     setUnitPreference: setUnitPreferenceValue,
     refreshLocation,
+    formatWeatherLabel: formatDailyWeatherLabel,
     clearWeatherFromEditor,
     dismissPrecisePrompt,
     fetchDailyWeather,

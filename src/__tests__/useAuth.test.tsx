@@ -4,9 +4,9 @@ import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import type { Session } from "@supabase/supabase-js";
 import { useAuth } from "../hooks/useAuth";
 import { AuthState } from "../types";
-import { supabase } from "../lib/supabase";
+import { supabase } from "../services/supabase";
 
-vi.mock("../lib/supabase", () => ({
+vi.mock("../services/supabase", () => ({
   supabase: {
     auth: {
       getSession: vi.fn(),
