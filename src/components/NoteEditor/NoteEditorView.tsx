@@ -13,7 +13,7 @@ import { ImagePlus } from "lucide-react";
 import { NoteEditorHeader } from "./NoteEditorHeader";
 import { NoteEditorContent } from "./NoteEditorContent";
 import type { DropIndicatorPosition } from "./useDropIndicator";
-import type { DailyWeatherData } from "../../features/weather/WeatherRepository";
+import type { DailyWeatherData } from "../../domain/weather/WeatherRepository";
 import styles from "./NoteEditor.module.css";
 
 interface NoteEditorViewProps {

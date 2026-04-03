@@ -1,5 +1,5 @@
 import type { Mock } from "vitest";
-import { WeatherRepository } from "../features/weather/WeatherRepository";
+import { WeatherRepository } from "../domain/weather/WeatherRepository";
 
 // Polyfill AbortSignal.timeout for jsdom/Node test environment
 if (typeof AbortSignal.timeout !== "function") {

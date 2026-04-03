@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useReducer } from "react";
 import type { Session, User, AuthError } from "@supabase/supabase-js";
-import { supabase } from "../lib/supabase";
+import { supabase } from "../services/supabase";
 import { AUTH_HAS_LOGGED_IN_KEY } from "../utils/constants";
 import { AuthState } from "../types";
 export { AuthState } from "../types";

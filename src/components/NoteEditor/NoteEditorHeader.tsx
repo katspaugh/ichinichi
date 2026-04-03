@@ -1,7 +1,7 @@
 import { parseDate } from "../../utils/date";
 import { getMoonPhaseEmoji, getMoonPhaseName } from "../../utils/moonPhase";
-import { formatDailyWeatherLabel } from "../../features/weather/WeatherDom";
-import type { DailyWeatherData } from "../../features/weather/WeatherRepository";
+import { formatDailyWeatherLabel } from "../../domain/weather/WeatherDom";
+import type { DailyWeatherData } from "../../domain/weather/WeatherRepository";
 import styles from "./NoteEditor.module.css";
 
 interface NoteEditorHeaderProps {

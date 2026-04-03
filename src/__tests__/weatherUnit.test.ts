@@ -1,4 +1,4 @@
-import { isLikelyUS, resolveUnitPreference } from "../features/weather/unit";
+import { isLikelyUS, resolveUnitPreference } from "../domain/weather/unit";
 
 // Save originals for restoration
 const originalDateTimeFormat = Intl.DateTimeFormat;

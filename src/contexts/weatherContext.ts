@@ -1,5 +1,5 @@
 import { createContext, useContext } from "react";
-import { useWeatherFeature } from "../features/weather/useWeatherFeature";
+import { useWeatherFeature } from "../domain/weather/useWeatherFeature";
 
 type WeatherContextValue = ReturnType<typeof useWeatherFeature>;
 

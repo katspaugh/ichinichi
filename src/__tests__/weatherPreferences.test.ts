@@ -11,7 +11,7 @@ import {
   getLocationCoords,
   setLocationCoords,
   clearLocationCoords,
-} from "../features/weather/WeatherPreferences";
+} from "../domain/weather/WeatherPreferences";
 import {
   SHOW_WEATHER_KEY,
   TEMP_UNIT_KEY,
