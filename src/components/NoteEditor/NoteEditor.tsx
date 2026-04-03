@@ -100,6 +100,11 @@ export function NoteEditor({
     return null;
   }, [date, liveWeather, storedWeather, weatherState.showWeather]);
 
+  const weatherLabel = useMemo(() => {
+    if (!displayWeather) return null;
+    return weather.formatWeatherLabel(displayWeather);
+  }, [displayWeather, weather]);
+
   const { onImageDrop } = useInlineImageUpload({
     date,
     isEditable,
@@ -179,7 +184,7 @@ export function NoteEditor({
       isDraggingImage={isDraggingImage}
       dropIndicatorPosition={indicatorPosition}
       footer={null}
-      dailyWeather={displayWeather}
+      weatherLabel={weatherLabel}
       debugKeyId={debugKeyId}
     />
   );
