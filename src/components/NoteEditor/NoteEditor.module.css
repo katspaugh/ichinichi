@@ -521,6 +521,10 @@
 
 /* Desktop PWA: window title bar provides enough top spacing */
 @media (display-mode: standalone) and (min-width: 769px) {
+  .header {
+    top: 0;
+  }
+
   .editor {
     min-height: 0;
   }
