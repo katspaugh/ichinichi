@@ -193,11 +193,15 @@ export function useActiveVault({
 
   const pendingPasswordRef = useRef<string | null>(null);
 
-  // Persist auth password + handle auth state transitions
+  // Persist auth password device-encrypted whenever it changes
   useEffect(() => {
     if (authPassword) {
       void storeDeviceEncryptedPassword(authPassword);
     }
+  }, [authPassword]);
+
+  // Set authPassword + switch to Cloud only after auth actually succeeds
+  useEffect(() => {
     if (auth.authState === AuthState.SignedIn && pendingPasswordRef.current) {
       setAuthPassword(pendingPasswordRef.current);
       setMode(AppMode.Cloud);
@@ -209,7 +213,7 @@ export function useActiveVault({
     ) {
       pendingPasswordRef.current = null;
     }
-  }, [auth.authState, auth.isBusy, authPassword, setMode]);
+  }, [auth.authState, auth.isBusy, setMode]);
 
   const handleSignIn = useCallback(
     (email: string, password: string) => {

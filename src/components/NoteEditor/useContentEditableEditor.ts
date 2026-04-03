@@ -484,11 +484,14 @@ export function useContentEditableEditor({
     onUserInputRef.current = onUserInput;
     onImageDropRef.current = onImageDrop;
     onDropCompleteRef.current = onDropComplete;
+  }, [isEditable, onChange, onUserInput, onImageDrop, onDropComplete]);
+
+  useEffect(() => {
     const el = editorRef.current;
     if (el) {
       el.setAttribute("data-placeholder", placeholderText);
     }
-  }, [isEditable, onChange, onUserInput, onImageDrop, onDropComplete, placeholderText]);
+  }, [placeholderText]);
 
   // Content sync + weather clearing + auto-focus
   useEffect(() => {
