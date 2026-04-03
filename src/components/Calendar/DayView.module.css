@@ -5,6 +5,7 @@
   min-height: 0;
   overflow: hidden;
   padding: var(--spacing-md);
+  padding-top: 0;
 }
 
 @media (max-width: 768px) {
