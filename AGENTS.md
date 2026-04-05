@@ -5,7 +5,6 @@ Minimalist daily notes app. Year-at-a-glance calendar. Local-first, optional clo
 ## Core Rules
 
 - One note/day, key: DD-MM-YYYY
-- Empty note (no text, no images) → delete
 - URL params: ?date=DD-MM-YYYY note, ?year=YYYY calendar
 - Escape closes modal; arrows navigate when not editing
 
@@ -26,44 +25,11 @@ React 18 + TypeScript, Vite, IndexedDB, Supabase (optional sync), CSS custom pro
 - UI: `src/components` — pure views
 - Controllers: `src/controllers` — view models, orchestration
 - Domain: `src/domain` — use cases (notes, vault, sync)
-- Infra: `src/storage`, `src/services`, `src/lib` — crypto, persistence, backend
-
-## Bug Triage Map
-
-| Symptom | Start here |
-|---|---|
-| Note stuck loading / not rendering | `stores/noteContentStore.ts`, `hooks/useNoteContent.ts` |
-| Save not working / data loss | `noteContentStore._doSave`, `_scheduleSave`, `flushSave` |
-| Sync issues / pending ops stuck | `stores/syncStore.ts`, `storage/unifiedSyncedNoteRepository.ts` |
-| Calendar dots wrong / missing | `stores/noteDatesStore.ts`, `hooks/useNoteDates.ts` |
-| Vault/auth broken | `services/vaultService.ts`, `hooks/useVault.ts`, `hooks/useAuth.ts` |
-| Encryption/decryption errors | `domain/notes/hydratingNoteRepository.ts`, `domain/crypto/` |
-| Modal flow issues | `controllers/useAppModalsController.ts`, `hooks/useVaultUiState.ts` |
-| Image upload/display broken | `storage/imageRepository.ts`, `components/NoteEditor/useInlineImages.ts` |
-| URL/routing broken | `utils/urlState.ts`, `contexts/urlStateContext.ts` |
-
-## Key Patterns
-
-### Async Generation Counters
-
-Zustand stores use generation counters for async cancellation:
-
-```typescript
-let _loadGeneration = 0;
-const _loadNote = async (date: string, repository: NoteRepository) => {
-  const gen = ++_loadGeneration;
-  const result = await repository.get(date);
-  if (gen !== _loadGeneration) return; // superseded
-  set({ content: result.value?.content ?? "" });
-};
-```
-
-After every `await`, re-read state via `get()` — never close over stale values.
-Stores use `_disposed` flag (checked after each `await`) to prevent post-dispose updates.
+- Infra: `src/storage`, `src/services` — crypto, persistence, backend
 
 ### Result Type
 
-Functional `Result<T, E>` in domain layer. Inconsistency: repos return null, gateways Result, hooks try/catch.
+Functional `Result<T, E>` in domain layer.
 
 ### DI
 
@@ -205,7 +171,6 @@ src/
   storage/       unified DB, crypto, repositories, keyring, sync
   utils/         date, note rules, sanitization, URL state, images
   styles/        reset/theme/components
-  lib/           supabase client
   types/         shared types
 ```
 
@@ -213,33 +178,6 @@ src/
 
 - `docs/app-spec.md` — business logic, flows
 - `docs/architecture.md` — layer boundaries
-- `docs/architecture-critique.md` — improvement proposals
 - `docs/data-flow.md` — local/cloud sync
 - `docs/key-derivation.md` — KEK/DEK, unlock flow
-- `docs/communication-style.md` — telegraph output rules
-- `docs/known-issues.md` — bugs, tech debt, fixed issues
-- `docs/code-search.md` — ast-grep usage + project rules
-- `docs/agent-workflow.md` — haiku subagent pattern
 
-## Search Workflow
-
-- Use `rg`/`ast-grep` first for fast lookup: "where is X fetched/encrypted/rendered."
-- Use `typescript-language-server` (LSP) for type-aware navigation: call hierarchy, find references, go-to-definition across files, hover for type info.
-- Default policy quick locate: `rg`/`ast-grep`.
-- Default policy confirm logic/call graph: LSP (`incomingCalls`, `findReferences`, `goToDefinition`).
-- Default policy multi-file safe symbol refactor: LSP (`findReferences`, `goToImplementation`).
-
-### When to use typescript-language-server (LSP)
-
-- Tracing call chains across multiple files (incomingCalls/outgoingCalls)
-- Finding all references to a symbol (type-aware, not just text matching)
-- Go-to-definition through re-exports, interfaces, and type aliases
-- Getting type information on hover
-- Listing all symbols in a file (documentSymbol) or workspace (workspaceSymbol)
-
-### When NOT to use typescript-language-server
-
-- Simple text/pattern searches — `rg` is faster
-- Structural code pattern matching — `ast-grep` is faster
-- One-off grep for a string literal — LSP is overkill
-- Non-TypeScript files — LSP won't help
