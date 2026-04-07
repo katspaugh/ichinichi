@@ -25,7 +25,7 @@ describe("RxDB React hooks", () => {
 
   function makeWrapper(database: AppDatabase) {
     return function Wrapper({ children }: { children: ReactNode }) {
-      return createElement(RxDBProvider, { db: database }, children);
+      return createElement(RxDBProvider, { db: database, children });
     };
   }
 
