@@ -468,13 +468,16 @@ function createNotesPushHandler(
           } else { throw error; }
         }
       } else {
-        const assumed = await pushMod(row.assumedMasterState);
+        // Optimistic concurrency: compare on updated_at (deterministic plaintext
+        // field) rather than ciphertext/nonce. AES-GCM encryption is non-deterministic
+        // — re-encrypting the same payload produces different ciphertext each time —
+        // so comparing on ciphertext would always mismatch and treat every push as
+        // a conflict, causing the server's stale version to overwrite local edits.
         const { data, error } = await supabase.from("notes")
           .update(supaRow)
           .eq("date", supaRow.date as string)
           .eq("user_id", userId)
-          .eq("ciphertext", assumed.ciphertext)
-          .eq("nonce", assumed.nonce)
+          .eq("updated_at", row.assumedMasterState.updatedAt)
           .select();
         if (error) throw error;
         if (!data || data.length === 0) {

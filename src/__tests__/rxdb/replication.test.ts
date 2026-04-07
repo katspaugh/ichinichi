@@ -20,6 +20,25 @@ const mockCrypto: ReplicationCrypto = {
   },
 };
 
+// Realistic crypto: non-deterministic encryption (random nonce each call),
+// mimicking real AES-GCM where each encrypt produces different ciphertext.
+let nonDetCounter = 0;
+const nonDeterministicCrypto: ReplicationCrypto = {
+  async encrypt(payload) {
+    const nonce = `nonce-${++nonDetCounter}`;
+    const ciphertext = btoa(JSON.stringify({ ...payload, _nonce: nonce }));
+    return { ok: true, value: { ciphertext, nonce, keyId: "mockkey" } };
+  },
+  async decrypt(record) {
+    try {
+      const payload = JSON.parse(atob(record.ciphertext));
+      return { ok: true, value: payload };
+    } catch {
+      return { ok: false, error: { type: "DecryptFailed", message: "Bad ciphertext" } };
+    }
+  },
+};
+
 const failingCrypto: ReplicationCrypto = {
   async encrypt() {
     return { ok: false, error: { type: "EncryptFailed", message: "no key" } };
@@ -142,5 +161,30 @@ describe("createPullModifier", () => {
     expect(note.date).toBe("03-01-2024");
     expect(note.content).toBe("");
     expect(note.isDeleted).toBe(false);
+  });
+});
+
+describe("push optimistic concurrency with non-deterministic encryption", () => {
+  it("push modifier produces stable updated_at for the same input doc", async () => {
+    const push = createPushModifier(nonDeterministicCrypto);
+    const note: NoteDocType = {
+      date: "01-01-2024",
+      content: "<p>Hello</p>",
+      updatedAt: "2024-01-01T12:00:00.000Z",
+      isDeleted: false,
+      weather: null,
+    };
+
+    const row1 = await push(note);
+    const row2 = await push(note);
+
+    // Ciphertext and nonce are non-deterministic (different each call)
+    expect(row1.ciphertext).not.toBe(row2.ciphertext);
+    expect(row1.nonce).not.toBe(row2.nonce);
+
+    // But updated_at is deterministic — same input produces same output.
+    // This is why optimistic concurrency must use updated_at, not ciphertext/nonce.
+    expect(row1.updated_at).toBe(row2.updated_at);
+    expect(row1.updated_at).toBe("2024-01-01T12:00:00.000Z");
   });
 });
