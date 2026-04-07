@@ -1,6 +1,6 @@
--- RxDB replication schema adaptation
--- Adds _modified and _deleted columns, moddatetime triggers, indexes,
--- and realtime publication entries for notes and note_images tables.
+-- Phase 1: Add _modified and _deleted columns for RxDB replication
+-- BACKWARDS-COMPATIBLE: keeps old triggers and RPCs alive so old clients still work.
+-- Run Phase 2 (20260408_rxdb_cleanup.sql) after all clients are on the new code.
 
 -- Enable moddatetime extension (required for auto-updating _modified on UPDATE)
 create extension if not exists moddatetime with schema extensions;
@@ -31,10 +31,8 @@ update public.notes
   set _deleted = deleted
   where _deleted <> deleted;
 
--- Drop old server_updated_at trigger (replaced by moddatetime on _modified)
-drop trigger if exists notes_set_server_updated_at on public.notes;
-
 -- Moddatetime trigger: auto-update _modified on UPDATE
+-- (runs alongside the existing server_updated_at trigger — both work concurrently)
 drop trigger if exists notes_moddatetime on public.notes;
 create trigger notes_moddatetime
   before update on public.notes
@@ -91,10 +89,8 @@ update public.note_images
   set _deleted = deleted
   where _deleted <> deleted;
 
--- Drop old server_updated_at trigger (replaced by moddatetime on _modified)
-drop trigger if exists note_images_set_server_updated_at on public.note_images;
-
 -- Moddatetime trigger: auto-update _modified on UPDATE
+-- (runs alongside the existing server_updated_at trigger — both work concurrently)
 drop trigger if exists note_images_moddatetime on public.note_images;
 create trigger note_images_moddatetime
   before update on public.note_images
@@ -124,10 +120,3 @@ create index if not exists note_images_user_id_modified_idx
 
 -- Add to supabase_realtime publication
 alter publication supabase_realtime add table public.note_images;
-
--- ============================================================
--- Drop legacy RPC functions if they exist
--- ============================================================
-
-drop function if exists public.push_note(jsonb);
-drop function if exists public.delete_note(uuid);
