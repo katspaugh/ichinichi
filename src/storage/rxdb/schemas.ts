@@ -4,7 +4,7 @@ export interface NoteDocType {
   date: string;
   content: string;
   updatedAt: string;
-  deleted: boolean;
+  isDeleted: boolean;
   weather?: {
     icon: string;
     temperatureHigh: number;
@@ -24,7 +24,7 @@ export interface ImageDocType {
   height: number;
   size: number;
   createdAt: string;
-  deleted: boolean;
+  isDeleted: boolean;
 }
 
 export const noteSchema: RxJsonSchema<NoteDocType> = {
@@ -35,7 +35,7 @@ export const noteSchema: RxJsonSchema<NoteDocType> = {
     date: { type: "string", maxLength: 10 },
     content: { type: "string" },
     updatedAt: { type: "string" },
-    deleted: { type: "boolean" },
+    isDeleted: { type: "boolean" },
     weather: {
       type: ["object", "null"],
       properties: {
@@ -47,7 +47,7 @@ export const noteSchema: RxJsonSchema<NoteDocType> = {
       },
     },
   },
-  required: ["date", "content", "updatedAt", "deleted"],
+  required: ["date", "content", "updatedAt", "isDeleted"],
 };
 
 export const imageSchema: RxJsonSchema<ImageDocType> = {
@@ -64,11 +64,11 @@ export const imageSchema: RxJsonSchema<ImageDocType> = {
     height: { type: "number" },
     size: { type: "number" },
     createdAt: { type: "string" },
-    deleted: { type: "boolean" },
+    isDeleted: { type: "boolean" },
   },
   required: [
     "id", "noteDate", "type", "filename", "mimeType",
-    "width", "height", "size", "createdAt", "deleted",
+    "width", "height", "size", "createdAt", "isDeleted",
   ],
   indexes: ["noteDate"],
   attachments: {},

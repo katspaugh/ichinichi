@@ -23,7 +23,7 @@ describe("createAppDatabase", () => {
     expect(schema.primaryKey).toBe("date");
     expect(schema.properties).toHaveProperty("content");
     expect(schema.properties).toHaveProperty("updatedAt");
-    expect(schema.properties).toHaveProperty("deleted");
+    expect(schema.properties).toHaveProperty("isDeleted");
   });
 
   it("images collection has correct schema properties", async () => {
@@ -33,7 +33,7 @@ describe("createAppDatabase", () => {
     expect(schema.properties).toHaveProperty("noteDate");
     expect(schema.properties).toHaveProperty("filename");
     expect(schema.properties).toHaveProperty("mimeType");
-    expect(schema.properties).toHaveProperty("deleted");
+    expect(schema.properties).toHaveProperty("isDeleted");
   });
 
   it("images collection supports attachments", async () => {
