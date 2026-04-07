@@ -591,7 +591,20 @@ export function useNoteRepository({
       return;
     }
 
+    // Track last emitted content to avoid redundant dispatches that cause
+    // the editor to re-run its content sync effect (innerHTML reset + cursor jump).
+    let lastContent: string | null = null;
+    let lastIsDeleted: boolean | null = null;
+
     const subscription = state.db.notes.findOne(state.date).$.subscribe((doc) => {
+      const content = doc && !doc.isDeleted ? doc.content : null;
+      const isDeleted = doc?.isDeleted ?? false;
+
+      // Skip dispatch if nothing changed — prevents editor flicker from replication churn
+      if (content === lastContent && isDeleted === lastIsDeleted) return;
+      lastContent = content;
+      lastIsDeleted = isDeleted;
+
       if (!doc) {
         dispatch({ type: "NOTE_DOC_CHANGED", note: null, isSoftDeleted: false });
       } else if (doc.isDeleted) {
