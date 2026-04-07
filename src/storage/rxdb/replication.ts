@@ -179,7 +179,7 @@ export function createImagePushModifier(
       type: "application/octet-stream",
     });
 
-    const uploadPath = imageBlobPath(userId, doc.noteDate, doc.id);
+    const uploadPath = `${userId}/${doc.noteDate}/${doc.id}.enc`;
     const uploadResult = await bucket.upload(uploadPath, ciphertextBlob);
     if (!uploadResult.ok) {
       throw new Error(
@@ -255,11 +255,8 @@ export function createImagePullModifier(
       return { doc, blob: null };
     }
 
-    let downloadResult = await bucket.download(imageBlobPath(userId, parsed.note_date, parsed.id));
-    if (!downloadResult.ok) {
-      // Fall back to legacy path (pre-E2EE rewrite: userId/imageId without noteDate or .enc)
-      downloadResult = await bucket.download(legacyImageBlobPath(userId, parsed.id));
-    }
+    const downloadPath = `${userId}/${parsed.note_date}/${parsed.id}.enc`;
+    const downloadResult = await bucket.download(downloadPath);
     if (!downloadResult.ok) {
       reportError("imageReplication.pull: bucket download failed", {
         type: "Unknown",
@@ -351,11 +348,8 @@ export function createRemoteBlobFetcher(
   const bucket = createSupabaseBucket(supabase);
   return {
     async fetch(imageId: string, noteDate: string, mimeType: string): Promise<Blob | null> {
-      let downloadResult = await bucket.download(imageBlobPath(userId, noteDate, imageId));
-      if (!downloadResult.ok) {
-        // Fall back to legacy path (pre-E2EE rewrite: userId/imageId without noteDate or .enc)
-        downloadResult = await bucket.download(legacyImageBlobPath(userId, imageId));
-      }
+      const path = `${userId}/${noteDate}/${imageId}.enc`;
+      const downloadResult = await bucket.download(path);
       if (!downloadResult.ok) {
         reportError("remoteBlobFetcher.fetch: download failed", downloadResult.error);
         return null;
@@ -390,17 +384,6 @@ export interface ReplicationHandle {
 interface ReplicationCheckpoint {
   id: string;
   modified: string;
-}
-
-// Image blob storage path. Changed from `userId/imageId` (no extension) in the
-// initial RxDB migration to `userId/noteDate/imageId.enc` in the E2EE rewrite.
-// Downloads must try the current path first, then fall back to the legacy path
-// so that images pushed before the path change are still reachable.
-function imageBlobPath(userId: string, noteDate: string, imageId: string): string {
-  return `${userId}/${noteDate}/${imageId}.enc`;
-}
-function legacyImageBlobPath(userId: string, imageId: string): string {
-  return `${userId}/${imageId}`;
 }
 
 function createSupabaseBucket(supabase: SupabaseClient): StorageBucket {
