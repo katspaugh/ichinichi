@@ -510,19 +510,33 @@ export function useNoteRepository({
   }, [state.phase, state.userId]);
 
   // --- Effect 3: Phase "replicating" - start replication ---
+  // Deps: only phase and db. The phase gate ensures userId/vaultKey/activeKeyId
+  // are present (the reducer won't transition to "replicating" without them).
+  // Crypto uses keyringRef.current which stays up-to-date without re-running.
+  // Including vaultKey/activeKeyId here would restart replication on every
+  // parent re-render that passes new object references for the same values.
+  const activeKeyIdRef = useRef(activeKeyId);
+  activeKeyIdRef.current = activeKeyId;
+  const userIdRef = useRef(userId);
+  userIdRef.current = userId;
+
   useEffect(() => {
     if (state.phase !== "replicating") return;
-    if (!state.db || !state.userId || !state.vaultKey || !state.activeKeyId) return;
+    if (!state.db) return;
+
+    const currentUserId = userIdRef.current;
+    const currentActiveKeyId = activeKeyIdRef.current;
+    if (!currentUserId || !currentActiveKeyId) return;
 
     const keyProvider = {
-      activeKeyId: state.activeKeyId,
+      activeKeyId: currentActiveKeyId,
       getKey: (keyId: string) => keyringRef.current.get(keyId) ?? null,
     };
     const e2ee = e2eeFactory.create(keyProvider);
     const crypto = createNoteCrypto(e2ee);
 
     const imageCrypto = createImageCryptoAdapter(e2ee);
-    const handle = startReplication(state.db, supabase, crypto, state.userId, imageCrypto);
+    const handle = startReplication(state.db, supabase, crypto, currentUserId, imageCrypto);
     dispatch({ type: "REPLICATION_STARTED", replication: handle });
 
     const subs: Array<{ unsubscribe(): void }> = [];
@@ -559,7 +573,8 @@ export function useNoteRepository({
       handle.cancel();
       dispatch({ type: "REPLICATION_STOPPED" });
     };
-  }, [state.phase, state.db, state.userId, state.vaultKey, state.activeKeyId, supabase, e2eeFactory]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.phase, state.db]);
 
   // --- Effect 4: Subscribe to note document (content + soft-delete) ---
   useEffect(() => {
