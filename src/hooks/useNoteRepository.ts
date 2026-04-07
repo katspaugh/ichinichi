@@ -255,9 +255,11 @@ export function noteRepoReducer(
         weather: action.note?.weather ?? null,
         isSoftDeleted: action.isSoftDeleted,
       };
-      // Sync local content from note when not editing
-      if (!state.hasEdits) {
-        next.localContent = action.note?.content ?? "";
+      // Sync local content from note when not editing.
+      // Keep previous content when note is null (re-subscribe / query initializing)
+      // to avoid blanking the editor during RxDB subscription churn.
+      if (!state.hasEdits && action.note) {
+        next.localContent = action.note.content;
       }
       return next;
     }
