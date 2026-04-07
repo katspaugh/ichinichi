@@ -71,8 +71,10 @@ export function createPullModifier(
   crypto: ReplicationCrypto,
 ): (row: SupabaseNoteRow) => Promise<NoteDocType> {
   return async (row: SupabaseNoteRow): Promise<NoteDocType> => {
+    console.log("[rxdb-pull] raw row:", JSON.stringify(row));
     const parsed = parseSupabaseNoteRow(row);
     if (!parsed) {
+      console.warn("[rxdb-pull] parseSupabaseNoteRow FAILED for:", JSON.stringify(row));
       reportError("replication.pull", { type: "ParseError", message: "Invalid Supabase note row" });
       return { date: (row as unknown as Record<string, unknown>).date as string ?? "", content: "", updatedAt: "", isDeleted: true, weather: null };
     }
