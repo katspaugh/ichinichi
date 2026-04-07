@@ -237,9 +237,12 @@ export function parseSupabaseNoteRow(data: unknown): SupabaseNoteRow | null {
     typeof data.date !== "string" ||
     typeof data.content !== "string" ||
     typeof data.nonce !== "string" ||
-    typeof data.key_id !== "string" ||
-    typeof data.isDeleted !== "boolean"
+    typeof data.key_id !== "string"
   )
+    return null;
+  // isDeleted and _deleted may or may not be present depending on whether
+  // rowToDoc has processed the row (strips _deleted, keeps isDeleted)
+  if (typeof data.isDeleted !== "boolean" && typeof data._deleted !== "boolean")
     return null;
   // updatedAt and _modified may be stripped by the replication plugin
   // before passing to the modifier — accept missing/undefined
@@ -253,9 +256,12 @@ export function parseSupabaseImageRow(data: unknown): SupabaseImageRow | null {
     typeof data.noteDate !== "string" ||
     typeof data.type !== "string" ||
     typeof data.filename !== "string" ||
-    typeof data.mimeType !== "string" ||
-    typeof data.isDeleted !== "boolean"
+    typeof data.mimeType !== "string"
   )
+    return null;
+  // isDeleted and _deleted may or may not be present depending on whether
+  // rowToDoc has processed the row
+  if (typeof data.isDeleted !== "boolean" && typeof data._deleted !== "boolean")
     return null;
   // _modified, createdAt, and other fields may be stripped by the
   // replication plugin before passing to the modifier — accept missing

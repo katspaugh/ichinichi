@@ -27,6 +27,7 @@ export interface SupabaseNoteRow {
   nonce: string;
   updatedAt: string;
   _modified: string;
+  _deleted: boolean;
   isDeleted: boolean;
 }
 
@@ -60,6 +61,7 @@ export function createPushModifier(
       updatedAt: doc.updatedAt,
       weather: null,
       _modified: new Date().toISOString(),
+      _deleted: doc.isDeleted,
       isDeleted: doc.isDeleted,
     } as SupabaseNoteRow & { weather: null };
   };
@@ -80,8 +82,11 @@ export function createPullModifier(
     }
 
     const updatedAt = parsed.updatedAt || new Date().toISOString();
+    // After rowToDoc, _deleted is stripped and isDeleted remains.
+    // In direct Supabase rows, both may be present. Check either.
+    const deleted = parsed.isDeleted ?? parsed._deleted ?? false;
 
-    if (parsed.isDeleted) {
+    if (deleted) {
       return {
         date: parsed.date,
         content: "",
@@ -157,6 +162,7 @@ export interface SupabaseImageRow {
   nonce: string;
   sha256: string;
   _modified: string;
+  _deleted: boolean;
   isDeleted: boolean;
 }
 
@@ -206,6 +212,7 @@ export function createImagePushModifier(
       nonce: record.nonce,
       sha256,
       _modified: new Date().toISOString(),
+      _deleted: doc.isDeleted,
       isDeleted: doc.isDeleted,
     };
   };
@@ -243,6 +250,7 @@ export function createImagePullModifier(
       };
     }
 
+    const deleted = parsed.isDeleted ?? parsed._deleted ?? false;
     const doc: ImageDocType = {
       id: parsed.id,
       noteDate: parsed.noteDate,
@@ -253,10 +261,10 @@ export function createImagePullModifier(
       height: parsed.height,
       size: parsed.size,
       createdAt: parsed.createdAt,
-      isDeleted: parsed.isDeleted,
+      isDeleted: deleted,
     };
 
-    if (parsed.isDeleted) {
+    if (deleted) {
       return { doc, blob: null };
     }
 
@@ -376,8 +384,8 @@ function createSupabaseBucket(supabase: SupabaseClient): StorageBucket {
  * Notes: E2EE push/pull modifiers encrypt/decrypt content.
  * Images: metadata replication with blob upload/download as side-effects.
  *
- * deletedField is set to 'isDeleted' to match the RxDB schema property name
- * and the renamed Supabase column (was _deleted before migration 20260409).
+ * The plugin manages _deleted internally (hardcoded in RxSupabaseReplicationState).
+ * isDeleted is a separate soft-delete column managed by push/pull modifiers.
  */
 export function startReplication(
   db: AppDatabase,
@@ -394,14 +402,13 @@ export function startReplication(
     collection: db.notes,
     client: supabase,
     tableName: "notes",
-    deletedField: "isDeleted",
     pull: {
       modifier: (row: SupabaseNoteRow) =>
         pullModifier(row).then((doc) => ({ ...doc, _deleted: doc.isDeleted })),
     },
     push: {
       modifier: (doc: NoteDocType & { _deleted: boolean }) =>
-        pushModifier({ ...doc, isDeleted: doc._deleted }),
+        pushModifier({ ...doc, isDeleted: doc._deleted ?? doc.isDeleted }),
     },
   });
 
@@ -442,7 +449,6 @@ export function startReplication(
       collection: db.images,
       client: supabase,
       tableName: "note_images",
-      deletedField: "isDeleted",
       pull: {
         modifier: (row: SupabaseImageRow) =>
           imgPull(row).then(({ doc, blob }) => {
@@ -454,7 +460,7 @@ export function startReplication(
       },
       push: {
         modifier: async (doc: ImageDocType & { _deleted: boolean }) => {
-          const imageDoc = { ...doc, isDeleted: doc._deleted };
+          const imageDoc = { ...doc, isDeleted: doc._deleted ?? doc.isDeleted };
           const rxDoc = await db.images.findOne(doc.id).exec();
           const attachment = rxDoc?.getAttachment("blob");
           const blob = attachment ? await attachment.getData() : new Blob();

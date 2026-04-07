@@ -121,6 +121,7 @@ describe("createImagePushModifier", () => {
     expect(row.nonce).toBe("mock-nonce");
     expect(row.sha256).toBe("mock-sha256");
     expect(row.isDeleted).toBe(false);
+    expect(row._deleted).toBe(false);
     expect(row._modified).toBeDefined();
   });
 
@@ -222,6 +223,7 @@ interface SupabaseImageRow {
   nonce: string;
   sha256: string;
   _modified: string;
+  _deleted: boolean;
   isDeleted: boolean;
 }
 
@@ -264,6 +266,7 @@ describe("createImagePullModifier", () => {
       nonce: "mock-nonce",
       sha256: "mock-sha256",
       _modified: "2024-06-15T10:00:00.000Z",
+      _deleted: false,
       isDeleted: false,
     };
 
@@ -302,6 +305,7 @@ describe("createImagePullModifier", () => {
       nonce: "n",
       sha256: "s",
       _modified: "2024-01-01T00:00:00.000Z",
+      _deleted: true,
       isDeleted: true,
     };
 
@@ -333,6 +337,7 @@ describe("createImagePullModifier", () => {
       nonce: "n",
       sha256: "s",
       _modified: "2024-02-02T00:00:00.000Z",
+      _deleted: false,
       isDeleted: false,
     };
 
@@ -364,6 +369,7 @@ describe("createImagePullModifier", () => {
       nonce: "n",
       sha256: "s",
       _modified: "2024-03-03T00:00:00.000Z",
+      _deleted: false,
       isDeleted: false,
     };
 

@@ -44,6 +44,7 @@ describe("createPushModifier", () => {
 
     expect(row.date).toBe("01-01-2024");
     expect(row.isDeleted).toBe(false);
+    expect(row._deleted).toBe(false);
     expect(row.key_id).toBe("mockkey");
     expect(row.nonce).toBe("mocknonce");
     expect(row.updatedAt).toBe("2024-01-01T00:00:00.000Z");
@@ -68,6 +69,7 @@ describe("createPushModifier", () => {
 
     const row = await push(note);
     expect(row.isDeleted).toBe(true);
+    expect(row._deleted).toBe(true);
   });
 
   it("throws when encryption fails", async () => {
