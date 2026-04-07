@@ -7,7 +7,10 @@ import { ok, err } from "../../domain/result";
 import { reportError } from "../../utils/errorReporter";
 
 export class RxDBImageRepository implements ImageRepository {
-  constructor(private readonly db: AppDatabase) {}
+  readonly db: AppDatabase;
+  constructor(db: AppDatabase) {
+    this.db = db;
+  }
 
   async upload(
     noteDate: string,

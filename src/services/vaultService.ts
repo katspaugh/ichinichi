@@ -330,7 +330,6 @@ export async function cleanupUnusedKeys(options: {
 
   if (remoteError) throw remoteError;
 
-  const { setNoteAndMeta, getNoteMeta } = await import("../storage/unifiedNoteStore");
   const usedKeyIds = new Set<string>();
   let reencrypted = 0;
 
@@ -380,7 +379,7 @@ export async function cleanupUnusedKeys(options: {
     const newNonce = bytesToBase64(newIv);
     const now = new Date().toISOString();
 
-    const { data: pushData, error: pushError } = await supabase.rpc("push_note", {
+    const { error: pushError } = await supabase.rpc("push_note", {
       p_id: note.id,
       p_user_id: userId,
       p_date: note.date,
@@ -393,37 +392,11 @@ export async function cleanupUnusedKeys(options: {
     });
     if (pushError) throw pushError;
 
-    const pushed = parseRemoteNoteRow(pushData);
-    const existingMeta = await getNoteMeta(note.date);
-    await setNoteAndMeta(
-      {
-        version: 1,
-        date: note.date,
-        keyId: activeKeyId,
-        ciphertext: newCiphertext,
-        nonce: newNonce,
-        updatedAt: now,
-      },
-      {
-        date: note.date,
-        revision: pushed?.revision ?? note.revision + 1,
-        serverRevision: pushed?.revision ?? note.revision + 1,
-        remoteId: note.id,
-        serverUpdatedAt: pushed?.server_updated_at ?? now,
-        lastSyncedAt: now,
-        pendingOp: null,
-        deletedAt: existingMeta?.deletedAt ?? null,
-      },
-    );
+    // RxDB replication will pull the re-encrypted note automatically
     reencrypted++;
   }
 
-  // Also collect keyIds used by images (both local and remote)
-  const { getAllImageMeta } = await import("../storage/unifiedImageStore");
-  const localImages = await getAllImageMeta();
-  for (const img of localImages) {
-    if (img.keyId) usedKeyIds.add(img.keyId);
-  }
+  // Also collect keyIds used by images on the server
 
   const { data: remoteImages, error: imgError } = await supabase
     .from("note_images")
@@ -485,7 +458,6 @@ export async function reencryptCloudNotes(options: {
     .filter(Boolean) as RemoteNoteRow[];
 
   // 2. Re-encrypt notes that use non-primary keys
-  const { setNoteAndMeta, getNoteMeta } = await import("../storage/unifiedNoteStore");
   let reencrypted = 0;
   for (let i = 0; i < notes.length; i++) {
     const note = notes[i];
@@ -524,7 +496,7 @@ export async function reencryptCloudNotes(options: {
     const now = new Date().toISOString();
 
     // Push to Supabase
-    const { data: pushData, error: pushError } = await sb.rpc("push_note", {
+    const { error: pushError } = await sb.rpc("push_note", {
       p_id: note.id,
       p_user_id: userId,
       p_date: note.date,
@@ -537,30 +509,7 @@ export async function reencryptCloudNotes(options: {
     });
     if (pushError) throw pushError;
 
-    // Update local IndexedDB to match
-    const pushed = parseRemoteNoteRow(pushData);
-    const existingMeta = await getNoteMeta(note.date);
-    await setNoteAndMeta(
-      {
-        version: 1,
-        date: note.date,
-        keyId: primaryKeyId,
-        ciphertext: newCiphertext,
-        nonce: newNonce,
-        updatedAt: now,
-      },
-      {
-        date: note.date,
-        revision: pushed?.revision ?? note.revision + 1,
-        serverRevision: pushed?.revision ?? note.revision + 1,
-        remoteId: note.id,
-        serverUpdatedAt: pushed?.server_updated_at ?? now,
-        lastSyncedAt: now,
-        pendingOp: null,
-        deletedAt: existingMeta?.deletedAt ?? null,
-      },
-    );
-
+    // RxDB replication will pull the re-encrypted note automatically
     reencrypted++;
   }
 

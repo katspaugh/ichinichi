@@ -1,5 +1,5 @@
 import { ok } from "../../domain/result";
-import type { NoteRepository, SyncCapableNoteRepository } from "../../storage/noteRepository";
+import type { NoteRepository } from "../../storage/noteRepository";
 
 type MockedRepository<T> = {
   [K in keyof T]: T[K] extends (...args: infer A) => infer R
@@ -20,31 +20,6 @@ export function createMockNoteRepository(
     delete: vi.fn().mockResolvedValue(ok(undefined)),
     getAllDates: vi.fn().mockResolvedValue(ok([])),
     getAllDatesForYear: vi.fn().mockResolvedValue(ok([])),
-    ...overrides,
-  };
-}
-
-/**
- * Create a fully mocked SyncCapableNoteRepository.
- * Extends NoteRepository with sync-specific methods.
- */
-export function createMockSyncCapableRepository(
-  overrides: Partial<MockedRepository<SyncCapableNoteRepository>> = {},
-): MockedRepository<SyncCapableNoteRepository> {
-  return {
-    syncCapable: true as const,
-    get: vi.fn().mockResolvedValue(ok(null)),
-    save: vi.fn().mockResolvedValue(ok(undefined)),
-    delete: vi.fn().mockResolvedValue(ok(undefined)),
-    getAllDates: vi.fn().mockResolvedValue(ok([])),
-    getAllDatesForYear: vi.fn().mockResolvedValue(ok([])),
-    refreshNote: vi.fn().mockResolvedValue(ok(null)),
-    hasPendingOp: vi.fn().mockResolvedValue(false),
-    refreshDates: vi.fn().mockResolvedValue(undefined),
-    hasRemoteDateCached: vi.fn().mockResolvedValue(false),
-    getAllLocalDates: vi.fn().mockResolvedValue(ok([])),
-    getAllLocalDatesForYear: vi.fn().mockResolvedValue(ok([])),
-    sync: vi.fn().mockResolvedValue(ok("idle")),
     ...overrides,
   };
 }

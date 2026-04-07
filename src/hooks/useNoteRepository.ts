@@ -13,7 +13,7 @@ import { createNoteCrypto } from "../domain/crypto/noteCrypto";
 import { AppMode } from "./useAppMode";
 import { useServiceContext } from "../contexts/serviceContext";
 import { SyncStatus } from "../types";
-import type { Note } from "../types";
+import type { Note, SavedWeather } from "../types";
 
 interface UseNoteRepositoryProps {
   mode: AppMode;
@@ -50,6 +50,8 @@ export interface UseNoteRepositoryReturn {
   noteError: RepositoryError | null;
   repositoryVersion: number;
   invalidateRepository: () => void;
+  weather: SavedWeather | null;
+  setWeather: (weather: SavedWeather | null) => void;
 }
 
 const SAVE_DEBOUNCE_MS = 500;
@@ -219,8 +221,31 @@ export function useNoteRepository({
     };
   }, [db, date]);
 
+  // --- Weather state ---
+  const [weather, setWeatherState] = useState<SavedWeather | null>(note?.weather ?? null);
+  const weatherRef = useRef<SavedWeather | null>(null);
+
+  // Sync weather from note document
+  useEffect(() => {
+    setWeatherState(note?.weather ?? null);
+    weatherRef.current = note?.weather ?? null;
+  }, [note]);
+
+  const setWeather = useCallback(
+    (w: SavedWeather | null) => {
+      setWeatherState(w);
+      weatherRef.current = w;
+      // Save weather immediately with current content
+      if (date && repository) {
+        void repository.save(date, localContentRef.current, w);
+      }
+    },
+    [date, repository],
+  );
+
   // --- Local content editing with debounced save ---
   const [localContent, setLocalContent] = useState("");
+  const localContentRef = useRef("");
   const [hasEdits, setHasEdits] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -229,7 +254,9 @@ export function useNoteRepository({
   // Sync local content when note changes from DB (and no local edits)
   useEffect(() => {
     if (!hasEdits) {
-      setLocalContent(note?.content ?? "");
+      const c = note?.content ?? "";
+      setLocalContent(c);
+      localContentRef.current = c;
     }
   }, [note, hasEdits]);
 
@@ -249,7 +276,9 @@ export function useNoteRepository({
       }
       prevDateRef.current = date;
       setHasEdits(false);
-      setLocalContent(note?.content ?? "");
+      const c = note?.content ?? "";
+      setLocalContent(c);
+      localContentRef.current = c;
       setNoteError(null);
     }
   }, [date, note, repository]);
@@ -257,6 +286,7 @@ export function useNoteRepository({
   const setContent = useCallback(
     (newContent: string) => {
       setLocalContent(newContent);
+      localContentRef.current = newContent;
       setHasEdits(true);
 
       if (!date || !repository) return;
@@ -275,7 +305,7 @@ export function useNoteRepository({
         pendingSaveRef.current = null;
 
         setIsSaving(true);
-        void repository.save(pending.date, pending.content).then((result) => {
+        void repository.save(pending.date, pending.content, weatherRef.current).then((result) => {
           setIsSaving(false);
           if (!result.ok) {
             setNoteError(result.error);
@@ -425,5 +455,7 @@ export function useNoteRepository({
     noteError,
     repositoryVersion,
     invalidateRepository,
+    weather,
+    setWeather,
   };
 }

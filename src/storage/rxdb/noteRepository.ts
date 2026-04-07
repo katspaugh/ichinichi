@@ -7,7 +7,10 @@ import { ok, err } from "../../domain/result";
 import { reportError } from "../../utils/errorReporter";
 
 export class RxDBNoteRepository implements NoteRepository {
-  constructor(private readonly db: AppDatabase) {}
+  readonly db: AppDatabase;
+  constructor(db: AppDatabase) {
+    this.db = db;
+  }
 
   async get(date: string): Promise<Result<Note | null, RepositoryError>> {
     try {
