@@ -60,8 +60,11 @@ create trigger notes_set_modified_on_insert
 create index if not exists notes_user_id_modified_idx
   on public.notes(user_id, _modified);
 
--- Add to supabase_realtime publication
-alter publication supabase_realtime add table public.notes;
+-- Add to supabase_realtime publication (skip if already a member)
+do $$ begin
+  alter publication supabase_realtime add table public.notes;
+exception when duplicate_object then null;
+end $$;
 
 -- ============================================================
 -- note_images table
@@ -118,5 +121,8 @@ create trigger note_images_set_modified_on_insert
 create index if not exists note_images_user_id_modified_idx
   on public.note_images(user_id, _modified);
 
--- Add to supabase_realtime publication
-alter publication supabase_realtime add table public.note_images;
+-- Add to supabase_realtime publication (skip if already a member)
+do $$ begin
+  alter publication supabase_realtime add table public.note_images;
+exception when duplicate_object then null;
+end $$;
