@@ -587,19 +587,7 @@ export function useNoteRepository({
       return;
     }
 
-    // Track first emission: RxDB queries emit null synchronously before the
-    // actual result resolves. In StrictMode this causes a visible bounce
-    // (doc → null → doc) because React unmounts/remounts the effect.
-    // Skip the initial null to keep previous content visible until the query resolves.
-    let receivedFirst = false;
-
     const subscription = state.db.notes.findOne(state.date).$.subscribe((doc) => {
-      if (!doc && !receivedFirst) {
-        receivedFirst = true;
-        return;
-      }
-      receivedFirst = true;
-
       if (!doc) {
         dispatch({ type: "NOTE_DOC_CHANGED", note: null, isSoftDeleted: false });
       } else if (doc.isDeleted) {

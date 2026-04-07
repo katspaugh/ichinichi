@@ -53,16 +53,6 @@ export async function createAppDatabase(
   }
 }
 
-/**
- * Start opening the "local" database eagerly at module load time.
- * By the time React mounts and the hook requests it, the DB will
- * already be open (or nearly so), eliminating the ~600ms blank flash.
- */
-export function preloadLocalDatabase(): void {
-  createAppDatabase("local").catch(() => {
-    // INTENTIONAL: best-effort preload; errors handled when hook calls createAppDatabase
-  });
-}
 
 async function doCreate(
   name: string,
