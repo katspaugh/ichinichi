@@ -8,7 +8,7 @@ import type { NotePayload } from "../../domain/crypto/e2eeService";
 import type { CryptoError } from "../../domain/errors";
 import type { Result } from "../../domain/result";
 import { reportError } from "../../utils/errorReporter";
-import { parseEncryptedBlobRecord } from "../parsers";
+import { parseEncryptedBlobRecord, parseSupabaseNoteRow, parseSupabaseImageRow } from "../parsers";
 
 export interface ReplicationCrypto {
   encrypt(payload: NotePayload): Promise<Result<EncryptedNote, CryptoError>>;
@@ -71,6 +71,12 @@ export function createPullModifier(
   crypto: ReplicationCrypto,
 ): (row: SupabaseNoteRow) => Promise<NoteDocType> {
   return async (row: SupabaseNoteRow): Promise<NoteDocType> => {
+    const parsed = parseSupabaseNoteRow(row);
+    if (!parsed) {
+      reportError("replication.pull", { type: "ParseError", message: "Invalid Supabase note row" });
+      return { date: (row as unknown as Record<string, unknown>).date as string ?? "", content: "", updatedAt: "", isDeleted: true, weather: null };
+    }
+
     if (row._deleted) {
       return {
         date: row.date,
@@ -212,6 +218,26 @@ export function createImagePullModifier(
   return async (
     row: SupabaseImageRow,
   ): Promise<{ doc: ImageDocType; blob: Blob | null }> => {
+    const parsed = parseSupabaseImageRow(row);
+    if (!parsed) {
+      reportError("imageReplication.pull", { type: "ParseError", message: "Invalid Supabase image row" });
+      return {
+        doc: {
+          id: (row as unknown as Record<string, unknown>).id as string ?? "",
+          noteDate: "",
+          type: "inline",
+          filename: "",
+          mimeType: "application/octet-stream",
+          width: 0,
+          height: 0,
+          size: 0,
+          createdAt: "",
+          isDeleted: true,
+        },
+        blob: null,
+      };
+    }
+
     const doc: ImageDocType = {
       id: row.id,
       noteDate: row.note_date,
@@ -373,10 +399,34 @@ export function startReplication(
   // --- Image replication (metadata + blob side-effects) ---
   let imagesReplication: RxSupabaseReplicationState<ImageDocType> | null = null;
 
+  // Pending blobs keyed by image ID. The pull modifier stores blobs here
+  // because the document hasn't been written to RxDB yet when the modifier runs.
+  // A post-insert hook picks them up once the document exists.
+  const pendingBlobs = new Map<string, { blob: Blob; mimeType: string }>();
+  let imageHookActive = false;
+
   if (imageCrypto) {
     const bucket = createSupabaseBucket(supabase);
     const imgPush = createImagePushModifier(imageCrypto, bucket, userId);
     const imgPull = createImagePullModifier(imageCrypto, bucket, userId);
+
+    imageHookActive = true;
+
+    db.images.postInsert(async (plainData, rxDoc) => {
+      if (!imageHookActive) return;
+      const entry = pendingBlobs.get(plainData.id);
+      if (!entry) return;
+      pendingBlobs.delete(plainData.id);
+      try {
+        await rxDoc.putAttachment({
+          id: "blob",
+          data: entry.blob,
+          type: entry.mimeType,
+        });
+      } catch (attachErr) {
+        reportError("imageReplication.pull: attachment store failed", attachErr);
+      }
+    }, false);
 
     imagesReplication = replicateSupabase<ImageDocType>({
       replicationIdentifier: `images-supabase-${userId}`,
@@ -385,20 +435,9 @@ export function startReplication(
       tableName: "note_images",
       pull: {
         modifier: (row: SupabaseImageRow) =>
-          imgPull(row).then(async ({ doc, blob }) => {
+          imgPull(row).then(({ doc, blob }) => {
             if (blob) {
-              try {
-                const rxDoc = await db.images.findOne(doc.id).exec();
-                if (rxDoc) {
-                  await rxDoc.putAttachment({
-                    id: "blob",
-                    data: blob,
-                    type: doc.mimeType,
-                  });
-                }
-              } catch (attachErr) {
-                reportError("imageReplication.pull: attachment store failed", attachErr);
-              }
+              pendingBlobs.set(doc.id, { blob, mimeType: doc.mimeType });
             }
             return { ...doc, _deleted: doc.isDeleted };
           }),
@@ -410,6 +449,9 @@ export function startReplication(
           const attachment = rxDoc?.getAttachment("blob");
           const blob = attachment ? await attachment.getData() : new Blob();
           const row = await imgPush(imageDoc, blob);
+          // The replication plugin expects the modifier to return the collection's doc type,
+          // but we return a SupabaseImageRow (snake_case) which is what Supabase actually receives.
+          // This cast satisfies the type checker while the plugin serializes the actual object.
           return row as unknown as ImageDocType & { _deleted: boolean };
         },
       },
@@ -424,6 +466,8 @@ export function startReplication(
       if (imagesReplication) {
         void imagesReplication.cancel();
       }
+      imageHookActive = false;
+      pendingBlobs.clear();
     },
   };
 }

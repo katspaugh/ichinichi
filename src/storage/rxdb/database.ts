@@ -37,7 +37,7 @@ export async function createAppDatabase(
       const db = await existing;
       if (!db.closed) return db;
     } catch {
-      // Previous creation failed, try again
+      // INTENTIONAL: Previous creation may have failed partially, safe to retry
     }
     openPromises.delete(name);
   }

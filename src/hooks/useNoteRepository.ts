@@ -368,7 +368,7 @@ function createLegacyIDBSource(): Promise<LegacyDataSource | null> {
               ).map((n: Record<string, unknown>) => ({
                 date: n.date as string,
                 content: n.content as string,
-                updatedAt: (n.updatedAt as string) ?? new Date().toISOString(),
+                updatedAt: typeof n.updatedAt === "string" ? n.updatedAt : new Date().toISOString(),
                 weather: parseSavedWeather(n.weather) ?? null,
               })));
             };
@@ -390,13 +390,13 @@ function createLegacyIDBSource(): Promise<LegacyDataSource | null> {
               ).map((i: Record<string, unknown>) => ({
                 id: i.id as string,
                 noteDate: i.noteDate as string,
-                type: (i.type as "background" | "inline") ?? "inline",
-                filename: (i.filename as string) ?? "",
-                mimeType: (i.mimeType as string) ?? "application/octet-stream",
-                width: (i.width as number) ?? 0,
-                height: (i.height as number) ?? 0,
-                size: (i.size as number) ?? 0,
-                createdAt: (i.createdAt as string) ?? new Date().toISOString(),
+                type: i.type === "background" || i.type === "inline" ? i.type : "inline",
+                filename: typeof i.filename === "string" ? i.filename : "",
+                mimeType: typeof i.mimeType === "string" ? i.mimeType : "application/octet-stream",
+                width: typeof i.width === "number" ? i.width : 0,
+                height: typeof i.height === "number" ? i.height : 0,
+                size: typeof i.size === "number" ? i.size : 0,
+                createdAt: typeof i.createdAt === "string" ? i.createdAt : new Date().toISOString(),
               })));
             };
             req.onerror = () => rej(req.error);
@@ -680,9 +680,7 @@ export function useNoteRepository({
 
   const restoreNote = useCallback(() => {
     if (!date || !repository) return;
-    if ("restoreNote" in repository && typeof repository.restoreNote === "function") {
-      void (repository as NoteRepository & { restoreNote(date: string): Promise<unknown> }).restoreNote(date);
-    }
+    void repository.restoreNote?.(date);
   }, [date, repository]);
 
   // --- Capabilities ---

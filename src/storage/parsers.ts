@@ -227,6 +227,47 @@ export function parseEncryptedBlobRecord(data: unknown): EncryptedBlobRecord | n
   return data as unknown as EncryptedBlobRecord;
 }
 
+// ── Supabase Replication Rows ───────────────────────────────────────
+
+import type { SupabaseNoteRow, SupabaseImageRow } from "./rxdb/replication";
+
+export function parseSupabaseNoteRow(data: unknown): SupabaseNoteRow | null {
+  if (!isObject(data)) return null;
+  if (
+    typeof data.date !== "string" ||
+    typeof data.ciphertext !== "string" ||
+    typeof data.nonce !== "string" ||
+    typeof data.key_id !== "string" ||
+    typeof data.updated_at !== "string" ||
+    typeof data._modified !== "string" ||
+    typeof data._deleted !== "boolean"
+  )
+    return null;
+  return data as unknown as SupabaseNoteRow;
+}
+
+export function parseSupabaseImageRow(data: unknown): SupabaseImageRow | null {
+  if (!isObject(data)) return null;
+  if (
+    typeof data.id !== "string" ||
+    typeof data.note_date !== "string" ||
+    typeof data.type !== "string" ||
+    typeof data.filename !== "string" ||
+    typeof data.mime_type !== "string" ||
+    typeof data.width !== "number" ||
+    typeof data.height !== "number" ||
+    typeof data.size !== "number" ||
+    typeof data.created_at !== "string" ||
+    typeof data.key_id !== "string" ||
+    typeof data.nonce !== "string" ||
+    typeof data.sha256 !== "string" ||
+    typeof data._modified !== "string" ||
+    typeof data._deleted !== "boolean"
+  )
+    return null;
+  return data as unknown as SupabaseImageRow;
+}
+
 // ── IDB Key Arrays ──────────────────────────────────────────────────
 
 export function parseStringArray(data: unknown): string[] | null {
