@@ -59,7 +59,7 @@ function App() {
   const { routing, auth, appMode, activeVault, notes } = useAppController();
   const { needRefresh, updateServiceWorker, dismissUpdate } = usePWA();
   const [isDebug, setDebug] = useDebugMode();
-  const debugKeyring = useDebugKeyring(activeVault.keyring, activeVault.activeKeyId, auth.user?.id ?? null, auth.authState === AuthState.SignedIn);
+  const debugKeyring = useDebugKeyring(activeVault.keyring, activeVault.activeKeyId, auth.user?.id ?? null, isDebug && auth.authState === AuthState.SignedIn);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
