@@ -7,7 +7,6 @@ import { AuthState } from "../types";
 import { useServiceContext } from "../contexts/serviceContext";
 import { useVaultMachine } from "./useVaultMachine";
 import { handleCloudAccountSwitch } from "../storage/accountSwitch";
-import { closeUnifiedDb } from "../storage/unifiedDb";
 import { fetchAndUnwrapCloudKeyring } from "../services/vaultService";
 import {
   storeDeviceEncryptedPassword,
@@ -233,7 +232,6 @@ export function useActiveVault({
 
   const handleSignOut = useCallback(async () => {
     await auth.signOut();
-    closeUnifiedDb();
     void clearDeviceEncryptedPassword();
     setMode(AppMode.Local);
     setAuthPassword(null);

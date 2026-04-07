@@ -1,17 +1,19 @@
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import type { RepositoryError } from "../domain/errors";
-import { useNoteContent } from "./useNoteContent";
-import { useNoteDates } from "./useNoteDates";
-import { useSync } from "./useSync";
-import { useSyncedFactories } from "./useSyncedFactories";
-import { useRepositoryFactory } from "./useRepositoryFactory";
-import type { SyncCapableNoteRepository } from "../storage/noteRepository";
-import { isSyncCapableNoteRepository } from "../storage/noteRepository";
+import type { NoteRepository } from "../storage/noteRepository";
 import type { ImageRepository } from "../storage/imageRepository";
+import type { AppDatabase } from "../storage/rxdb/database";
+import type { ReplicationHandle } from "../storage/rxdb/replication";
+import { createAppDatabase } from "../storage/rxdb/database";
+import { RxDBNoteRepository } from "../storage/rxdb/noteRepository";
+import { RxDBImageRepository } from "../storage/rxdb/imageRepository";
+import { startReplication } from "../storage/rxdb/replication";
+import { createNoteCrypto } from "../domain/crypto/noteCrypto";
 import { AppMode } from "./useAppMode";
 import { useServiceContext } from "../contexts/serviceContext";
-import { createStoreCoordinator } from "../stores/storeCoordinator";
+import { SyncStatus } from "../types";
+import type { Note } from "../types";
 
 interface UseNoteRepositoryProps {
   mode: AppMode;
@@ -24,14 +26,14 @@ interface UseNoteRepositoryProps {
 }
 
 export interface UseNoteRepositoryReturn {
-  repository: ReturnType<typeof useRepositoryFactory>["repository"];
+  repository: NoteRepository | null;
   imageRepository: ImageRepository | null;
-  syncedRepo: SyncCapableNoteRepository | null;
-  syncStatus: ReturnType<typeof useSync>["syncStatus"];
-  syncError: ReturnType<typeof useSync>["syncError"];
-  triggerSync: ReturnType<typeof useSync>["triggerSync"];
-  queueIdleSync: ReturnType<typeof useSync>["queueIdleSync"];
-  pendingOps: ReturnType<typeof useSync>["pendingOps"];
+  syncedRepo: null;
+  syncStatus: SyncStatus;
+  syncError: string | null;
+  triggerSync: (options?: { immediate?: boolean }) => void;
+  queueIdleSync: (options?: { delayMs?: number }) => void;
+  pendingOps: { notes: number; images: number; total: number };
   capabilities: { canSync: boolean; canUploadImages: boolean };
   content: string;
   setContent: (content: string) => void;
@@ -50,6 +52,8 @@ export interface UseNoteRepositoryReturn {
   invalidateRepository: () => void;
 }
 
+const SAVE_DEBOUNCE_MS = 500;
+
 export function useNoteRepository({
   mode,
   authUser,
@@ -59,84 +63,352 @@ export function useNoteRepository({
   date,
   year,
 }: UseNoteRepositoryProps): UseNoteRepositoryReturn {
-  const {
-    supabase,
-    e2eeFactory,
-    noteContentStore,
-    syncStore,
-  } = useServiceContext();
+  const { supabase, e2eeFactory } = useServiceContext();
   const userId = authUser?.id ?? null;
 
-  const syncedFactories = useSyncedFactories(supabase, e2eeFactory);
+  // --- Database lifecycle ---
+  const [db, setDb] = useState<AppDatabase | null>(null);
+  const dbNameRef = useRef<string | null>(null);
 
-  const { repository, imageRepository, repositoryVersion, invalidateRepository } =
-    useRepositoryFactory({
-      mode,
-      userId,
-      vaultKey,
-      keyring,
+  useEffect(() => {
+    const dbName = userId ?? "local";
+    if (dbNameRef.current === dbName && db) return;
+
+    let cancelled = false;
+    let newDb: AppDatabase | null = null;
+
+    void (async () => {
+      // Close previous database if name changed
+      if (db && dbNameRef.current !== dbName) {
+        await db.close();
+      }
+
+      newDb = await createAppDatabase(dbName);
+      if (cancelled) {
+        await newDb.close();
+        return;
+      }
+      dbNameRef.current = dbName;
+      setDb(newDb);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // We intentionally omit `db` to avoid re-creation loops
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
+
+  // Close database on unmount
+  useEffect(() => {
+    return () => {
+      if (db) {
+        void db.close();
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // --- Repositories ---
+  const repository = useMemo<NoteRepository | null>(
+    () => (db ? new RxDBNoteRepository(db) : null),
+    [db],
+  );
+  const imageRepository = useMemo<ImageRepository | null>(
+    () => (db ? new RxDBImageRepository(db) : null),
+    [db],
+  );
+
+  // --- Replication ---
+  const [replication, setReplication] = useState<ReplicationHandle | null>(null);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>(SyncStatus.Idle);
+  const [syncError, setSyncError] = useState<string | null>(null);
+
+  // Keep keyring ref current for crypto operations
+  const keyringRef = useRef(keyring);
+  useEffect(() => {
+    keyringRef.current = keyring;
+  }, [keyring]);
+
+  useEffect(() => {
+    if (
+      mode !== AppMode.Cloud ||
+      !db ||
+      !userId ||
+      !vaultKey ||
+      !activeKeyId
+    ) {
+      // Cancel existing replication
+      if (replication) {
+        replication.cancel();
+        setReplication(null);
+        setSyncStatus(SyncStatus.Idle);
+        setSyncError(null);
+      }
+      return;
+    }
+
+    const keyProvider = {
       activeKeyId,
-      syncedFactories,
+      getKey: (keyId: string) => keyringRef.current.get(keyId) ?? null,
+    };
+    const e2ee = e2eeFactory.create(keyProvider);
+    const crypto = createNoteCrypto(e2ee);
+
+    const handle = startReplication(db, supabase, crypto, userId);
+    setReplication(handle);
+
+    // Subscribe to replication status
+    const activeSub = handle.notes.active$.subscribe((active) => {
+      if (active) {
+        setSyncStatus(SyncStatus.Syncing);
+      } else {
+        setSyncStatus((prev) =>
+          prev === SyncStatus.Syncing ? SyncStatus.Synced : prev,
+        );
+      }
     });
 
-  const syncedRepo =
-    mode === AppMode.Cloud &&
-    userId &&
-    isSyncCapableNoteRepository(repository)
-      ? repository
-      : null;
-  const syncEnabled =
-    syncedRepo !== null && !!vaultKey && !!activeKeyId;
+    const errorSub = handle.notes.error$.subscribe((err) => {
+      if (err) {
+        setSyncStatus(SyncStatus.Error);
+        setSyncError(err instanceof Error ? err.message : String(err));
+      }
+    });
 
-  const { syncStatus, syncError, triggerSync, queueIdleSync, pendingOps } =
-    useSync(syncedRepo, { enabled: syncEnabled, userId, supabase });
+    return () => {
+      activeSub.unsubscribe();
+      errorSub.unsubscribe();
+      handle.cancel();
+      setReplication(null);
+      setSyncStatus(SyncStatus.Idle);
+      setSyncError(null);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, db, userId, vaultKey, activeKeyId, supabase, e2eeFactory]);
 
-  const { hasNote, noteDates, refreshNoteDates, applyNoteChange } =
-    useNoteDates(repository, year);
+  // --- Note content subscription ---
+  const [note, setNote] = useState<Note | null>(null);
+  const [noteLoading, setNoteLoading] = useState(true);
+  const [noteError, setNoteError] = useState<RepositoryError | null>(null);
 
+  useEffect(() => {
+    if (!db || !date) {
+      setNote(null);
+      setNoteLoading(false);
+      return;
+    }
+
+    setNoteLoading(true);
+    const subscription = db.notes.findOne(date).$.subscribe((doc) => {
+      if (!doc || doc.isDeleted) {
+        setNote(null);
+      } else {
+        setNote({
+          date: doc.date,
+          content: doc.content,
+          updatedAt: doc.updatedAt,
+          weather: doc.weather ?? undefined,
+        });
+      }
+      setNoteLoading(false);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [db, date]);
+
+  // --- Local content editing with debounced save ---
+  const [localContent, setLocalContent] = useState("");
+  const [hasEdits, setHasEdits] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingSaveRef = useRef<{ date: string; content: string } | null>(null);
+
+  // Sync local content when note changes from DB (and no local edits)
+  useEffect(() => {
+    if (!hasEdits) {
+      setLocalContent(note?.content ?? "");
+    }
+  }, [note, hasEdits]);
+
+  // Reset edits on date change
+  const prevDateRef = useRef(date);
+  useEffect(() => {
+    if (date !== prevDateRef.current) {
+      // Flush pending save for previous date
+      if (pendingSaveRef.current && repository) {
+        const { date: saveDate, content: saveContent } = pendingSaveRef.current;
+        pendingSaveRef.current = null;
+        if (saveTimerRef.current) {
+          clearTimeout(saveTimerRef.current);
+          saveTimerRef.current = null;
+        }
+        void repository.save(saveDate, saveContent);
+      }
+      prevDateRef.current = date;
+      setHasEdits(false);
+      setLocalContent(note?.content ?? "");
+      setNoteError(null);
+    }
+  }, [date, note, repository]);
+
+  const setContent = useCallback(
+    (newContent: string) => {
+      setLocalContent(newContent);
+      setHasEdits(true);
+
+      if (!date || !repository) return;
+
+      // Clear existing timer
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+      }
+
+      pendingSaveRef.current = { date, content: newContent };
+
+      saveTimerRef.current = setTimeout(() => {
+        saveTimerRef.current = null;
+        const pending = pendingSaveRef.current;
+        if (!pending) return;
+        pendingSaveRef.current = null;
+
+        setIsSaving(true);
+        void repository.save(pending.date, pending.content).then((result) => {
+          setIsSaving(false);
+          if (!result.ok) {
+            setNoteError(result.error);
+          } else {
+            setHasEdits(false);
+            setNoteError(null);
+          }
+        });
+      }, SAVE_DEBOUNCE_MS);
+    },
+    [date, repository],
+  );
+
+  // Cleanup save timer on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+      }
+    };
+  }, []);
+
+  // --- Note dates subscription ---
+  const [noteDates, setNoteDates] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!db) {
+      setNoteDates(new Set());
+      return;
+    }
+
+    const subscription = db.notes
+      .find({ selector: { isDeleted: false } })
+      .$.subscribe((docs) => {
+        const yearStr = String(year);
+        const filtered = docs
+          .map((doc) => doc.date)
+          .filter((d) => d.endsWith(yearStr));
+        setNoteDates(new Set(filtered));
+      });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [db, year]);
+
+  const hasNote = useCallback(
+    (checkDate: string): boolean => noteDates.has(checkDate),
+    [noteDates],
+  );
+
+  const refreshNoteDates = useCallback(() => {
+    // With RxDB reactive subscriptions, dates auto-update.
+    // This is a no-op kept for interface compatibility.
+  }, []);
+
+  // --- Soft delete support ---
+  const [isSoftDeleted, setIsSoftDeleted] = useState(false);
+
+  useEffect(() => {
+    if (!db || !date) {
+      setIsSoftDeleted(false);
+      return;
+    }
+
+    const subscription = db.notes.findOne(date).$.subscribe((doc) => {
+      setIsSoftDeleted(doc?.isDeleted === true);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [db, date]);
+
+  const restoreNote = useCallback(() => {
+    if (!date || !repository) return;
+    if ("restoreNote" in repository && typeof repository.restoreNote === "function") {
+      void (repository as NoteRepository & { restoreNote(date: string): Promise<unknown> }).restoreNote(date);
+    }
+  }, [date, repository]);
+
+  // --- Capabilities ---
+  const isCloud = mode === AppMode.Cloud && !!userId && !!vaultKey;
   const capabilities = useMemo(
     () => ({
-      canSync: !!syncedRepo,
+      canSync: isCloud,
       canUploadImages: !!imageRepository,
     }),
-    [syncedRepo, imageRepository],
+    [isCloud, imageRepository],
   );
 
-  const handleAfterSave = useCallback(
-    (snapshot: { date: string; isEmpty: boolean }) => {
-      applyNoteChange(snapshot.date, snapshot.isEmpty);
-      queueIdleSync();
+  // --- Trigger sync / idle sync ---
+  const triggerSync = useCallback(
+    (_options?: { immediate?: boolean }) => {
+      // RxDB replication is continuous; manual trigger re-syncs
+      if (replication) {
+        void replication.notes.reSync();
+      }
     },
-    [applyNoteChange, queueIdleSync],
+    [replication],
   );
 
-  const {
-    content,
-    setContent,
-    isDecrypting,
-    hasEdits,
-    isSaving,
-    isContentReady,
-    isOfflineStub,
-    isSoftDeleted,
-    restoreNote,
-    error: noteError,
-  } = useNoteContent(date, repository, hasNote, handleAfterSave);
+  const queueIdleSync = useCallback(
+    (_options?: { delayMs?: number }) => {
+      if (replication) {
+        void replication.notes.reSync();
+      }
+    },
+    [replication],
+  );
 
-  // Cross-store coordination: sync completion/realtime -> refresh note
-  useEffect(() => {
-    return createStoreCoordinator(syncStore, noteContentStore);
-  }, [syncStore, noteContentStore]);
+  // --- Repository version ---
+  const [repositoryVersion, setRepositoryVersion] = useState(0);
+  const invalidateRepository = useCallback(() => {
+    setRepositoryVersion((v) => v + 1);
+  }, []);
+
+  // --- Derived state ---
+  const isDecrypting = noteLoading || (date !== null && !db);
+  const isContentReady = !noteLoading && !!db;
+  const isOfflineStub = false; // RxDB local-first: always has local data
+
+  const content = localContent;
 
   return {
     repository,
     imageRepository,
-    syncedRepo,
+    syncedRepo: null,
     syncStatus,
     syncError,
     triggerSync,
     queueIdleSync,
-    pendingOps,
+    pendingOps: { notes: 0, images: 0, total: 0 },
     capabilities,
     content,
     setContent,
