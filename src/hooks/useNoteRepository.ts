@@ -588,7 +588,12 @@ export function useNoteRepository({
   // --- Effect 4: Subscribe to note document (content + soft-delete) ---
   useEffect(() => {
     if (!state.db || !state.date) {
-      dispatch({ type: "NOTE_DOC_CHANGED", note: null, isSoftDeleted: false });
+      // Only mark "no note" when we have a DB but no date selected.
+      // When db is null we're still opening — keep noteLoading true so
+      // isEditable stays false and auto-focus doesn't fire on empty content.
+      if (state.db && !state.date) {
+        dispatch({ type: "NOTE_DOC_CHANGED", note: null, isSoftDeleted: false });
+      }
       return;
     }
 
