@@ -154,7 +154,14 @@ export function useInlineImageUrls({
         }
       }
 
-      img.setAttribute("data-image-loading", "true");
+      // Only show loading shimmer for images that don't have src yet.
+      // Images that already have a blob src (from a previous acquisition or
+      // because the DOM wasn't reset) will still be re-validated via
+      // acquireUrl below, but won't flash a loading state.
+      const hasSrc = img.hasAttribute("src");
+      if (!hasSrc) {
+        img.setAttribute("data-image-loading", "true");
+      }
 
       manager
         .acquireUrl(imageId, ownerIdRef.current)

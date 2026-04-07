@@ -579,7 +579,10 @@ export function useNoteRepository({
     return () => {
       subs.forEach((s) => s.unsubscribe());
       handle.cancel();
-      imageRepository?.setRemoteFetcher(null);
+      // Don't clear the remote fetcher here — imageRepository's useMemo
+      // already sets a fetcher at construction time, and nulling it on
+      // replication restart leaves a window where on-demand blob fetches
+      // silently return null (images load but fail to display).
       dispatch({ type: "REPLICATION_STOPPED" });
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
