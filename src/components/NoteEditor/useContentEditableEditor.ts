@@ -529,7 +529,10 @@ export function useContentEditableEditor({
         applySectionColors(el);
         applyFavicons(el);
       } else {
-        const savedCursor = saveResilientCursorPosition(el);
+        // When previous content was empty, cursor position is meaningless —
+        // skip restore and let auto-focus below place the caret properly.
+        const wasEmpty = !lastContentRef.current;
+        const savedCursor = wasEmpty ? null : saveResilientCursorPosition(el);
         isProgrammaticUpdateRef.current = true;
         el.innerHTML = nextContent; // Sanitized content from our own store
         lastContentRef.current = nextContent;
@@ -538,7 +541,12 @@ export function useContentEditableEditor({
         updateTimestampLabels(el);
         applySectionColors(el);
         applyFavicons(el);
-        restoreResilientCursorPosition(el, savedCursor);
+        if (savedCursor) {
+          restoreResilientCursorPosition(el, savedCursor);
+        } else if (nextContent) {
+          // Content just loaded into an empty editor — re-trigger auto-focus
+          hasAutoFocusedRef.current = false;
+        }
         isProgrammaticUpdateRef.current = false;
       }
     }
