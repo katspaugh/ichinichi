@@ -43,6 +43,23 @@ export class RxDBNoteRepository implements NoteRepository {
     }
   }
 
+  async saveWeather(
+    date: string,
+    weather: SavedWeather | null,
+  ): Promise<Result<void, RepositoryError>> {
+    try {
+      const doc = await this.db.notes.findOne(date).exec();
+      if (doc) {
+        await doc.patch({ weather, updatedAt: new Date().toISOString() });
+      }
+      // If no doc exists yet, skip — weather will be included in the next content save
+      return ok(undefined);
+    } catch (error) {
+      reportError("rxNoteRepository.saveWeather", error);
+      return err({ type: "IO", message: String(error) });
+    }
+  }
+
   async delete(date: string): Promise<Result<void, RepositoryError>> {
     try {
       const doc = await this.db.notes.findOne(date).exec();

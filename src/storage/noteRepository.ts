@@ -13,6 +13,8 @@ export interface NoteRepository {
   delete(date: string): Promise<Result<void, RepositoryError>>;
   getAllDates(): Promise<Result<string[], RepositoryError>>;
   getAllDatesForYear(year: number): Promise<Result<string[], RepositoryError>>;
+  // Partial updates
+  saveWeather?(date: string, weather: SavedWeather | null): Promise<Result<void, RepositoryError>>;
   // Soft-delete support
   getIncludingDeleted?(date: string): Promise<Result<Note | null, RepositoryError>>;
   restoreNote?(date: string): Promise<Result<void, RepositoryError>>;

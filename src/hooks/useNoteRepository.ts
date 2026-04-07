@@ -452,6 +452,7 @@ export function useNoteRepository({
   const keyringRef = useRef(keyring);
   keyringRef.current = keyring;
   const localContentRef = useRef(state.localContent);
+  localContentRef.current = state.localContent;
   const weatherRef = useRef(state.weather);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingSaveRef = useRef<{ date: string; content: string } | null>(null);
@@ -714,7 +715,7 @@ export function useNoteRepository({
       dispatch({ type: "WEATHER_CHANGED", weather: w });
       weatherRef.current = w;
       if (date && repository) {
-        void repository.save(date, localContentRef.current, w);
+        void repository.saveWeather?.(date, w);
       }
     },
     [date, repository],
