@@ -77,17 +77,11 @@ export function useNoteRepository({
     if (dbNameRef.current === dbName && db) return;
 
     let cancelled = false;
-    let newDb: AppDatabase | null = null;
 
     void (async () => {
-      // Close previous database if name changed
-      if (db && dbNameRef.current !== dbName) {
-        await db.close();
-      }
-
-      newDb = await createAppDatabase(dbName);
+      const newDb = await createAppDatabase(dbName);
       if (cancelled) {
-        await newDb.close();
+        // Don't close — the database is cached and may be reused
         return;
       }
       dbNameRef.current = dbName;
@@ -100,16 +94,6 @@ export function useNoteRepository({
     // We intentionally omit `db` to avoid re-creation loops
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
-
-  // Close database on unmount
-  useEffect(() => {
-    return () => {
-      if (db) {
-        void db.close();
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // --- Repositories ---
   const repository = useMemo<NoteRepository | null>(
