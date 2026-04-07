@@ -9,7 +9,7 @@ import { createAppDatabase } from "../storage/rxdb/database";
 import { migrateLegacyData, type LegacyDataSource } from "../storage/legacyMigration";
 import { RxDBNoteRepository } from "../storage/rxdb/noteRepository";
 import { RxDBImageRepository } from "../storage/rxdb/imageRepository";
-import { startReplication, createImageCryptoAdapter } from "../storage/rxdb/replication";
+import { startReplication, createImageCryptoAdapter, createRemoteBlobFetcher } from "../storage/rxdb/replication";
 import { createNoteCrypto } from "../domain/crypto/noteCrypto";
 import { AppMode } from "./useAppMode";
 import { useServiceContext } from "../contexts/serviceContext";
@@ -540,6 +540,7 @@ export function useNoteRepository({
     const crypto = createNoteCrypto(e2ee);
 
     const imageCrypto = createImageCryptoAdapter(e2ee);
+    imageRepository?.setRemoteFetcher(createRemoteBlobFetcher(supabase, imageCrypto, currentUserId));
     const handle = startReplication(state.db, supabase, crypto, currentUserId, imageCrypto);
     dispatch({ type: "REPLICATION_STARTED", replication: handle });
 
@@ -579,6 +580,7 @@ export function useNoteRepository({
     return () => {
       subs.forEach((s) => s.unsubscribe());
       handle.cancel();
+      imageRepository?.setRemoteFetcher(null);
       dispatch({ type: "REPLICATION_STOPPED" });
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -651,15 +653,9 @@ export function useNoteRepository({
     () => (state.db ? new RxDBNoteRepository(state.db) : null),
     [state.db],
   );
-  const imageRepository = useMemo<ImageRepository | null>(
-    () => (state.db
-      ? new RxDBImageRepository(
-          state.db,
-          mode === AppMode.Cloud ? supabase : null,
-          userId,
-        )
-      : null),
-    [state.db, mode, supabase, userId],
+  const imageRepository = useMemo<RxDBImageRepository | null>(
+    () => (state.db ? new RxDBImageRepository(state.db) : null),
+    [state.db],
   );
 
   // --- Callbacks ---

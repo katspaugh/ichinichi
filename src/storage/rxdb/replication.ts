@@ -336,6 +336,45 @@ export function createImageCryptoAdapter(e2ee: {
   };
 }
 
+/**
+ * Creates a RemoteBlobFetcher that downloads encrypted blobs from Supabase
+ * storage and decrypts them for local display.
+ */
+export function createRemoteBlobFetcher(
+  supabase: SupabaseClient,
+  crypto: ImageReplicationCrypto,
+  userId: string,
+): import("./imageRepository").RemoteBlobFetcher {
+  const bucket = createSupabaseBucket(supabase);
+  return {
+    async fetch(imageId: string, noteDate: string, mimeType: string): Promise<Blob | null> {
+      const path = `${userId}/${noteDate}/${imageId}.enc`;
+      const downloadResult = await bucket.download(path);
+      if (!downloadResult.ok) {
+        reportError("remoteBlobFetcher.fetch: download failed", downloadResult.error);
+        return null;
+      }
+
+      let encRecord;
+      try {
+        const text = await downloadResult.value.text();
+        encRecord = parseEncryptedBlobRecord(JSON.parse(text));
+      } catch {
+        reportError("remoteBlobFetcher.fetch: parse failed", "Could not parse encrypted blob JSON");
+        return null;
+      }
+      if (!encRecord) return null;
+
+      const decryptResult = await crypto.decryptBlob(encRecord, mimeType);
+      if (!decryptResult.ok) {
+        reportError("remoteBlobFetcher.fetch: decrypt failed", decryptResult.error);
+        return null;
+      }
+      return decryptResult.value;
+    },
+  };
+}
+
 export interface ReplicationHandle {
   notes: RxReplicationState<NoteDocType, ReplicationCheckpoint>;
   images: RxReplicationState<ImageDocType, ReplicationCheckpoint> | null;

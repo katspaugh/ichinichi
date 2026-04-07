@@ -1,4 +1,3 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ImageRepository } from "../imageRepository";
 import type { NoteImage } from "../../types";
 import type { RepositoryError } from "../../domain/errors";
@@ -7,15 +6,21 @@ import type { AppDatabase } from "./database";
 import { ok, err } from "../../domain/result";
 import { reportError } from "../../utils/errorReporter";
 
+export interface RemoteBlobFetcher {
+  fetch(imageId: string, noteDate: string, mimeType: string): Promise<Blob | null>;
+}
+
 export class RxDBImageRepository implements ImageRepository {
   readonly db: AppDatabase;
-  private readonly supabase: SupabaseClient | null;
-  private readonly userId: string | null;
+  private remoteFetcher: RemoteBlobFetcher | null;
 
-  constructor(db: AppDatabase, supabase?: SupabaseClient | null, userId?: string | null) {
+  constructor(db: AppDatabase) {
     this.db = db;
-    this.supabase = supabase ?? null;
-    this.userId = userId ?? null;
+    this.remoteFetcher = null;
+  }
+
+  setRemoteFetcher(fetcher: RemoteBlobFetcher | null): void {
+    this.remoteFetcher = fetcher;
   }
 
   async upload(
@@ -71,36 +76,31 @@ export class RxDBImageRepository implements ImageRepository {
       if (!doc || doc.isDeleted) return ok(null);
 
       const attachment = doc.getAttachment("blob");
-      if (!attachment) return ok(null);
+      if (attachment) {
+        const data = await attachment.getData();
+        return ok(data);
+      }
 
-      const data = await attachment.getData();
-      return ok(data);
+      // Blob not available locally — download and decrypt from remote
+      if (this.remoteFetcher) {
+        const blob = await this.remoteFetcher.fetch(imageId, doc.noteDate, doc.mimeType);
+        if (blob) {
+          await doc.putAttachment({ id: "blob", data: blob, type: doc.mimeType });
+          return ok(blob);
+        }
+      }
+
+      return ok(null);
     } catch (error) {
       reportError("rxImageRepository.get", error);
       return err({ type: "IO", message: String(error) });
     }
   }
 
-  async getUrl(imageId: string): Promise<Result<string | null, RepositoryError>> {
-    if (!this.supabase || !this.userId) {
-      return ok(null);
-    }
-    try {
-      const doc = await this.db.images.findOne(imageId).exec();
-      if (!doc || doc.isDeleted) return ok(null);
-      const path = `${this.userId}/${doc.noteDate}/${imageId}.enc`;
-      const { data, error } = await this.supabase.storage
-        .from("note-images")
-        .createSignedUrl(path, 3600);
-      if (error) {
-        reportError("rxImageRepository.getUrl", error);
-        return ok(null);
-      }
-      return ok(data.signedUrl);
-    } catch (error) {
-      reportError("rxImageRepository.getUrl", error);
-      return err({ type: "IO", message: String(error) });
-    }
+  async getUrl(_imageId: string): Promise<Result<string | null, RepositoryError>> {
+    // Blobs in Supabase are encrypted; signed URLs can't be rendered directly.
+    // Return null so ImageUrlManager falls back to the local decrypted blob via get().
+    return ok(null);
   }
 
   async delete(imageId: string): Promise<Result<void, RepositoryError>> {
