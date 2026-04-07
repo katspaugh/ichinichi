@@ -1,6 +1,9 @@
-import { replicateSupabase } from "rxdb/plugins/replication-supabase";
-import type { RxSupabaseReplicationState } from "rxdb/plugins/replication-supabase";
+import { replicateRxCollection } from "rxdb/plugins/replication";
+import type { RxReplicationState } from "rxdb/plugins/replication";
+import type { RxReplicationWriteToMasterRow, WithDeleted } from "rxdb";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { Subject } from "rxjs";
+import type { RxReplicationPullStreamItem } from "rxdb";
 import type { AppDatabase } from "./database";
 import type { NoteDocType, ImageDocType } from "./schemas";
 import type { EncryptedNote } from "../../domain/crypto/noteCrypto";
@@ -342,9 +345,14 @@ export function createImageCryptoAdapter(e2ee: {
 }
 
 export interface ReplicationHandle {
-  notes: RxSupabaseReplicationState<NoteDocType>;
-  images: RxSupabaseReplicationState<ImageDocType> | null;
+  notes: RxReplicationState<NoteDocType, SupabaseCheckpoint>;
+  images: RxReplicationState<ImageDocType, SupabaseCheckpoint> | null;
   cancel(): void;
+}
+
+interface SupabaseCheckpoint {
+  id: string;
+  modified: string;
 }
 
 /**
@@ -369,10 +377,16 @@ function createSupabaseBucket(supabase: SupabaseClient): StorageBucket {
   };
 }
 
+// Postgres unique-violation error code
+const POSTGRES_CONFLICT_CODE = "23505";
+
 /**
  * Starts Supabase replication for notes and optionally images.
- * Notes: E2EE push/pull modifiers encrypt/decrypt content.
- * Images: metadata replication with blob upload/download as side-effects.
+ * Uses the generic replicateRxCollection with custom push/pull handlers
+ * because the RxDB schema (plaintext) differs from the Supabase table schema
+ * (encrypted columns like ciphertext/nonce/key_id instead of content/weather).
+ * The Supabase-specific replication plugin assumes schema fields = column names,
+ * which breaks with E2EE.
  */
 export function startReplication(
   db: AppDatabase,
@@ -384,27 +398,132 @@ export function startReplication(
   const pushModifier = createPushModifier(crypto);
   const pullModifier = createPullModifier(crypto);
 
-  const notesReplication = replicateSupabase<NoteDocType>({
+  // --- Notes replication ---
+  const notesPullStream$ = new Subject<RxReplicationPullStreamItem<NoteDocType, SupabaseCheckpoint>>();
+
+  const notesReplication = replicateRxCollection<NoteDocType, SupabaseCheckpoint>({
     replicationIdentifier: `notes-supabase-${userId}`,
     collection: db.notes,
-    client: supabase,
-    tableName: "notes",
+    deletedField: "isDeleted",
     pull: {
-      modifier: (row: SupabaseNoteRow) =>
-        pullModifier(row).then((doc) => ({ ...doc, _deleted: doc.isDeleted })),
+      async handler(lastCheckpoint, batchSize) {
+        let query = supabase.from("notes").select("*");
+
+        if (lastCheckpoint) {
+          const { modified, id } = lastCheckpoint;
+          query = query.or(
+            `_modified.gt.${modified},and(_modified.eq.${modified},date.gt.${id})`,
+          );
+        }
+
+        query = query
+          .order("_modified", { ascending: true })
+          .order("date", { ascending: true })
+          .limit(batchSize);
+
+        const { data, error } = await query;
+        if (error) throw error;
+
+        const rows = (data ?? []) as SupabaseNoteRow[];
+        const lastRow = rows[rows.length - 1];
+        const checkpoint = lastRow
+          ? { id: lastRow.date, modified: lastRow._modified }
+          : undefined;
+
+        const docs = await Promise.all(
+          rows.map(async (row) => {
+            const doc = await pullModifier(row);
+            return { ...doc, _deleted: doc.isDeleted } as WithDeleted<NoteDocType>;
+          }),
+        );
+
+        return { documents: docs, checkpoint };
+      },
+      batchSize: 100,
+      stream$: notesPullStream$.asObservable(),
     },
     push: {
-      modifier: (doc: NoteDocType & { _deleted: boolean }) =>
-        pushModifier({ ...doc, isDeleted: doc._deleted }),
+      async handler(rows: RxReplicationWriteToMasterRow<NoteDocType>[]) {
+        const conflicts: WithDeleted<NoteDocType>[] = [];
+
+        await Promise.all(
+          rows.map(async (row) => {
+            const supabaseRow = await pushModifier({
+              ...row.newDocumentState,
+              isDeleted: (row.newDocumentState as WithDeleted<NoteDocType>)._deleted,
+            });
+            // Include user_id for RLS and NOT NULL constraint
+            const rowWithUser = { ...supabaseRow, user_id: userId };
+
+            if (!row.assumedMasterState) {
+              // New document: INSERT
+              const { error } = await supabase
+                .from("notes")
+                .insert(rowWithUser);
+
+              if (error && error.code === POSTGRES_CONFLICT_CODE) {
+                // Conflict: fetch current server state
+                const conflict = await fetchNoteById(supabase, supabaseRow.date, pullModifier);
+                if (conflict) conflicts.push(conflict);
+              } else if (error) {
+                throw error;
+              }
+            } else {
+              // Existing document: UPDATE with optimistic concurrency
+              const assumedRow = await pushModifier({
+                ...row.assumedMasterState,
+                isDeleted: (row.assumedMasterState as WithDeleted<NoteDocType>)._deleted,
+              });
+
+              const { data, error } = await supabase
+                .from("notes")
+                .update(rowWithUser)
+                .eq("date", supabaseRow.date)
+                .eq("_modified", assumedRow._modified)
+                .select();
+
+              if (error) throw error;
+
+              if (!data || data.length === 0) {
+                // No match = conflict
+                const conflict = await fetchNoteById(supabase, supabaseRow.date, pullModifier);
+                if (conflict) conflicts.push(conflict);
+              }
+            }
+          }),
+        );
+
+        return conflicts;
+      },
     },
   });
 
-  // --- Image replication (metadata + blob side-effects) ---
-  let imagesReplication: RxSupabaseReplicationState<ImageDocType> | null = null;
+  // Realtime subscription for live pull
+  const notesSub = supabase
+    .channel("realtime:notes")
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "notes" },
+      async (payload) => {
+        if (payload.eventType === "DELETE") return;
+        const row = payload.new as SupabaseNoteRow;
+        const doc = await pullModifier(row);
+        notesPullStream$.next({
+          checkpoint: { id: row.date, modified: row._modified },
+          documents: [{ ...doc, _deleted: doc.isDeleted } as WithDeleted<NoteDocType>],
+        });
+      },
+    )
+    .subscribe((status) => {
+      if (status === "SUBSCRIBED") {
+        notesPullStream$.next("RESYNC");
+      }
+    });
 
-  // Pending blobs keyed by image ID. The pull modifier stores blobs here
-  // because the document hasn't been written to RxDB yet when the modifier runs.
-  // A post-insert hook picks them up once the document exists.
+  // --- Image replication (metadata + blob side-effects) ---
+  let imagesReplication: RxReplicationState<ImageDocType, SupabaseCheckpoint> | null = null;
+  let imagesSub: ReturnType<typeof supabase.channel> | null = null;
+
   const pendingBlobs = new Map<string, { blob: Blob; mimeType: string }>();
   let imageHookActive = false;
 
@@ -431,34 +550,126 @@ export function startReplication(
       }
     }, false);
 
-    imagesReplication = replicateSupabase<ImageDocType>({
+    const imagesPullStream$ = new Subject<RxReplicationPullStreamItem<ImageDocType, SupabaseCheckpoint>>();
+
+    imagesReplication = replicateRxCollection<ImageDocType, SupabaseCheckpoint>({
       replicationIdentifier: `images-supabase-${userId}`,
       collection: db.images,
-      client: supabase,
-      tableName: "note_images",
+      deletedField: "isDeleted",
       pull: {
-        modifier: (row: SupabaseImageRow) =>
-          imgPull(row).then(({ doc, blob }) => {
-            if (blob) {
-              pendingBlobs.set(doc.id, { blob, mimeType: doc.mimeType });
-            }
-            return { ...doc, _deleted: doc.isDeleted };
-          }),
+        async handler(lastCheckpoint, batchSize) {
+          let query = supabase.from("note_images").select("*");
+
+          if (lastCheckpoint) {
+            const { modified, id } = lastCheckpoint;
+            query = query.or(
+              `_modified.gt.${modified},and(_modified.eq.${modified},id.gt.${id})`,
+            );
+          }
+
+          query = query
+            .order("_modified", { ascending: true })
+            .order("id", { ascending: true })
+            .limit(batchSize);
+
+          const { data, error } = await query;
+          if (error) throw error;
+
+          const rows = (data ?? []) as SupabaseImageRow[];
+          const lastRow = rows[rows.length - 1];
+          const checkpoint = lastRow
+            ? { id: lastRow.id, modified: lastRow._modified }
+            : undefined;
+
+          const docs = await Promise.all(
+            rows.map(async (row) => {
+              const { doc, blob } = await imgPull(row);
+              if (blob) {
+                pendingBlobs.set(doc.id, { blob, mimeType: doc.mimeType });
+              }
+              return { ...doc, _deleted: doc.isDeleted } as WithDeleted<ImageDocType>;
+            }),
+          );
+
+          return { documents: docs, checkpoint };
+        },
+        batchSize: 50,
+        stream$: imagesPullStream$.asObservable(),
       },
       push: {
-        modifier: async (doc: ImageDocType & { _deleted: boolean }) => {
-          const imageDoc = { ...doc, isDeleted: doc._deleted };
-          const rxDoc = await db.images.findOne(doc.id).exec();
-          const attachment = rxDoc?.getAttachment("blob");
-          const blob = attachment ? await attachment.getData() : new Blob();
-          const row = await imgPush(imageDoc, blob);
-          // The replication plugin expects the modifier to return the collection's doc type,
-          // but we return a SupabaseImageRow (snake_case) which is what Supabase actually receives.
-          // This cast satisfies the type checker while the plugin serializes the actual object.
-          return row as unknown as ImageDocType & { _deleted: boolean };
+        async handler(rows: RxReplicationWriteToMasterRow<ImageDocType>[]) {
+          const conflicts: WithDeleted<ImageDocType>[] = [];
+
+          await Promise.all(
+            rows.map(async (row) => {
+              const imageDoc = {
+                ...row.newDocumentState,
+                isDeleted: (row.newDocumentState as WithDeleted<ImageDocType>)._deleted,
+              };
+              const rxDoc = await db.images.findOne(imageDoc.id).exec();
+              const attachment = rxDoc?.getAttachment("blob");
+              const blob = attachment ? await attachment.getData() : new Blob();
+              const supabaseRow = await imgPush(imageDoc, blob);
+              // Include user_id for RLS and NOT NULL constraint
+              const rowWithUser = { ...supabaseRow, user_id: userId };
+
+              if (!row.assumedMasterState) {
+                const { error } = await supabase
+                  .from("note_images")
+                  .insert(rowWithUser);
+
+                if (error && error.code === POSTGRES_CONFLICT_CODE) {
+                  const conflict = await fetchImageById(supabase, supabaseRow.id, imgPull);
+                  if (conflict) conflicts.push(conflict);
+                } else if (error) {
+                  throw error;
+                }
+              } else {
+                const { data, error } = await supabase
+                  .from("note_images")
+                  .update(rowWithUser)
+                  .eq("id", supabaseRow.id)
+                  .select();
+
+                if (error) throw error;
+
+                if (!data || data.length === 0) {
+                  const conflict = await fetchImageById(supabase, supabaseRow.id, imgPull);
+                  if (conflict) conflicts.push(conflict);
+                }
+              }
+            }),
+          );
+
+          return conflicts;
         },
       },
     });
+
+    // Realtime for images
+    imagesSub = supabase
+      .channel("realtime:note_images")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "note_images" },
+        async (payload) => {
+          if (payload.eventType === "DELETE") return;
+          const row = payload.new as SupabaseImageRow;
+          const { doc, blob } = await imgPull(row);
+          if (blob) {
+            pendingBlobs.set(doc.id, { blob, mimeType: doc.mimeType });
+          }
+          imagesPullStream$.next({
+            checkpoint: { id: row.id, modified: row._modified },
+            documents: [{ ...doc, _deleted: doc.isDeleted } as WithDeleted<ImageDocType>],
+          });
+        },
+      )
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          imagesPullStream$.next("RESYNC");
+        }
+      });
   }
 
   return {
@@ -466,11 +677,53 @@ export function startReplication(
     images: imagesReplication,
     cancel() {
       void notesReplication.cancel();
+      notesSub.unsubscribe();
       if (imagesReplication) {
         void imagesReplication.cancel();
+      }
+      if (imagesSub) {
+        imagesSub.unsubscribe();
       }
       imageHookActive = false;
       pendingBlobs.clear();
     },
   };
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+async function fetchNoteById(
+  supabase: SupabaseClient,
+  date: string,
+  pullModifier: (row: SupabaseNoteRow) => Promise<NoteDocType>,
+): Promise<WithDeleted<NoteDocType> | null> {
+  const { data, error } = await supabase
+    .from("notes")
+    .select("*")
+    .eq("date", date)
+    .limit(1);
+
+  if (error || !data || data.length === 0) return null;
+
+  const doc = await pullModifier(data[0] as SupabaseNoteRow);
+  return { ...doc, _deleted: doc.isDeleted } as WithDeleted<NoteDocType>;
+}
+
+async function fetchImageById(
+  supabase: SupabaseClient,
+  id: string,
+  imgPull: (row: SupabaseImageRow) => Promise<{ doc: ImageDocType; blob: Blob | null }>,
+): Promise<WithDeleted<ImageDocType> | null> {
+  const { data, error } = await supabase
+    .from("note_images")
+    .select("*")
+    .eq("id", id)
+    .limit(1);
+
+  if (error || !data || data.length === 0) return null;
+
+  const { doc } = await imgPull(data[0] as SupabaseImageRow);
+  return { ...doc, _deleted: doc.isDeleted } as WithDeleted<ImageDocType>;
 }
