@@ -1,6 +1,7 @@
-import { replicateSupabase } from "rxdb/plugins/replication-supabase";
-import type { RxSupabaseReplicationState } from "rxdb/plugins/replication-supabase";
+import { replicateRxCollection, RxReplicationState } from "rxdb/plugins/replication";
+import type { RxReplicationWriteToMasterRow, WithDeleted } from "rxdb";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { Subject } from "rxjs";
 import type { AppDatabase } from "./database";
 import type { NoteDocType, ImageDocType } from "./schemas";
 import type { EncryptedNote } from "../../domain/crypto/noteCrypto";
@@ -31,7 +32,6 @@ export interface SupabaseNoteRow {
 
 /**
  * Creates a push modifier that encrypts note content before pushing to Supabase.
- * Returns a function from NoteDocType to a Supabase row shape.
  */
 export function createPushModifier(
   crypto: ReplicationCrypto,
@@ -65,7 +65,6 @@ export function createPushModifier(
 
 /**
  * Creates a pull modifier that decrypts Supabase rows after pulling.
- * Returns a function from Supabase row to NoteDocType.
  */
 export function createPullModifier(
   crypto: ReplicationCrypto,
@@ -77,7 +76,6 @@ export function createPullModifier(
       return { date: (row as unknown as Record<string, unknown>).date as string ?? "", content: "", updatedAt: "", isDeleted: true, weather: null };
     }
 
-    // The replication plugin may strip _modified and updated_at from the row
     const updatedAt = row.updated_at || new Date().toISOString();
 
     if (row._deleted) {
@@ -177,12 +175,11 @@ export function createImagePushModifier(
 
     const { record, sha256, keyId } = encResult.value;
 
-    // Serialise the encrypted record as a blob to upload
     const ciphertextBlob = new Blob([JSON.stringify(record)], {
       type: "application/octet-stream",
     });
 
-    const uploadPath = `${userId}/${doc.id}`;
+    const uploadPath = `${userId}/${doc.noteDate}/${doc.id}.enc`;
     const uploadResult = await bucket.upload(uploadPath, ciphertextBlob);
     if (!uploadResult.ok) {
       throw new Error(
@@ -242,23 +239,23 @@ export function createImagePullModifier(
     }
 
     const doc: ImageDocType = {
-      id: row.id,
-      noteDate: row.note_date,
-      type: row.type,
-      filename: row.filename,
-      mimeType: row.mime_type,
-      width: row.width,
-      height: row.height,
-      size: row.size,
-      createdAt: row.created_at,
-      isDeleted: row._deleted,
+      id: parsed.id,
+      noteDate: parsed.note_date,
+      type: parsed.type,
+      filename: parsed.filename,
+      mimeType: parsed.mime_type,
+      width: parsed.width,
+      height: parsed.height,
+      size: parsed.size,
+      createdAt: parsed.created_at,
+      isDeleted: parsed._deleted,
     };
 
-    if (row._deleted) {
+    if (parsed._deleted) {
       return { doc, blob: null };
     }
 
-    const downloadPath = `${userId}/${row.id}`;
+    const downloadPath = `${userId}/${parsed.note_date}/${parsed.id}.enc`;
     const downloadResult = await bucket.download(downloadPath);
     if (!downloadResult.ok) {
       reportError("imageReplication.pull: bucket download failed", {
@@ -268,7 +265,6 @@ export function createImagePullModifier(
       return { doc, blob: null };
     }
 
-    // The stored blob is a JSON-serialised encrypted record
     let encRecord;
     try {
       const text = await downloadResult.value.text();
@@ -290,8 +286,8 @@ export function createImagePullModifier(
     }
 
     const decryptResult = await crypto.decryptBlob(
-      { keyId: row.key_id, ciphertext: encRecord.ciphertext, nonce: encRecord.nonce },
-      row.mime_type,
+      { keyId: parsed.key_id, ciphertext: encRecord.ciphertext, nonce: encRecord.nonce },
+      parsed.mime_type,
     );
 
     if (!decryptResult.ok) {
@@ -304,8 +300,7 @@ export function createImagePullModifier(
 }
 
 /**
- * Adapts an E2eeService (which has encryptImageBlob/decryptImageRecord) into
- * the ImageReplicationCrypto interface expected by image push/pull modifiers.
+ * Adapts an E2eeService into the ImageReplicationCrypto interface.
  */
 export function createImageCryptoAdapter(e2ee: {
   encryptImageBlob(blob: Blob): Promise<{
@@ -341,15 +336,56 @@ export function createImageCryptoAdapter(e2ee: {
   };
 }
 
+/**
+ * Creates a RemoteBlobFetcher that downloads encrypted blobs from Supabase
+ * storage and decrypts them for local display.
+ */
+export function createRemoteBlobFetcher(
+  supabase: SupabaseClient,
+  crypto: ImageReplicationCrypto,
+  userId: string,
+): import("./imageRepository").RemoteBlobFetcher {
+  const bucket = createSupabaseBucket(supabase);
+  return {
+    async fetch(imageId: string, noteDate: string, mimeType: string): Promise<Blob | null> {
+      const path = `${userId}/${noteDate}/${imageId}.enc`;
+      const downloadResult = await bucket.download(path);
+      if (!downloadResult.ok) {
+        reportError("remoteBlobFetcher.fetch: download failed", downloadResult.error);
+        return null;
+      }
+
+      let encRecord;
+      try {
+        const text = await downloadResult.value.text();
+        encRecord = parseEncryptedBlobRecord(JSON.parse(text));
+      } catch {
+        reportError("remoteBlobFetcher.fetch: parse failed", "Could not parse encrypted blob JSON");
+        return null;
+      }
+      if (!encRecord) return null;
+
+      const decryptResult = await crypto.decryptBlob(encRecord, mimeType);
+      if (!decryptResult.ok) {
+        reportError("remoteBlobFetcher.fetch: decrypt failed", decryptResult.error);
+        return null;
+      }
+      return decryptResult.value;
+    },
+  };
+}
+
 export interface ReplicationHandle {
-  notes: RxSupabaseReplicationState<NoteDocType>;
-  images: RxSupabaseReplicationState<ImageDocType> | null;
+  notes: RxReplicationState<NoteDocType, ReplicationCheckpoint>;
+  images: RxReplicationState<ImageDocType, ReplicationCheckpoint> | null;
   cancel(): void;
 }
 
-/**
- * Creates a Supabase storage bucket adapter for image blob upload/download.
- */
+interface ReplicationCheckpoint {
+  id: string;
+  modified: string;
+}
+
 function createSupabaseBucket(supabase: SupabaseClient): StorageBucket {
   return {
     async upload(path, blob) {
@@ -369,10 +405,208 @@ function createSupabaseBucket(supabase: SupabaseClient): StorageBucket {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Custom pull/push handlers — bypasses replicateSupabase's addDocEqualityToQuery
+// which assumes schema field names match Supabase column names (broken by E2EE).
+// ---------------------------------------------------------------------------
+
+function createNotesPullHandler(
+  supabase: SupabaseClient,
+  pullMod: (row: SupabaseNoteRow) => Promise<NoteDocType>,
+) {
+  return async (checkpoint: ReplicationCheckpoint | undefined, batchSize: number) => {
+    let query = supabase.from("notes").select("*");
+    if (checkpoint) {
+      query = query.or(
+        `_modified.gt.${checkpoint.modified},and(_modified.eq.${checkpoint.modified},date.gt.${checkpoint.id})`,
+      );
+    }
+    query = query.order("_modified", { ascending: true }).order("date", { ascending: true }).limit(batchSize);
+
+    const { data, error } = await query;
+    if (error) throw error;
+    const rows = data ?? [];
+    const last = rows.length > 0 ? rows[rows.length - 1] : undefined;
+    const documents: WithDeleted<NoteDocType>[] = await Promise.all(
+      rows.map(async (r: Record<string, unknown>) => {
+        const doc = await pullMod(r as unknown as SupabaseNoteRow);
+        return { ...doc, _deleted: doc.isDeleted };
+      }),
+    );
+    return {
+      documents,
+      checkpoint: last ? { id: last.date as string, modified: last._modified as string } : undefined,
+    };
+  };
+}
+
+function createNotesPushHandler(
+  supabase: SupabaseClient,
+  pushMod: (doc: NoteDocType) => Promise<SupabaseNoteRow>,
+  pullMod: (row: SupabaseNoteRow) => Promise<NoteDocType>,
+  userId: string,
+) {
+  async function fetchConflict(date: string): Promise<WithDeleted<NoteDocType> | null> {
+    const { data, error } = await supabase.from("notes").select("*").eq("date", date).limit(1);
+    if (error || !data || data.length === 0) return null;
+    const doc = await pullMod(data[0] as unknown as SupabaseNoteRow);
+    return { ...doc, _deleted: doc.isDeleted };
+  }
+
+  return async (rows: RxReplicationWriteToMasterRow<NoteDocType>[]): Promise<WithDeleted<NoteDocType>[]> => {
+    const conflicts: WithDeleted<NoteDocType>[] = [];
+    await Promise.all(rows.map(async (row) => {
+      const supaRow: Record<string, unknown> = { ...(await pushMod(row.newDocumentState)), user_id: userId };
+      delete supaRow._modified;
+
+      if (!row.assumedMasterState) {
+        const { error } = await supabase.from("notes").insert(supaRow);
+        if (error) {
+          if (error.code === "23505") {
+            const c = await fetchConflict(supaRow.date as string);
+            if (c) conflicts.push(c);
+          } else { throw error; }
+        }
+      } else {
+        const assumed = await pushMod(row.assumedMasterState);
+        const { data, error } = await supabase.from("notes")
+          .update(supaRow)
+          .eq("date", supaRow.date as string)
+          .eq("user_id", userId)
+          .eq("ciphertext", assumed.ciphertext)
+          .eq("nonce", assumed.nonce)
+          .select();
+        if (error) throw error;
+        if (!data || data.length === 0) {
+          const c = await fetchConflict(supaRow.date as string);
+          if (c) conflicts.push(c);
+        }
+      }
+    }));
+    return conflicts;
+  };
+}
+
+function createImagesPullHandler(
+  supabase: SupabaseClient,
+  imgPull: (row: SupabaseImageRow) => Promise<{ doc: ImageDocType; blob: Blob | null }>,
+  pendingBlobs: Map<string, { blob: Blob; mimeType: string }>,
+) {
+  return async (checkpoint: ReplicationCheckpoint | undefined, batchSize: number) => {
+    let query = supabase.from("note_images").select("*");
+    if (checkpoint) {
+      query = query.or(
+        `_modified.gt.${checkpoint.modified},and(_modified.eq.${checkpoint.modified},id.gt.${checkpoint.id})`,
+      );
+    }
+    query = query.order("_modified", { ascending: true }).order("id", { ascending: true }).limit(batchSize);
+
+    const { data, error } = await query;
+    if (error) throw error;
+    const rows = data ?? [];
+    const last = rows.length > 0 ? rows[rows.length - 1] : undefined;
+    const documents: WithDeleted<ImageDocType>[] = await Promise.all(
+      rows.map(async (r: Record<string, unknown>) => {
+        const { doc, blob } = await imgPull(r as unknown as SupabaseImageRow);
+        if (blob) pendingBlobs.set(doc.id, { blob, mimeType: doc.mimeType });
+        return { ...doc, _deleted: doc.isDeleted };
+      }),
+    );
+    return {
+      documents,
+      checkpoint: last ? { id: last.id as string, modified: last._modified as string } : undefined,
+    };
+  };
+}
+
+function createImagesPushHandler(
+  supabase: SupabaseClient,
+  db: AppDatabase,
+  imgPush: (doc: ImageDocType, blob: Blob) => Promise<SupabaseImageRow>,
+  userId: string,
+) {
+  async function fetchConflict(id: string): Promise<WithDeleted<ImageDocType> | null> {
+    const { data, error } = await supabase.from("note_images").select("*").eq("id", id).limit(1);
+    if (error || !data || data.length === 0) return null;
+    const r = data[0];
+    const doc: ImageDocType = {
+      id: r.id, noteDate: r.note_date, type: r.type, filename: r.filename,
+      mimeType: r.mime_type, width: r.width, height: r.height, size: r.size,
+      createdAt: r.created_at, isDeleted: r._deleted,
+    };
+    return { ...doc, _deleted: doc.isDeleted };
+  }
+
+  return async (rows: RxReplicationWriteToMasterRow<ImageDocType>[]): Promise<WithDeleted<ImageDocType>[]> => {
+    const conflicts: WithDeleted<ImageDocType>[] = [];
+    await Promise.all(rows.map(async (row) => {
+      const imageDoc = row.newDocumentState;
+      const rxDoc = await db.images.findOne(imageDoc.id).exec();
+      const attachment = rxDoc?.getAttachment("blob");
+      const blob = attachment ? await attachment.getData() : new Blob();
+      const supaRow: Record<string, unknown> = { ...(await imgPush(imageDoc, blob)), user_id: userId };
+      delete supaRow._modified;
+
+      if (!row.assumedMasterState) {
+        const { error } = await supabase.from("note_images").insert(supaRow);
+        if (error) {
+          if (error.code === "23505") {
+            const c = await fetchConflict(supaRow.id as string);
+            if (c) conflicts.push(c);
+          } else { throw error; }
+        }
+      } else {
+        const { data, error } = await supabase.from("note_images")
+          .update(supaRow).eq("id", supaRow.id as string).eq("user_id", userId).select();
+        if (error) throw error;
+        if (!data || data.length === 0) {
+          const c = await fetchConflict(supaRow.id as string);
+          if (c) conflicts.push(c);
+        }
+      }
+    }));
+    return conflicts;
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Realtime
+// ---------------------------------------------------------------------------
+
+function setupRealtime<DocType>(
+  supabase: SupabaseClient,
+  tableName: string,
+  primaryKey: string,
+  repl: RxReplicationState<DocType, ReplicationCheckpoint>,
+  toDoc: (row: Record<string, unknown>) => Promise<WithDeleted<DocType>>,
+) {
+  return supabase
+    .channel(`realtime:${tableName}`)
+    .on("postgres_changes", { event: "*", schema: "public", table: tableName }, (payload) => {
+      if (payload.eventType === "DELETE") return;
+      const row = payload.new as Record<string, unknown>;
+      void toDoc(row).then((doc) => {
+        repl.emitEvent({
+          checkpoint: { id: row[primaryKey] as string, modified: row._modified as string },
+          documents: [doc],
+        });
+      });
+    })
+    .subscribe((status) => {
+      if (status === "SUBSCRIBED") repl.emitEvent("RESYNC");
+    });
+}
+
 /**
  * Starts Supabase replication for notes and optionally images.
- * Notes: E2EE push/pull modifiers encrypt/decrypt content.
- * Images: metadata replication with blob upload/download as side-effects.
+ *
+ * Uses replicateRxCollection with custom handlers instead of replicateSupabase
+ * because the Supabase plugin's addDocEqualityToQuery builds WHERE clauses from
+ * RxDB schema property names (content, updatedAt, isDeleted) that don't match
+ * the Supabase column names (ciphertext, updated_at, _deleted). With E2EE the
+ * column/schema mismatch is unavoidable, and conflict documents from the push
+ * handler bypass the pull modifier — leaking ciphertext into local storage if
+ * column names match schema fields.
  */
 export function startReplication(
   db: AppDatabase,
@@ -381,30 +615,31 @@ export function startReplication(
   userId: string,
   imageCrypto?: ImageReplicationCrypto | null,
 ): ReplicationHandle {
-  const pushModifier = createPushModifier(crypto);
-  const pullModifier = createPullModifier(crypto);
+  const pushMod = createPushModifier(crypto);
+  const pullMod = createPullModifier(crypto);
 
-  const notesReplication = replicateSupabase<NoteDocType>({
+  const notesReplication = replicateRxCollection<NoteDocType, ReplicationCheckpoint>({
     replicationIdentifier: `notes-supabase-${userId}`,
     collection: db.notes,
-    client: supabase,
-    tableName: "notes",
     pull: {
-      modifier: (row: SupabaseNoteRow) =>
-        pullModifier(row).then((doc) => ({ ...doc, _deleted: doc.isDeleted })),
+      handler: createNotesPullHandler(supabase, pullMod),
+      stream$: new Subject<
+        { checkpoint: ReplicationCheckpoint; documents: WithDeleted<NoteDocType>[] } | "RESYNC"
+      >().asObservable(),
     },
     push: {
-      modifier: (doc: NoteDocType & { _deleted: boolean }) =>
-        pushModifier({ ...doc, isDeleted: doc._deleted }),
+      handler: createNotesPushHandler(supabase, pushMod, pullMod, userId),
     },
   });
 
-  // --- Image replication (metadata + blob side-effects) ---
-  let imagesReplication: RxSupabaseReplicationState<ImageDocType> | null = null;
+  const notesSub = setupRealtime(supabase, "notes", "date", notesReplication, async (row) => {
+    const doc = await pullMod(row as unknown as SupabaseNoteRow);
+    return { ...doc, _deleted: doc.isDeleted };
+  });
 
-  // Pending blobs keyed by image ID. The pull modifier stores blobs here
-  // because the document hasn't been written to RxDB yet when the modifier runs.
-  // A post-insert hook picks them up once the document exists.
+  // --- Image replication ---
+  let imagesReplication: RxReplicationState<ImageDocType, ReplicationCheckpoint> | null = null;
+  let imagesSub: { unsubscribe(): void } | null = null;
   const pendingBlobs = new Map<string, { blob: Blob; mimeType: string }>();
   let imageHookActive = false;
 
@@ -414,50 +649,36 @@ export function startReplication(
     const imgPull = createImagePullModifier(imageCrypto, bucket, userId);
 
     imageHookActive = true;
-
     db.images.postInsert(async (plainData, rxDoc) => {
       if (!imageHookActive) return;
       const entry = pendingBlobs.get(plainData.id);
       if (!entry) return;
       pendingBlobs.delete(plainData.id);
       try {
-        await rxDoc.putAttachment({
-          id: "blob",
-          data: entry.blob,
-          type: entry.mimeType,
-        });
+        await rxDoc.putAttachment({ id: "blob", data: entry.blob, type: entry.mimeType });
       } catch (attachErr) {
         reportError("imageReplication.pull: attachment store failed", attachErr);
       }
     }, false);
 
-    imagesReplication = replicateSupabase<ImageDocType>({
+    imagesReplication = replicateRxCollection<ImageDocType, ReplicationCheckpoint>({
       replicationIdentifier: `images-supabase-${userId}`,
       collection: db.images,
-      client: supabase,
-      tableName: "note_images",
       pull: {
-        modifier: (row: SupabaseImageRow) =>
-          imgPull(row).then(({ doc, blob }) => {
-            if (blob) {
-              pendingBlobs.set(doc.id, { blob, mimeType: doc.mimeType });
-            }
-            return { ...doc, _deleted: doc.isDeleted };
-          }),
+        handler: createImagesPullHandler(supabase, imgPull, pendingBlobs),
+        stream$: new Subject<
+          { checkpoint: ReplicationCheckpoint; documents: WithDeleted<ImageDocType>[] } | "RESYNC"
+        >().asObservable(),
       },
       push: {
-        modifier: async (doc: ImageDocType & { _deleted: boolean }) => {
-          const imageDoc = { ...doc, isDeleted: doc._deleted };
-          const rxDoc = await db.images.findOne(doc.id).exec();
-          const attachment = rxDoc?.getAttachment("blob");
-          const blob = attachment ? await attachment.getData() : new Blob();
-          const row = await imgPush(imageDoc, blob);
-          // The replication plugin expects the modifier to return the collection's doc type,
-          // but we return a SupabaseImageRow (snake_case) which is what Supabase actually receives.
-          // This cast satisfies the type checker while the plugin serializes the actual object.
-          return row as unknown as ImageDocType & { _deleted: boolean };
-        },
+        handler: createImagesPushHandler(supabase, db, imgPush, userId),
       },
+    });
+
+    imagesSub = setupRealtime(supabase, "note_images", "id", imagesReplication, async (row) => {
+      const { doc, blob } = await imgPull(row as unknown as SupabaseImageRow);
+      if (blob) pendingBlobs.set(doc.id, { blob, mimeType: doc.mimeType });
+      return { ...doc, _deleted: doc.isDeleted };
     });
   }
 
@@ -466,9 +687,9 @@ export function startReplication(
     images: imagesReplication,
     cancel() {
       void notesReplication.cancel();
-      if (imagesReplication) {
-        void imagesReplication.cancel();
-      }
+      notesSub.unsubscribe();
+      if (imagesReplication) void imagesReplication.cancel();
+      if (imagesSub) imagesSub.unsubscribe();
       imageHookActive = false;
       pendingBlobs.clear();
     },

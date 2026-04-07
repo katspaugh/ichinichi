@@ -177,7 +177,7 @@ export function DayViewLayout({
           >
             <NoteEditor
               date={selectedDate}
-              content={isContentReady ? content : ""}
+              content={content}
               onChange={onChange}
               isClosing={false}
               hasEdits={hasEdits}

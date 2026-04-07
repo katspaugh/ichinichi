@@ -144,7 +144,7 @@ describe("createImagePushModifier", () => {
     await push(doc, blob);
 
     expect(uploads).toHaveLength(1);
-    expect(uploads[0].path).toBe("user-99/img-xyz");
+    expect(uploads[0].path).toBe("user-99/15-06-2024/img-xyz.enc");
   });
 
   it("uploads an encrypted blob (ciphertext), not the original blob", async () => {
@@ -244,7 +244,7 @@ describe("createImagePullModifier", () => {
       nonce: "mock-nonce",
     };
     await bucket.upload(
-      "user-42/img-001",
+      "user-42/15-06-2024/img-001.enc",
       new Blob([JSON.stringify(storedRecord)], { type: "application/octet-stream" }),
     );
 
