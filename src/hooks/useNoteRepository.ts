@@ -541,16 +541,20 @@ export function useNoteRepository({
 
     const subs: Array<{ unsubscribe(): void }> = [];
 
+    // Track last emitted status to avoid redundant dispatches that cause re-renders
+    let lastStatus: SyncStatus | null = null;
+
     subs.push(handle.notes.active$.subscribe((active) => {
-      if (active) {
-        dispatch({ type: "SYNC_STATUS", status: SyncStatus.Syncing });
-      } else {
-        dispatch({ type: "SYNC_STATUS", status: SyncStatus.Synced });
+      const next = active ? SyncStatus.Syncing : SyncStatus.Synced;
+      if (next !== lastStatus) {
+        lastStatus = next;
+        dispatch({ type: "SYNC_STATUS", status: next });
       }
     }));
 
     subs.push(handle.notes.error$.subscribe((err) => {
-      if (err) {
+      if (err && lastStatus !== SyncStatus.Error) {
+        lastStatus = SyncStatus.Error;
         dispatch({
           type: "SYNC_STATUS",
           status: SyncStatus.Error,
