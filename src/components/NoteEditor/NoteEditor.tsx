@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import type { DragEvent } from "react";
 import { formatDateDisplay, isToday } from "../../utils/date";
 import { canEditNote } from "../../utils/noteRules";
@@ -10,7 +10,7 @@ import { useImageDragState } from "./useImageDragState";
 import { useDropIndicator } from "./useDropIndicator";
 import { useShareTarget } from "../../hooks/useShareTarget";
 import { useWeatherContext } from "../../contexts/weatherContext";
-import { useServiceContext } from "../../contexts/serviceContext";
+import { useNoteRepositoryContext } from "../../contexts/noteRepositoryContext";
 import type { SavedWeather } from "../../types";
 import type { DailyWeatherData } from "../../domain/weather/WeatherRepository";
 import { useDebugNoteKeyId } from "../../hooks/useDebugNoteKeyId";
@@ -69,14 +69,10 @@ export function NoteEditor({
   const weather = useWeatherContext();
   const { state: weatherState } = weather;
 
-  // Stored weather from encrypted note payload
-  const { noteContentStore } = useServiceContext();
-  const storedWeather = useSyncExternalStore(
-    noteContentStore.subscribe,
-    () => noteContentStore.getState().weather,
-  );
+  // Stored weather from note document via RxDB
+  const { weather: storedWeather, setWeather: setNoteWeather } = useNoteRepositoryContext();
 
-  // Push live weather into store for today's notes so it gets encrypted
+  // Push live weather into note for today's notes so it gets persisted
   const liveWeather = weatherState.dailyWeather;
   useEffect(() => {
     if (!isToday(date) || !weatherState.showWeather || !liveWeather) return;
@@ -87,8 +83,8 @@ export function NoteEditor({
       unit: liveWeather.unit,
       city: liveWeather.city,
     };
-    noteContentStore.getState().setWeather(saved);
-  }, [date, liveWeather, weatherState.showWeather, noteContentStore]);
+    setNoteWeather(saved);
+  }, [date, liveWeather, weatherState.showWeather, setNoteWeather]);
 
   // Display: live weather for today, stored weather for past notes
   const displayWeather: DailyWeatherData | null = useMemo(() => {

@@ -104,3 +104,9 @@ export const SyncStatus = {
 } as const;
 
 export type SyncStatus = (typeof SyncStatus)[keyof typeof SyncStatus];
+
+export interface PendingOpsSummary {
+  notes: number;
+  images: number;
+  total: number;
+}

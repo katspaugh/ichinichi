@@ -1,22 +1,14 @@
-import { useEffect, useState } from "react";
-import { getNoteRecord } from "../storage/unifiedNoteStore";
 import { useDebugMode } from "./useDebugMode";
 
+/**
+ * Returns the key ID used to encrypt a note.
+ * With RxDB, notes are stored in plaintext locally and encrypted only
+ * during replication, so there is no per-note keyId to display.
+ */
 export function useDebugNoteKeyId(
-  date: string,
-  isContentReady: boolean,
+  _date: string, // eslint-disable-line @typescript-eslint/no-unused-vars
+  _isContentReady: boolean, // eslint-disable-line @typescript-eslint/no-unused-vars
 ): string | null {
   const [isDebug] = useDebugMode();
-  const [keyId, setKeyId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!isDebug) return;
-    let cancelled = false;
-    void getNoteRecord(date).then((record) => {
-      if (!cancelled) setKeyId(record?.keyId ?? null);
-    });
-    return () => { cancelled = true; };
-  }, [isDebug, date, isContentReady]);
-
-  return isDebug ? keyId : null;
+  return isDebug ? "(rxdb-local)" : null;
 }

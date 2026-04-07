@@ -5,7 +5,26 @@
  */
 
 import type { VaultMeta } from "./vault";
-import type { NoteRecord, NoteMetaRecord } from "../domain/notes/noteRecord";
+// Inlined from legacy domain/notes/noteRecord (module deleted)
+export interface NoteRecord {
+  version: 1;
+  date: string;
+  keyId: string;
+  ciphertext: string;
+  nonce: string;
+  updatedAt: string;
+}
+
+export interface NoteMetaRecord {
+  date: string;
+  revision: number;
+  serverRevision?: number;
+  remoteId?: string | null;
+  serverUpdatedAt?: string | null;
+  lastSyncedAt?: string | null;
+  pendingOp?: "upsert" | "delete" | null;
+  deletedAt?: string | null;
+}
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -174,6 +193,73 @@ export function parseDecryptedNotePayload(
   if (!isObject(data)) return null;
   if (typeof data.content !== "string") return null;
   return data as { content: string };
+}
+
+// ── Saved Weather ──────────────────────────────────────────────────
+
+import type { SavedWeather } from "../types/index";
+
+export function parseSavedWeather(data: unknown): SavedWeather | null {
+  if (!isObject(data)) return null;
+  if (
+    typeof data.icon !== "string" ||
+    typeof data.temperatureHigh !== "number" ||
+    typeof data.temperatureLow !== "number" ||
+    typeof data.unit !== "string" ||
+    typeof data.city !== "string"
+  ) return null;
+  if (data.unit !== "C" && data.unit !== "F") return null;
+  return data as unknown as SavedWeather;
+}
+
+// ── Encrypted Blob Record (from storage bucket) ────────────────────
+
+export interface EncryptedBlobRecord {
+  keyId?: string | null;
+  ciphertext: string;
+  nonce: string;
+}
+
+export function parseEncryptedBlobRecord(data: unknown): EncryptedBlobRecord | null {
+  if (!isObject(data)) return null;
+  if (typeof data.ciphertext !== "string" || typeof data.nonce !== "string") return null;
+  if (data.keyId !== undefined && data.keyId !== null && typeof data.keyId !== "string") return null;
+  return data as unknown as EncryptedBlobRecord;
+}
+
+// ── Supabase Replication Rows ───────────────────────────────────────
+
+import type { SupabaseNoteRow, SupabaseImageRow } from "./rxdb/replication";
+
+export function parseSupabaseNoteRow(data: unknown): SupabaseNoteRow | null {
+  if (!isObject(data)) return null;
+  if (
+    typeof data.date !== "string" ||
+    typeof data.ciphertext !== "string" ||
+    typeof data.nonce !== "string" ||
+    typeof data.key_id !== "string" ||
+    typeof data._deleted !== "boolean"
+  )
+    return null;
+  // updated_at and _modified may be stripped by the replication plugin
+  // before passing to the modifier — accept missing/undefined
+  return data as unknown as SupabaseNoteRow;
+}
+
+export function parseSupabaseImageRow(data: unknown): SupabaseImageRow | null {
+  if (!isObject(data)) return null;
+  if (
+    typeof data.id !== "string" ||
+    typeof data.note_date !== "string" ||
+    typeof data.type !== "string" ||
+    typeof data.filename !== "string" ||
+    typeof data.mime_type !== "string" ||
+    typeof data._deleted !== "boolean"
+  )
+    return null;
+  // _modified, created_at, and other fields may be stripped by the
+  // replication plugin before passing to the modifier — accept missing
+  return data as unknown as SupabaseImageRow;
 }
 
 // ── IDB Key Arrays ──────────────────────────────────────────────────

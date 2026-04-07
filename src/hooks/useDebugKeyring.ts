@@ -51,6 +51,10 @@ export function useDebugKeyring(
     [keyring],
   );
 
+  // Track keyring size to avoid re-fetching when the Map reference changes
+  // but the number of keys hasn't (common during renders).
+  const keyringSize = keyring.size;
+
   useEffect(() => {
     if (!isSignedIn || !userId) return;
     let cancelled = false;
@@ -60,7 +64,7 @@ export function useDebugKeyring(
       }
     });
     return () => { cancelled = true; };
-  }, [isSignedIn, userId, keyring, rewrapStatus, cleanupStatus]);
+  }, [isSignedIn, userId, keyringSize, rewrapStatus, cleanupStatus]);
 
   const keys = useMemo(() => {
     const result: DebugKeyInfo[] = [];

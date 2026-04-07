@@ -1,7 +1,16 @@
 // @vitest-environment jsdom
 import { createE2eeService } from "../services/e2eeService";
 import type { KeyringProvider } from "../domain/crypto/keyring";
-import type { NoteRecord, ImageRecord } from "../storage/unifiedDb";
+import type { NoteRecord } from "../storage/parsers";
+
+// Inlined from deleted unifiedDb module
+interface ImageRecord {
+  version: 1;
+  id: string;
+  keyId: string;
+  ciphertext: string;
+  nonce: string;
+}
 
 async function blobToUint8Array(blob: Blob): Promise<Uint8Array> {
   return new Promise((resolve, reject) => {

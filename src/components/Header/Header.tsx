@@ -2,8 +2,7 @@ import type { ReactNode } from "react";
 import { Menu, Search } from "lucide-react";
 import { ErrorBoundary } from "../ErrorBoundary";
 import { SyncIndicator } from "../SyncIndicator";
-import type { SyncStatus } from "../../types";
-import type { PendingOpsSummary } from "../../domain/sync";
+import type { SyncStatus, PendingOpsSummary } from "../../types";
 import styles from "./Header.module.css";
 
 interface AppLogoProps {

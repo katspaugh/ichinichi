@@ -3,8 +3,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { ServiceContext } from "./serviceContext";
 import { createVaultService } from "../domain/vault";
 import { createE2eeService } from "../services/e2eeService";
-import { noteContentStore } from "../stores/noteContentStore";
-import { syncStore } from "../stores/syncStore";
 
 interface ServiceProviderProps {
   supabaseClient: SupabaseClient;
@@ -20,8 +18,6 @@ export function ServiceProvider({
       supabase: supabaseClient,
       vaultService: createVaultService(supabaseClient),
       e2eeFactory: { create: createE2eeService },
-      noteContentStore,
-      syncStore,
     }),
     [supabaseClient],
   );

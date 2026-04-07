@@ -1,6 +1,5 @@
 import { clearCloudDekCache } from "./cloudCache";
 import { clearDeviceEncryptedPassword, clearDeviceWrappedDEK } from "./vault";
-import { closeUnifiedDb } from "./unifiedDb";
 import {
   bindUserToAccount,
   createNextAccountId,
@@ -9,10 +8,10 @@ import {
   getUserIdForAccount,
   setCurrentAccountId,
 } from "./accountStore";
-import { markUnsyncedNotesAsPending } from "./unifiedNoteStore";
 
 async function resetCloudUnlockState(): Promise<void> {
-  closeUnifiedDb();
+  // With RxDB, each user has their own database (ichinichi-{userId}).
+  // No need to close a shared IndexedDB; just clear auth caches.
   clearCloudDekCache();
   await Promise.all([clearDeviceWrappedDEK(), clearDeviceEncryptedPassword()]);
 }
@@ -35,7 +34,7 @@ export async function handleCloudAccountSwitch(
   const currentUserId = getUserIdForAccount(currentAccountId);
   if (!currentUserId) {
     bindUserToAccount(nextUserId, currentAccountId);
-    await markUnsyncedNotesAsPending();
+    // With RxDB, pending ops are handled by replication, no manual marking needed
     return;
   }
 

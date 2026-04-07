@@ -1,7 +1,6 @@
 import type { Note, SavedWeather } from "../types";
 import type { Result } from "../domain/result";
 import type { RepositoryError } from "../domain/errors";
-import type { Syncable } from "../domain/sync";
 
 export interface NoteRepository {
   // Core CRUD
@@ -17,27 +16,4 @@ export interface NoteRepository {
   // Soft-delete support
   getIncludingDeleted?(date: string): Promise<Result<Note | null, RepositoryError>>;
   restoreNote?(date: string): Promise<Result<void, RepositoryError>>;
-}
-
-export interface SyncCapableNoteRepository
-  extends NoteRepository,
-    Syncable {
-  readonly syncCapable: true;
-  refreshNote(date: string): Promise<Result<Note | null, RepositoryError>>;
-  hasPendingOp(date: string): Promise<boolean>;
-  refreshDates(year: number): Promise<void>;
-  hasRemoteDateCached(date: string): Promise<boolean>;
-  getAllLocalDates(): Promise<Result<string[], RepositoryError>>;
-  getAllLocalDatesForYear(year: number): Promise<Result<string[], RepositoryError>>;
-}
-
-export function isSyncCapableNoteRepository(
-  repository: NoteRepository | null | undefined,
-): repository is SyncCapableNoteRepository {
-  return (
-    repository !== null &&
-    repository !== undefined &&
-    "syncCapable" in repository &&
-    repository.syncCapable === true
-  );
 }
