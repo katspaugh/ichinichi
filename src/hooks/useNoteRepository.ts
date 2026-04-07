@@ -176,7 +176,7 @@ export function noteRepoReducer(
         next = {
           ...next,
           hasEdits: false,
-          localContent: next.note?.content ?? (action.date ? getCachedNoteContent(action.date) : ""),
+          localContent: next.note?.content ?? "",
           noteError: null,
         };
       }
@@ -259,10 +259,6 @@ export function noteRepoReducer(
       if (!state.hasEdits) {
         next.localContent = action.note?.content ?? "";
       }
-      // Cache for instant display on next load
-      if (action.note && state.date) {
-        cacheNoteContent(state.date, action.note.content);
-      }
       return next;
     }
 
@@ -304,22 +300,6 @@ export function noteRepoReducer(
 const LEGACY_DB_NAME = "dailynotes-unified";
 const LEGACY_MIGRATED_KEY = "ichinichi_legacy_migrated";
 const SAVE_DEBOUNCE_MS = 500;
-const NOTE_CACHE_KEY = "ichinichi_note_cache";
-
-/** Cache a note's content in localStorage for instant display on next load. */
-function cacheNoteContent(date: string, content: string): void {
-  try { localStorage.setItem(NOTE_CACHE_KEY, JSON.stringify({ date, content })); } catch { /* quota */ }
-}
-
-/** Read cached note content for a given date, or "" if not cached. */
-function getCachedNoteContent(date: string): string {
-  try {
-    const raw = localStorage.getItem(NOTE_CACHE_KEY);
-    if (!raw) return "";
-    const parsed = JSON.parse(raw);
-    return parsed?.date === date ? (parsed.content ?? "") : "";
-  } catch { return ""; }
-}
 
 /**
  * Checks for a legacy IndexedDB database and migrates data to RxDB if found.
@@ -464,10 +444,7 @@ export function useNoteRepository({
   const { supabase, e2eeFactory } = useServiceContext();
   const userId = authUser?.id ?? null;
 
-  const [state, dispatch] = useReducer(noteRepoReducer, initialState, (init) => ({
-    ...init,
-    localContent: date ? getCachedNoteContent(date) : "",
-  }));
+  const [state, dispatch] = useReducer(noteRepoReducer, initialState);
 
   // Mutable refs kept in sync without an effect — written in callbacks/effects only
   const keyringRef = useRef(keyring);
@@ -681,7 +658,6 @@ export function useNoteRepository({
       }
 
       pendingSaveRef.current = { date, content: newContent };
-      cacheNoteContent(date, newContent);
 
       saveTimerRef.current = setTimeout(() => {
         saveTimerRef.current = null;
