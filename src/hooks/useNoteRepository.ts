@@ -181,7 +181,8 @@ export function noteRepoReducer(
         };
       }
 
-      // User changed: need new DB
+      // User changed: need new DB. Keep note/localContent/noteLoading
+      // intact so the editor doesn't blank during the DB transition.
       if (needsNewDb) {
         return {
           ...next,
@@ -192,10 +193,7 @@ export function noteRepoReducer(
           replication: null,
           syncStatus: SyncStatus.Idle,
           syncError: null,
-          note: null,
-          noteLoading: true,
           noteDates: new Set(),
-          isSoftDeleted: false,
         };
       }
 
