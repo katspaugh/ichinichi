@@ -258,7 +258,9 @@ export function noteRepoReducer(
       // Sync local content from note when not editing.
       // Keep previous content when note is null (re-subscribe / query initializing)
       // to avoid blanking the editor during RxDB subscription churn.
-      if (!state.hasEdits && action.note) {
+      // Skip if content hasn't changed to avoid editor innerHTML resets
+      // that cause cursor jumps and flicker from replication emissions.
+      if (!state.hasEdits && action.note && action.note.content !== state.localContent) {
         next.localContent = action.note.content;
       }
       return next;
