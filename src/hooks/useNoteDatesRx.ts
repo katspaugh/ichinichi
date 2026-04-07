@@ -7,7 +7,7 @@ export function useNoteDatesRx(year?: number): Set<string> {
 
   useEffect(() => {
     const subscription = db.notes
-      .find({ selector: { isDeleted: false } })
+      .find({ selector: { isDeleted: { $eq: false } } })
       .$.subscribe((docs) => {
         const filtered = docs
           .map((doc) => doc.date)

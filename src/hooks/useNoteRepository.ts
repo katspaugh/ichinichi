@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
 import type { User } from "@supabase/supabase-js";
 import type { RepositoryError } from "../domain/errors";
 import type { NoteRepository } from "../storage/noteRepository";
@@ -6,14 +6,17 @@ import type { ImageRepository } from "../storage/imageRepository";
 import type { AppDatabase } from "../storage/rxdb/database";
 import type { ReplicationHandle } from "../storage/rxdb/replication";
 import { createAppDatabase } from "../storage/rxdb/database";
+import { migrateLegacyData, type LegacyDataSource } from "../storage/legacyMigration";
 import { RxDBNoteRepository } from "../storage/rxdb/noteRepository";
 import { RxDBImageRepository } from "../storage/rxdb/imageRepository";
-import { startReplication } from "../storage/rxdb/replication";
+import { startReplication, createImageCryptoAdapter } from "../storage/rxdb/replication";
 import { createNoteCrypto } from "../domain/crypto/noteCrypto";
 import { AppMode } from "./useAppMode";
 import { useServiceContext } from "../contexts/serviceContext";
 import { SyncStatus } from "../types";
 import type { Note, SavedWeather } from "../types";
+import { reportError } from "../utils/errorReporter";
+import { parseSavedWeather } from "../storage/parsers";
 
 interface UseNoteRepositoryProps {
   mode: AppMode;
@@ -54,7 +57,380 @@ export interface UseNoteRepositoryReturn {
   setWeather: (weather: SavedWeather | null) => void;
 }
 
+// ---------------------------------------------------------------------------
+// Phase-gated reducer
+// ---------------------------------------------------------------------------
+
+type Phase =
+  | "idle"          // No database yet
+  | "opening"       // Creating/opening the database
+  | "ready"         // DB open, repos available
+  | "replicating";  // DB open + replication active
+
+export interface NoteRepoState {
+  phase: Phase;
+  // Inputs (mirrored from props for reducer access)
+  userId: string | null;
+  mode: AppMode;
+  vaultKey: CryptoKey | null;
+  activeKeyId: string | null;
+  date: string | null;
+  year: number;
+  // Database & repos
+  db: AppDatabase | null;
+  dbName: string | null;
+  repository: NoteRepository | null;
+  imageRepository: ImageRepository | null;
+  // Replication
+  replication: ReplicationHandle | null;
+  syncStatus: SyncStatus;
+  syncError: string | null;
+  // Note content
+  note: Note | null;
+  noteLoading: boolean;
+  noteError: RepositoryError | null;
+  // Weather
+  weather: SavedWeather | null;
+  // Local editing
+  localContent: string;
+  hasEdits: boolean;
+  isSaving: boolean;
+  // Note dates
+  noteDates: Set<string>;
+  // Soft delete
+  isSoftDeleted: boolean;
+  // Version
+  repositoryVersion: number;
+}
+
+export type NoteRepoAction =
+  | { type: "INPUTS_CHANGED"; userId: string | null; mode: AppMode; vaultKey: CryptoKey | null; activeKeyId: string | null; date: string | null; year: number }
+  | { type: "DB_OPENED"; db: AppDatabase; dbName: string }
+  | { type: "DB_FAILED" }
+  | { type: "REPLICATION_STARTED"; replication: ReplicationHandle }
+  | { type: "REPLICATION_STOPPED" }
+  | { type: "SYNC_STATUS"; status: SyncStatus; error?: string | null }
+  | { type: "NOTE_DOC_CHANGED"; note: Note | null; isSoftDeleted: boolean }
+  | { type: "NOTE_ERROR"; error: RepositoryError }
+  | { type: "NOTE_DATES_CHANGED"; dates: Set<string> }
+  | { type: "CONTENT_EDITED"; content: string }
+  | { type: "SAVE_STARTED" }
+  | { type: "SAVE_COMPLETED"; error?: RepositoryError | null }
+  | { type: "DATE_CHANGED_FLUSH" }
+  | { type: "WEATHER_CHANGED"; weather: SavedWeather | null }
+  | { type: "INVALIDATE_REPOSITORY" };
+
+const initialState: NoteRepoState = {
+  phase: "opening",
+  userId: null,
+  mode: AppMode.Local,
+  vaultKey: null,
+  activeKeyId: null,
+  date: null,
+  year: new Date().getFullYear(),
+  db: null,
+  dbName: null,
+  repository: null,
+  imageRepository: null,
+  replication: null,
+  syncStatus: SyncStatus.Idle,
+  syncError: null,
+  note: null,
+  noteLoading: true,
+  noteError: null,
+  weather: null,
+  localContent: "",
+  hasEdits: false,
+  isSaving: false,
+  noteDates: new Set(),
+  isSoftDeleted: false,
+  repositoryVersion: 0,
+};
+
+function shouldReplicate(s: NoteRepoState): boolean {
+  return s.mode === AppMode.Cloud && !!s.userId && !!s.vaultKey && !!s.activeKeyId && !!s.db;
+}
+
+export function noteRepoReducer(
+  state: NoteRepoState,
+  action: NoteRepoAction,
+): NoteRepoState {
+  switch (action.type) {
+    case "INPUTS_CHANGED": {
+      const dateChanged = action.date !== state.date;
+      const userChanged = action.userId !== state.userId;
+      const needsNewDb = userChanged && (action.userId ?? "local") !== state.dbName;
+
+      let next: NoteRepoState = {
+        ...state,
+        userId: action.userId,
+        mode: action.mode,
+        vaultKey: action.vaultKey,
+        activeKeyId: action.activeKeyId,
+        date: action.date,
+        year: action.year,
+      };
+
+      // Date changed: reset editing state
+      if (dateChanged) {
+        next = {
+          ...next,
+          hasEdits: false,
+          localContent: next.note?.content ?? "",
+          noteError: null,
+        };
+      }
+
+      // User changed: need new DB
+      if (needsNewDb) {
+        return {
+          ...next,
+          phase: "opening",
+          db: null,
+          repository: null,
+          imageRepository: null,
+          replication: null,
+          syncStatus: SyncStatus.Idle,
+          syncError: null,
+          note: null,
+          noteLoading: true,
+          noteDates: new Set(),
+          isSoftDeleted: false,
+        };
+      }
+
+      // Auto-transition: if ready but should replicate, move to replicating
+      if (next.phase === "ready" && shouldReplicate(next)) {
+        return { ...next, phase: "replicating" };
+      }
+
+      // Auto-transition: if replicating but should not, back to ready
+      if (next.phase === "replicating" && !shouldReplicate(next)) {
+        return { ...next, phase: "ready", replication: null, syncStatus: SyncStatus.Idle, syncError: null };
+      }
+
+      return next;
+    }
+
+    case "DB_OPENED": {
+      const next: NoteRepoState = {
+        ...state,
+        phase: "ready",
+        db: action.db,
+        dbName: action.dbName,
+      };
+      // Auto-transition to replicating if conditions met
+      if (shouldReplicate(next)) {
+        return { ...next, phase: "replicating" };
+      }
+      return next;
+    }
+
+    case "DB_FAILED":
+      return { ...state, phase: "idle" };
+
+    case "REPLICATION_STARTED":
+      return { ...state, replication: action.replication };
+
+    case "REPLICATION_STOPPED":
+      return {
+        ...state,
+        replication: null,
+        syncStatus: SyncStatus.Idle,
+        syncError: null,
+      };
+
+    case "SYNC_STATUS":
+      return {
+        ...state,
+        syncStatus: action.status,
+        syncError: action.error ?? state.syncError,
+      };
+
+    case "NOTE_DOC_CHANGED": {
+      const next: NoteRepoState = {
+        ...state,
+        note: action.note,
+        noteLoading: false,
+        weather: action.note?.weather ?? null,
+        isSoftDeleted: action.isSoftDeleted,
+      };
+      // Sync local content from note when not editing
+      if (!state.hasEdits) {
+        next.localContent = action.note?.content ?? "";
+      }
+      return next;
+    }
+
+    case "NOTE_ERROR":
+      return { ...state, noteError: action.error };
+
+    case "NOTE_DATES_CHANGED":
+      return { ...state, noteDates: action.dates };
+
+    case "CONTENT_EDITED":
+      return { ...state, localContent: action.content, hasEdits: true };
+
+    case "SAVE_STARTED":
+      return { ...state, isSaving: true };
+
+    case "SAVE_COMPLETED":
+      return {
+        ...state,
+        isSaving: false,
+        hasEdits: action.error ? state.hasEdits : false,
+        noteError: action.error ?? null,
+      };
+
+    case "DATE_CHANGED_FLUSH":
+      return { ...state, hasEdits: false };
+
+    case "WEATHER_CHANGED":
+      return { ...state, weather: action.weather };
+
+    case "INVALIDATE_REPOSITORY":
+      return { ...state, repositoryVersion: state.repositoryVersion + 1 };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Hook
+// ---------------------------------------------------------------------------
+
+const LEGACY_DB_NAME = "dailynotes-unified";
+const LEGACY_MIGRATED_KEY = "ichinichi_legacy_migrated";
 const SAVE_DEBOUNCE_MS = 500;
+
+/**
+ * Checks for a legacy IndexedDB database and migrates data to RxDB if found.
+ * Only runs once (gates on localStorage flag).
+ */
+async function tryMigrateLegacy(db: AppDatabase): Promise<void> {
+  if (typeof indexedDB === "undefined") return;
+  if (localStorage.getItem(LEGACY_MIGRATED_KEY)) return;
+
+  // Check if legacy database exists
+  const databases = await indexedDB.databases?.() ?? [];
+  const hasLegacy = databases.some((d) => d.name === LEGACY_DB_NAME);
+  if (!hasLegacy) {
+    localStorage.setItem(LEGACY_MIGRATED_KEY, "1");
+    return;
+  }
+
+  // Create a minimal legacy data source that reads from the old IDB
+  const source = await createLegacyIDBSource();
+  if (!source) {
+    localStorage.setItem(LEGACY_MIGRATED_KEY, "1");
+    return;
+  }
+
+  try {
+    await migrateLegacyData(db, source);
+  } catch (error) {
+    reportError("useNoteRepository.legacyMigration", error);
+  }
+
+  localStorage.setItem(LEGACY_MIGRATED_KEY, "1");
+}
+
+/**
+ * Opens the legacy dailynotes-unified IDB and returns a LegacyDataSource,
+ * or null if the database cannot be opened.
+ */
+function createLegacyIDBSource(): Promise<LegacyDataSource | null> {
+  return new Promise((resolve) => {
+    const request = indexedDB.open(LEGACY_DB_NAME);
+
+    request.onerror = () => resolve(null);
+
+    request.onsuccess = () => {
+      const idb = request.result;
+      const storeNames = Array.from(idb.objectStoreNames);
+
+      // If no recognizable stores, skip
+      if (!storeNames.includes("notes") && !storeNames.includes("note_meta")) {
+        idb.close();
+        resolve(null);
+        return;
+      }
+
+      resolve({
+        async getNotes() {
+          if (!storeNames.includes("notes")) return [];
+          return new Promise((res, rej) => {
+            const tx = idb.transaction("notes", "readonly");
+            const store = tx.objectStore("notes");
+            const req = store.getAll();
+            req.onsuccess = () => {
+              const raw = req.result ?? [];
+              res(raw.filter((n: Record<string, unknown>) =>
+                typeof n.date === "string" && typeof n.content === "string"
+              ).map((n: Record<string, unknown>) => ({
+                date: n.date as string,
+                content: n.content as string,
+                updatedAt: (n.updatedAt as string) ?? new Date().toISOString(),
+                weather: parseSavedWeather(n.weather) ?? null,
+              })));
+            };
+            req.onerror = () => rej(req.error);
+          });
+        },
+
+        async getImages() {
+          if (!storeNames.includes("images") && !storeNames.includes("image_meta")) return [];
+          const metaStore = storeNames.includes("image_meta") ? "image_meta" : "images";
+          return new Promise((res, rej) => {
+            const tx = idb.transaction(metaStore, "readonly");
+            const store = tx.objectStore(metaStore);
+            const req = store.getAll();
+            req.onsuccess = () => {
+              const raw = req.result ?? [];
+              res(raw.filter((i: Record<string, unknown>) =>
+                typeof i.id === "string" && typeof i.noteDate === "string"
+              ).map((i: Record<string, unknown>) => ({
+                id: i.id as string,
+                noteDate: i.noteDate as string,
+                type: (i.type as "background" | "inline") ?? "inline",
+                filename: (i.filename as string) ?? "",
+                mimeType: (i.mimeType as string) ?? "application/octet-stream",
+                width: (i.width as number) ?? 0,
+                height: (i.height as number) ?? 0,
+                size: (i.size as number) ?? 0,
+                createdAt: (i.createdAt as string) ?? new Date().toISOString(),
+              })));
+            };
+            req.onerror = () => rej(req.error);
+          });
+        },
+
+        async getImageBlob(id: string) {
+          if (!storeNames.includes("images")) return null;
+          return new Promise((res, rej) => {
+            const tx = idb.transaction("images", "readonly");
+            const store = tx.objectStore("images");
+            const req = store.get(id);
+            req.onsuccess = () => {
+              const data = req.result;
+              if (data?.blob instanceof Blob) return res(data.blob);
+              res(null);
+            };
+            req.onerror = () => rej(req.error);
+          });
+        },
+
+        async destroy() {
+          idb.close();
+        },
+      });
+    };
+
+    // If upgrade is triggered, the DB doesn't exist in the expected format
+    request.onupgradeneeded = () => {
+      request.transaction?.abort();
+      resolve(null);
+    };
+  });
+}
 
 export function useNoteRepository({
   mode,
@@ -68,187 +444,21 @@ export function useNoteRepository({
   const { supabase, e2eeFactory } = useServiceContext();
   const userId = authUser?.id ?? null;
 
-  // --- Database lifecycle ---
-  const [db, setDb] = useState<AppDatabase | null>(null);
-  const dbNameRef = useRef<string | null>(null);
+  const [state, dispatch] = useReducer(noteRepoReducer, initialState);
 
-  useEffect(() => {
-    const dbName = userId ?? "local";
-    if (dbNameRef.current === dbName && db) return;
-
-    let cancelled = false;
-
-    void (async () => {
-      const newDb = await createAppDatabase(dbName);
-      if (cancelled) {
-        // Don't close — the database is cached and may be reused
-        return;
-      }
-      dbNameRef.current = dbName;
-      setDb(newDb);
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-    // We intentionally omit `db` to avoid re-creation loops
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId]);
-
-  // --- Repositories ---
-  const repository = useMemo<NoteRepository | null>(
-    () => (db ? new RxDBNoteRepository(db) : null),
-    [db],
-  );
-  const imageRepository = useMemo<ImageRepository | null>(
-    () => (db ? new RxDBImageRepository(db) : null),
-    [db],
-  );
-
-  // --- Replication ---
-  const [replication, setReplication] = useState<ReplicationHandle | null>(null);
-  const [syncStatus, setSyncStatus] = useState<SyncStatus>(SyncStatus.Idle);
-  const [syncError, setSyncError] = useState<string | null>(null);
-
-  // Keep keyring ref current for crypto operations
+  // Mutable refs kept in sync without an effect — written in callbacks/effects only
   const keyringRef = useRef(keyring);
-  useEffect(() => {
-    keyringRef.current = keyring;
-  }, [keyring]);
-
-  useEffect(() => {
-    if (
-      mode !== AppMode.Cloud ||
-      !db ||
-      !userId ||
-      !vaultKey ||
-      !activeKeyId
-    ) {
-      // Cancel existing replication
-      if (replication) {
-        replication.cancel();
-        setReplication(null);
-        setSyncStatus(SyncStatus.Idle);
-        setSyncError(null);
-      }
-      return;
-    }
-
-    const keyProvider = {
-      activeKeyId,
-      getKey: (keyId: string) => keyringRef.current.get(keyId) ?? null,
-    };
-    const e2ee = e2eeFactory.create(keyProvider);
-    const crypto = createNoteCrypto(e2ee);
-
-    const handle = startReplication(db, supabase, crypto, userId);
-    setReplication(handle);
-
-    // Subscribe to replication status
-    const activeSub = handle.notes.active$.subscribe((active) => {
-      if (active) {
-        setSyncStatus(SyncStatus.Syncing);
-      } else {
-        setSyncStatus((prev) =>
-          prev === SyncStatus.Syncing ? SyncStatus.Synced : prev,
-        );
-      }
-    });
-
-    const errorSub = handle.notes.error$.subscribe((err) => {
-      if (err) {
-        setSyncStatus(SyncStatus.Error);
-        setSyncError(err instanceof Error ? err.message : String(err));
-      }
-    });
-
-    return () => {
-      activeSub.unsubscribe();
-      errorSub.unsubscribe();
-      handle.cancel();
-      setReplication(null);
-      setSyncStatus(SyncStatus.Idle);
-      setSyncError(null);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, db, userId, vaultKey, activeKeyId, supabase, e2eeFactory]);
-
-  // --- Note content subscription ---
-  const [note, setNote] = useState<Note | null>(null);
-  const [noteLoading, setNoteLoading] = useState(true);
-  const [noteError, setNoteError] = useState<RepositoryError | null>(null);
-
-  useEffect(() => {
-    if (!db || !date) {
-      setNote(null);
-      setNoteLoading(false);
-      return;
-    }
-
-    setNoteLoading(true);
-    const subscription = db.notes.findOne(date).$.subscribe((doc) => {
-      if (!doc || doc.isDeleted) {
-        setNote(null);
-      } else {
-        setNote({
-          date: doc.date,
-          content: doc.content,
-          updatedAt: doc.updatedAt,
-          weather: doc.weather ?? undefined,
-        });
-      }
-      setNoteLoading(false);
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [db, date]);
-
-  // --- Weather state ---
-  const [weather, setWeatherState] = useState<SavedWeather | null>(note?.weather ?? null);
-  const weatherRef = useRef<SavedWeather | null>(null);
-
-  // Sync weather from note document
-  useEffect(() => {
-    setWeatherState(note?.weather ?? null);
-    weatherRef.current = note?.weather ?? null;
-  }, [note]);
-
-  const setWeather = useCallback(
-    (w: SavedWeather | null) => {
-      setWeatherState(w);
-      weatherRef.current = w;
-      // Save weather immediately with current content
-      if (date && repository) {
-        void repository.save(date, localContentRef.current, w);
-      }
-    },
-    [date, repository],
-  );
-
-  // --- Local content editing with debounced save ---
-  const [localContent, setLocalContent] = useState("");
-  const localContentRef = useRef("");
-  const [hasEdits, setHasEdits] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
+  keyringRef.current = keyring;
+  const localContentRef = useRef(state.localContent);
+  const weatherRef = useRef(state.weather);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingSaveRef = useRef<{ date: string; content: string } | null>(null);
-
-  // Sync local content when note changes from DB (and no local edits)
-  useEffect(() => {
-    if (!hasEdits) {
-      const c = note?.content ?? "";
-      setLocalContent(c);
-      localContentRef.current = c;
-    }
-  }, [note, hasEdits]);
-
-  // Reset edits on date change
   const prevDateRef = useRef(date);
+
+  // --- Effect 1: Forward prop changes into reducer + flush on date change ---
   useEffect(() => {
+    // Flush pending save when date changes
     if (date !== prevDateRef.current) {
-      // Flush pending save for previous date
       if (pendingSaveRef.current && repository) {
         const { date: saveDate, content: saveContent } = pendingSaveRef.current;
         pendingSaveRef.current = null;
@@ -259,23 +469,171 @@ export function useNoteRepository({
         void repository.save(saveDate, saveContent);
       }
       prevDateRef.current = date;
-      setHasEdits(false);
-      const c = note?.content ?? "";
-      setLocalContent(c);
-      localContentRef.current = c;
-      setNoteError(null);
     }
-  }, [date, note, repository]);
 
+    dispatch({
+      type: "INPUTS_CHANGED",
+      userId,
+      mode,
+      vaultKey,
+      activeKeyId,
+      date,
+      year,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, mode, vaultKey, activeKeyId, date, year]);
+
+  // --- Effect 2: Phase "opening" - create database ---
+  useEffect(() => {
+    if (state.phase !== "opening") return;
+
+    let cancelled = false;
+    const dbName = state.userId ?? "local";
+
+    void (async () => {
+      try {
+        const newDb = await createAppDatabase(dbName);
+        if (cancelled) return;
+
+        // Attempt legacy data migration if the old database exists
+        await tryMigrateLegacy(newDb);
+        if (cancelled) return;
+
+        dispatch({ type: "DB_OPENED", db: newDb, dbName });
+      } catch (error) {
+        reportError("useNoteRepository.openDb", error);
+        if (!cancelled) dispatch({ type: "DB_FAILED" });
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [state.phase, state.userId]);
+
+  // --- Effect 3: Phase "replicating" - start replication ---
+  useEffect(() => {
+    if (state.phase !== "replicating") return;
+    if (!state.db || !state.userId || !state.vaultKey || !state.activeKeyId) return;
+
+    const keyProvider = {
+      activeKeyId: state.activeKeyId,
+      getKey: (keyId: string) => keyringRef.current.get(keyId) ?? null,
+    };
+    const e2ee = e2eeFactory.create(keyProvider);
+    const crypto = createNoteCrypto(e2ee);
+
+    const imageCrypto = createImageCryptoAdapter(e2ee);
+    const handle = startReplication(state.db, supabase, crypto, state.userId, imageCrypto);
+    dispatch({ type: "REPLICATION_STARTED", replication: handle });
+
+    const subs: Array<{ unsubscribe(): void }> = [];
+
+    subs.push(handle.notes.active$.subscribe((active) => {
+      if (active) {
+        dispatch({ type: "SYNC_STATUS", status: SyncStatus.Syncing });
+      } else {
+        dispatch({ type: "SYNC_STATUS", status: SyncStatus.Synced });
+      }
+    }));
+
+    subs.push(handle.notes.error$.subscribe((err) => {
+      if (err) {
+        dispatch({
+          type: "SYNC_STATUS",
+          status: SyncStatus.Error,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }));
+
+    // Subscribe to image replication errors too
+    if (handle.images) {
+      subs.push(handle.images.error$.subscribe((err) => {
+        if (err) {
+          reportError("imageReplication.error", err);
+        }
+      }));
+    }
+
+    return () => {
+      subs.forEach((s) => s.unsubscribe());
+      handle.cancel();
+      dispatch({ type: "REPLICATION_STOPPED" });
+    };
+  }, [state.phase, state.db, state.userId, state.vaultKey, state.activeKeyId, supabase, e2eeFactory]);
+
+  // --- Effect 4: Subscribe to note document (content + soft-delete) ---
+  useEffect(() => {
+    if (!state.db || !state.date) {
+      dispatch({ type: "NOTE_DOC_CHANGED", note: null, isSoftDeleted: false });
+      return;
+    }
+
+    const subscription = state.db.notes.findOne(state.date).$.subscribe((doc) => {
+      if (!doc) {
+        dispatch({ type: "NOTE_DOC_CHANGED", note: null, isSoftDeleted: false });
+      } else if (doc.isDeleted) {
+        dispatch({ type: "NOTE_DOC_CHANGED", note: null, isSoftDeleted: true });
+      } else {
+        dispatch({
+          type: "NOTE_DOC_CHANGED",
+          note: {
+            date: doc.date,
+            content: doc.content,
+            updatedAt: doc.updatedAt,
+            weather: doc.weather ?? undefined,
+          },
+          isSoftDeleted: false,
+        });
+      }
+    });
+
+    return () => { subscription.unsubscribe(); };
+  }, [state.db, state.date]);
+
+  // --- Effect 5: Subscribe to note dates ---
+  useEffect(() => {
+    if (!state.db) {
+      dispatch({ type: "NOTE_DATES_CHANGED", dates: new Set() });
+      return;
+    }
+
+    const subscription = state.db.notes
+      .find({ selector: { isDeleted: { $eq: false } } })
+      .$.subscribe((docs) => {
+        const yearStr = String(state.year);
+        const filtered = docs
+          .map((doc) => doc.date)
+          .filter((d) => d.endsWith(yearStr));
+        dispatch({ type: "NOTE_DATES_CHANGED", dates: new Set(filtered) });
+      });
+
+    return () => { subscription.unsubscribe(); };
+  }, [state.db, state.year]);
+
+  // --- Repositories (derived from db) ---
+  const repository = useMemo<NoteRepository | null>(
+    () => (state.db ? new RxDBNoteRepository(state.db) : null),
+    [state.db],
+  );
+  const imageRepository = useMemo<ImageRepository | null>(
+    () => (state.db
+      ? new RxDBImageRepository(
+          state.db,
+          mode === AppMode.Cloud ? supabase : null,
+          userId,
+        )
+      : null),
+    [state.db, mode, supabase, userId],
+  );
+
+  // --- Callbacks ---
   const setContent = useCallback(
     (newContent: string) => {
-      setLocalContent(newContent);
+      dispatch({ type: "CONTENT_EDITED", content: newContent });
       localContentRef.current = newContent;
-      setHasEdits(true);
 
       if (!date || !repository) return;
 
-      // Clear existing timer
       if (saveTimerRef.current) {
         clearTimeout(saveTimerRef.current);
       }
@@ -288,15 +646,12 @@ export function useNoteRepository({
         if (!pending) return;
         pendingSaveRef.current = null;
 
-        setIsSaving(true);
+        dispatch({ type: "SAVE_STARTED" });
         void repository.save(pending.date, pending.content, weatherRef.current).then((result) => {
-          setIsSaving(false);
-          if (!result.ok) {
-            setNoteError(result.error);
-          } else {
-            setHasEdits(false);
-            setNoteError(null);
-          }
+          dispatch({
+            type: "SAVE_COMPLETED",
+            error: result.ok ? null : result.error,
+          });
         });
       }, SAVE_DEBOUNCE_MS);
     },
@@ -312,57 +667,16 @@ export function useNoteRepository({
     };
   }, []);
 
-  // --- Note dates subscription ---
-  const [noteDates, setNoteDates] = useState<Set<string>>(new Set());
-
-  useEffect(() => {
-    if (!db) {
-      setNoteDates(new Set());
-      return;
-    }
-
-    const subscription = db.notes
-      .find({ selector: { isDeleted: false } })
-      .$.subscribe((docs) => {
-        const yearStr = String(year);
-        const filtered = docs
-          .map((doc) => doc.date)
-          .filter((d) => d.endsWith(yearStr));
-        setNoteDates(new Set(filtered));
-      });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [db, year]);
-
-  const hasNote = useCallback(
-    (checkDate: string): boolean => noteDates.has(checkDate),
-    [noteDates],
+  const setWeather = useCallback(
+    (w: SavedWeather | null) => {
+      dispatch({ type: "WEATHER_CHANGED", weather: w });
+      weatherRef.current = w;
+      if (date && repository) {
+        void repository.save(date, localContentRef.current, w);
+      }
+    },
+    [date, repository],
   );
-
-  const refreshNoteDates = useCallback(() => {
-    // With RxDB reactive subscriptions, dates auto-update.
-    // This is a no-op kept for interface compatibility.
-  }, []);
-
-  // --- Soft delete support ---
-  const [isSoftDeleted, setIsSoftDeleted] = useState(false);
-
-  useEffect(() => {
-    if (!db || !date) {
-      setIsSoftDeleted(false);
-      return;
-    }
-
-    const subscription = db.notes.findOne(date).$.subscribe((doc) => {
-      setIsSoftDeleted(doc?.isDeleted === true);
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [db, date]);
 
   const restoreNote = useCallback(() => {
     if (!date || !repository) return;
@@ -383,63 +697,68 @@ export function useNoteRepository({
 
   // --- Trigger sync / idle sync ---
   const triggerSync = useCallback(
-    (_options?: { immediate?: boolean }) => {
-      // RxDB replication is continuous; manual trigger re-syncs
-      if (replication) {
-        void replication.notes.reSync();
+    () => {
+      if (state.replication) {
+        void state.replication.notes.reSync();
       }
     },
-    [replication],
+    [state.replication],
   );
 
   const queueIdleSync = useCallback(
-    (_options?: { delayMs?: number }) => {
-      if (replication) {
-        void replication.notes.reSync();
+    () => {
+      if (state.replication) {
+        void state.replication.notes.reSync();
       }
     },
-    [replication],
+    [state.replication],
   );
 
-  // --- Repository version ---
-  const [repositoryVersion, setRepositoryVersion] = useState(0);
   const invalidateRepository = useCallback(() => {
-    setRepositoryVersion((v) => v + 1);
+    dispatch({ type: "INVALIDATE_REPOSITORY" });
+  }, []);
+
+  const hasNote = useCallback(
+    (checkDate: string): boolean => state.noteDates.has(checkDate),
+    [state.noteDates],
+  );
+
+  const refreshNoteDates = useCallback(() => {
+    // With RxDB reactive subscriptions, dates auto-update.
+    // This is a no-op kept for interface compatibility.
   }, []);
 
   // --- Derived state ---
-  const isDecrypting = noteLoading || (date !== null && !db);
-  const isContentReady = !noteLoading && !!db;
-  const isOfflineStub = false; // RxDB local-first: always has local data
-
-  const content = localContent;
+  const isDecrypting = state.noteLoading || (date !== null && !state.db);
+  const isContentReady = !state.noteLoading && !!state.db;
+  const isOfflineStub = false;
 
   return {
     repository,
     imageRepository,
     syncedRepo: null,
-    syncStatus,
-    syncError,
+    syncStatus: state.syncStatus,
+    syncError: state.syncError,
     triggerSync,
     queueIdleSync,
     pendingOps: { notes: 0, images: 0, total: 0 },
     capabilities,
-    content,
+    content: state.localContent,
     setContent,
-    hasEdits,
-    isSaving,
+    hasEdits: state.hasEdits,
+    isSaving: state.isSaving,
     hasNote,
-    noteDates,
+    noteDates: state.noteDates,
     refreshNoteDates,
     isDecrypting,
     isContentReady,
     isOfflineStub,
-    isSoftDeleted,
+    isSoftDeleted: state.isSoftDeleted,
     restoreNote,
-    noteError,
-    repositoryVersion,
+    noteError: state.noteError,
+    repositoryVersion: state.repositoryVersion,
     invalidateRepository,
-    weather,
+    weather: state.weather,
     setWeather,
   };
 }

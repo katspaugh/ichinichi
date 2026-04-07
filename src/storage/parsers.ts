@@ -195,6 +195,38 @@ export function parseDecryptedNotePayload(
   return data as { content: string };
 }
 
+// ── Saved Weather ──────────────────────────────────────────────────
+
+import type { SavedWeather } from "../types/index";
+
+export function parseSavedWeather(data: unknown): SavedWeather | null {
+  if (!isObject(data)) return null;
+  if (
+    typeof data.icon !== "string" ||
+    typeof data.temperatureHigh !== "number" ||
+    typeof data.temperatureLow !== "number" ||
+    typeof data.unit !== "string" ||
+    typeof data.city !== "string"
+  ) return null;
+  if (data.unit !== "C" && data.unit !== "F") return null;
+  return data as unknown as SavedWeather;
+}
+
+// ── Encrypted Blob Record (from storage bucket) ────────────────────
+
+export interface EncryptedBlobRecord {
+  keyId?: string | null;
+  ciphertext: string;
+  nonce: string;
+}
+
+export function parseEncryptedBlobRecord(data: unknown): EncryptedBlobRecord | null {
+  if (!isObject(data)) return null;
+  if (typeof data.ciphertext !== "string" || typeof data.nonce !== "string") return null;
+  if (data.keyId !== undefined && data.keyId !== null && typeof data.keyId !== "string") return null;
+  return data as unknown as EncryptedBlobRecord;
+}
+
 // ── IDB Key Arrays ──────────────────────────────────────────────────
 
 export function parseStringArray(data: unknown): string[] | null {

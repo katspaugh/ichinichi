@@ -6,8 +6,8 @@ import { useDebugMode } from "./useDebugMode";
  * during replication, so there is no per-note keyId to display.
  */
 export function useDebugNoteKeyId(
-  _date: string,
-  _isContentReady: boolean,
+  _date: string, // eslint-disable-line @typescript-eslint/no-unused-vars
+  _isContentReady: boolean, // eslint-disable-line @typescript-eslint/no-unused-vars
 ): string | null {
   const [isDebug] = useDebugMode();
   return isDebug ? "(rxdb-local)" : null;

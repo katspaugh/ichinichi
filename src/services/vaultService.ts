@@ -379,17 +379,18 @@ export async function cleanupUnusedKeys(options: {
     const newNonce = bytesToBase64(newIv);
     const now = new Date().toISOString();
 
-    const { error: pushError } = await supabase.rpc("push_note", {
-      p_id: note.id,
-      p_user_id: userId,
-      p_date: note.date,
-      p_key_id: activeKeyId,
-      p_ciphertext: newCiphertext,
-      p_nonce: newNonce,
-      p_revision: note.revision,
-      p_updated_at: now,
-      p_deleted: false,
-    });
+    const { error: pushError } = await supabase
+      .from("notes")
+      .upsert({
+        id: note.id,
+        user_id: userId,
+        date: note.date,
+        key_id: activeKeyId,
+        ciphertext: newCiphertext,
+        nonce: newNonce,
+        updated_at: now,
+        _deleted: false,
+      }, { onConflict: "id" });
     if (pushError) throw pushError;
 
     // RxDB replication will pull the re-encrypted note automatically
@@ -496,17 +497,18 @@ export async function reencryptCloudNotes(options: {
     const now = new Date().toISOString();
 
     // Push to Supabase
-    const { error: pushError } = await sb.rpc("push_note", {
-      p_id: note.id,
-      p_user_id: userId,
-      p_date: note.date,
-      p_key_id: primaryKeyId,
-      p_ciphertext: newCiphertext,
-      p_nonce: newNonce,
-      p_revision: note.revision,
-      p_updated_at: now,
-      p_deleted: false,
-    });
+    const { error: pushError } = await sb
+      .from("notes")
+      .upsert({
+        id: note.id,
+        user_id: userId,
+        date: note.date,
+        key_id: primaryKeyId,
+        ciphertext: newCiphertext,
+        nonce: newNonce,
+        updated_at: now,
+        _deleted: false,
+      }, { onConflict: "id" });
     if (pushError) throw pushError;
 
     // RxDB replication will pull the re-encrypted note automatically

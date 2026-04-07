@@ -65,10 +65,10 @@ function makeMockCrypto(): ImageReplicationCrypto {
 
 function makeFailingCrypto(): ImageReplicationCrypto {
   return {
-    async encryptBlob(_blob) {
+    async encryptBlob() {
       return { ok: false, error: { type: "EncryptFailed", message: "no key" } };
     },
-    async decryptBlob(_record, _mimeType) {
+    async decryptBlob() {
       return { ok: false, error: { type: "DecryptFailed", message: "no key" } };
     },
   };

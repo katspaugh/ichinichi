@@ -21,10 +21,10 @@ const mockCrypto: ReplicationCrypto = {
 };
 
 const failingCrypto: ReplicationCrypto = {
-  async encrypt(_payload) {
+  async encrypt() {
     return { ok: false, error: { type: "EncryptFailed", message: "no key" } };
   },
-  async decrypt(_record) {
+  async decrypt() {
     return { ok: false, error: { type: "DecryptFailed", message: "no key" } };
   },
 };

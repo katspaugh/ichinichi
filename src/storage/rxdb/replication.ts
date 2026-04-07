@@ -8,6 +8,7 @@ import type { NotePayload } from "../../domain/crypto/e2eeService";
 import type { CryptoError } from "../../domain/errors";
 import type { Result } from "../../domain/result";
 import { reportError } from "../../utils/errorReporter";
+import { parseEncryptedBlobRecord } from "../parsers";
 
 export interface ReplicationCrypto {
   encrypt(payload: NotePayload): Promise<Result<EncryptedNote, CryptoError>>;
@@ -239,14 +240,22 @@ export function createImagePullModifier(
     }
 
     // The stored blob is a JSON-serialised encrypted record
-    let encRecord: { keyId?: string | null; ciphertext: string; nonce: string };
+    let encRecord;
     try {
       const text = await downloadResult.value.text();
-      encRecord = JSON.parse(text) as typeof encRecord;
+      encRecord = parseEncryptedBlobRecord(JSON.parse(text));
     } catch {
       reportError("imageReplication.pull: failed to parse encrypted record", {
         type: "Corrupt",
         message: "Could not parse encrypted blob JSON",
+      });
+      return { doc, blob: null };
+    }
+
+    if (!encRecord) {
+      reportError("imageReplication.pull: invalid encrypted record shape", {
+        type: "Corrupt",
+        message: "Encrypted blob record failed validation",
       });
       return { doc, blob: null };
     }
@@ -265,19 +274,83 @@ export function createImagePullModifier(
   };
 }
 
+/**
+ * Adapts an E2eeService (which has encryptImageBlob/decryptImageRecord) into
+ * the ImageReplicationCrypto interface expected by image push/pull modifiers.
+ */
+export function createImageCryptoAdapter(e2ee: {
+  encryptImageBlob(blob: Blob): Promise<{
+    record: { version: 1; id: string; keyId: string; ciphertext: string; nonce: string };
+    sha256: string;
+    size: number;
+    keyId: string;
+  } | null>;
+  decryptImageRecord(
+    record: { keyId?: string | null; ciphertext: string; nonce: string },
+    mimeType: string,
+  ): Promise<Blob | null>;
+}): ImageReplicationCrypto {
+  return {
+    async encryptBlob(blob) {
+      try {
+        const result = await e2ee.encryptImageBlob(blob);
+        if (!result) return { ok: false, error: { type: "EncryptFailed" as const, message: "Image encryption returned null" } };
+        return { ok: true, value: result };
+      } catch (error) {
+        return { ok: false, error: { type: "Unknown" as const, message: error instanceof Error ? error.message : "Encryption failed" } };
+      }
+    },
+    async decryptBlob(record, mimeType) {
+      try {
+        const result = await e2ee.decryptImageRecord(record, mimeType);
+        if (!result) return { ok: false, error: { type: "DecryptFailed" as const, message: "Image decryption returned null" } };
+        return { ok: true, value: result };
+      } catch (error) {
+        return { ok: false, error: { type: "Unknown" as const, message: error instanceof Error ? error.message : "Decryption failed" } };
+      }
+    },
+  };
+}
+
 export interface ReplicationHandle {
   notes: RxSupabaseReplicationState<NoteDocType>;
+  images: RxSupabaseReplicationState<ImageDocType> | null;
   cancel(): void;
 }
 
 /**
- * Starts Supabase replication for the notes collection with E2EE push/pull modifiers.
+ * Creates a Supabase storage bucket adapter for image blob upload/download.
+ */
+function createSupabaseBucket(supabase: SupabaseClient): StorageBucket {
+  return {
+    async upload(path, blob) {
+      const { error } = await supabase.storage
+        .from("note-images")
+        .upload(path, blob, { upsert: true });
+      if (error) return { ok: false, error: error.message };
+      return { ok: true, value: path };
+    },
+    async download(path) {
+      const { data, error } = await supabase.storage
+        .from("note-images")
+        .download(path);
+      if (error || !data) return { ok: false, error: error?.message ?? "download failed" };
+      return { ok: true, value: data };
+    },
+  };
+}
+
+/**
+ * Starts Supabase replication for notes and optionally images.
+ * Notes: E2EE push/pull modifiers encrypt/decrypt content.
+ * Images: metadata replication with blob upload/download as side-effects.
  */
 export function startReplication(
   db: AppDatabase,
   supabase: SupabaseClient,
   crypto: ReplicationCrypto,
   userId: string,
+  imageCrypto?: ImageReplicationCrypto | null,
 ): ReplicationHandle {
   const pushModifier = createPushModifier(crypto);
   const pullModifier = createPullModifier(crypto);
@@ -288,21 +361,69 @@ export function startReplication(
     client: supabase,
     tableName: "notes",
     pull: {
-      // modifier receives any (raw Supabase row) and returns WithDeleted<NoteDocType>
       modifier: (row: SupabaseNoteRow) =>
         pullModifier(row).then((doc) => ({ ...doc, _deleted: doc.isDeleted })),
     },
     push: {
-      // modifier receives WithDeleted<NoteDocType> and returns the encrypted Supabase row
       modifier: (doc: NoteDocType & { _deleted: boolean }) =>
         pushModifier({ ...doc, isDeleted: doc._deleted }),
     },
   });
 
+  // --- Image replication (metadata + blob side-effects) ---
+  let imagesReplication: RxSupabaseReplicationState<ImageDocType> | null = null;
+
+  if (imageCrypto) {
+    const bucket = createSupabaseBucket(supabase);
+    const imgPush = createImagePushModifier(imageCrypto, bucket, userId);
+    const imgPull = createImagePullModifier(imageCrypto, bucket, userId);
+
+    imagesReplication = replicateSupabase<ImageDocType>({
+      replicationIdentifier: `images-supabase-${userId}`,
+      collection: db.images,
+      client: supabase,
+      tableName: "note_images",
+      pull: {
+        modifier: (row: SupabaseImageRow) =>
+          imgPull(row).then(async ({ doc, blob }) => {
+            if (blob) {
+              try {
+                const rxDoc = await db.images.findOne(doc.id).exec();
+                if (rxDoc) {
+                  await rxDoc.putAttachment({
+                    id: "blob",
+                    data: blob,
+                    type: doc.mimeType,
+                  });
+                }
+              } catch (attachErr) {
+                reportError("imageReplication.pull: attachment store failed", attachErr);
+              }
+            }
+            return { ...doc, _deleted: doc.isDeleted };
+          }),
+      },
+      push: {
+        modifier: async (doc: ImageDocType & { _deleted: boolean }) => {
+          const imageDoc = { ...doc, isDeleted: doc._deleted };
+          const rxDoc = await db.images.findOne(doc.id).exec();
+          const attachment = rxDoc?.getAttachment("blob");
+          const blob = attachment ? await attachment.getData() : new Blob();
+          const row = await imgPush(imageDoc, blob);
+          return row as unknown as ImageDocType & { _deleted: boolean };
+        },
+      },
+    });
+  }
+
   return {
     notes: notesReplication,
+    images: imagesReplication,
     cancel() {
       void notesReplication.cancel();
+      if (imagesReplication) {
+        void imagesReplication.cancel();
+      }
     },
   };
 }

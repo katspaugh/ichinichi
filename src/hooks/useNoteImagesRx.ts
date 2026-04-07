@@ -8,7 +8,7 @@ export function useNoteImagesRx(noteDate: string): NoteImage[] {
 
   useEffect(() => {
     const subscription = db.images
-      .find({ selector: { noteDate, isDeleted: false } })
+      .find({ selector: { noteDate: { $eq: noteDate }, isDeleted: { $eq: false } } })
       .$.subscribe((docs) => {
         setImages(
           docs.map((doc) => ({

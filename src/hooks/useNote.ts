@@ -13,8 +13,6 @@ export function useNote(date: string): UseNoteResult {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setLoading(true);
-
     const subscription = db.notes.findOne(date).$.subscribe((doc) => {
       if (!doc || doc.isDeleted) {
         setNote(null);

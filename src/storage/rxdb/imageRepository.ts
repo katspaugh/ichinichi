@@ -1,3 +1,4 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ImageRepository } from "../imageRepository";
 import type { NoteImage } from "../../types";
 import type { RepositoryError } from "../../domain/errors";
@@ -8,8 +9,13 @@ import { reportError } from "../../utils/errorReporter";
 
 export class RxDBImageRepository implements ImageRepository {
   readonly db: AppDatabase;
-  constructor(db: AppDatabase) {
+  private readonly supabase: SupabaseClient | null;
+  private readonly userId: string | null;
+
+  constructor(db: AppDatabase, supabase?: SupabaseClient | null, userId?: string | null) {
     this.db = db;
+    this.supabase = supabase ?? null;
+    this.userId = userId ?? null;
   }
 
   async upload(
@@ -75,8 +81,24 @@ export class RxDBImageRepository implements ImageRepository {
     }
   }
 
-  async getUrl(_imageId: string): Promise<Result<string | null, RepositoryError>> {
-    return ok(null);
+  async getUrl(imageId: string): Promise<Result<string | null, RepositoryError>> {
+    if (!this.supabase || !this.userId) {
+      return ok(null);
+    }
+    try {
+      const path = `${this.userId}/${imageId}`;
+      const { data, error } = await this.supabase.storage
+        .from("note-images")
+        .createSignedUrl(path, 3600);
+      if (error) {
+        reportError("rxImageRepository.getUrl", error);
+        return ok(null);
+      }
+      return ok(data.signedUrl);
+    } catch (error) {
+      reportError("rxImageRepository.getUrl", error);
+      return err({ type: "IO", message: String(error) });
+    }
   }
 
   async delete(imageId: string): Promise<Result<void, RepositoryError>> {
