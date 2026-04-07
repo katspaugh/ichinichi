@@ -86,7 +86,9 @@ export class RxDBImageRepository implements ImageRepository {
       return ok(null);
     }
     try {
-      const path = `${this.userId}/${imageId}`;
+      const doc = await this.db.images.findOne(imageId).exec();
+      if (!doc || doc.isDeleted) return ok(null);
+      const path = `${this.userId}/${doc.noteDate}/${imageId}.enc`;
       const { data, error } = await this.supabase.storage
         .from("note-images")
         .createSignedUrl(path, 3600);

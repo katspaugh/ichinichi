@@ -179,7 +179,7 @@ export function createImagePushModifier(
       type: "application/octet-stream",
     });
 
-    const uploadPath = `${userId}/${doc.id}`;
+    const uploadPath = `${userId}/${doc.noteDate}/${doc.id}.enc`;
     const uploadResult = await bucket.upload(uploadPath, ciphertextBlob);
     if (!uploadResult.ok) {
       throw new Error(
@@ -255,7 +255,7 @@ export function createImagePullModifier(
       return { doc, blob: null };
     }
 
-    const downloadPath = `${userId}/${parsed.id}`;
+    const downloadPath = `${userId}/${parsed.note_date}/${parsed.id}.enc`;
     const downloadResult = await bucket.download(downloadPath);
     if (!downloadResult.ok) {
       reportError("imageReplication.pull: bucket download failed", {
