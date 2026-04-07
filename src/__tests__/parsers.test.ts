@@ -116,11 +116,11 @@ describe("parseRemoteNoteRow", () => {
     id: "id1",
     user_id: "u1",
     date: "01-01-2025",
-    ciphertext: "ct",
+    content: "ct",
     nonce: "nc",
     key_id: "k1",
     revision: 1,
-    updated_at: "2025-01-01T00:00:00Z",
+    updatedAt: "2025-01-01T00:00:00Z",
     server_updated_at: "2025-01-01T00:00:00Z",
     deleted: false,
   };

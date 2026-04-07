@@ -19,14 +19,15 @@ export interface ReplicationCrypto {
   }): Promise<Result<NotePayload, CryptoError>>;
 }
 
+/** Shape of a notes row in Supabase after column renames. */
 export interface SupabaseNoteRow {
   date: string;
   key_id: string;
-  ciphertext: string;
+  content: string;
   nonce: string;
-  updated_at: string;
+  updatedAt: string;
   _modified: string;
-  _deleted: boolean;
+  isDeleted: boolean;
 }
 
 /**
@@ -54,12 +55,13 @@ export function createPushModifier(
     return {
       date: doc.date,
       key_id: keyId,
-      ciphertext,
+      content: ciphertext,
       nonce,
-      updated_at: doc.updatedAt,
+      updatedAt: doc.updatedAt,
+      weather: null,
       _modified: new Date().toISOString(),
-      _deleted: doc.isDeleted,
-    };
+      isDeleted: doc.isDeleted,
+    } as SupabaseNoteRow & { weather: null };
   };
 }
 
@@ -77,12 +79,11 @@ export function createPullModifier(
       return { date: (row as unknown as Record<string, unknown>).date as string ?? "", content: "", updatedAt: "", isDeleted: true, weather: null };
     }
 
-    // The replication plugin may strip _modified and updated_at from the row
-    const updatedAt = row.updated_at || new Date().toISOString();
+    const updatedAt = parsed.updatedAt || new Date().toISOString();
 
-    if (row._deleted) {
+    if (parsed.isDeleted) {
       return {
-        date: row.date,
+        date: parsed.date,
         content: "",
         updatedAt,
         isDeleted: true,
@@ -91,15 +92,15 @@ export function createPullModifier(
     }
 
     const result = await crypto.decrypt({
-      keyId: row.key_id,
-      ciphertext: row.ciphertext,
-      nonce: row.nonce,
+      keyId: parsed.key_id,
+      ciphertext: parsed.content,
+      nonce: parsed.nonce,
     });
 
     if (!result.ok) {
       reportError("replication.pull", result.error);
       return {
-        date: row.date,
+        date: parsed.date,
         content: "",
         updatedAt,
         isDeleted: false,
@@ -110,7 +111,7 @@ export function createPullModifier(
     const { content, weather } = result.value;
 
     return {
-      date: row.date,
+      date: parsed.date,
       content,
       updatedAt,
       isDeleted: false,
@@ -141,21 +142,22 @@ export interface StorageBucket {
   download(path: string): Promise<Result<Blob, string>>;
 }
 
+/** Shape of a note_images row in Supabase after column renames. */
 export interface SupabaseImageRow {
   id: string;
-  note_date: string;
+  noteDate: string;
   type: "background" | "inline";
   filename: string;
-  mime_type: string;
+  mimeType: string;
   width: number;
   height: number;
   size: number;
-  created_at: string;
+  createdAt: string;
   key_id: string;
   nonce: string;
   sha256: string;
   _modified: string;
-  _deleted: boolean;
+  isDeleted: boolean;
 }
 
 /**
@@ -192,19 +194,19 @@ export function createImagePushModifier(
 
     return {
       id: doc.id,
-      note_date: doc.noteDate,
+      noteDate: doc.noteDate,
       type: doc.type,
       filename: doc.filename,
-      mime_type: doc.mimeType,
+      mimeType: doc.mimeType,
       width: doc.width,
       height: doc.height,
       size: doc.size,
-      created_at: doc.createdAt,
+      createdAt: doc.createdAt,
       key_id: keyId,
       nonce: record.nonce,
       sha256,
       _modified: new Date().toISOString(),
-      _deleted: doc.isDeleted,
+      isDeleted: doc.isDeleted,
     };
   };
 }
@@ -242,23 +244,23 @@ export function createImagePullModifier(
     }
 
     const doc: ImageDocType = {
-      id: row.id,
-      noteDate: row.note_date,
-      type: row.type,
-      filename: row.filename,
-      mimeType: row.mime_type,
-      width: row.width,
-      height: row.height,
-      size: row.size,
-      createdAt: row.created_at,
-      isDeleted: row._deleted,
+      id: parsed.id,
+      noteDate: parsed.noteDate,
+      type: parsed.type,
+      filename: parsed.filename,
+      mimeType: parsed.mimeType,
+      width: parsed.width,
+      height: parsed.height,
+      size: parsed.size,
+      createdAt: parsed.createdAt,
+      isDeleted: parsed.isDeleted,
     };
 
-    if (row._deleted) {
+    if (parsed.isDeleted) {
       return { doc, blob: null };
     }
 
-    const downloadPath = `${userId}/${row.id}`;
+    const downloadPath = `${userId}/${parsed.id}`;
     const downloadResult = await bucket.download(downloadPath);
     if (!downloadResult.ok) {
       reportError("imageReplication.pull: bucket download failed", {
@@ -290,8 +292,8 @@ export function createImagePullModifier(
     }
 
     const decryptResult = await crypto.decryptBlob(
-      { keyId: row.key_id, ciphertext: encRecord.ciphertext, nonce: encRecord.nonce },
-      row.mime_type,
+      { keyId: parsed.key_id, ciphertext: encRecord.ciphertext, nonce: encRecord.nonce },
+      parsed.mimeType,
     );
 
     if (!decryptResult.ok) {
@@ -373,6 +375,9 @@ function createSupabaseBucket(supabase: SupabaseClient): StorageBucket {
  * Starts Supabase replication for notes and optionally images.
  * Notes: E2EE push/pull modifiers encrypt/decrypt content.
  * Images: metadata replication with blob upload/download as side-effects.
+ *
+ * deletedField is set to 'isDeleted' to match the RxDB schema property name
+ * and the renamed Supabase column (was _deleted before migration 20260409).
  */
 export function startReplication(
   db: AppDatabase,
@@ -389,6 +394,7 @@ export function startReplication(
     collection: db.notes,
     client: supabase,
     tableName: "notes",
+    deletedField: "isDeleted",
     pull: {
       modifier: (row: SupabaseNoteRow) =>
         pullModifier(row).then((doc) => ({ ...doc, _deleted: doc.isDeleted })),
@@ -436,6 +442,7 @@ export function startReplication(
       collection: db.images,
       client: supabase,
       tableName: "note_images",
+      deletedField: "isDeleted",
       pull: {
         modifier: (row: SupabaseImageRow) =>
           imgPull(row).then(({ doc, blob }) => {

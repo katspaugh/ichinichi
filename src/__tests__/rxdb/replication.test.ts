@@ -43,21 +43,21 @@ describe("createPushModifier", () => {
     const row = await push(note);
 
     expect(row.date).toBe("01-01-2024");
-    expect(row._deleted).toBe(false);
+    expect(row.isDeleted).toBe(false);
     expect(row.key_id).toBe("mockkey");
     expect(row.nonce).toBe("mocknonce");
-    expect(row.updated_at).toBe("2024-01-01T00:00:00.000Z");
+    expect(row.updatedAt).toBe("2024-01-01T00:00:00.000Z");
     expect(row._modified).toBeDefined();
     // ciphertext should decode back to the original payload
-    const decoded = JSON.parse(atob(row.ciphertext));
+    const decoded = JSON.parse(atob(row.content));
     expect(decoded.content).toBe("<p>Hello</p>");
     expect(decoded.weather).toBeNull();
-    // content and weather must be stripped from output
-    expect(row).not.toHaveProperty("content");
-    expect(row).not.toHaveProperty("weather");
+    // content holds the encrypted ciphertext, not the original plaintext
+    expect(row.content).not.toBe("<p>Hello</p>");
+    expect(row).toHaveProperty("weather");
   });
 
-  it("maps isDeleted to _deleted", async () => {
+  it("maps isDeleted to isDeleted", async () => {
     const push = createPushModifier(mockCrypto);
     const note: NoteDocType = {
       date: "02-01-2024",
@@ -67,7 +67,7 @@ describe("createPushModifier", () => {
     };
 
     const row = await push(note);
-    expect(row._deleted).toBe(true);
+    expect(row.isDeleted).toBe(true);
   });
 
   it("throws when encryption fails", async () => {
@@ -89,12 +89,12 @@ describe("createPullModifier", () => {
     const payload = { content: "<p>World</p>", weather: null };
     const row = {
       date: "01-01-2024",
-      ciphertext: btoa(JSON.stringify(payload)),
+      content: btoa(JSON.stringify(payload)),
       nonce: "mocknonce",
       key_id: "mockkey",
-      updated_at: "2024-01-01T00:00:00.000Z",
+      updatedAt: "2024-01-01T00:00:00.000Z",
       _modified: "2024-01-01T00:00:00.000Z",
-      _deleted: false,
+      isDeleted: false,
     };
 
     const note = await pull(row);
@@ -106,16 +106,16 @@ describe("createPullModifier", () => {
     expect(note.isDeleted).toBe(false);
   });
 
-  it("returns empty content with isDeleted true when _deleted is true", async () => {
+  it("returns empty content with isDeleted true when isDeleted is true", async () => {
     const pull = createPullModifier(mockCrypto);
     const row = {
       date: "02-01-2024",
-      ciphertext: "does-not-matter",
+      content: "does-not-matter",
       nonce: "n",
       key_id: "k",
-      updated_at: "2024-01-02T00:00:00.000Z",
+      updatedAt: "2024-01-02T00:00:00.000Z",
       _modified: "2024-01-02T00:00:00.000Z",
-      _deleted: true,
+      isDeleted: true,
     };
 
     const note = await pull(row);
@@ -129,12 +129,12 @@ describe("createPullModifier", () => {
     const pull = createPullModifier(failingCrypto);
     const row = {
       date: "03-01-2024",
-      ciphertext: "garbage",
+      content: "garbage",
       nonce: "n",
       key_id: "k",
-      updated_at: "2024-01-03T00:00:00.000Z",
+      updatedAt: "2024-01-03T00:00:00.000Z",
       _modified: "2024-01-03T00:00:00.000Z",
-      _deleted: false,
+      isDeleted: false,
     };
 
     const note = await pull(row);

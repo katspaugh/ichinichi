@@ -123,10 +123,10 @@ export function createCloudImageRepository(
         const { error: metaError } = await supabase.from("note_images").insert({
           id: meta.id,
           user_id: userId,
-          note_date: meta.noteDate,
+          noteDate: meta.noteDate,
           type: meta.type,
           filename: meta.filename,
-          mime_type: meta.mimeType,
+          mimeType: meta.mimeType,
           width: meta.width,
           height: meta.height,
           size: meta.size,
@@ -156,7 +156,7 @@ export function createCloudImageRepository(
         // Get metadata to find storage path
         const { data: meta, error: metaError } = await supabase
           .from("note_images")
-          .select("storage_path, mime_type")
+          .select("storage_path, mimeType")
           .eq("id", imageId)
           .eq("user_id", userId)
           .single();
@@ -223,7 +223,7 @@ export function createCloudImageRepository(
           .from("note_images")
           .select("*")
           .eq("user_id", userId)
-          .eq("note_date", noteDate);
+          .eq("noteDate", noteDate);
 
         if (error || !data) {
           return ok([]);
@@ -231,14 +231,14 @@ export function createCloudImageRepository(
 
         return ok(data.map((row) => ({
           id: row.id,
-          noteDate: row.note_date,
+          noteDate: row.noteDate,
           type: row.type,
           filename: row.filename,
-          mimeType: row.mime_type,
+          mimeType: row.mimeType,
           width: row.width || 0,
           height: row.height || 0,
           size: row.size || 0,
-          createdAt: row.created_at,
+          createdAt: row.createdAt,
         })));
       } catch (error) {
         return err({

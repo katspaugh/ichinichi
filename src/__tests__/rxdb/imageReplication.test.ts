@@ -111,16 +111,16 @@ describe("createImagePushModifier", () => {
     const row = await push(doc, blob);
 
     expect(row.id).toBe("img-001");
-    expect(row.note_date).toBe("15-06-2024");
+    expect(row.noteDate).toBe("15-06-2024");
     expect(row.type).toBe("inline");
     expect(row.filename).toBe("photo.png");
-    expect(row.mime_type).toBe("image/png");
+    expect(row.mimeType).toBe("image/png");
     expect(row.width).toBe(800);
     expect(row.height).toBe(600);
     expect(row.key_id).toBe("mock-key");
     expect(row.nonce).toBe("mock-nonce");
     expect(row.sha256).toBe("mock-sha256");
-    expect(row._deleted).toBe(false);
+    expect(row.isDeleted).toBe(false);
     expect(row._modified).toBeDefined();
   });
 
@@ -210,19 +210,19 @@ describe("createImagePushModifier", () => {
 // A Supabase image row shape used in tests
 interface SupabaseImageRow {
   id: string;
-  note_date: string;
+  noteDate: string;
   type: "background" | "inline";
   filename: string;
-  mime_type: string;
+  mimeType: string;
   width: number;
   height: number;
   size: number;
-  created_at: string;
+  createdAt: string;
   key_id: string;
   nonce: string;
   sha256: string;
   _modified: string;
-  _deleted: boolean;
+  isDeleted: boolean;
 }
 
 describe("createImagePullModifier", () => {
@@ -252,19 +252,19 @@ describe("createImagePullModifier", () => {
 
     const row: SupabaseImageRow = {
       id: "img-001",
-      note_date: "15-06-2024",
+      noteDate: "15-06-2024",
       type: "inline",
       filename: "photo.png",
-      mime_type: "image/png",
+      mimeType: "image/png",
       width: 800,
       height: 600,
       size: 42,
-      created_at: "2024-06-15T10:00:00.000Z",
+      createdAt: "2024-06-15T10:00:00.000Z",
       key_id: "mock-key",
       nonce: "mock-nonce",
       sha256: "mock-sha256",
       _modified: "2024-06-15T10:00:00.000Z",
-      _deleted: false,
+      isDeleted: false,
     };
 
     const result = await pull(row);
@@ -290,19 +290,19 @@ describe("createImagePullModifier", () => {
 
     const row: SupabaseImageRow = {
       id: "img-del",
-      note_date: "01-01-2024",
+      noteDate: "01-01-2024",
       type: "background",
       filename: "old.jpg",
-      mime_type: "image/jpeg",
+      mimeType: "image/jpeg",
       width: 100,
       height: 100,
       size: 10,
-      created_at: "2024-01-01T00:00:00.000Z",
+      createdAt: "2024-01-01T00:00:00.000Z",
       key_id: "k",
       nonce: "n",
       sha256: "s",
       _modified: "2024-01-01T00:00:00.000Z",
-      _deleted: true,
+      isDeleted: true,
     };
 
     const result = await pull(row);
@@ -321,19 +321,19 @@ describe("createImagePullModifier", () => {
 
     const row: SupabaseImageRow = {
       id: "img-missing",
-      note_date: "02-02-2024",
+      noteDate: "02-02-2024",
       type: "inline",
       filename: "gone.png",
-      mime_type: "image/png",
+      mimeType: "image/png",
       width: 50,
       height: 50,
       size: 5,
-      created_at: "2024-02-02T00:00:00.000Z",
+      createdAt: "2024-02-02T00:00:00.000Z",
       key_id: "k",
       nonce: "n",
       sha256: "s",
       _modified: "2024-02-02T00:00:00.000Z",
-      _deleted: false,
+      isDeleted: false,
     };
 
     const result = await pull(row);
@@ -352,19 +352,19 @@ describe("createImagePullModifier", () => {
 
     const row: SupabaseImageRow = {
       id: "img-badenc",
-      note_date: "03-03-2024",
+      noteDate: "03-03-2024",
       type: "inline",
       filename: "bad.png",
-      mime_type: "image/png",
+      mimeType: "image/png",
       width: 10,
       height: 10,
       size: 7,
-      created_at: "2024-03-03T00:00:00.000Z",
+      createdAt: "2024-03-03T00:00:00.000Z",
       key_id: "k",
       nonce: "n",
       sha256: "s",
       _modified: "2024-03-03T00:00:00.000Z",
-      _deleted: false,
+      isDeleted: false,
     };
 
     const result = await pull(row);

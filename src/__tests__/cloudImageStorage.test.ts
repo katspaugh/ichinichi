@@ -142,7 +142,7 @@ describe("cloudImageStorage", () => {
   describe("get", () => {
     it("downloads image blob from storage", async () => {
       const { supabase, setQueryResult, storageMethods } = createMockSupabase();
-      setQueryResult({ storage_path: "user-123/img.jpg", mime_type: "image/jpeg" });
+      setQueryResult({ storage_path: "user-123/img.jpg", mimeType: "image/jpeg" });
       const imageBlob = new Blob(["image-data"], { type: "image/jpeg" });
       storageMethods.download.mockResolvedValue({ data: imageBlob, error: null });
 
@@ -168,7 +168,7 @@ describe("cloudImageStorage", () => {
 
     it("returns null when storage download fails", async () => {
       const { supabase, setQueryResult, storageMethods } = createMockSupabase();
-      setQueryResult({ storage_path: "user-123/img.jpg", mime_type: "image/jpeg" });
+      setQueryResult({ storage_path: "user-123/img.jpg", mimeType: "image/jpeg" });
       storageMethods.download.mockResolvedValue({
         data: null,
         error: { message: "Not found" },
@@ -248,14 +248,14 @@ describe("cloudImageStorage", () => {
       const rows = [
         {
           id: "img-1",
-          note_date: "15-01-2025",
+          noteDate: "15-01-2025",
           type: "inline",
           filename: "a.jpg",
-          mime_type: "image/jpeg",
+          mimeType: "image/jpeg",
           width: 100,
           height: 200,
           size: 5000,
-          created_at: "2025-01-15T10:00:00Z",
+          createdAt: "2025-01-15T10:00:00Z",
         },
       ];
       // For getByNoteDate, the chain ends without .single()

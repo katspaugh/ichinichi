@@ -352,7 +352,7 @@ export async function cleanupUnusedKeys(options: {
     }
 
     const iv = base64ToBytes(note.nonce);
-    const ciphertext = base64ToBytes(note.ciphertext);
+    const ciphertext = base64ToBytes(note.content);
     const decrypted = await crypto.subtle.decrypt(
       { name: "AES-GCM", iv },
       oldKey,
@@ -386,10 +386,10 @@ export async function cleanupUnusedKeys(options: {
         user_id: userId,
         date: note.date,
         key_id: activeKeyId,
-        ciphertext: newCiphertext,
+        content: newCiphertext,
         nonce: newNonce,
-        updated_at: now,
-        _deleted: false,
+        updatedAt: now,
+        isDeleted: false,
       }, { onConflict: "id" });
     if (pushError) throw pushError;
 
@@ -471,7 +471,7 @@ export async function reencryptCloudNotes(options: {
 
     // Decrypt
     const iv = base64ToBytes(note.nonce);
-    const ciphertext = base64ToBytes(note.ciphertext);
+    const ciphertext = base64ToBytes(note.content);
     const decrypted = await crypto.subtle.decrypt(
       { name: "AES-GCM", iv },
       oldKey,
@@ -504,10 +504,10 @@ export async function reencryptCloudNotes(options: {
         user_id: userId,
         date: note.date,
         key_id: primaryKeyId,
-        ciphertext: newCiphertext,
+        content: newCiphertext,
         nonce: newNonce,
-        updated_at: now,
-        _deleted: false,
+        updatedAt: now,
+        isDeleted: false,
       }, { onConflict: "id" });
     if (pushError) throw pushError;
 

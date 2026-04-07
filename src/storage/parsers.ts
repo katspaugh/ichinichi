@@ -134,11 +134,11 @@ export interface RemoteNoteRow {
   id: string;
   user_id: string;
   date: string;
-  ciphertext: string;
+  content: string;
   nonce: string;
   key_id: string;
   revision: number;
-  updated_at: string;
+  updatedAt: string;
   server_updated_at: string;
   deleted: boolean;
 }
@@ -149,10 +149,10 @@ export function parseRemoteNoteRow(data: unknown): RemoteNoteRow | null {
     typeof data.id !== "string" ||
     typeof data.user_id !== "string" ||
     typeof data.date !== "string" ||
-    typeof data.ciphertext !== "string" ||
+    typeof data.content !== "string" ||
     typeof data.nonce !== "string" ||
     typeof data.revision !== "number" ||
-    typeof data.updated_at !== "string" ||
+    typeof data.updatedAt !== "string" ||
     typeof data.server_updated_at !== "string" ||
     typeof data.deleted !== "boolean"
   )
@@ -235,13 +235,13 @@ export function parseSupabaseNoteRow(data: unknown): SupabaseNoteRow | null {
   if (!isObject(data)) return null;
   if (
     typeof data.date !== "string" ||
-    typeof data.ciphertext !== "string" ||
+    typeof data.content !== "string" ||
     typeof data.nonce !== "string" ||
     typeof data.key_id !== "string" ||
-    typeof data._deleted !== "boolean"
+    typeof data.isDeleted !== "boolean"
   )
     return null;
-  // updated_at and _modified may be stripped by the replication plugin
+  // updatedAt and _modified may be stripped by the replication plugin
   // before passing to the modifier — accept missing/undefined
   return data as unknown as SupabaseNoteRow;
 }
@@ -250,14 +250,14 @@ export function parseSupabaseImageRow(data: unknown): SupabaseImageRow | null {
   if (!isObject(data)) return null;
   if (
     typeof data.id !== "string" ||
-    typeof data.note_date !== "string" ||
+    typeof data.noteDate !== "string" ||
     typeof data.type !== "string" ||
     typeof data.filename !== "string" ||
-    typeof data.mime_type !== "string" ||
-    typeof data._deleted !== "boolean"
+    typeof data.mimeType !== "string" ||
+    typeof data.isDeleted !== "boolean"
   )
     return null;
-  // _modified, created_at, and other fields may be stripped by the
+  // _modified, createdAt, and other fields may be stripped by the
   // replication plugin before passing to the modifier — accept missing
   return data as unknown as SupabaseImageRow;
 }
