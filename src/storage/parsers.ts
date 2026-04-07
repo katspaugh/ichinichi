@@ -238,11 +238,11 @@ export function parseSupabaseNoteRow(data: unknown): SupabaseNoteRow | null {
     typeof data.ciphertext !== "string" ||
     typeof data.nonce !== "string" ||
     typeof data.key_id !== "string" ||
-    typeof data.updated_at !== "string" ||
-    typeof data._modified !== "string" ||
     typeof data._deleted !== "boolean"
   )
     return null;
+  // updated_at and _modified may be stripped by the replication plugin
+  // before passing to the modifier — accept missing/undefined
   return data as unknown as SupabaseNoteRow;
 }
 
@@ -254,17 +254,11 @@ export function parseSupabaseImageRow(data: unknown): SupabaseImageRow | null {
     typeof data.type !== "string" ||
     typeof data.filename !== "string" ||
     typeof data.mime_type !== "string" ||
-    typeof data.width !== "number" ||
-    typeof data.height !== "number" ||
-    typeof data.size !== "number" ||
-    typeof data.created_at !== "string" ||
-    typeof data.key_id !== "string" ||
-    typeof data.nonce !== "string" ||
-    typeof data.sha256 !== "string" ||
-    typeof data._modified !== "string" ||
     typeof data._deleted !== "boolean"
   )
     return null;
+  // _modified, created_at, and other fields may be stripped by the
+  // replication plugin before passing to the modifier — accept missing
   return data as unknown as SupabaseImageRow;
 }
 

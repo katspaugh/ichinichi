@@ -71,19 +71,20 @@ export function createPullModifier(
   crypto: ReplicationCrypto,
 ): (row: SupabaseNoteRow) => Promise<NoteDocType> {
   return async (row: SupabaseNoteRow): Promise<NoteDocType> => {
-    console.log("[rxdb-pull] raw row:", JSON.stringify(row));
     const parsed = parseSupabaseNoteRow(row);
     if (!parsed) {
-      console.warn("[rxdb-pull] parseSupabaseNoteRow FAILED for:", JSON.stringify(row));
       reportError("replication.pull", { type: "ParseError", message: "Invalid Supabase note row" });
       return { date: (row as unknown as Record<string, unknown>).date as string ?? "", content: "", updatedAt: "", isDeleted: true, weather: null };
     }
+
+    // The replication plugin may strip _modified and updated_at from the row
+    const updatedAt = row.updated_at || new Date().toISOString();
 
     if (row._deleted) {
       return {
         date: row.date,
         content: "",
-        updatedAt: row.updated_at,
+        updatedAt,
         isDeleted: true,
         weather: null,
       };
@@ -100,7 +101,7 @@ export function createPullModifier(
       return {
         date: row.date,
         content: "",
-        updatedAt: row.updated_at,
+        updatedAt,
         isDeleted: false,
         weather: null,
       };
@@ -111,7 +112,7 @@ export function createPullModifier(
     return {
       date: row.date,
       content,
-      updatedAt: row.updated_at,
+      updatedAt,
       isDeleted: false,
       weather: weather ?? null,
     };
