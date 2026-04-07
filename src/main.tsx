@@ -2,7 +2,12 @@ import { StrictMode } from "react";
 import { createRoot, hydrateRoot } from "react-dom/client";
 import { AppBootstrap } from "./components/AppBootstrap";
 import { THEME_KEY } from "./utils/constants";
+import { preloadLocalDatabase } from "./storage/rxdb/database";
 import "./index.css";
+
+// Start opening the local RxDB database immediately so it's ready
+// by the time the React tree mounts and subscribes to note data.
+preloadLocalDatabase();
 
 // Apply theme before first paint to prevent FOUC
 const savedTheme = localStorage.getItem(THEME_KEY);
