@@ -652,8 +652,20 @@ export function useNoteRepository({
     [state.db],
   );
   const imageRepository = useMemo<RxDBImageRepository | null>(
-    () => (state.db ? new RxDBImageRepository(state.db) : null),
-    [state.db],
+    () => {
+      if (!state.db) return null;
+      const repo = new RxDBImageRepository(state.db);
+      if (mode === AppMode.Cloud && activeKeyId && userId) {
+        const keyProvider = {
+          activeKeyId,
+          getKey: (keyId: string) => keyringRef.current.get(keyId) ?? null,
+        };
+        const imageCrypto = createImageCryptoAdapter(e2eeFactory.create(keyProvider));
+        repo.setRemoteFetcher(createRemoteBlobFetcher(supabase, imageCrypto, userId));
+      }
+      return repo;
+    },
+    [state.db, mode, activeKeyId, userId, supabase, e2eeFactory],
   );
 
   // --- Callbacks ---
