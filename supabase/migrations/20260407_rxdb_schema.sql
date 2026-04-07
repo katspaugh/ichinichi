@@ -13,9 +13,9 @@ create extension if not exists moddatetime with schema extensions;
 alter table public.notes
   add column if not exists _modified timestamptz;
 
--- Backfill _modified from server_updated_at (fall back to now() if null)
+-- Backfill _modified to now() so all existing data is ahead of any replication checkpoint
 update public.notes
-  set _modified = coalesce(server_updated_at, now())
+  set _modified = now()
   where _modified is null;
 
 -- Make _modified non-nullable with a default for future inserts
@@ -74,9 +74,9 @@ end $$;
 alter table public.note_images
   add column if not exists _modified timestamptz;
 
--- Backfill _modified from server_updated_at (fall back to created_at or now())
+-- Backfill _modified to now() so all existing data is ahead of any replication checkpoint
 update public.note_images
-  set _modified = coalesce(server_updated_at, created_at, now())
+  set _modified = now()
   where _modified is null;
 
 -- Make _modified non-nullable with a default for future inserts
