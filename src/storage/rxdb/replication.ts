@@ -97,6 +97,7 @@ export function createPullModifier(
     });
 
     if (!result.ok) {
+      console.error("[rxdb-pull] decrypt failed:", row.date, result.error);
       reportError("replication.pull", result.error);
       return {
         date: row.date,
