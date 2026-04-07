@@ -265,37 +265,14 @@ export function createImagePullModifier(
       return { doc, blob: null };
     }
 
-    let encRecord;
-    try {
-      const text = await downloadResult.value.text();
-      encRecord = parseEncryptedBlobRecord(JSON.parse(text));
-    } catch {
-      reportError("imageReplication.pull: failed to parse encrypted record", {
+    const blob = await tryDecryptBlob(downloadResult.value, crypto, parsed.key_id, parsed.mime_type);
+    if (!blob) {
+      reportError("imageReplication.pull: could not decrypt or read image blob", {
         type: "Corrupt",
-        message: "Could not parse encrypted blob JSON",
+        message: `Failed for image ${parsed.id}`,
       });
-      return { doc, blob: null };
     }
-
-    if (!encRecord) {
-      reportError("imageReplication.pull: invalid encrypted record shape", {
-        type: "Corrupt",
-        message: "Encrypted blob record failed validation",
-      });
-      return { doc, blob: null };
-    }
-
-    const decryptResult = await crypto.decryptBlob(
-      { keyId: parsed.key_id, ciphertext: encRecord.ciphertext, nonce: encRecord.nonce },
-      parsed.mime_type,
-    );
-
-    if (!decryptResult.ok) {
-      reportError("imageReplication.pull: decryption failed", decryptResult.error);
-      return { doc, blob: null };
-    }
-
-    return { doc, blob: decryptResult.value };
+    return { doc, blob };
   };
 }
 
@@ -355,22 +332,7 @@ export function createRemoteBlobFetcher(
         return null;
       }
 
-      let encRecord;
-      try {
-        const text = await downloadResult.value.text();
-        encRecord = parseEncryptedBlobRecord(JSON.parse(text));
-      } catch {
-        reportError("remoteBlobFetcher.fetch: parse failed", "Could not parse encrypted blob JSON");
-        return null;
-      }
-      if (!encRecord) return null;
-
-      const decryptResult = await crypto.decryptBlob(encRecord, mimeType);
-      if (!decryptResult.ok) {
-        reportError("remoteBlobFetcher.fetch: decrypt failed", decryptResult.error);
-        return null;
-      }
-      return decryptResult.value;
+      return tryDecryptBlob(downloadResult.value, crypto, null, mimeType);
     },
   };
 }
@@ -384,6 +346,52 @@ export interface ReplicationHandle {
 interface ReplicationCheckpoint {
   id: string;
   modified: string;
+}
+
+/**
+ * Try to decrypt a downloaded blob. The blob may be:
+ * 1. Encrypted JSON record (current format) → parse + decrypt
+ * 2. Raw image data (pre-E2EE or legacy upload) → use as-is
+ *
+ * Returns the decrypted/raw Blob or null if unrecoverable.
+ */
+async function tryDecryptBlob(
+  downloaded: Blob,
+  crypto: ImageReplicationCrypto,
+  keyId: string | null | undefined,
+  mimeType: string,
+): Promise<Blob | null> {
+  // Try parsing as encrypted JSON record
+  let encRecord: { keyId?: string | null; ciphertext: string; nonce: string } | null = null;
+  try {
+    const text = await downloaded.text();
+    encRecord = parseEncryptedBlobRecord(JSON.parse(text));
+  } catch {
+    // Not JSON — likely a raw (unencrypted) image blob
+  }
+
+  if (encRecord) {
+    // Use keyId from the Supabase row if provided, otherwise from the record
+    const decryptResult = await crypto.decryptBlob(
+      { keyId: keyId ?? encRecord.keyId, ciphertext: encRecord.ciphertext, nonce: encRecord.nonce },
+      mimeType,
+    );
+    if (decryptResult.ok) return decryptResult.value;
+    reportError("tryDecryptBlob: decryption failed", decryptResult.error);
+  }
+
+  // Fall back: if the blob looks like an image, use it directly (pre-E2EE data)
+  if (downloaded.type.startsWith("image/") || mimeType.startsWith("image/")) {
+    return new Blob([downloaded], { type: mimeType });
+  }
+
+  // Last resort: try using it as-is even without an image MIME type,
+  // since Supabase storage might return application/octet-stream
+  if (downloaded.size > 0) {
+    return new Blob([downloaded], { type: mimeType });
+  }
+
+  return null;
 }
 
 function createSupabaseBucket(supabase: SupabaseClient): StorageBucket {

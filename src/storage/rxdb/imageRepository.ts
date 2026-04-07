@@ -77,8 +77,12 @@ export class RxDBImageRepository implements ImageRepository {
 
       const attachment = doc.getAttachment("blob");
       if (attachment) {
-        const data = await attachment.getData();
-        return ok(data);
+        try {
+          const data = await attachment.getData();
+          return ok(data);
+        } catch {
+          // Local blob data unavailable (e.g. AT4 / storage eviction) — fall through to remote
+        }
       }
 
       // Blob not available locally — download and decrypt from remote
