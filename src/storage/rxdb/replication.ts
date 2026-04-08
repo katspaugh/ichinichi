@@ -10,6 +10,7 @@ import type { CryptoError } from "../../domain/errors";
 import type { Result } from "../../domain/result";
 import { reportError } from "../../utils/errorReporter";
 import { parseEncryptedBlobRecord, parseSupabaseNoteRow, parseSupabaseImageRow } from "../parsers";
+import { bytesToBase64 } from "../cryptoUtils";
 
 export interface ReplicationCrypto {
   encrypt(payload: NotePayload): Promise<Result<EncryptedNote, CryptoError>>;
@@ -268,20 +269,9 @@ export function createImagePullModifier(
       return { doc, blob: null };
     }
 
-    let encRecord;
-    try {
-      const text = await downloadResult.value.text();
-      encRecord = parseEncryptedBlobRecord(JSON.parse(text));
-    } catch {
-      reportError("imageReplication.pull: failed to parse encrypted record", {
-        type: "Corrupt",
-        message: "Could not parse encrypted blob JSON",
-      });
-      return { doc, blob: null };
-    }
-
+    const encRecord = await parseOrFallbackEncryptedBlob(downloadResult.value, parsed.key_id, parsed.nonce);
     if (!encRecord) {
-      reportError("imageReplication.pull: invalid encrypted record shape", {
+      reportError("imageReplication.pull: invalid encrypted record", {
         type: "Corrupt",
         message: "Encrypted blob record failed validation",
       });
@@ -361,15 +351,23 @@ export function createRemoteBlobFetcher(
         return null;
       }
 
-      let encRecord;
-      try {
-        const text = await downloadResult.value.text();
-        encRecord = parseEncryptedBlobRecord(JSON.parse(text));
-      } catch {
-        reportError("remoteBlobFetcher.fetch: parse failed", "Could not parse encrypted blob JSON");
+      // Fetch nonce/key_id from the DB row for legacy blob fallback
+      const { data: row } = await supabase
+        .from("note_images")
+        .select("key_id, nonce")
+        .eq("id", imageId)
+        .eq("user_id", userId)
+        .single();
+
+      const encRecord = await parseOrFallbackEncryptedBlob(
+        downloadResult.value,
+        row?.key_id ?? "",
+        row?.nonce ?? "",
+      );
+      if (!encRecord) {
+        reportError("remoteBlobFetcher.fetch: parse failed", "Could not parse encrypted blob");
         return null;
       }
-      if (!encRecord) return null;
 
       const decryptResult = await crypto.decryptBlob(encRecord, mimeType);
       if (!decryptResult.ok) {
@@ -390,6 +388,30 @@ export interface ReplicationHandle {
 interface ReplicationCheckpoint {
   id: string;
   modified: string;
+}
+
+// Pre-E2EE images stored raw ciphertext in the blob with nonce/keyId in the DB
+// row. New images store a JSON envelope: { version, id, keyId, ciphertext, nonce }.
+// Try JSON first; fall back to treating the blob as raw ciphertext using DB metadata.
+async function parseOrFallbackEncryptedBlob(
+  blob: Blob,
+  keyId: string,
+  nonce: string,
+): Promise<import("../parsers").EncryptedBlobRecord | null> {
+  try {
+    const text = await blob.text();
+    const record = parseEncryptedBlobRecord(JSON.parse(text));
+    if (record) return record;
+  } catch {
+    // Not JSON — treat as legacy raw ciphertext
+  }
+  try {
+    const buffer = await blob.arrayBuffer();
+    const ciphertext = bytesToBase64(new Uint8Array(buffer));
+    return { keyId, ciphertext, nonce };
+  } catch {
+    return null;
+  }
 }
 
 // Image blob storage path. Changed from `userId/imageId` (no extension) in the
