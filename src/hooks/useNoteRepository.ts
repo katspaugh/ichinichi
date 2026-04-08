@@ -171,12 +171,16 @@ export function noteRepoReducer(
         year: action.year,
       };
 
-      // Date changed: reset editing state, seed from cache for instant display
+      // Date changed: reset editing state, clear content.
+      // The note subscription (Effect 4) will populate localContent
+      // once the new date's document is loaded.
       if (dateChanged) {
         next = {
           ...next,
           hasEdits: false,
-          localContent: next.note?.content ?? "",
+          localContent: "",
+          note: null,
+          noteLoading: true,
           noteError: null,
         };
       }
