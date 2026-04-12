@@ -1,0 +1,103 @@
+.cardStack {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  width: min(100%, 65ch);
+  gap: var(--spacing-sm);
+}
+
+.topCard {
+  position: relative;
+  padding: var(--spacing-md) 0;
+  padding-right: 36px;
+}
+
+.editor {
+  min-height: 3em;
+  outline: none;
+  cursor: text;
+}
+
+.editor:empty::before {
+  content: attr(data-placeholder);
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+
+.saveButton {
+  position: absolute;
+  top: var(--spacing-md);
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.saveButton:hover {
+  color: var(--color-link, #3b82f6);
+  border-color: var(--color-link, #3b82f6);
+  background-color: rgba(59, 130, 246, 0.06);
+}
+
+.saveButton:active {
+  transform: scale(0.92);
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+}
+
+.toolbar {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  gap: var(--spacing-xs);
+  align-self: flex-end;
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  padding: var(--spacing-xs);
+  box-shadow: var(--glass-shadow), var(--glass-highlight);
+  z-index: 10;
+}
+
+.toolbarButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: var(--spacing-xs);
+  border-radius: var(--radius-sm);
+}
+
+.toolbarButton:hover {
+  color: var(--color-text);
+  background-color: var(--color-bg);
+}
+
+.imageInput {
+  display: none;
+}
+
+.emptyState {
+  color: var(--color-text-muted);
+  text-align: center;
+  padding: var(--spacing-xl) 0;
+}

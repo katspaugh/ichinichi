@@ -237,4 +237,4 @@ export const linkifyTransform: TextTransform = {
  * Registry of all text transforms.
  * Order matters: transforms are applied in sequence.
  */
-export const TRANSFORMS: TextTransform[] = [hrTransform, linkifyTransform];
+export const TRANSFORMS: TextTransform[] = [linkifyTransform];

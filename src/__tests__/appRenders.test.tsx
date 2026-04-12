@@ -248,6 +248,5 @@ describe("App initial render", () => {
       (el) => el.getAttribute("contenteditable") === "true",
     )!;
     expect(editor.getAttribute("contenteditable")).toBe("true");
-    expect(editor.getAttribute("aria-readonly")).toBe("false");
   });
 });

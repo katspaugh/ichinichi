@@ -23,7 +23,6 @@ function applyFavicons(el: HTMLElement): void {
   );
 }
 
-const ADDITION_WINDOW_MS = 10 * 60 * 1000;
 const SECTION_TYPE_RE = /^\+([a-z][a-z-]*)$/;
 const ACTIVE_EDITING_GRACE_MS = 2000;
 
@@ -127,19 +126,6 @@ function getContentBottom(editorEl: HTMLElement): number {
   return maxBottom;
 }
 
-function createTimestampHr(timestamp: string): { hr: HTMLHRElement } {
-  const hr = document.createElement("hr");
-  hr.setAttribute(TIMESTAMP_ATTR, timestamp);
-
-  const label = getTimestampLabel(timestamp);
-  if (label) {
-    hr.setAttribute(TIMESTAMP_LABEL_ATTR, label);
-  }
-
-  hr.setAttribute("contenteditable", "false");
-  return { hr };
-}
-
 /**
  * Serialize editor DOM to canonical HTML that survives sanitizeHtml().
  * Strips derived/decorative attributes that the sanitizer would remove,
@@ -157,56 +143,6 @@ function serializeEditorContent(editor: HTMLElement): string {
     el.removeAttribute("style");
   }
   return clone.innerHTML;
-}
-
-/**
- * Check if inserting an HR before `ref` would place it adjacent
- * to an existing HR (skipping empty text nodes and BRs).
- */
-function wouldBeAdjacentToHr(ref: Node): boolean {
-  let prev: Node | null = ref.previousSibling;
-  while (prev) {
-    if (prev.nodeName === "HR") return true;
-    if (
-      prev.nodeName === "BR" ||
-      (prev.nodeType === Node.TEXT_NODE &&
-        (prev.textContent ?? "").trim() === "")
-    ) {
-      prev = prev.previousSibling;
-      continue;
-    }
-    break;
-  }
-  // Also check if ref itself or its next significant sibling is HR
-  let next: Node | null = ref;
-  while (next) {
-    if (next.nodeName === "HR") return true;
-    if (
-      next.nodeName === "BR" ||
-      (next.nodeType === Node.TEXT_NODE &&
-        (next.textContent ?? "").trim() === "")
-    ) {
-      next = next.nextSibling;
-      continue;
-    }
-    break;
-  }
-  return false;
-}
-
-function getLastEditTimestamp(element: HTMLElement): number | null {
-  // Check for timestamp HR elements
-  const hrs = Array.from(
-    element.querySelectorAll<HTMLHRElement>(`hr[${TIMESTAMP_ATTR}]`),
-  );
-  if (hrs.length === 0) return null;
-
-  const timestamps = hrs
-    .map((hr) => Date.parse(hr.getAttribute(TIMESTAMP_ATTR) || ""))
-    .filter((ts) => !Number.isNaN(ts));
-
-  if (timestamps.length === 0) return null;
-  return Math.max(...timestamps);
 }
 
 export function useContentEditableEditor({
@@ -230,8 +166,6 @@ export function useContentEditableEditor({
   const onDropCompleteRef = useRef(onDropComplete);
   const lastUserInputRef = useRef<number | null>(null);
   const lastHandleInputRef = useRef<number>(0);
-  const lastEditedBlockRef = useRef<Element | null>(null);
-  const hasInsertedTimestampRef = useRef(false);
   const hasAutoFocusedRef = useRef(false);
   const uploadInProgressRef = useRef(0);
   const isProgrammaticUpdateRef = useRef(false);
@@ -248,138 +182,6 @@ export function useContentEditableEditor({
     lastContentRef.current = html;
     isLocalEditRef.current = true;
     onChangeRef.current(html);
-  }, []);
-
-  const insertTimestampHrIfNeeded = useCallback(() => {
-    const el = editorRef.current;
-    if (!el) return;
-
-    const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0) return;
-
-    const range = selection.getRangeAt(0);
-
-    // Find the block element containing the cursor
-    let container = range.startContainer;
-    if (container.nodeType === Node.TEXT_NODE) {
-      container = container.parentNode as Node;
-    }
-
-    // Find the closest block-level element (p or div)
-    let currentBlock: Element | null = null;
-    let current: Node | null = container;
-    while (current && current !== el) {
-      if (
-        current instanceof Element &&
-        (current.tagName === "P" || current.tagName === "DIV")
-      ) {
-        currentBlock = current;
-        break;
-      }
-      current = current.parentNode;
-    }
-
-    if (!currentBlock && el.contains(container)) {
-      currentBlock = el;
-    }
-
-    // On first edit of this session, check if we need an initial timestamp.
-    // Insert before the current block (where the cursor is), not at the top.
-    if (lastEditedBlockRef.current === null) {
-      lastEditedBlockRef.current = currentBlock;
-
-      const now = Date.now();
-      const lastEdit = getLastEditTimestamp(el);
-
-      // Insert initial timestamp if >10min since last edit or no prior timestamps
-      if (lastEdit === null || now - lastEdit > ADDITION_WINDOW_MS) {
-        const timestamp = new Date(now).toISOString();
-        const { hr } = createTimestampHr(timestamp);
-        if (currentBlock && currentBlock !== el) {
-          // Walk backwards past section headers so HR goes before the section
-          let insertBefore: Element = currentBlock;
-          let prev = insertBefore.previousElementSibling;
-          while (prev?.hasAttribute("data-section-type")) {
-            insertBefore = prev;
-            prev = insertBefore.previousElementSibling;
-          }
-          if (!wouldBeAdjacentToHr(insertBefore)) {
-            insertBefore.parentNode?.insertBefore(hr, insertBefore);
-          }
-        } else if (!el.firstChild || !wouldBeAdjacentToHr(el.firstChild)) {
-          el.insertBefore(hr, el.firstChild);
-        }
-        lastUserInputRef.current = now;
-        hasInsertedTimestampRef.current = true;
-      }
-      return;
-    }
-
-    // If we're in a different block than last time
-    if (currentBlock && currentBlock !== lastEditedBlockRef.current) {
-      const now = Date.now();
-      const lastEdit = getLastEditTimestamp(el);
-
-      // Check if we need to insert a timestamp (>10min since last edit, or first edit)
-      if (
-        !hasInsertedTimestampRef.current &&
-        (lastEdit === null || now - lastEdit > ADDITION_WINDOW_MS)
-      ) {
-        // Check if inserting HR here would place it adjacent to an existing HR
-        const insertRef =
-          currentBlock === el ? el.firstChild : currentBlock;
-
-        if (insertRef && !wouldBeAdjacentToHr(insertRef)) {
-          const timestamp = new Date(now).toISOString();
-          const { hr } = createTimestampHr(timestamp);
-
-          if (currentBlock === el) {
-            el.insertBefore(hr, el.firstChild);
-          } else {
-            // Walk backwards past section header+body pairs so the HR
-            // is inserted before the section, not inside it.
-            let insertBefore: Element = currentBlock;
-            let prev = insertBefore.previousElementSibling;
-            while (prev?.hasAttribute("data-section-type")) {
-              insertBefore = prev;
-              prev = insertBefore.previousElementSibling;
-            }
-
-            // Wrap any preceding inline content in a div before inserting hr
-            const nodesToWrap: Node[] = [];
-            let node = insertBefore.previousSibling;
-            while (node) {
-              if (
-                node instanceof HTMLHRElement ||
-                (node instanceof HTMLElement &&
-                  (node.tagName === "DIV" || node.tagName === "P"))
-              ) {
-                break;
-              }
-              nodesToWrap.unshift(node);
-              node = node.previousSibling;
-            }
-            if (nodesToWrap.length > 0) {
-              const wrapper = document.createElement("div");
-              nodesToWrap[0].parentNode?.insertBefore(wrapper, nodesToWrap[0]);
-              for (const n of nodesToWrap) {
-                wrapper.appendChild(n);
-              }
-            }
-
-            // Insert before the section header (or current block)
-            if (!wouldBeAdjacentToHr(insertBefore)) {
-              insertBefore.parentNode?.insertBefore(hr, insertBefore);
-            }
-          }
-
-          lastUserInputRef.current = now;
-        }
-        hasInsertedTimestampRef.current = true;
-      }
-
-      lastEditedBlockRef.current = currentBlock;
-    }
   }, []);
 
   const updateTimestampLabels = useCallback((element?: HTMLElement) => {
@@ -414,67 +216,6 @@ export function useContentEditableEditor({
       el.setAttribute("data-empty", "true");
     } else {
       el.removeAttribute("data-empty");
-    }
-  }, []);
-
-  const processManualHrs = useCallback(() => {
-    const el = editorRef.current;
-    if (!el) return;
-
-    // Find all HRs without timestamps (manually inserted)
-    const untimestampedHrs = Array.from(
-      el.querySelectorAll<HTMLHRElement>(`hr:not([${TIMESTAMP_ATTR}])`),
-    );
-
-    for (const hr of untimestampedHrs) {
-      // Add timestamp
-      const timestamp = new Date().toISOString();
-      hr.setAttribute(TIMESTAMP_ATTR, timestamp);
-      const label = getTimestampLabel(timestamp);
-      if (label) {
-        hr.setAttribute(TIMESTAMP_LABEL_ATTR, label);
-      }
-      hr.setAttribute("contenteditable", "false");
-
-      // Ensure there's a newline after the HR
-      const nextSibling = hr.nextSibling;
-
-      // Check if we need to add a BR
-      // Add BR if: no next sibling, empty text node, or another HR
-      const needsBr =
-        !nextSibling ||
-        (nextSibling.nodeType === Node.TEXT_NODE &&
-          nextSibling.textContent?.trim() === "") ||
-        (nextSibling.nodeType === Node.ELEMENT_NODE &&
-          nextSibling.nodeName === "HR") ||
-        (nextSibling.nodeType === Node.ELEMENT_NODE &&
-          nextSibling.nodeName !== "BR");
-
-      if (needsBr) {
-        const br = document.createElement("br");
-        if (
-          nextSibling?.nodeType === Node.TEXT_NODE &&
-          nextSibling.textContent?.trim() === ""
-        ) {
-          // Replace empty text node with BR
-          hr.parentNode?.replaceChild(br, nextSibling);
-        } else {
-          // Insert BR after HR
-          hr.parentNode?.insertBefore(br, nextSibling || null);
-        }
-
-        // Place cursor after the BR
-        setTimeout(() => {
-          const selection = window.getSelection();
-          if (selection) {
-            const range = document.createRange();
-            range.setStartAfter(br);
-            range.collapse(true);
-            selection.removeAllRanges();
-            selection.addRange(range);
-          }
-        }, 0);
-      }
     }
   }, []);
 
@@ -536,7 +277,6 @@ export function useContentEditableEditor({
         isProgrammaticUpdateRef.current = true;
         el.innerHTML = nextContent; // Sanitized content from our own store
         lastContentRef.current = nextContent;
-        lastEditedBlockRef.current = null;
         updateEmptyState();
         updateTimestampLabels(el);
         applySectionColors(el);
@@ -562,9 +302,6 @@ export function useContentEditableEditor({
     const hasContent = content.trim().length > 0;
     if (isMobile && hasContent) {
       hasAutoFocusedRef.current = true;
-      const blocks = el.querySelectorAll("p, div");
-      const lastBlock = blocks[blocks.length - 1];
-      lastEditedBlockRef.current = lastBlock ?? el;
       return;
     }
 
@@ -573,13 +310,6 @@ export function useContentEditableEditor({
     const hasImages = el.querySelector("img") !== null;
     if (hasText || hasImages) {
       placeCaretAtEnd(el);
-      const blocks = el.querySelectorAll("p, div");
-      const lastBlock = blocks[blocks.length - 1];
-      if (lastBlock) {
-        lastEditedBlockRef.current = lastBlock;
-      } else {
-        lastEditedBlockRef.current = el;
-      }
     }
     hasAutoFocusedRef.current = true;
   }, [content, isEditable, showWeather, clearWeatherFromEditor, syncEditorContent, updateEmptyState, updateTimestampLabels]);
@@ -594,26 +324,13 @@ export function useContentEditableEditor({
 
     const now = Date.now();
     lastHandleInputRef.current = now;
-    if (
-      lastUserInputRef.current &&
-      now - lastUserInputRef.current > ADDITION_WINDOW_MS
-    ) {
-      // More than 10 minutes passed, allow inserting timestamp on next block change
-      hasInsertedTimestampRef.current = false;
-    }
-
-    // Check if we should insert a timestamp for this edit
-    insertTimestampHrIfNeeded();
 
     // Track last user input time
     lastUserInputRef.current = now;
 
     updateEmptyState();
 
-    // Process any manually inserted HRs (add timestamps and newlines)
-    processManualHrs();
-
-    // Apply text transforms (HR insertion, linkify) with cursor preservation
+    // Apply text transforms (linkify) with cursor preservation
     applyTextTransforms(el);
 
     // Apply section header colors and link favicons
@@ -644,8 +361,6 @@ export function useContentEditableEditor({
     onChangeRef.current(html);
     onUserInputRef.current?.();
   }, [
-    insertTimestampHrIfNeeded,
-    processManualHrs,
     updateEmptyState,
     updateTimestampLabels,
   ]);

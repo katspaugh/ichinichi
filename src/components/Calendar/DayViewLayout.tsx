@@ -8,10 +8,11 @@ import {
 import { ErrorBoundary } from "../ErrorBoundary";
 import { NavigationArrow } from "../NavigationArrow";
 import { NoteEditor } from "../NoteEditor";
+import { NoteLogView } from "../NoteLog/NoteLogView";
 import { MonthGrid } from "./MonthGrid";
 import { useOverscrollNavigation } from "../../hooks/useOverscrollNavigation";
 import { useKeyboardInset } from "../../hooks/useKeyboardInset";
-import { getMonthName } from "../../utils/date";
+import { getMonthName, isToday } from "../../utils/date";
 
 import styles from "./DayViewLayout.module.css";
 
@@ -175,20 +176,30 @@ export function DayViewLayout({
             description="You can select another date or refresh the page."
             resetLabel="Reload editor"
           >
-            <NoteEditor
-              date={selectedDate}
-              content={content}
-              onChange={onChange}
-              isClosing={false}
-              hasEdits={hasEdits}
-              isSaving={isSaving}
-              isDecrypting={isDecrypting}
-              isContentReady={isContentReady}
-              isOfflineStub={isOfflineStub}
-              isSoftDeleted={isSoftDeleted}
-              onRestore={onRestore}
-              error={noteError}
-            />
+            {isToday(selectedDate) && !isSoftDeleted ? (
+              <NoteLogView
+                date={selectedDate}
+                content={content}
+                onChange={onChange}
+                isContentReady={isContentReady}
+                isDecrypting={isDecrypting}
+              />
+            ) : (
+              <NoteEditor
+                date={selectedDate}
+                content={content}
+                onChange={onChange}
+                isClosing={false}
+                hasEdits={hasEdits}
+                isSaving={isSaving}
+                isDecrypting={isDecrypting}
+                isContentReady={isContentReady}
+                isOfflineStub={isOfflineStub}
+                isSoftDeleted={isSoftDeleted}
+                onRestore={onRestore}
+                error={noteError}
+              />
+            )}
           </ErrorBoundary>
         ) : (
           <div className={styles.emptyState}>
