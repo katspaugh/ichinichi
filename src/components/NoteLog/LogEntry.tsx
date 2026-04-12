@@ -13,6 +13,7 @@ interface LogEntryProps {
   onSave: (html: string) => void;
   onDelete?: () => void;
   focusTargetRef?: RefObject<string | null>;
+  justSaved?: boolean;
 }
 
 function serializeContent(el: HTMLElement): string {
@@ -36,6 +37,7 @@ export function LogEntry({
   onSave,
   onDelete,
   focusTargetRef,
+  justSaved,
 }: LogEntryProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   const isEditingRef = useRef(false);
@@ -116,7 +118,7 @@ export function LogEntry({
   const sanitized = sanitizeHtml(html);
 
   return (
-    <div className={styles.card}>
+    <div className={styles.card} data-just-saved={justSaved || undefined}>
       {label && <div className={styles.timestamp}>{label}</div>}
       <div
         ref={editorRef}

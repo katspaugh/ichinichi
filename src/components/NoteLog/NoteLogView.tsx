@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
 import { Check, ImagePlus } from "lucide-react";
 import {
@@ -45,13 +45,6 @@ function serializeContent(el: HTMLElement): string {
   return clone.innerHTML;
 }
 
-function createTimestampHrHtml(): string {
-  const timestamp = new Date().toISOString();
-  const label = getTimestampLabel(timestamp);
-  const labelAttr = label ? ` data-label="${label}"` : "";
-  return `<hr data-timestamp="${timestamp}"${labelAttr} contenteditable="false">`;
-}
-
 function insertNodeAtCursor(node: Node) {
   const selection = window.getSelection();
   if (!selection || selection.rangeCount === 0) return;
@@ -85,6 +78,7 @@ export function NoteLogView({
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [justSavedId, setJustSavedId] = useState<string | null>(null);
 
   // Header: date, weather, debug key
   const formattedDate = formatDateDisplay(date);
@@ -130,9 +124,16 @@ export function NoteLogView({
     const el = editorRef.current;
     if (!el || !hasEditorContent()) return;
 
-    const hrHtml = createTimestampHrHtml();
+    const timestamp = new Date().toISOString();
+    const label = getTimestampLabel(timestamp);
+    const labelAttr = label ? ` data-label="${label}"` : "";
+    const hrHtml = `<hr data-timestamp="${timestamp}"${labelAttr} contenteditable="false">`;
     const entryHtml = serializeContent(el);
     onChange(content + hrHtml + entryHtml);
+
+    // Blink the newly saved card
+    setJustSavedId(timestamp);
+    setTimeout(() => setJustSavedId(null), 700);
 
     // Clear editor
     el.textContent = "";
@@ -349,6 +350,7 @@ export function NoteLogView({
                   : undefined
               }
               focusTargetRef={focusTargetRef}
+              justSaved={justSavedId === segment.id}
             />
           ))}
         </div>
