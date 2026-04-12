@@ -1,0 +1,1 @@
+export { RandomMotif } from "./RandomMotif";
