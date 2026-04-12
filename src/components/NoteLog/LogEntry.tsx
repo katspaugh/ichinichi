@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef } from "react";
 import type { RefObject } from "react";
 import { applyTextTransforms } from "../../services/editorTextTransforms";
+import { applySectionColors } from "../../services/sectionColors";
 import { sanitizeHtml } from "../../utils/sanitize";
 import contentStyles from "../../styles/noteContent.module.css";
+import { useSectionTransform } from "./useSectionTransform";
 import styles from "./LogEntry.module.css";
 
 interface LogEntryProps {
@@ -110,8 +112,11 @@ export function LogEntry({
   const handleInput = useCallback(() => {
     if (editorRef.current) {
       applyTextTransforms(editorRef.current);
+      applySectionColors(editorRef.current);
     }
   }, []);
+
+  useSectionTransform(editorRef, handleInput);
 
   // Note: html is pre-sanitized by the storage layer; sanitizeHtml is applied
   // here as defense-in-depth, consistent with the app's sanitization pattern.

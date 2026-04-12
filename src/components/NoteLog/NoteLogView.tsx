@@ -16,7 +16,9 @@ import {
 } from "../NoteEditor/useInlineImages";
 import { NoteEditorHeader } from "../NoteEditor/NoteEditorHeader";
 import { useDebugNoteKeyId } from "../../hooks/useDebugNoteKeyId";
+import { applySectionColors } from "../../services/sectionColors";
 import { LogEntry } from "./LogEntry";
+import { useSectionTransform } from "./useSectionTransform";
 import contentStyles from "../../styles/noteContent.module.css";
 import styles from "./NoteLogView.module.css";
 import type { DailyWeatherData } from "../../domain/weather/WeatherRepository";
@@ -168,10 +170,13 @@ export function NoteLogView({
     const el = editorRef.current;
     if (!el) return;
     applyTextTransforms(el);
+    applySectionColors(el);
     if (hasEditorContent()) {
       resetAutoSaveTimer();
     }
   }, [hasEditorContent, resetAutoSaveTimer]);
+
+  useSectionTransform(editorRef, handleInput);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
