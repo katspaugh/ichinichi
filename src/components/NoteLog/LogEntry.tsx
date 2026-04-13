@@ -118,6 +118,14 @@ export function LogEntry({
 
   useSectionTransform(editorRef, handleInput);
 
+  // Apply section colors when content is first rendered (saved HTML has
+  // data-section-type but no section-hue-X classes since they're stripped on save)
+  useEffect(() => {
+    if (editorRef.current) {
+      applySectionColors(editorRef.current);
+    }
+  }, [html]);
+
   // Note: html is pre-sanitized by the storage layer; sanitizeHtml is applied
   // here as defense-in-depth, consistent with the app's sanitization pattern.
   const sanitized = sanitizeHtml(html);
