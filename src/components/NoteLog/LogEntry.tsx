@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { RefObject } from "react";
 import { applyTextTransforms } from "../../services/editorTextTransforms";
 import { applySectionColors } from "../../services/sectionColors";
@@ -58,15 +58,8 @@ export function LogEntry({
   });
 
   const handleStartEdit = useCallback(() => {
+    if (isEditingRef.current) return;
     isEditingRef.current = true;
-    const el = editorRef.current;
-    if (!el) return;
-    el.focus();
-    const sel = window.getSelection();
-    if (sel) {
-      sel.selectAllChildren(el);
-      sel.collapseToEnd();
-    }
   }, []);
 
   const handleSaveEdit = useCallback(() => {
@@ -118,17 +111,21 @@ export function LogEntry({
 
   useSectionTransform(editorRef, handleInput);
 
-  // Apply section colors when content is first rendered (saved HTML has
-  // data-section-type but no section-hue-X classes since they're stripped on save)
-  useEffect(() => {
-    if (editorRef.current) {
-      applySectionColors(editorRef.current);
-    }
-  }, [html]);
-
   // Note: html is pre-sanitized by the storage layer; sanitizeHtml is applied
   // here as defense-in-depth, consistent with the app's sanitization pattern.
-  const sanitized = sanitizeHtml(html);
+  // Section-hue classes are injected into the HTML string so they survive React
+  // reconciliation (DOM mutations from useEffect get overwritten by re-renders).
+  // Section-hue classes are injected into the sanitized HTML so they survive
+  // React reconciliation (DOM mutations from useEffect get overwritten).
+  // Content is already sanitized by sanitizeHtml before being set on the
+  // temporary element, so this is safe from XSS.
+  const sanitized = useMemo(() => {
+    const clean = sanitizeHtml(html);
+    const tmp = document.createElement("div");
+    tmp.innerHTML = clean; // safe: already sanitized above
+    applySectionColors(tmp);
+    return tmp.innerHTML;
+  }, [html]);
 
   return (
     <div className={styles.card} data-just-saved={justSaved || undefined}>
