@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo } from "react";
 import type { DragEvent } from "react";
-import { formatDateDisplay, isToday } from "../../utils/date";
+import { formatDateDisplay, getTodayString, isToday } from "../../utils/date";
 import { canEditNote } from "../../utils/noteRules";
+import { useRoutingContext } from "../../contexts/routingContext";
 import { getPlaceholderText } from "../../utils/placeholderText";
 import { NoteEditorView } from "./NoteEditorView";
 import { useContentEditableEditor } from "./useContentEditableEditor";
@@ -64,6 +65,11 @@ export function NoteEditor({
   });
 
   const debugKeyId = useDebugNoteKeyId(date, isContentReady);
+
+  const { navigateToDate } = useRoutingContext();
+  const handleJumpToToday = useCallback(() => {
+    navigateToDate(getTodayString());
+  }, [navigateToDate]);
 
   const { isDraggingImage, endImageDrag } = useImageDragState();
   const weather = useWeatherContext();
@@ -165,6 +171,7 @@ export function NoteEditor({
       isEditable={isEditable}
       autoFocus={autoFocus}
       showReadonlyBadge={!canEdit}
+      onJumpToToday={!canEdit ? handleJumpToToday : undefined}
       statusText={statusText}
       isStatusError={hasError}
       onRestore={isSoftDeleted ? onRestore : undefined}

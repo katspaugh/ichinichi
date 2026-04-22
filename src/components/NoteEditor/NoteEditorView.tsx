@@ -22,6 +22,7 @@ interface NoteEditorViewProps {
   isEditable: boolean;
   autoFocus: boolean;
   showReadonlyBadge: boolean;
+  onJumpToToday?: () => void;
   statusText: string | null;
   isStatusError?: boolean;
   onRestore?: () => void;
@@ -47,6 +48,7 @@ export function NoteEditorView({
   isEditable,
   autoFocus,
   showReadonlyBadge,
+  onJumpToToday,
   statusText,
   isStatusError = false,
   onRestore,
@@ -105,6 +107,7 @@ export function NoteEditorView({
         date={date}
         formattedDate={formattedDate}
         showReadonlyBadge={showReadonlyBadge}
+        onJumpToToday={onJumpToToday}
         statusText={statusText}
         isStatusError={isStatusError}
         onRestore={onRestore}

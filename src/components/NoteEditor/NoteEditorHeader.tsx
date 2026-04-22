@@ -6,6 +6,7 @@ interface NoteEditorHeaderProps {
   date: string;
   formattedDate: string;
   showReadonlyBadge: boolean;
+  onJumpToToday?: () => void;
   statusText: string | null;
   isStatusError?: boolean;
   onRestore?: () => void;
@@ -17,6 +18,7 @@ export function NoteEditorHeader({
   date,
   formattedDate,
   showReadonlyBadge,
+  onJumpToToday,
   statusText,
   isStatusError = false,
   onRestore,
@@ -41,6 +43,16 @@ export function NoteEditorHeader({
         )}
         {showReadonlyBadge && (
           <span className={styles.readonlyBadge}>Read only</span>
+        )}
+        {showReadonlyBadge && onJumpToToday && (
+          <button
+            type="button"
+            className={styles.jumpToTodayButton}
+            onClick={onJumpToToday}
+            title="Jump to today's note"
+          >
+            Jump to today
+          </button>
         )}
         {debugKeyId && (
           <code className={styles.debugKeyBadge} title={debugKeyId}>
