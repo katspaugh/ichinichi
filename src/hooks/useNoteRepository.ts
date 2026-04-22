@@ -6,7 +6,8 @@ import type { ImageRepository } from "../storage/imageRepository";
 import type { AppDatabase } from "../storage/rxdb/database";
 import type { ReplicationHandle } from "../storage/rxdb/replication";
 import { createAppDatabase } from "../storage/rxdb/database";
-import { migrateLegacyData, type LegacyDataSource } from "../storage/legacyMigration";
+import { migrateLegacyData } from "../storage/legacyMigration";
+import { legacyDBExists, openLegacyIDBSource } from "../storage/legacyIDBSource";
 import { RxDBNoteRepository } from "../storage/rxdb/noteRepository";
 import { RxDBImageRepository } from "../storage/rxdb/imageRepository";
 import { startReplication, createImageCryptoAdapter, createRemoteBlobFetcher } from "../storage/rxdb/replication";
@@ -16,7 +17,6 @@ import { useServiceContext } from "../contexts/serviceContext";
 import { SyncStatus } from "../types";
 import type { Note, SavedWeather } from "../types";
 import { reportError } from "../utils/errorReporter";
-import { parseSavedWeather } from "../storage/parsers";
 
 interface UseNoteRepositoryProps {
   mode: AppMode;
@@ -303,140 +303,8 @@ export function noteRepoReducer(
 // Hook
 // ---------------------------------------------------------------------------
 
-const LEGACY_DB_NAME = "dailynotes-unified";
 const LEGACY_MIGRATED_KEY = "ichinichi_legacy_migrated";
 const SAVE_DEBOUNCE_MS = 500;
-
-/**
- * Checks for a legacy IndexedDB database and migrates data to RxDB if found.
- * Only runs once (gates on localStorage flag).
- */
-async function tryMigrateLegacy(db: AppDatabase): Promise<void> {
-  if (typeof indexedDB === "undefined") return;
-  if (localStorage.getItem(LEGACY_MIGRATED_KEY)) return;
-
-  // Check if legacy database exists
-  const databases = await indexedDB.databases?.() ?? [];
-  const hasLegacy = databases.some((d) => d.name === LEGACY_DB_NAME);
-  if (!hasLegacy) {
-    localStorage.setItem(LEGACY_MIGRATED_KEY, "1");
-    return;
-  }
-
-  // Create a minimal legacy data source that reads from the old IDB
-  const source = await createLegacyIDBSource();
-  if (!source) {
-    localStorage.setItem(LEGACY_MIGRATED_KEY, "1");
-    return;
-  }
-
-  try {
-    await migrateLegacyData(db, source);
-  } catch (error) {
-    reportError("useNoteRepository.legacyMigration", error);
-  }
-
-  localStorage.setItem(LEGACY_MIGRATED_KEY, "1");
-}
-
-/**
- * Opens the legacy dailynotes-unified IDB and returns a LegacyDataSource,
- * or null if the database cannot be opened.
- */
-function createLegacyIDBSource(): Promise<LegacyDataSource | null> {
-  return new Promise((resolve) => {
-    const request = indexedDB.open(LEGACY_DB_NAME);
-
-    request.onerror = () => resolve(null);
-
-    request.onsuccess = () => {
-      const idb = request.result;
-      const storeNames = Array.from(idb.objectStoreNames);
-
-      // If no recognizable stores, skip
-      if (!storeNames.includes("notes") && !storeNames.includes("note_meta")) {
-        idb.close();
-        resolve(null);
-        return;
-      }
-
-      resolve({
-        async getNotes() {
-          if (!storeNames.includes("notes")) return [];
-          return new Promise((res, rej) => {
-            const tx = idb.transaction("notes", "readonly");
-            const store = tx.objectStore("notes");
-            const req = store.getAll();
-            req.onsuccess = () => {
-              const raw = req.result ?? [];
-              res(raw.filter((n: Record<string, unknown>) =>
-                typeof n.date === "string" && typeof n.content === "string"
-              ).map((n: Record<string, unknown>) => ({
-                date: n.date as string,
-                content: n.content as string,
-                updatedAt: typeof n.updatedAt === "string" ? n.updatedAt : new Date().toISOString(),
-                weather: parseSavedWeather(n.weather) ?? null,
-              })));
-            };
-            req.onerror = () => rej(req.error);
-          });
-        },
-
-        async getImages() {
-          if (!storeNames.includes("images") && !storeNames.includes("image_meta")) return [];
-          const metaStore = storeNames.includes("image_meta") ? "image_meta" : "images";
-          return new Promise((res, rej) => {
-            const tx = idb.transaction(metaStore, "readonly");
-            const store = tx.objectStore(metaStore);
-            const req = store.getAll();
-            req.onsuccess = () => {
-              const raw = req.result ?? [];
-              res(raw.filter((i: Record<string, unknown>) =>
-                typeof i.id === "string" && typeof i.noteDate === "string"
-              ).map((i: Record<string, unknown>) => ({
-                id: i.id as string,
-                noteDate: i.noteDate as string,
-                type: i.type === "background" || i.type === "inline" ? i.type : "inline",
-                filename: typeof i.filename === "string" ? i.filename : "",
-                mimeType: typeof i.mimeType === "string" ? i.mimeType : "application/octet-stream",
-                width: typeof i.width === "number" ? i.width : 0,
-                height: typeof i.height === "number" ? i.height : 0,
-                size: typeof i.size === "number" ? i.size : 0,
-                createdAt: typeof i.createdAt === "string" ? i.createdAt : new Date().toISOString(),
-              })));
-            };
-            req.onerror = () => rej(req.error);
-          });
-        },
-
-        async getImageBlob(id: string) {
-          if (!storeNames.includes("images")) return null;
-          return new Promise((res, rej) => {
-            const tx = idb.transaction("images", "readonly");
-            const store = tx.objectStore("images");
-            const req = store.get(id);
-            req.onsuccess = () => {
-              const data = req.result;
-              if (data?.blob instanceof Blob) return res(data.blob);
-              res(null);
-            };
-            req.onerror = () => rej(req.error);
-          });
-        },
-
-        async destroy() {
-          idb.close();
-        },
-      });
-    };
-
-    // If upgrade is triggered, the DB doesn't exist in the expected format
-    request.onupgradeneeded = () => {
-      request.transaction?.abort();
-      resolve(null);
-    };
-  });
-}
 
 export function useNoteRepository({
   mode,
@@ -501,11 +369,6 @@ export function useNoteRepository({
       try {
         const newDb = await createAppDatabase(dbName);
         if (cancelled) return;
-
-        // Attempt legacy data migration if the old database exists
-        await tryMigrateLegacy(newDb);
-        if (cancelled) return;
-
         dispatch({ type: "DB_OPENED", db: newDb, dbName });
       } catch (error) {
         reportError("useNoteRepository.openDb", error);
@@ -591,6 +454,57 @@ export function useNoteRepository({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.phase, state.db]);
+
+  // --- Effect 3b: Legacy IndexedDB → RxDB migration ---
+  // Runs once per device after both (a) the RxDB database is open and
+  // (b) a keyring + active key are available, so encrypted legacy notes
+  // can be decrypted. Keyed on LEGACY_MIGRATED_KEY to avoid re-running.
+  useEffect(() => {
+    if (!state.db) return;
+    if (!activeKeyId || keyring.size === 0) return;
+    if (typeof localStorage !== "undefined" && localStorage.getItem(LEGACY_MIGRATED_KEY)) return;
+
+    let cancelled = false;
+    const db = state.db;
+
+    void (async () => {
+      try {
+        if (!(await legacyDBExists())) {
+          if (!cancelled) localStorage.setItem(LEGACY_MIGRATED_KEY, "1");
+          return;
+        }
+
+        const source = await openLegacyIDBSource();
+        if (cancelled) {
+          await source?.destroy();
+          return;
+        }
+        if (!source) {
+          localStorage.setItem(LEGACY_MIGRATED_KEY, "1");
+          return;
+        }
+
+        const e2ee = e2eeFactory.create({
+          activeKeyId,
+          getKey: (keyId: string) => keyringRef.current.get(keyId) ?? null,
+        });
+
+        const result = await migrateLegacyData(db, source, e2ee);
+        if (cancelled) return;
+
+        // Only mark as migrated if every note/image we found was migrated.
+        // When some records failed (missing key), leave the flag unset so a
+        // later session with more keys can pick them up.
+        if (result.failedNotes === 0 && result.failedImages === 0) {
+          localStorage.setItem(LEGACY_MIGRATED_KEY, "1");
+        }
+      } catch (error) {
+        reportError("useNoteRepository.legacyMigration", error);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [state.db, activeKeyId, keyring, e2eeFactory]);
 
   // --- Effect 4: Subscribe to note document (content + soft-delete) ---
   useEffect(() => {
