@@ -303,7 +303,12 @@ export function noteRepoReducer(
 // Hook
 // ---------------------------------------------------------------------------
 
-const LEGACY_MIGRATED_KEY = "ichinichi_legacy_migrated";
+// v2: bumped from "ichinichi_legacy_migrated" because the initial RxDB cutover
+// (#68) set that flag after silently migrating zero notes (the reader filtered
+// on a plaintext `content` field that never existed — legacy rows were
+// encrypted). Bumping the key forces a single retry for every device where the
+// broken migration ran.
+const LEGACY_MIGRATED_KEY = "ichinichi_legacy_migrated_v2";
 const SAVE_DEBOUNCE_MS = 500;
 
 export function useNoteRepository({
