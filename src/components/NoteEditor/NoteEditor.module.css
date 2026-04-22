@@ -85,6 +85,28 @@
   white-space: nowrap;
 }
 
+.jumpToTodayButton {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  background: none;
+  border: none;
+  padding: var(--spacing-xs) 0;
+  cursor: pointer;
+  white-space: nowrap;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.jumpToTodayButton:hover {
+  color: var(--color-text);
+}
+
+.jumpToTodayButton:focus-visible {
+  outline: 2px solid var(--color-text-muted);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
 .debugKeyBadge {
   font-family: var(--font-family-mono);
   font-size: 11px;
