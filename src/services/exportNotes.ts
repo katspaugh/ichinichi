@@ -1,6 +1,9 @@
 import TurndownService from "turndown";
 import { zipSync, strToU8 } from "fflate";
 import type { NoteRepository } from "../storage/noteRepository";
+import type { LegacyDataSource } from "../storage/legacyMigration";
+import { decryptLegacyNotes } from "../storage/legacyMigration";
+import type { E2eeService } from "../domain/crypto/e2eeService";
 
 /**
  * Convert DD-MM-YYYY to YYYY-MM-DD for filenames.
@@ -82,12 +85,38 @@ export interface ExportProgress {
 }
 
 /**
+ * Convert decrypted legacy IDB notes into a `{ filename → markdown }` map.
+ * Used as an additional source when exporting so data from the pre-RxDB
+ * `dailynotes-unified` database is recoverable even if migration hasn't run.
+ */
+export async function collectLegacyMarkdown(
+  source: LegacyDataSource,
+  e2ee: E2eeService,
+): Promise<Record<string, string>> {
+  const turndown = createTurndown();
+  const notes = await decryptLegacyNotes(source, e2ee);
+  const files: Record<string, string> = {};
+  for (const note of notes) {
+    const md = htmlToMarkdown(note.content, turndown);
+    if (!md) continue;
+    files[`${dateToFilename(note.date)}.md`] = md;
+  }
+  return files;
+}
+
+/**
  * Export all notes as a zip of markdown files.
  * Returns the zip blob for download.
+ *
+ * When `legacyExtras` is provided, entries not already in the repository are
+ * merged in (repository data takes precedence for duplicate dates). This is
+ * the recovery path for notes still sitting in the legacy IDB that for any
+ * reason haven't been migrated into RxDB yet.
  */
 export async function exportNotesAsZip(
   repository: NoteRepository,
   onProgress?: (progress: ExportProgress) => void,
+  legacyExtras?: Record<string, string>,
 ): Promise<Blob | null> {
   const datesResult = await repository.getAllDates();
   if (!datesResult.ok) {
@@ -97,8 +126,6 @@ export async function exportNotesAsZip(
   }
 
   const dates = datesResult.value;
-  if (dates.length === 0) return null;
-
   const total = dates.length;
   const files: Record<string, Uint8Array> = {};
   const turndown = createTurndown();
@@ -114,6 +141,13 @@ export async function exportNotesAsZip(
 
     const filename = `${dateToFilename(dates[i])}.md`;
     files[filename] = strToU8(md);
+  }
+
+  if (legacyExtras) {
+    for (const [filename, md] of Object.entries(legacyExtras)) {
+      if (filename in files) continue;
+      files[filename] = strToU8(md);
+    }
   }
 
   if (Object.keys(files).length === 0) return null;

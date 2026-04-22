@@ -9,7 +9,9 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { UpdatePrompt } from "./components/UpdatePrompt";
 import { SettingsSidebar } from "./components/SettingsSidebar";
 import { SearchOverlay } from "./components/Search";
-import { exportNotesAsZip, downloadBlob } from "./services/exportNotes";
+import { collectLegacyMarkdown, exportNotesAsZip, downloadBlob } from "./services/exportNotes";
+import { openLegacyIDBSource } from "./storage/legacyIDBSource";
+import { useServiceContext } from "./contexts/serviceContext";
 import { AboutModal } from "./components/AppModals/AboutModal";
 import { PrivacyPolicyModal } from "./components/AppModals/PrivacyPolicyModal";
 import { ResetPasswordModal } from "./components/AppModals/ResetPasswordModal";
@@ -138,13 +140,34 @@ function App() {
     setWeekStartVersion((value) => value + 1);
   }, []);
 
+  const { e2eeFactory } = useServiceContext();
   const handleExport = useCallback(async () => {
     if (!notes.repository) return;
-    const blob = await exportNotesAsZip(notes.repository);
+
+    // Best-effort: also pull decryptable notes from the legacy
+    // `dailynotes-unified` IDB so users who predate PR #68 don't lose data
+    // just because their data hasn't been migrated into RxDB yet.
+    let legacyExtras: Record<string, string> | undefined;
+    if (activeVault.activeKeyId && activeVault.keyring.size > 0) {
+      const source = await openLegacyIDBSource();
+      if (source) {
+        try {
+          const e2ee = e2eeFactory.create({
+            activeKeyId: activeVault.activeKeyId,
+            getKey: (keyId) => activeVault.keyring.get(keyId) ?? null,
+          });
+          legacyExtras = await collectLegacyMarkdown(source, e2ee);
+        } finally {
+          await source.destroy();
+        }
+      }
+    }
+
+    const blob = await exportNotesAsZip(notes.repository, undefined, legacyExtras);
     if (!blob) return;
     const today = new Date().toISOString().slice(0, 10);
     downloadBlob(blob, `ichinichi-export-${today}.zip`);
-  }, [notes.repository]);
+  }, [notes.repository, activeVault.activeKeyId, activeVault.keyring, e2eeFactory]);
 
   const signInHandler =
     appMode.mode !== AppMode.Cloud && auth.authState !== AuthState.SignedIn
