@@ -33,7 +33,6 @@ export function sriPlugin(): Plugin {
         htmls.map(async ({ name, source: html }) => {
           const $ = load(String(html));
           const scripts = $("script").filter("[src]");
-          const stylesheets = $('link[rel="stylesheet"]').filter("[href]");
 
           const calculateIntegrity = async (element: {
             attribs: Record<string, string | undefined>;
@@ -76,10 +75,9 @@ export function sriPlugin(): Plugin {
             }
           };
 
-          await Promise.all([
-            ...scripts.map(async (_i, script) => calculateIntegrity(script)),
-            ...stylesheets.map(async (_i, style) => calculateIntegrity(style)),
-          ]);
+          await Promise.all(
+            scripts.map(async (_i, script) => calculateIntegrity(script)),
+          );
 
           writeFileSync(
             resolve(config.root, config.build.outDir, name),
