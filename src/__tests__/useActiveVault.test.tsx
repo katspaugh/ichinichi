@@ -204,4 +204,70 @@ describe("useActiveVault", () => {
       ),
     );
   });
+
+  it("never uses the device-only DEK as activeKeyId in Cloud mode", async () => {
+    // Race window: device-unlock has loaded the local DEK into the vault
+    // machine, but the cloud keyring fetch hasn't resolved yet so
+    // cloudPrimaryKeyId is still null. Falling back to the local DEK here
+    // would let the editor encrypt notes with a key the cloud doesn't know
+    // about — those rows become permanently undecryptable on other devices.
+    const localKey = await createDek();
+    mockUseVault.mockReturnValue({
+      vaultKey: null,
+      keyring: new Map(),
+      primaryKeyId: null,
+      isReady: true,
+      isLocked: false,
+      isBusy: false,
+      error: null,
+      clearError: vi.fn(),
+    });
+    mockUseVaultMachine.mockReturnValue([
+      {
+        context: {
+          localKeyring: new Map([["local-key", localKey]]),
+          localKeyId: "local-key",
+          restoredCloudVaultKey: null,
+        },
+      },
+      vi.fn(),
+    ]);
+
+    const { result } = renderHook(() =>
+      useActiveVault({
+        auth: createAuth(),
+        mode: AppMode.Cloud,
+        setMode: vi.fn(),
+      }),
+    );
+
+    expect(result.current.activeKeyId).toBeNull();
+    expect(result.current.vaultKey).toBeNull();
+  });
+
+  it("uses local DEK as activeKeyId in Local mode", async () => {
+    // Local mode is exempt from the Cloud-mode rule above — the local DEK
+    // is the only key Local mode has and is correct to use.
+    const localKey = await createDek();
+    mockUseVaultMachine.mockReturnValue([
+      {
+        context: {
+          localKeyring: new Map([["local-key", localKey]]),
+          localKeyId: "local-key",
+          restoredCloudVaultKey: null,
+        },
+      },
+      vi.fn(),
+    ]);
+
+    const { result } = renderHook(() =>
+      useActiveVault({
+        auth: createAuth(),
+        mode: AppMode.Local,
+        setMode: vi.fn(),
+      }),
+    );
+
+    expect(result.current.activeKeyId).toBe("local-key");
+  });
 });

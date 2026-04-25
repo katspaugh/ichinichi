@@ -385,13 +385,16 @@ export function useNoteRepository({
   }, [state.phase, state.userId]);
 
   // --- Effect 3: Phase "replicating" - start replication ---
-  // Deps: only phase and db. The phase gate ensures userId/vaultKey/activeKeyId
-  // are present (the reducer won't transition to "replicating" without them).
-  // Crypto uses keyringRef.current which stays up-to-date without re-running.
-  // Including vaultKey/activeKeyId here would restart replication on every
-  // parent re-render that passes new object references for the same values.
-  const activeKeyIdRef = useRef(activeKeyId);
-  activeKeyIdRef.current = activeKeyId;
+  // Deps: phase, db, and activeKeyId. The phase gate ensures
+  // userId/vaultKey/activeKeyId are present (the reducer won't transition to
+  // "replicating" without them). activeKeyId is in the deps because the
+  // keyProvider closure below captures it once at effect start; without
+  // restarting on key change, a replication started while activeKeyId was
+  // briefly the device-only DEK keeps encrypting with that key for the rest
+  // of the session — pushing rows with a key_id no other device can decrypt.
+  // vaultKey stays out of the deps because it's a CryptoKey object reference
+  // that would churn on every parent re-render; activeKeyId is a stable
+  // string compared by value.
   const userIdRef = useRef(userId);
   userIdRef.current = userId;
 
@@ -400,7 +403,7 @@ export function useNoteRepository({
     if (!state.db) return;
 
     const currentUserId = userIdRef.current;
-    const currentActiveKeyId = activeKeyIdRef.current;
+    const currentActiveKeyId = state.activeKeyId;
     if (!currentUserId || !currentActiveKeyId) return;
 
     const keyProvider = {
@@ -458,7 +461,7 @@ export function useNoteRepository({
       dispatch({ type: "REPLICATION_STOPPED" });
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.phase, state.db]);
+  }, [state.phase, state.db, state.activeKeyId]);
 
   // --- Effect 3b: Legacy IndexedDB → RxDB migration ---
   // Runs once per device after both (a) the RxDB database is open and

@@ -1,6 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { createPushModifier, createPullModifier } from "../../storage/rxdb/replication";
-import type { ReplicationCrypto } from "../../storage/rxdb/replication";
+import {
+  createPushModifier,
+  createPullModifier,
+  createNotesPullHandler,
+} from "../../storage/rxdb/replication";
+import type {
+  ReplicationCrypto,
+  SupabaseNoteRow,
+} from "../../storage/rxdb/replication";
 import type { NoteDocType } from "../../storage/rxdb/schemas";
 
 // Mock crypto: encodes payload as base64 JSON, decodes back.
@@ -144,7 +151,11 @@ describe("createPullModifier", () => {
     expect(note.date).toBe("02-01-2024");
   });
 
-  it("returns empty content and logs error when decryption fails", async () => {
+  it("throws when decryption fails (instead of fabricating empty content)", async () => {
+    // Returning a fake doc with content="" silently overwrites local state
+    // for any row a device cannot decrypt — typically caused by a key_id
+    // missing from the device's keyring. Throwing surfaces the failure to
+    // the caller so it can skip the row and log, leaving local state intact.
     const pull = createPullModifier(failingCrypto);
     const row = {
       date: "03-01-2024",
@@ -156,11 +167,86 @@ describe("createPullModifier", () => {
       _deleted: false,
     };
 
-    const note = await pull(row);
+    await expect(pull(row)).rejects.toThrow();
+  });
 
-    expect(note.date).toBe("03-01-2024");
-    expect(note.content).toBe("");
-    expect(note.isDeleted).toBe(false);
+  it("throws when row fails to parse", async () => {
+    const pull = createPullModifier(mockCrypto);
+    const malformed = { date: "04-01-2024" };
+
+    await expect(pull(malformed as never)).rejects.toThrow();
+  });
+});
+
+describe("createNotesPullHandler", () => {
+  // Build a fake supabase chain that returns the given rows.
+  function fakeSupabase(rows: Record<string, unknown>[]) {
+    const chain = {
+      select: () => chain,
+      or: () => chain,
+      order: () => chain,
+      limit: () => Promise.resolve({ data: rows, error: null }),
+    };
+    return { from: () => chain } as unknown as Parameters<
+      typeof createNotesPullHandler
+    >[0];
+  }
+
+  it("skips undecryptable rows without poisoning the batch", async () => {
+    // Rows: A (good), B (decrypt fails), C (good). Without per-row
+    // try/catch, B's failure would either reject Promise.all (losing A and
+    // C) or fabricate a fake content="" doc (overwriting B's local state).
+    // After the fix B is dropped entirely and A and C still apply.
+    const goodPayload = (content: string) =>
+      btoa(JSON.stringify({ content, weather: null }));
+    const rows = [
+      {
+        date: "01-01-2024",
+        ciphertext: goodPayload("A"),
+        nonce: "n",
+        key_id: "mockkey",
+        updated_at: "2024-01-01T00:00:00.000Z",
+        _modified: "2024-01-01T00:00:00.000Z",
+        _deleted: false,
+      },
+      {
+        date: "02-01-2024",
+        ciphertext: "not-base64-json", // decrypts to JSON.parse failure
+        nonce: "n",
+        key_id: "mockkey",
+        updated_at: "2024-01-02T00:00:00.000Z",
+        _modified: "2024-01-02T00:00:00.000Z",
+        _deleted: false,
+      },
+      {
+        date: "03-01-2024",
+        ciphertext: goodPayload("C"),
+        nonce: "n",
+        key_id: "mockkey",
+        updated_at: "2024-01-03T00:00:00.000Z",
+        _modified: "2024-01-03T00:00:00.000Z",
+        _deleted: false,
+      },
+    ];
+
+    const pull = createPullModifier(mockCrypto);
+    const handler = createNotesPullHandler(
+      fakeSupabase(rows),
+      pull as (row: SupabaseNoteRow) => Promise<NoteDocType>,
+    );
+    const result = await handler(undefined, 100);
+
+    expect(result.documents).toHaveLength(2);
+    expect(result.documents.map((d) => d.date)).toEqual([
+      "01-01-2024",
+      "03-01-2024",
+    ]);
+    // Critically: no doc with date "02-01-2024" with content="" was emitted.
+    expect(
+      result.documents.find((d) => d.date === "02-01-2024"),
+    ).toBeUndefined();
+    // Checkpoint advances to the last row so newer rows still sync.
+    expect(result.checkpoint?.id).toBe("03-01-2024");
   });
 });
 

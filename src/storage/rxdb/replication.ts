@@ -66,6 +66,13 @@ export function createPushModifier(
 
 /**
  * Creates a pull modifier that decrypts Supabase rows after pulling.
+ *
+ * Throws on parse or decrypt failure rather than fabricating a doc with
+ * empty content. Returning fake content silently overwrites the local
+ * note when the row arrives via downstream replication — turning "I can't
+ * decrypt this" into "this note is empty," which is irrecoverable on the
+ * client. Callers must catch and skip undecryptable rows so the local
+ * state stays untouched until the keyring catches up.
  */
 export function createPullModifier(
   crypto: ReplicationCrypto,
@@ -73,8 +80,11 @@ export function createPullModifier(
   return async (row: SupabaseNoteRow): Promise<NoteDocType> => {
     const parsed = parseSupabaseNoteRow(row);
     if (!parsed) {
-      reportError("replication.pull", { type: "ParseError", message: "Invalid Supabase note row" });
-      return { date: (row as unknown as Record<string, unknown>).date as string ?? "", content: "", updatedAt: "", isDeleted: true, weather: null };
+      throw new Error(
+        `replication.pull: invalid Supabase note row for date ${
+          (row as unknown as Record<string, unknown>).date as string ?? "<unknown>"
+        }`,
+      );
     }
 
     const updatedAt = row.updated_at || new Date().toISOString();
@@ -96,14 +106,9 @@ export function createPullModifier(
     });
 
     if (!result.ok) {
-      reportError("replication.pull", result.error);
-      return {
-        date: row.date,
-        content: "",
-        updatedAt,
-        isDeleted: false,
-        weather: null,
-      };
+      throw new Error(
+        `replication.pull: decrypt failed for ${row.date} (key_id=${row.key_id}): ${result.error.message}`,
+      );
     }
 
     const { content, weather } = result.value;
@@ -449,7 +454,7 @@ function createSupabaseBucket(supabase: SupabaseClient): StorageBucket {
 // which assumes schema field names match Supabase column names (broken by E2EE).
 // ---------------------------------------------------------------------------
 
-function createNotesPullHandler(
+export function createNotesPullHandler(
   supabase: SupabaseClient,
   pullMod: (row: SupabaseNoteRow) => Promise<NoteDocType>,
 ) {
@@ -466,12 +471,22 @@ function createNotesPullHandler(
     if (error) throw error;
     const rows = data ?? [];
     const last = rows.length > 0 ? rows[rows.length - 1] : undefined;
-    const documents: WithDeleted<NoteDocType>[] = await Promise.all(
-      rows.map(async (r: Record<string, unknown>) => {
+
+    // Per-row try/catch: a single undecryptable row (e.g. encrypted with a
+    // key that's not in this device's keyring) must not stall the whole
+    // batch nor overwrite the local doc with fake empty content. We skip
+    // bad rows but advance the checkpoint normally so newer rows still
+    // sync. The skipped row is logged and remains in Supabase intact.
+    const documents: WithDeleted<NoteDocType>[] = [];
+    for (const r of rows as Record<string, unknown>[]) {
+      try {
         const doc = await pullMod(r as unknown as SupabaseNoteRow);
-        return { ...doc, _deleted: doc.isDeleted };
-      }),
-    );
+        documents.push({ ...doc, _deleted: doc.isDeleted });
+      } catch (err) {
+        reportError("replication.pull", err);
+      }
+    }
+
     return {
       documents,
       checkpoint: last ? { id: last.date as string, modified: last._modified as string } : undefined,
@@ -488,8 +503,13 @@ function createNotesPushHandler(
   async function fetchConflict(date: string): Promise<WithDeleted<NoteDocType> | null> {
     const { data, error } = await supabase.from("notes").select("*").eq("date", date).limit(1);
     if (error || !data || data.length === 0) return null;
-    const doc = await pullMod(data[0] as unknown as SupabaseNoteRow);
-    return { ...doc, _deleted: doc.isDeleted };
+    try {
+      const doc = await pullMod(data[0] as unknown as SupabaseNoteRow);
+      return { ...doc, _deleted: doc.isDeleted };
+    } catch (err) {
+      reportError("replication.push.fetchConflict", err);
+      return null;
+    }
   }
 
   return async (rows: RxReplicationWriteToMasterRow<NoteDocType>[]): Promise<WithDeleted<NoteDocType>[]> => {
@@ -627,12 +647,20 @@ function setupRealtime<DocType>(
     .on("postgres_changes", { event: "*", schema: "public", table: tableName }, (payload) => {
       if (payload.eventType === "DELETE") return;
       const row = payload.new as Record<string, unknown>;
-      void toDoc(row).then((doc) => {
-        repl.emitEvent({
-          checkpoint: { id: row[primaryKey] as string, modified: row._modified as string },
-          documents: [doc],
+      void toDoc(row)
+        .then((doc) => {
+          repl.emitEvent({
+            checkpoint: { id: row[primaryKey] as string, modified: row._modified as string },
+            documents: [doc],
+          });
+        })
+        .catch((err) => {
+          // toDoc may throw on decrypt/parse failure (see createPullModifier).
+          // Swallowing here is intentional: skip the realtime event rather
+          // than letting an unhandled rejection propagate or — worse —
+          // emitting a fabricated empty doc into local storage.
+          reportError(`replication.realtime.${tableName}`, err);
         });
-      });
     })
     .subscribe((status) => {
       if (status === "SUBSCRIBED") repl.emitEvent("RESYNC");

@@ -117,8 +117,14 @@ export function useActiveVault({
     cloudVault.vaultKey ?? state.context.restoredCloudVaultKey;
 
   const cloudPrimaryKeyId = fetchedCloudPrimaryId ?? cloudVault.primaryKeyId;
+  // In Cloud mode, never fall back to the device-only DEK. That key is not in
+  // the cloud user_keyrings table (post commit feaadf4: local DEKs aren't
+  // uploaded when cloud keyrings already exist), so any push encrypted with
+  // it produces a row with a key_id no other device can decrypt. If
+  // cloudPrimaryKeyId hasn't resolved yet, activeKeyId stays null and the
+  // editor blocks via isContentReady until the cloud keyring loads.
   const candidateKeyId =
-    mode === AppMode.Cloud && cloudPrimaryKeyId
+    mode === AppMode.Cloud
       ? cloudPrimaryKeyId
       : state.context.localKeyId;
   const activeKeyId =
