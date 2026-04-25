@@ -6,6 +6,7 @@ import { basename, dirname, resolve } from "node:path";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 import { sriPlugin } from "./viteSriPlugin";
+import { prerenderCalendarPlugin } from "./vitePrerenderPlugin";
 
 const isTauri = !!process.env.TAURI_ENV_PLATFORM;
 
@@ -23,6 +24,7 @@ const commitHash = (() => {
 export default defineConfig({
   plugins: [
     react(),
+    !isTauri && prerenderCalendarPlugin(),
     !isTauri &&
       VitePWA({
         registerType: "prompt",
