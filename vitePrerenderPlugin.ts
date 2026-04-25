@@ -22,8 +22,8 @@ export function prerenderCalendarPlugin(): Plugin {
         });
 
         try {
-          const { Calendar } = await vite.ssrLoadModule(
-            "/src/components/Calendar/Calendar.tsx",
+          const { AppShell } = await vite.ssrLoadModule(
+            "/src/components/AppShell/AppShell.tsx",
           );
 
           const now = new Date();
@@ -34,13 +34,8 @@ export function prerenderCalendarPlugin(): Plugin {
             String(now.getDate()).padStart(2, "0"),
           ].join("-");
 
-          const calendarHtml = renderToStaticMarkup(
-            React.createElement(Calendar, {
-              year,
-              hasNote: () => false,
-              onYearChange: () => {},
-              now,
-            }),
+          const shellHtml = renderToStaticMarkup(
+            React.createElement(AppShell, { year, now }),
           );
 
           const $ = load(html);
@@ -48,7 +43,7 @@ export function prerenderCalendarPlugin(): Plugin {
             .attr("data-ssg-calendar", "true")
             .attr("data-ssg-year", String(year))
             .attr("data-ssg-today", today)
-            .html(calendarHtml);
+            .html(shellHtml);
           return $.html();
         } finally {
           await vite.close();

@@ -1,6 +1,6 @@
 import { useLayoutEffect, useSyncExternalStore } from "react";
 import App from "../App";
-import { Calendar } from "./Calendar";
+import { AppShell } from "./AppShell";
 import { ServiceProvider } from "../contexts/ServiceProvider";
 import { supabase } from "../services/supabase";
 
@@ -48,13 +48,7 @@ export function AppBootstrap({ shouldHydrate, year, now }: AppBootstrapProps) {
   }, [shouldHydrate]);
 
   if (shouldHydrate && !hydrated) {
-    return (
-      <Calendar
-        year={year}
-        hasNote={() => false}
-        now={now}
-      />
-    );
+    return <AppShell year={year} now={now} />;
   }
 
   return (
