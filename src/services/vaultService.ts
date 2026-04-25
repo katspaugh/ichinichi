@@ -13,7 +13,7 @@ import {
   randomBytes,
 } from "../storage/cryptoUtils";
 import { sanitizeHtml } from "../utils/sanitize";
-import { parseDecryptedNotePayload, parseRemoteNoteRow, type RemoteNoteRow } from "../storage/parsers";
+import { parseDecryptedNotePayload } from "../storage/parsers";
 import type { UserKeyringEntry } from "../storage/userKeyring";
 import { computeKeyId } from "../storage/keyId";
 import {
@@ -321,12 +321,14 @@ export async function cleanupUnusedKeys(options: {
 
   const primaryKey = activeKeyId ? keyring.get(activeKeyId) : null;
 
-  // Fetch remote notes and re-encrypt any that use non-primary keys
+  // Fetch remote notes and re-encrypt any that use non-primary keys.
+  // See reencryptCloudNotes for why parseRemoteNoteRow / .eq("deleted") are
+  // wrong against the post-cutover schema (missing server_updated_at).
   const { data: remoteRows, error: remoteError } = await supabase
     .from("notes")
-    .select("*")
+    .select("date, key_id, ciphertext, nonce")
     .eq("user_id", userId)
-    .eq("deleted", false);
+    .eq("_deleted", false);
 
   if (remoteError) throw remoteError;
 
@@ -334,8 +336,16 @@ export async function cleanupUnusedKeys(options: {
   let reencrypted = 0;
 
   for (const row of remoteRows ?? []) {
-    const note = parseRemoteNoteRow(row);
-    if (!note) continue;
+    const r = row as Record<string, unknown>;
+    if (
+      typeof r.date !== "string" ||
+      typeof r.key_id !== "string" ||
+      typeof r.ciphertext !== "string" ||
+      typeof r.nonce !== "string"
+    ) {
+      continue;
+    }
+    const note = { date: r.date, key_id: r.key_id, ciphertext: r.ciphertext, nonce: r.nonce };
 
     // If note uses primary key, keep as-is
     if (note.key_id === activeKeyId) {
@@ -344,10 +354,10 @@ export async function cleanupUnusedKeys(options: {
     }
 
     // Try to re-encrypt to primary key
-    const oldKey = keyring.get(note.key_id ?? "legacy");
+    const oldKey = keyring.get(note.key_id);
     if (!oldKey || !primaryKey || !activeKeyId) {
       // Can't re-encrypt — must keep this key
-      if (note.key_id) usedKeyIds.add(note.key_id);
+      usedKeyIds.add(note.key_id);
       continue;
     }
 
@@ -362,7 +372,7 @@ export async function cleanupUnusedKeys(options: {
       JSON.parse(decodeUtf8(new Uint8Array(decrypted))),
     );
     if (!parsed) {
-      if (note.key_id) usedKeyIds.add(note.key_id);
+      usedKeyIds.add(note.key_id);
       continue;
     }
 
@@ -377,20 +387,16 @@ export async function cleanupUnusedKeys(options: {
 
     const newCiphertext = bytesToBase64(new Uint8Array(encrypted));
     const newNonce = bytesToBase64(newIv);
-    const now = new Date().toISOString();
 
     const { error: pushError } = await supabase
       .from("notes")
-      .upsert({
-        id: note.id,
-        user_id: userId,
-        date: note.date,
+      .update({
         key_id: activeKeyId,
         ciphertext: newCiphertext,
         nonce: newNonce,
-        updated_at: now,
-        _deleted: false,
-      }, { onConflict: "id" });
+      })
+      .eq("user_id", userId)
+      .eq("date", note.date);
     if (pushError) throw pushError;
 
     // RxDB replication will pull the re-encrypted note automatically
@@ -446,17 +452,28 @@ export async function reencryptCloudNotes(options: {
   const primaryKey = keyring.get(primaryKeyId);
   if (!primaryKey) throw new Error("Primary DEK not found in keyring");
 
-  // 1. Fetch all remote notes
+  // 1. Fetch all remote notes.
+  // Read only the columns this routine needs. Earlier code used
+  // parseRemoteNoteRow + .eq("deleted", false), which still required the
+  // legacy `server_updated_at` field — but the trigger that populated it
+  // was dropped in 20260408_rxdb_cleanup.sql. New rows pushed via RxDB
+  // have server_updated_at = NULL, so the parser silently rejected them
+  // and the loop ran on zero rows ("Re-encrypted 0 note(s)" with no
+  // error). The new schema's soft-delete column is `_deleted`.
   const { data: rows, error } = await sb
     .from("notes")
-    .select("*")
+    .select("date, key_id, ciphertext, nonce, updated_at")
     .eq("user_id", userId)
-    .eq("deleted", false);
+    .eq("_deleted", false);
   if (error) throw error;
 
-  const notes = (rows ?? [])
-    .map(parseRemoteNoteRow)
-    .filter(Boolean) as RemoteNoteRow[];
+  const notes = (rows ?? []).filter(
+    (r): r is { date: string; key_id: string; ciphertext: string; nonce: string; updated_at: string } =>
+      typeof (r as Record<string, unknown>).date === "string" &&
+      typeof (r as Record<string, unknown>).key_id === "string" &&
+      typeof (r as Record<string, unknown>).ciphertext === "string" &&
+      typeof (r as Record<string, unknown>).nonce === "string",
+  );
 
   // 2. Re-encrypt notes that use non-primary keys
   let reencrypted = 0;
@@ -466,7 +483,7 @@ export async function reencryptCloudNotes(options: {
 
     if (note.key_id === primaryKeyId) continue;
 
-    const oldKey = keyring.get(note.key_id ?? "legacy");
+    const oldKey = keyring.get(note.key_id);
     if (!oldKey) throw new Error(`DEK not found for keyId ${note.key_id}`);
 
     // Decrypt
@@ -494,21 +511,22 @@ export async function reencryptCloudNotes(options: {
 
     const newCiphertext = bytesToBase64(new Uint8Array(encrypted));
     const newNonce = bytesToBase64(newIv);
-    const now = new Date().toISOString();
 
-    // Push to Supabase
+    // Update by (user_id, date) — the unique constraint on the new schema.
+    // Don't bump updated_at: it's the deterministic field local replication
+    // uses for optimistic concurrency. Bumping it here would invalidate any
+    // in-flight push from a peer device, forcing a conflict that resolves
+    // to this re-encryption (silently dropping the peer's edit). The
+    // _modified column is updated automatically by the moddatetime trigger.
     const { error: pushError } = await sb
       .from("notes")
-      .upsert({
-        id: note.id,
-        user_id: userId,
-        date: note.date,
+      .update({
         key_id: primaryKeyId,
         ciphertext: newCiphertext,
         nonce: newNonce,
-        updated_at: now,
-        _deleted: false,
-      }, { onConflict: "id" });
+      })
+      .eq("user_id", userId)
+      .eq("date", note.date);
     if (pushError) throw pushError;
 
     // RxDB replication will pull the re-encrypted note automatically

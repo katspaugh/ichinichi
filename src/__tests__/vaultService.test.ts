@@ -7,7 +7,14 @@ import {
   bootstrapLocalVault,
   unlockLocalVault,
   tryDeviceUnlockCloudKey,
+  reencryptCloudNotes,
 } from "../services/vaultService";
+import {
+  bytesToBase64,
+  encodeUtf8,
+  randomBytes,
+} from "../storage/cryptoUtils";
+import { deleteUserKeyringEntry } from "../storage/userKeyring";
 import {
   fetchUserKeyring,
   saveUserKeyringEntry,
@@ -30,6 +37,7 @@ import { computeKeyId } from "../storage/keyId";
 vi.mock("../storage/userKeyring", () => ({
   fetchUserKeyring: vi.fn(),
   saveUserKeyringEntry: vi.fn(),
+  deleteUserKeyringEntry: vi.fn(),
 }));
 
 const mockFetchUserKeyring = fetchUserKeyring as MockedFunction<
@@ -37,6 +45,9 @@ const mockFetchUserKeyring = fetchUserKeyring as MockedFunction<
 >;
 const mockSaveUserKeyringEntry = saveUserKeyringEntry as MockedFunction<
   typeof saveUserKeyringEntry
+>;
+const mockDeleteUserKeyringEntry = deleteUserKeyringEntry as MockedFunction<
+  typeof deleteUserKeyringEntry
 >;
 
 async function clearVaultDb(): Promise<void> {
@@ -565,5 +576,152 @@ describe("device-encrypted password", () => {
     await storeDeviceEncryptedPassword("new-pw");
     const retrieved = await tryGetDeviceEncryptedPassword();
     expect(retrieved).toBe("new-pw");
+  });
+});
+
+describe("reencryptCloudNotes", () => {
+  vi.setConfig({ testTimeout: 30000 });
+
+  beforeEach(() => {
+    mockFetchUserKeyring.mockReset();
+    mockSaveUserKeyringEntry.mockReset();
+    mockDeleteUserKeyringEntry.mockReset();
+  });
+
+  // Encrypts a payload with the given key. Mirrors the AES-GCM call shape
+  // used by the production code so we can produce a realistic Supabase row.
+  async function encryptWithKey(
+    plaintext: string,
+    key: CryptoKey,
+  ): Promise<{ ciphertext: string; nonce: string }> {
+    const iv = randomBytes(12);
+    const data = encodeUtf8(JSON.stringify({ content: plaintext }));
+    const out = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, data);
+    return {
+      ciphertext: bytesToBase64(new Uint8Array(out)),
+      nonce: bytesToBase64(iv),
+    };
+  }
+
+  it("re-encrypts notes pushed under non-primary keys (regression: post-RxDB schema)", async () => {
+    // Regression for the silent no-op: the re-encrypt routine used the
+    // legacy parser (parseRemoteNoteRow) which required server_updated_at
+    // to be a string. The trigger that populated server_updated_at was
+    // dropped in 20260408_rxdb_cleanup.sql, so every row pushed via RxDB
+    // has server_updated_at = NULL, fails the parser, and gets skipped —
+    // leaving notes encrypted under stale device-only keys forever.
+    const oldKey = await generateDEK();
+    const primaryKey = await generateDEK();
+    const oldKeyId = await computeKeyId(oldKey);
+    const primaryKeyId = await computeKeyId(primaryKey);
+
+    const { ciphertext, nonce } = await encryptWithKey("today's content", oldKey);
+    const row = {
+      date: "25-04-2026",
+      key_id: oldKeyId,
+      ciphertext,
+      nonce,
+      updated_at: "2026-04-25T08:00:00.000Z",
+      // server_updated_at intentionally absent — matches what RxDB pushes.
+    };
+
+    let updateCalledWith: Record<string, unknown> | null = null;
+    let updateEqs: Array<[string, unknown]> = [];
+    const updateChain = {
+      eq: vi.fn(function (this: { __eqs: Array<[string, unknown]> }, col: string, val: unknown) {
+        this.__eqs.push([col, val]);
+        return this;
+      }),
+      then: undefined,
+    };
+    const supabase = {
+      from: vi.fn((_table: string) => {
+        return {
+          select: () => ({
+            eq: () => ({
+              eq: () => Promise.resolve({ data: [row], error: null }),
+            }),
+          }),
+          update: vi.fn((patch: Record<string, unknown>) => {
+            updateCalledWith = patch;
+            updateEqs = [];
+            const chain = {
+              __eqs: updateEqs,
+              eq: updateChain.eq,
+            };
+            // After two .eq() calls (user_id, date), await resolves.
+            return new Proxy(chain, {
+              get(target, prop) {
+                if (prop === "then") {
+                  return (resolve: (v: unknown) => void) =>
+                    resolve({ data: [row], error: null });
+                }
+                return (target as Record<string, unknown>)[prop as string];
+              },
+            });
+          }),
+        };
+      }),
+    };
+
+    mockFetchUserKeyring.mockResolvedValue([]);
+
+    const result = await reencryptCloudNotes({
+      supabase: supabase as never,
+      userId: "user-1",
+      password: "pw",
+      keyring: new Map([
+        [oldKeyId, oldKey],
+        [primaryKeyId, primaryKey],
+      ]),
+      primaryKeyId,
+    });
+
+    expect(result.reencrypted).toBe(1);
+    expect(updateCalledWith).not.toBeNull();
+    expect((updateCalledWith as unknown as Record<string, unknown>)!.key_id).toBe(primaryKeyId);
+    // updated_at must NOT be bumped — bumping it would invalidate any
+    // in-flight push from a peer device's optimistic-concurrency check
+    // and silently drop their edit on the next conflict resolution.
+    expect((updateCalledWith as unknown as Record<string, unknown>)!).not.toHaveProperty("updated_at");
+  });
+
+  it("skips rows already encrypted with the primary key", async () => {
+    const primaryKey = await generateDEK();
+    const primaryKeyId = await computeKeyId(primaryKey);
+    const { ciphertext, nonce } = await encryptWithKey("hi", primaryKey);
+
+    const row = {
+      date: "25-04-2026",
+      key_id: primaryKeyId,
+      ciphertext,
+      nonce,
+      updated_at: "2026-04-25T08:00:00.000Z",
+    };
+
+    const updateFn = vi.fn();
+    const supabase = {
+      from: vi.fn(() => ({
+        select: () => ({
+          eq: () => ({
+            eq: () => Promise.resolve({ data: [row], error: null }),
+          }),
+        }),
+        update: updateFn,
+      })),
+    };
+
+    mockFetchUserKeyring.mockResolvedValue([]);
+
+    const result = await reencryptCloudNotes({
+      supabase: supabase as never,
+      userId: "user-1",
+      password: "pw",
+      keyring: new Map([[primaryKeyId, primaryKey]]),
+      primaryKeyId,
+    });
+
+    expect(result.reencrypted).toBe(0);
+    expect(updateFn).not.toHaveBeenCalled();
   });
 });

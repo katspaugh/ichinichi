@@ -16,7 +16,7 @@ import { AppMode } from "./useAppMode";
 import { useServiceContext } from "../contexts/serviceContext";
 import { SyncStatus } from "../types";
 import type { Note, SavedWeather } from "../types";
-import { reportError } from "../utils/errorReporter";
+import { reportError, onError } from "../utils/errorReporter";
 
 interface UseNoteRepositoryProps {
   mode: AppMode;
@@ -580,6 +580,30 @@ export function useNoteRepository({
 
     return () => { subscription.unsubscribe(); };
   }, [state.db, state.year]);
+
+  // --- Effect 6: Surface replication errors (decrypt/parse) into syncError ---
+  // The pull modifier throws on decrypt or parse failure and the per-row
+  // handler catches and reportError()s. Without this listener those errors
+  // only reach the dev console and the UI looks like nothing's wrong — which
+  // is exactly the symptom that masked the device-only-key bug. Mapping
+  // them to syncStatus=Error gives the user a visible signal.
+  useEffect(() => {
+    return onError((context, error) => {
+      if (
+        context !== "replication.pull" &&
+        context !== "replication.realtime.notes" &&
+        context !== "replication.push.fetchConflict"
+      ) {
+        return;
+      }
+      const message = error instanceof Error ? error.message : String(error);
+      dispatch({
+        type: "SYNC_STATUS",
+        status: SyncStatus.Error,
+        error: message,
+      });
+    });
+  }, []);
 
   // --- Repositories (derived from db) ---
   const repository = useMemo<NoteRepository | null>(
