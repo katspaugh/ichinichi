@@ -10,8 +10,6 @@ import { NavigationArrow } from "../NavigationArrow";
 import { NoteEditor } from "../NoteEditor";
 import { NoteLogView } from "../NoteLog/NoteLogView";
 import { MonthGrid } from "./MonthGrid";
-import { RandomMotif } from "../UkiyoMotifs";
-import motifStyles from "../UkiyoMotifs/ukiyoMotifs.module.css";
 import { useOverscrollNavigation } from "../../hooks/useOverscrollNavigation";
 import { useKeyboardInset } from "../../hooks/useKeyboardInset";
 import { getMonthName, isToday } from "../../utils/date";
@@ -159,9 +157,6 @@ export function DayViewLayout({
             />
           </div>
 
-          <div className={styles.sidebarMotif}>
-            <RandomMotif className={motifStyles.sidebar} />
-          </div>
         </div>
       )}
 
@@ -176,13 +171,6 @@ export function DayViewLayout({
       )}
 
       <div className={styles.editorPane} ref={setEditorPaneEl}>
-        {selectedDate &&
-          !(isToday(selectedDate) && !isSoftDeleted) &&
-          (!content || content.replace(/<[^>]*>/g, "").trim().length === 0) && (
-            <div className={styles.motifWrap}>
-              <RandomMotif className={motifStyles.emptyState} />
-            </div>
-          )}
         {selectedDate ? (
           <ErrorBoundary
             title="Note editor crashed"

@@ -82,15 +82,6 @@
   padding: 0 var(--spacing-sm);
 }
 
-.sidebarMotif {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 0;
-  overflow: hidden;
-}
-
 .editorPane {
   flex: 1;
   display: flex;
@@ -104,26 +95,6 @@
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
-}
-
-.motifWrap {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  animation: motifFadeIn 600ms ease-in both;
-}
-
-@keyframes motifFadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
 }
 
 .expandButton {
