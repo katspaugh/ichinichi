@@ -34,6 +34,14 @@ export function sriPlugin(): Plugin {
           const $ = load(String(html));
           const scripts = $("script").filter("[src]");
 
+          // Same-origin stylesheets don't need CORS mode. WebKit silently
+          // drops `<link rel="stylesheet" crossorigin>` on Service Worker
+          // cache hits because Cache API responses aren't fetched in CORS
+          // mode, so the link's CORS check fails and the sheet is dropped.
+          $('link[rel="stylesheet"][href]').each((_i, el) => {
+            delete el.attribs.crossorigin;
+          });
+
           const calculateIntegrity = async (element: {
             attribs: Record<string, string | undefined>;
           }) => {
