@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { ChangeEvent } from "react";
 import { Check, ImagePlus } from "lucide-react";
 import { parseNoteSegments, assembleSegments } from "../../utils/noteSegments";
@@ -24,11 +24,15 @@ import { LogEntry } from "./LogEntry";
 import { HabitChips } from "./HabitChips";
 import { TimeLabel } from "./TimeLabel";
 import { useSectionTransform } from "./useSectionTransform";
+import { useEntryHandoff } from "./useEntryHandoff";
 import contentStyles from "../../styles/noteContent.module.css";
 import styles from "./NoteLogView.module.css";
 import type { DailyWeatherData } from "../../domain/weather/WeatherRepository";
 
 const AUTO_SAVE_MS = 10 * 60 * 1000;
+
+/** The held entry is a finalized stand-in, never edited in place. */
+const noop = () => {};
 
 interface NoteLogViewProps {
   date: string;
@@ -100,7 +104,15 @@ export function NoteLogView({
   // alive until the entry is saved because the composer is not part of
   // `content`, so nothing else resolves a URL for its images.
   const previewUrlsRef = useRef<Set<string>>(new Set());
-  const [justSavedId, setJustSavedId] = useState<string | null>(null);
+  // A submitted entry keeps the composer's place, finalized, before the
+  // editor comes back; see useEntryHandoff.
+  const {
+    held: heldEntry,
+    releasedId,
+    isRevealing,
+    commit: commitEntry,
+    reveal: revealEntry,
+  } = useEntryHandoff(date);
 
   // Header: date, weather, debug key
   const formattedDate = formatDateDisplay(date);
@@ -136,15 +148,27 @@ export function NoteLogView({
     isEditable: !readOnly,
   });
 
-  useInlineImageUrls({ date, content, editorRef: containerRef });
+  // The held entry re-mounts as a timeline card when the handoff ends, so the
+  // image URLs resolved into the stand-in's DOM have to be applied again.
+  useInlineImageUrls({
+    date,
+    content,
+    editorRef: containerRef,
+    revision: heldEntry?.id ?? "",
+  });
 
   const segments = useMemo(() => {
     if (!isContentReady || isDecrypting) return [];
     return parseNoteSegments(content);
   }, [content, isContentReady, isDecrypting]);
 
-  // Reverse for newest-first display
-  const displaySegments = useMemo(() => [...segments].reverse(), [segments]);
+  // Reverse for newest-first display. The held entry is shown by the composer
+  // in the place it was typed, so it must not also sit at the top of the stack.
+  const heldId = heldEntry?.id ?? null;
+  const displaySegments = useMemo(
+    () => [...segments].reverse().filter((segment) => segment.id !== heldId),
+    [segments, heldId],
+  );
 
   const hasEditorContent = useCallback(() => {
     const el = editorRef.current;
@@ -176,9 +200,8 @@ export function NoteLogView({
     const entryHtml = serializeContent(el);
     onChange(content + hrHtml + entryHtml);
 
-    // Blink the newly saved card
-    setJustSavedId(timestamp);
-    setTimeout(() => setJustSavedId(null), 700);
+    // Hold the finalized entry where it was written before the editor returns
+    commitEntry({ id: timestamp, date, label: label || null, html: entryHtml });
 
     // Clear editor
     el.textContent = "";
@@ -190,7 +213,14 @@ export function NoteLogView({
       clearTimeout(autoSaveTimerRef.current);
       autoSaveTimerRef.current = null;
     }
-  }, [content, onChange, hasEditorContent, releasePreviewUrls]);
+  }, [
+    content,
+    date,
+    onChange,
+    hasEditorContent,
+    releasePreviewUrls,
+    commitEntry,
+  ]);
 
   const resetAutoSaveTimer = useCallback(() => {
     if (autoSaveTimerRef.current) {
@@ -249,10 +279,11 @@ export function NoteLogView({
     if (!el) return;
     applyTextTransforms(el);
     applySectionColors(el);
+    revealEntry();
     if (hasEditorContent()) {
       resetAutoSaveTimer();
     }
-  }, [hasEditorContent, resetAutoSaveTimer]);
+  }, [hasEditorContent, resetAutoSaveTimer, revealEntry]);
 
   useSectionTransform(editorRef, handleInput);
 
@@ -450,58 +481,77 @@ export function NoteLogView({
 
       <div className={styles.timeline}>
         {!readOnly && (
-          <div className={styles.composer} data-moment-time="now">
+          <div
+            className={styles.composer}
+            data-moment-time="now"
+            data-committed={heldEntry ? true : undefined}
+            data-entering={isRevealing || undefined}
+          >
             <span className={styles.composerNode} aria-hidden="true" />
             <span className={styles.composerTime}>
               <TimeLabel
                 label={formatTimestampLabel(new Date().toISOString())}
               />
             </span>
-            <div className={styles.composerBox}>
-              <div
-                ref={editorRef}
-                className={`${contentStyles.content} ${styles.editor}`}
-                contentEditable
-                suppressContentEditableWarning
-                onInput={handleInput}
-                onKeyDown={handleKeyDown}
-                role="textbox"
-                aria-multiline="true"
-                aria-label="New entry"
-                data-placeholder="What's on your mind?"
-              />
-              {onImageDrop && (
-                <div className={styles.composerTools}>
-                  <button
-                    type="button"
-                    className={styles.toolButton}
-                    onClick={openFilePicker}
-                    aria-label="Insert image"
-                    title="Insert image"
-                  >
-                    <ImagePlus size={16} />
-                  </button>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    className={styles.imageInput}
-                    onChange={handleFileChange}
-                  />
-                </div>
-              )}
-              {showHabits && (
-                <HabitChips habits={habits} onPick={handlePickHabit} />
-              )}
-              <button
-                type="button"
-                className={styles.saveButton}
-                onClick={saveCard}
-                aria-label="Save entry"
-                title="Save entry (⌘⏎)"
-              >
-                <Check size={16} strokeWidth={2.6} />
-              </button>
+            {heldEntry && (
+              <div className={styles.committed}>
+                <LogEntry
+                  id={heldEntry.id}
+                  timestamp={heldEntry.id}
+                  label={heldEntry.label}
+                  html={heldEntry.html}
+                  onSave={noop}
+                  readOnly
+                />
+              </div>
+            )}
+            <div className={styles.composerShell}>
+              <div className={styles.composerBox}>
+                <div
+                  ref={editorRef}
+                  className={`${contentStyles.content} ${styles.editor}`}
+                  contentEditable
+                  suppressContentEditableWarning
+                  onInput={handleInput}
+                  onKeyDown={handleKeyDown}
+                  role="textbox"
+                  aria-multiline="true"
+                  aria-label="New entry"
+                  data-placeholder="What's on your mind?"
+                />
+                {onImageDrop && (
+                  <div className={styles.composerTools}>
+                    <button
+                      type="button"
+                      className={styles.toolButton}
+                      onClick={openFilePicker}
+                      aria-label="Insert image"
+                      title="Insert image"
+                    >
+                      <ImagePlus size={16} />
+                    </button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      className={styles.imageInput}
+                      onChange={handleFileChange}
+                    />
+                  </div>
+                )}
+                {showHabits && (
+                  <HabitChips habits={habits} onPick={handlePickHabit} />
+                )}
+                <button
+                  type="button"
+                  className={styles.saveButton}
+                  onClick={saveCard}
+                  aria-label="Save entry"
+                  title="Save entry (⌘⏎)"
+                >
+                  <Check size={16} strokeWidth={2.6} />
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -526,7 +576,7 @@ export function NoteLogView({
                     : undefined
                 }
                 focusTargetRef={focusTargetRef}
-                justSaved={justSavedId === segment.id}
+                justSaved={releasedId === segment.id}
                 readOnly={readOnly}
               />
             ))}

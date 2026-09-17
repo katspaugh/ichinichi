@@ -13,6 +13,11 @@ interface UseInlineImageUrlsOptions {
   date: string;
   content: string;
   editorRef: RefObject<HTMLDivElement | null>;
+  /**
+   * Bumped when the same `content` is re-mounted into fresh DOM nodes, which
+   * drops the resolved `src` attributes and needs them applied again.
+   */
+  revision?: string;
 }
 
 export function useInlineImageUpload({
@@ -67,6 +72,7 @@ export function useInlineImageUrls({
   date,
   content,
   editorRef,
+  revision = "",
 }: UseInlineImageUrlsOptions) {
   const { imageRepository } = useNoteRepositoryContext();
   const metaCacheRef = useRef<Map<string, { width: number; height: number }>>(
@@ -208,5 +214,5 @@ export function useInlineImageUrls({
       }
     });
     currentIdsRef.current = nextIds;
-  }, [content, editorRef, imageRepository, metaVersion]);
+  }, [content, revision, editorRef, imageRepository, metaVersion]);
 }
