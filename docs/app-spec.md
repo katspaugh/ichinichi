@@ -329,3 +329,32 @@ Ref: src/utils/sanitize.ts
 - Same sync algorithm and conflict resolution.
 - Same URL routing and modal flows.
 - Same inline image upload + resolution behavior.
+
+
+### Automatic activity tags
+
+Settings offers on-device activity detection, disabled by default per device.
+Enabling it downloads the pinned q8 DeBERTa v3 xsmall zero-shot model (87 MB of weights, about 90 MB total) from
+Hugging Face, plus a self-hosted WASM runtime. Model assets use the browser cache;
+notes and inferred tags stay in memory and are never sent to a model API or saved
+as unencrypted metadata. Turning detection off cancels the worker and clears
+inferred results; downloaded model files may remain in the browser cache.
+
+The model runs zero-shot classification in a module worker using Transformers.js.
+It scores activity descriptions for trumpet, trombone, piano, guitar, meditation,
+running, singing, yoga, swimming, cycling, reading and dreams, plus custom explicit
+section types found in the selected year's notes. A label requires a score of at
+least 0.85 on a chunk of the entry. Long entries are split into bounded chunks
+rather than silently truncated. These scores are estimates, not calibrated
+probabilities; the model is English-focused and may misinterpret negation,
+other people's activities, and unusual wording.
+
+The colored Settings list counts distinct non-deleted note dates in the selected
+year and preserves the existing pin preferences, calendar dots, and optional
+explicit-section shortcuts. Existing and synced entries are analyzed without
+rewriting notes. Edits reclassify changed content and deletion removes counts.
+Explicit `+sections` always count even with detection disabled. Predictions are
+cached in memory for unchanged entries; changing the repository, year, or disabling
+the feature prevents stale results from appearing. Settings displays download
+progress, analysis status, and a retry button after errors. No phrase classifier
+runs in the background when the feature is off.

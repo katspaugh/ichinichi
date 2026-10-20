@@ -26,6 +26,7 @@
     "tauri:build": "tauri build"
   },
   "dependencies": {
+    "@huggingface/transformers": "3.8.1",
     "@supabase/supabase-js": "^2.89.0",
     "dompurify": "^3.4.2",
     "fflate": "^0.8.2",

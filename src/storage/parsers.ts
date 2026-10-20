@@ -271,3 +271,28 @@ export function parseStringArray(data: unknown): string[] | null {
   }
   return data as string[];
 }
+
+// Model and worker output are validated before entering application state.
+export function parseModelClassification(value: unknown): { labels: string[]; scores: number[] } | null {
+  if (!isObject(value) || !Array.isArray(value.labels) || !Array.isArray(value.scores)) return null;
+  if (!value.labels.every((label): label is string => typeof label === "string")) return null;
+  if (!value.scores.every((score): score is number => typeof score === "number" && Number.isFinite(score) && score >= 0 && score <= 1)) return null;
+  if (value.labels.length !== value.scores.length) return null;
+  return { labels: value.labels, scores: value.scores };
+}
+
+export function parseAutoTagWorkerMessage(value: unknown): import("../types/autoTags").AutoTagWorkerMessage | null {
+  if (!isObject(value)) return null;
+  if ((value.type === "progress" || value.type === "error") && typeof value.message === "string") {
+    return { type: value.type, message: value.message };
+  }
+  if (value.type !== "result" || !Array.isArray(value.entries)) return null;
+  const entries: Array<{ date: string; tags: string[] }> = [];
+  for (const entry of value.entries) {
+    if (!isObject(entry) || typeof entry.date !== "string") return null;
+    const tags = parseStringArray(entry.tags);
+    if (!tags || !tags.every((tag) => /^[a-z][a-z-]*$/.test(tag))) return null;
+    entries.push({ date: entry.date, tags });
+  }
+  return { type: "result", entries };
+}

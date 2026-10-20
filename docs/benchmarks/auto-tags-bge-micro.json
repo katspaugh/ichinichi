@@ -1,0 +1,3058 @@
+{
+  "environment": {
+    "node": "v24.19.0",
+    "platform": "darwin",
+    "arch": "arm64",
+    "device": "desktop CPU",
+    "dtype": "q8"
+  },
+  "methodology": "Synthetic English entries; seven original calibration entries and 22 held-out entries. BGE uses mean-pooled normalized embeddings, cosine similarity against the same activity examples as DeBERTa, max over synonyms and sentence chunks. Threshold selected only on calibration label F1, then exact matches, then fewer false positives. A second BGE variant requires cosine >= 0.7 and a calibrated positive-minus-negative margin, using four negative prototypes per activity example (negation, plans, someone else, historical activity). DeBERTa uses the app's fixed 0.85 threshold. Warm inference excludes model and reference loading. Small diagnostic benchmark, not a general accuracy estimate.",
+  "bge": {
+    "model": "TaylorAI/bge-micro-v2",
+    "revision": "3edf6d7de0faa426b09780416fe61009f26ae589",
+    "threshold": 0.86,
+    "loadMs": 112.692375,
+    "warmInferenceMs": 161.89091600000006,
+    "calibration": {
+      "exact": 5,
+      "total": 7,
+      "truePositive": 3,
+      "falsePositive": 2,
+      "falseNegative": 0,
+      "precision": 0.6,
+      "recall": 1,
+      "cases": [
+        {
+          "text": "Practiced trumpet for an hour.",
+          "expected": [
+            "trumpet"
+          ],
+          "scores": {
+            "trumpet": 0.873976818374642,
+            "trombone": 0.7404429045979697,
+            "piano": 0.6724557365290977,
+            "guitar": 0.6770438150553261,
+            "meditation": 0.5305430636219772,
+            "run": 0.564435357122202,
+            "singing": 0.6830641225759552,
+            "yoga": 0.6513188621306001,
+            "swimming": 0.4979865361067481,
+            "cycling": 0.5211088697049826,
+            "reading": 0.5041648060650104,
+            "dream": 0.5645046765363502
+          },
+          "predicted": [
+            "trumpet"
+          ],
+          "correct": true
+        },
+        {
+          "text": "I meditated.",
+          "expected": [
+            "meditation"
+          ],
+          "scores": {
+            "trumpet": 0.5801995051360893,
+            "trombone": 0.5907369282406102,
+            "piano": 0.6502292568332857,
+            "guitar": 0.6529424178806239,
+            "meditation": 0.9955350397879135,
+            "run": 0.6281367171782695,
+            "singing": 0.6997071750882259,
+            "yoga": 0.6872371732283704,
+            "swimming": 0.6654455331007196,
+            "cycling": 0.638008029643488,
+            "reading": 0.6271655961042277,
+            "dream": 0.6734219116780245
+          },
+          "predicted": [
+            "meditation"
+          ],
+          "correct": true
+        },
+        {
+          "text": "I worked on my embouchure and scales on the trumpet.",
+          "expected": [
+            "trumpet"
+          ],
+          "scores": {
+            "trumpet": 0.8652650501692823,
+            "trombone": 0.7600286918266835,
+            "piano": 0.6843334734175182,
+            "guitar": 0.7100642156969444,
+            "meditation": 0.5363458678370504,
+            "run": 0.5680943658908255,
+            "singing": 0.6848781920029714,
+            "yoga": 0.6432621764387884,
+            "swimming": 0.5275084118635867,
+            "cycling": 0.5471749851902077,
+            "reading": 0.586321038687083,
+            "dream": 0.6008592531431026
+          },
+          "predicted": [
+            "trumpet"
+          ],
+          "correct": true
+        },
+        {
+          "text": "I did not play trumpet today.",
+          "expected": [],
+          "scores": {
+            "trumpet": 0.8402439487281624,
+            "trombone": 0.7333521584642522,
+            "piano": 0.6362186015203748,
+            "guitar": 0.6813626131644025,
+            "meditation": 0.5273822060941377,
+            "run": 0.6177744186869565,
+            "singing": 0.6656311066514639,
+            "yoga": 0.5852521639495082,
+            "swimming": 0.5377983662191858,
+            "cycling": 0.5543038270068056,
+            "reading": 0.5219404356495913,
+            "dream": 0.531558817061746
+          },
+          "predicted": [],
+          "correct": true
+        },
+        {
+          "text": "Tomorrow I will play the trumpet.",
+          "expected": [],
+          "scores": {
+            "trumpet": 0.8757284429063624,
+            "trombone": 0.7607001080105198,
+            "piano": 0.6923438812318886,
+            "guitar": 0.7133664907340547,
+            "meditation": 0.5232371143897073,
+            "run": 0.5890609402596324,
+            "singing": 0.6892138773822792,
+            "yoga": 0.5780052787858726,
+            "swimming": 0.48348117783775313,
+            "cycling": 0.5152570950185366,
+            "reading": 0.5592199961768356,
+            "dream": 0.6002726856894017
+          },
+          "predicted": [
+            "trumpet"
+          ],
+          "correct": false
+        },
+        {
+          "text": "John played trumpet while I listened.",
+          "expected": [],
+          "scores": {
+            "trumpet": 0.8937983197207775,
+            "trombone": 0.7853895526183285,
+            "piano": 0.7123118801437607,
+            "guitar": 0.7373502101508723,
+            "meditation": 0.5189234331709501,
+            "run": 0.5524237786342451,
+            "singing": 0.7163848092630829,
+            "yoga": 0.5780645196739086,
+            "swimming": 0.5029910869397863,
+            "cycling": 0.5210987734970621,
+            "reading": 0.5455587008216558,
+            "dream": 0.5641794288932128
+          },
+          "predicted": [
+            "trumpet"
+          ],
+          "correct": false
+        },
+        {
+          "text": "A quiet day at home.",
+          "expected": [],
+          "scores": {
+            "trumpet": 0.4913677299814946,
+            "trombone": 0.5185831530696619,
+            "piano": 0.5223295800948672,
+            "guitar": 0.5156995667851332,
+            "meditation": 0.5467144159488886,
+            "run": 0.5257136327711949,
+            "singing": 0.5921731550415614,
+            "yoga": 0.5413431524850165,
+            "swimming": 0.5201815476101674,
+            "cycling": 0.5083789959688272,
+            "reading": 0.5357626359786518,
+            "dream": 0.5461748879791588
+          },
+          "predicted": [],
+          "correct": true
+        }
+      ]
+    },
+    "holdout": {
+      "exact": 17,
+      "total": 22,
+      "truePositive": 8,
+      "falsePositive": 1,
+      "falseNegative": 4,
+      "precision": 0.8888888888888888,
+      "recall": 0.6666666666666666,
+      "cases": [
+        {
+          "text": "I played the trumpet.",
+          "expected": [
+            "trumpet"
+          ],
+          "scores": {
+            "trumpet": 0.9974455571621019,
+            "trombone": 0.854440680687851,
+            "piano": 0.7595212194491926,
+            "guitar": 0.7845748781247702,
+            "meditation": 0.5293678095064889,
+            "run": 0.6022605815787125,
+            "singing": 0.7504082447793078,
+            "yoga": 0.622213479838188,
+            "swimming": 0.5392658868111601,
+            "cycling": 0.5501308395682849,
+            "reading": 0.578300768989308,
+            "dream": 0.6165118100503466
+          },
+          "predicted": [
+            "trumpet"
+          ],
+          "correct": true
+        },
+        {
+          "text": "Spent twenty minutes working through scales and long tones on my trumpet.",
+          "expected": [
+            "trumpet"
+          ],
+          "scores": {
+            "trumpet": 0.8065715186183111,
+            "trombone": 0.7141063541306376,
+            "piano": 0.6676450212106136,
+            "guitar": 0.6883562168981485,
+            "meditation": 0.5397246045635112,
+            "run": 0.5975608370755212,
+            "singing": 0.6862282894147969,
+            "yoga": 0.6256506925871799,
+            "swimming": 0.5324537311697226,
+            "cycling": 0.5614114743062069,
+            "reading": 0.565268566145721,
+            "dream": 0.588446114303037
+          },
+          "predicted": [],
+          "correct": false
+        },
+        {
+          "text": "I sat quietly and followed my breath for twenty minutes.",
+          "expected": [
+            "meditation"
+          ],
+          "scores": {
+            "trumpet": 0.6630710462605746,
+            "trombone": 0.6465471659781472,
+            "piano": 0.6577084531722844,
+            "guitar": 0.6328649849014277,
+            "meditation": 0.6531144501558728,
+            "run": 0.6735920845463136,
+            "singing": 0.7292965457890169,
+            "yoga": 0.6082962030917478,
+            "swimming": 0.630977366625967,
+            "cycling": 0.6090835093370923,
+            "reading": 0.6427615367432402,
+            "dream": 0.6743557338848933
+          },
+          "predicted": [],
+          "correct": false
+        },
+        {
+          "text": "I went for a run around the park.",
+          "expected": [
+            "run"
+          ],
+          "scores": {
+            "trumpet": 0.5640251698322424,
+            "trombone": 0.5633760329028741,
+            "piano": 0.5545273953374439,
+            "guitar": 0.5824395084199401,
+            "meditation": 0.5955378486324028,
+            "run": 0.8845879454458984,
+            "singing": 0.6375170369979288,
+            "yoga": 0.5430723783929999,
+            "swimming": 0.6772595913608838,
+            "cycling": 0.7311431696024651,
+            "reading": 0.5855192096153347,
+            "dream": 0.6191433934169809
+          },
+          "predicted": [
+            "run"
+          ],
+          "correct": true
+        },
+        {
+          "text": "I sang in the choir this evening.",
+          "expected": [
+            "singing"
+          ],
+          "scores": {
+            "trumpet": 0.7177236375905182,
+            "trombone": 0.70996687741284,
+            "piano": 0.7090296581884507,
+            "guitar": 0.6930061023658463,
+            "meditation": 0.6205447719948767,
+            "run": 0.6033307281578725,
+            "singing": 0.8525237454847316,
+            "yoga": 0.5832253829900792,
+            "swimming": 0.6045258255039588,
+            "cycling": 0.5405958617156467,
+            "reading": 0.6136777147596892,
+            "dream": 0.6770376771537564
+          },
+          "predicted": [],
+          "correct": false
+        },
+        {
+          "text": "I read a book before bed.",
+          "expected": [
+            "reading"
+          ],
+          "scores": {
+            "trumpet": 0.5240216104891277,
+            "trombone": 0.5511709596641299,
+            "piano": 0.5744891044020781,
+            "guitar": 0.5501414150802135,
+            "meditation": 0.559081737987941,
+            "run": 0.5342615198239693,
+            "singing": 0.6188227823578196,
+            "yoga": 0.551256894609602,
+            "swimming": 0.5283620552314484,
+            "cycling": 0.5187711503306514,
+            "reading": 0.8312892235992343,
+            "dream": 0.6172698356333424
+          },
+          "predicted": [],
+          "correct": false
+        },
+        {
+          "text": "I played piano after dinner.",
+          "expected": [
+            "piano"
+          ],
+          "scores": {
+            "trumpet": 0.6748882382128087,
+            "trombone": 0.6768814072506276,
+            "piano": 0.883148984433624,
+            "guitar": 0.7285147728812318,
+            "meditation": 0.5839672240521538,
+            "run": 0.5611143446796145,
+            "singing": 0.6925778829800882,
+            "yoga": 0.6103623252344057,
+            "swimming": 0.5301344725317527,
+            "cycling": 0.48367089344512504,
+            "reading": 0.5972244728274265,
+            "dream": 0.588428593969057
+          },
+          "predicted": [
+            "piano"
+          ],
+          "correct": true
+        },
+        {
+          "text": "I went swimming this morning.",
+          "expected": [
+            "swimming"
+          ],
+          "scores": {
+            "trumpet": 0.5716780985165071,
+            "trombone": 0.5677852852766312,
+            "piano": 0.548810877673895,
+            "guitar": 0.5547907859313416,
+            "meditation": 0.6526714525507773,
+            "run": 0.6681801036848527,
+            "singing": 0.6846950488610908,
+            "yoga": 0.5941847199591824,
+            "swimming": 0.8967168992629465,
+            "cycling": 0.6672580845818169,
+            "reading": 0.5881143276070164,
+            "dream": 0.6234100606017614
+          },
+          "predicted": [
+            "swimming"
+          ],
+          "correct": true
+        },
+        {
+          "text": "I practiced yoga today.",
+          "expected": [
+            "yoga"
+          ],
+          "scores": {
+            "trumpet": 0.6839235370463559,
+            "trombone": 0.6720463650077295,
+            "piano": 0.6801320640751125,
+            "guitar": 0.7165496881333346,
+            "meditation": 0.6829450586897418,
+            "run": 0.5641349725811506,
+            "singing": 0.6926826374827755,
+            "yoga": 0.9539719022979335,
+            "swimming": 0.616936357445997,
+            "cycling": 0.5836160354959583,
+            "reading": 0.5901210338396135,
+            "dream": 0.6142303949726508
+          },
+          "predicted": [
+            "yoga"
+          ],
+          "correct": true
+        },
+        {
+          "text": "I went cycling along the river.",
+          "expected": [
+            "cycling"
+          ],
+          "scores": {
+            "trumpet": 0.5850980814741705,
+            "trombone": 0.6066869620676676,
+            "piano": 0.5184255686476019,
+            "guitar": 0.5978902110519876,
+            "meditation": 0.6298716953988981,
+            "run": 0.7429980384343445,
+            "singing": 0.6330814084977864,
+            "yoga": 0.5938244367009045,
+            "swimming": 0.7670881448189498,
+            "cycling": 0.914254569356138,
+            "reading": 0.6228203019906742,
+            "dream": 0.6423244591880415
+          },
+          "predicted": [
+            "cycling"
+          ],
+          "correct": true
+        },
+        {
+          "text": "I meditated. Later I practiced the trumpet.",
+          "expected": [
+            "meditation",
+            "trumpet"
+          ],
+          "scores": {
+            "trumpet": 0.9653857850360993,
+            "trombone": 0.8418570837589379,
+            "piano": 0.7586885829515891,
+            "guitar": 0.7833155982484413,
+            "meditation": 0.9955350397879135,
+            "run": 0.6300260717819662,
+            "singing": 0.7570639539057603,
+            "yoga": 0.6872371732283704,
+            "swimming": 0.6654455331007196,
+            "cycling": 0.638008029643488,
+            "reading": 0.6271655961042277,
+            "dream": 0.6734219116780245
+          },
+          "predicted": [
+            "meditation",
+            "trumpet"
+          ],
+          "correct": true
+        },
+        {
+          "text": "I didn't practice trumpet because I felt ill.",
+          "expected": [],
+          "scores": {
+            "trumpet": 0.7803456330781056,
+            "trombone": 0.6786469369989984,
+            "piano": 0.6012667752221095,
+            "guitar": 0.6567403374406581,
+            "meditation": 0.5969368490188749,
+            "run": 0.5511533691212057,
+            "singing": 0.6459725319684061,
+            "yoga": 0.6024928360999378,
+            "swimming": 0.5218182337994729,
+            "cycling": 0.5321347769180844,
+            "reading": 0.45714087862318487,
+            "dream": 0.5384185064628224
+          },
+          "predicted": [],
+          "correct": true
+        },
+        {
+          "text": "I haven't meditated for weeks.",
+          "expected": [],
+          "scores": {
+            "trumpet": 0.5008375864842277,
+            "trombone": 0.5328285161251753,
+            "piano": 0.5657811865451545,
+            "guitar": 0.5503582805336031,
+            "meditation": 0.8161819268967916,
+            "run": 0.6229220684133666,
+            "singing": 0.5954772609749749,
+            "yoga": 0.6039205146814441,
+            "swimming": 0.6035158177885612,
+            "cycling": 0.6005032219747549,
+            "reading": 0.539098584641138,
+            "dream": 0.5619752687228674
+          },
+          "predicted": [],
+          "correct": true
+        },
+        {
+          "text": "I planned to go running, but stayed home.",
+          "expected": [],
+          "scores": {
+            "trumpet": 0.5049742858626051,
+            "trombone": 0.5215384628220732,
+            "piano": 0.5275788538247035,
+            "guitar": 0.5183362240526274,
+            "meditation": 0.5919052991990802,
+            "run": 0.8446229708772361,
+            "singing": 0.5837305074385105,
+            "yoga": 0.523348770898175,
+            "swimming": 0.6517871782662149,
+            "cycling": 0.6935000762521322,
+            "reading": 0.5767335511060019,
+            "dream": 0.630664016114337
+          },
+          "predicted": [],
+          "correct": true
+        },
+        {
+          "text": "I want to learn to play the trumpet next year.",
+          "expected": [],
+          "scores": {
+            "trumpet": 0.8289837122251158,
+            "trombone": 0.7143853991904618,
+            "piano": 0.6599623668914327,
+            "guitar": 0.6684880306295139,
+            "meditation": 0.4791967658543986,
+            "run": 0.5492441631319404,
+            "singing": 0.6423646346954657,
+            "yoga": 0.5852520509111446,
+            "swimming": 0.45845718869971014,
+            "cycling": 0.4926378887707985,
+            "reading": 0.5647061188233274,
+            "dream": 0.5674129912015536
+          },
+          "predicted": [],
+          "correct": true
+        },
+        {
+          "text": "I will meditate tomorrow morning.",
+          "expected": [],
+          "scores": {
+            "trumpet": 0.5620508832380353,
+            "trombone": 0.5674307516853275,
+            "piano": 0.5820327184751353,
+            "guitar": 0.5531002732358304,
+            "meditation": 0.7255571246476754,
+            "run": 0.567252523776137,
+            "singing": 0.6340949623043661,
+            "yoga": 0.6297688810565982,
+            "swimming": 0.5704441775673454,
+            "cycling": 0.5570301906505982,
+            "reading": 0.577934390198524,
+            "dream": 0.603078354861487
+          },
+          "predicted": [],
+          "correct": true
+        },
+        {
+          "text": "My neighbor practiced the trumpet while I cooked dinner.",
+          "expected": [],
+          "scores": {
+            "trumpet": 0.8415893178933039,
+            "trombone": 0.7268732200353891,
+            "piano": 0.6640202547556702,
+            "guitar": 0.6800798347200293,
+            "meditation": 0.5510531482130923,
+            "run": 0.5547490731296992,
+            "singing": 0.6918894710020773,
+            "yoga": 0.6502510722755895,
+            "swimming": 0.5122626864745019,
+            "cycling": 0.508431270672457,
+            "reading": 0.5454195670261552,
+            "dream": 0.5959979071740414
+          },
+          "predicted": [],
+          "correct": true
+        },
+        {
+          "text": "I listened to a recording of a trumpet concerto.",
+          "expected": [],
+          "scores": {
+            "trumpet": 0.8791600246200385,
+            "trombone": 0.7704779072687633,
+            "piano": 0.7126655895491955,
+            "guitar": 0.7214234501118277,
+            "meditation": 0.5443149372059238,
+            "run": 0.5778666691261,
+            "singing": 0.7469161243693436,
+            "yoga": 0.6544294981502056,
+            "swimming": 0.5122247588792892,
+            "cycling": 0.5351405541173564,
+            "reading": 0.6032667051432997,
+            "dream": 0.6443314005853091
+          },
+          "predicted": [
+            "trumpet"
+          ],
+          "correct": false
+        },
+        {
+          "text": "I bought a new trumpet mouthpiece online.",
+          "expected": [],
+          "scores": {
+            "trumpet": 0.8110824162794649,
+            "trombone": 0.7351587594249505,
+            "piano": 0.5792374572834293,
+            "guitar": 0.6478661677946227,
+            "meditation": 0.45589485625379583,
+            "run": 0.5390891705404474,
+            "singing": 0.6635312392442082,
+            "yoga": 0.5324492778884715,
+            "swimming": 0.4518573510700534,
+            "cycling": 0.48184954439820515,
+            "reading": 0.5604317776865915,
+            "dream": 0.5533103716832686
+          },
+          "predicted": [],
+          "correct": true
+        },
+        {
+          "text": "My friend ran a marathon. I watched from the sidelines.",
+          "expected": [],
+          "scores": {
+            "trumpet": 0.6398700435268587,
+            "trombone": 0.652599674476894,
+            "piano": 0.6416127566573746,
+            "guitar": 0.6485648521615579,
+            "meditation": 0.5943533225135849,
+            "run": 0.8156152746763841,
+            "singing": 0.7323800101798349,
+            "yoga": 0.5647563284118484,
+            "swimming": 0.6013278990399841,
+            "cycling": 0.6458842929055122,
+            "reading": 0.6476977070472163,
+            "dream": 0.6526722372904006
+          },
+          "predicted": [],
+          "correct": true
+        },
+        {
+          "text": "I used to play trumpet as a child, but no longer do.",
+          "expected": [],
+          "scores": {
+            "trumpet": 0.793777621763397,
+            "trombone": 0.6809540044787865,
+            "piano": 0.6457551479625971,
+            "guitar": 0.6649917856364242,
+            "meditation": 0.48212460100687404,
+            "run": 0.5529383358405071,
+            "singing": 0.6361433545125371,
+            "yoga": 0.5662536632793775,
+            "swimming": 0.4875526732951536,
+            "cycling": 0.4768766459606869,
+            "reading": 0.4892267426325896,
+            "dream": 0.5177172978643857
+          },
+          "predicted": [],
+          "correct": true
+        },
+        {
+          "text": "Work was busy. Had soup for dinner and went to bed early.",
+          "expected": [],
+          "scores": {
+            "trumpet": 0.5526158783580265,
+            "trombone": 0.5694665164536591,
+            "piano": 0.5578054909081471,
+            "guitar": 0.5358697101893474,
+            "meditation": 0.5760196702053434,
+            "run": 0.6478073425726958,
+            "singing": 0.5925115571875705,
+            "yoga": 0.5228368276452936,
+            "swimming": 0.5667438108210879,
+            "cycling": 0.6209886019441754,
+            "reading": 0.56102708837514,
+            "dream": 0.5622695961979319
+          },
+          "predicted": [],
+          "correct": true
+        }
+      ]
+    }
+  },
+  "bgeContrast": {
+    "threshold": 0.07,
+    "calibration": {
+      "exact": 6,
+      "total": 7,
+      "truePositive": 2,
+      "falsePositive": 0,
+      "falseNegative": 1,
+      "precision": 1,
+      "recall": 0.6666666666666666,
+      "cases": [
+        {
+          "text": "Practiced trumpet for an hour.",
+          "expected": [
+            "trumpet"
+          ],
+          "scores": {
+            "trumpet": 0.04516770861818731,
+            "trombone": 0.007070138010825122,
+            "piano": -1,
+            "guitar": -1,
+            "meditation": -1,
+            "run": -1,
+            "singing": -1,
+            "yoga": -1,
+            "swimming": -1,
+            "cycling": -1,
+            "reading": -1,
+            "dream": -1
+          },
+          "predicted": [],
+          "correct": false
+        },
+        {
+          "text": "I meditated.",
+          "expected": [
+            "meditation"
+          ],
+          "scores": {
+            "trumpet": -1,
+            "trombone": -1,
+            "piano": -1,
+            "guitar": -1,
+            "meditation": 0.15985130607579123,
+            "run": -1,
+            "singing": -1,
+            "yoga": -1,
+            "swimming": -1,
+            "cycling": -1,
+            "reading": -1,
+            "dream": -1
+          },
+          "predicted": [
+            "meditation"
+          ],
+          "correct": true
+        },
+        {
+          "text": "I worked on my embouchure and scales on the trumpet.",
+          "expected": [
+            "trumpet"
+          ],
+          "scores": {
+            "trumpet": 0.07958024834226185,
+            "trombone": 0.055321947009137284,
+            "piano": -1,
+            "guitar": 0.048731629890743866,
+            "meditation": -1,
+            "run": -1,
+            "singing": -1,
+            "yoga": -1,
+            "swimming": -1,
+            "cycling": -1,
+            "reading": -1,
+            "dream": -1
+          },
+          "predicted": [
+            "trumpet"
+          ],
+          "correct": true
+        },
+        {
+          "text": "I did not play trumpet today.",
+          "expected": [],
+          "scores": {
+            "trumpet": -0.09490505549342643,
+            "trombone": -0.09400563127385342,
+            "piano": -1,
+            "guitar": -1,
+            "meditation": -1,
+            "run": -1,
+            "singing": -1,
+            "yoga": -1,
+            "swimming": -1,
+            "cycling": -1,
+            "reading": -1,
+            "dream": -1
+          },
+          "predicted": [],
+          "correct": true
+        },
+        {
+          "text": "Tomorrow I will play the trumpet.",
+          "expected": [],
+          "scores": {
+            "trumpet": -0.11877272636839409,
+            "trombone": -0.13820533350601594,
+            "piano": -1,
+            "guitar": -0.14527995406539307,
+            "meditation": -1,
+            "run": -1,
+            "singing": -1,
+            "yoga": -1,
+            "swimming": -1,
+            "cycling": -1,
+            "reading": -1,
+            "dream": -1
+          },
+          "predicted": [],
+          "correct": true
+        },
+        {
+          "text": "John played trumpet while I listened.",
+          "expected": [],
+          "scores": {
+            "trumpet": 0.057159929878189075,
+            "trombone": 0.03087918366601572,
+            "piano": 0.017908445480237067,
+            "guitar": 0.0491884339825559,
+            "meditation": -1,
+            "run": -1,
+            "singing": 0.0336927075385306,
+            "yoga": -1,
+            "swimming": -1,
+            "cycling": -1,
+            "reading": -1,
+            "dream": -1
+          },
+          "predicted": [],
+          "correct": true
+        },
+        {
+          "text": "A quiet day at home.",
+          "expected": [],
+          "scores": {
+            "trumpet": -1,
+            "trombone": -1,
+            "piano": -1,
+            "guitar": -1,
+            "meditation": -1,
+            "run": -1,
+            "singing": -1,
+            "yoga": -1,
+            "swimming": -1,
+            "cycling": -1,
+            "reading": -1,
+            "dream": -1
+          },
+          "predicted": [],
+          "correct": true
+        }
+      ]
+    },
+    "holdout": {
+      "exact": 15,
+      "total": 22,
+      "truePositive": 7,
+      "falsePositive": 4,
+      "falseNegative": 5,
+      "precision": 0.6363636363636364,
+      "recall": 0.5833333333333334,
+      "cases": [
+        {
+          "text": "I played the trumpet.",
+          "expected": [
+            "trumpet"
+          ],
+          "scores": {
+            "trumpet": 0.10862729058603415,
+            "trombone": 0.07974885853630098,
+            "piano": 0.053828770157341554,
+            "guitar": 0.08263000540778143,
+            "meditation": -1,
+            "run": -1,
+            "singing": 0.06519223407218011,
+            "yoga": -1,
+            "swimming": -1,
+            "cycling": -1,
+            "reading": -1,
+            "dream": -1
+          },
+          "predicted": [
+            "guitar",
+            "trombone",
+            "trumpet"
+          ],
+          "correct": false
+        },
+        {
+          "text": "Spent twenty minutes working through scales and long tones on my trumpet.",
+          "expected": [
+            "trumpet"
+          ],
+          "scores": {
+            "trumpet": 0.07524585056068223,
+            "trombone": 0.041434696108187175,
+            "piano": -1,
+            "guitar": -1,
+            "meditation": -1,
+            "run": -1,
+            "singing": -1,
+            "yoga": -1,
+            "swimming": -1,
+            "cycling": -1,
+            "reading": -1,
+            "dream": -1
+          },
+          "predicted": [
+            "trumpet"
+          ],
+          "correct": true
+        },
+        {
+          "text": "I sat quietly and followed my breath for twenty minutes.",
+          "expected": [
+            "meditation"
+          ],
+          "scores": {
+            "trumpet": -1,
+            "trombone": -1,
+            "piano": -1,
+            "guitar": -1,
+            "meditation": -1,
+            "run": -1,
+            "singing": 0.04968171938589516,
+            "yoga": -1,
+            "swimming": -1,
+            "cycling": -1,
+            "reading": -1,
+            "dream": -1
+          },
+          "predicted": [],
+          "correct": false
+        },
+        {
+          "text": "I went for a run around the park.",
+          "expected": [
+            "run"
+          ],
+          "scores": {
+            "trumpet": -1,
+            "trombone": -1,
+            "piano": -1,
+            "guitar": -1,
+            "meditation": -1,
+            "run": 0.08379196174329118,
+            "singing": -1,
+            "yoga": -1,
+            "swimming": -1,
+            "cycling": 0.04236666369263198,
+            "reading": -1,
+            "dream": -1
+          },
+          "predicted": [
+            "run"
+          ],
+          "correct": true
+        },
+        {
+          "text": "I sang in the choir this evening.",
+          "expected": [
+            "singing"
+          ],
+          "scores": {
+            "trumpet": 0.02853486887157508,
+            "trombone": 0.012548694631318691,
+            "piano": 0.0118819956599453,
+            "guitar": -1,
+            "meditation": -1,
+            "run": -1,
+            "singing": 0.09071164323503378,
+            "yoga": -1,
+            "swimming": -1,
+            "cycling": -1,
+            "reading": -1,
+            "dream": -1
+          },
+          "predicted": [
+            "singing"
+          ],
+          "correct": true
+        },
+        {
+          "text": "I read a book before bed.",
+          "expected": [
+            "reading"
+          ],
+          "scores": {
+            "trumpet": -1,
+            "trombone": -1,
+            "piano": -1,
+            "guitar": -1,
+            "meditation": -1,
+            "run": -1,
+            "singing": -1,
+            "yoga": -1,
+            "swimming": -1,
+            "cycling": -1,
+            "reading": 0.058206222974647615,
+            "dream": -1
+          },
+          "predicted": [],
+          "correct": false
+        },
+        {
+          "text": "I played piano after dinner.",
+          "expected": [
+            "piano"
+          ],
+          "scores": {
+            "trumpet": -1,
+            "trombone": -1,
+            "piano": 0.044461255491363816,
+            "guitar": 0.04874472188620382,
+            "meditation": -1,
+            "run": -1,
+            "singing": -1,
+            "yoga": -1,
+            "swimming": -1,
+            "cycling": -1,
+            "reading": -1,
+            "dream": -1
+          },
+          "predicted": [],
+          "correct": false
+        },
+        {
+          "text": "I went swimming this morning.",
+          "expected": [
+            "swimming"
+          ],
+          "scores": {
+            "trumpet": -1,
+            "trombone": -1,
+            "piano": -1,
+            "guitar": -1,
+            "meditation": -1,
+            "run": -1,
+            "singing": -1,
+            "yoga": -1,
+            "swimming": 0.06113672667692205,
+            "cycling": -1,
+            "reading": -1,
+            "dream": -1
+          },
+          "predicted": [],
+          "correct": false
+        },
+        {
+          "text": "I practiced yoga today.",
+          "expected": [
+            "yoga"
+          ],
+          "scores": {
+            "trumpet": -1,
+            "trombone": -1,
+            "piano": -1,
+            "guitar": -0.0008770511767499656,
+            "meditation": -1,
+            "run": -1,
+            "singing": -1,
+            "yoga": 0.04836355502633827,
+            "swimming": -1,
+            "cycling": -1,
+            "reading": -1,
+            "dream": -1
+          },
+          "predicted": [],
+          "correct": false
+        },
+        {
+          "text": "I went cycling along the river.",
+          "expected": [
+            "cycling"
+          ],
+          "scores": {
+            "trumpet": -1,
+            "trombone": -1,
+            "piano": -1,
+            "guitar": -1,
+            "meditation": -1,
+            "run": 0.09653102122288038,
+            "singing": -1,
+            "yoga": -1,
+            "swimming": 0.0724216313348065,
+            "cycling": 0.09070879432908763,
+            "reading": -1,
+            "dream": -1
+          },
+          "predicted": [
+            "cycling",
+            "run",
+            "swimming"
+          ],
+          "correct": false
+        },
+        {
+          "text": "I meditated. Later I practiced the trumpet.",
+          "expected": [
+            "meditation",
+            "trumpet"
+          ],
+          "scores": {
+            "trumpet": 0.08167931299355902,
+            "trombone": 0.05426768651529579,
+            "piano": 0.03141039606781404,
+            "guitar": 0.05435146185916184,
+            "meditation": 0.15985130607579123,
+            "run": -1,
+            "singing": 0.034477340051652594,
+            "yoga": -1,
+            "swimming": -1,
+            "cycling": -1,
+            "reading": -1,
+            "dream": -1
+          },
+          "predicted": [
+            "meditation",
+            "trumpet"
+          ],
+          "correct": true
+        },
+        {
+          "text": "I didn't practice trumpet because I felt ill.",
+          "expected": [],
+          "scores": {
+            "trumpet": -0.114029884906646,
+            "trombone": -1,
+            "piano": -1,
+            "guitar": -1,
+            "meditation": -1,
+            "run": -1,
+            "singing": -1,
+            "yoga": -1,
+            "swimming": -1,
+            "cycling": -1,
+            "reading": -1,
+            "dream": -1
+          },
+          "predicted": [],
+          "correct": true
+        },
+        {
+          "text": "I haven't meditated for weeks.",
+          "expected": [],
+          "scores": {
+            "trumpet": -1,
+            "trombone": -1,
+            "piano": -1,
+            "guitar": -1,
+            "meditation": 0.03197970608480838,
+            "run": -1,
+            "singing": -1,
+            "yoga": -1,
+            "swimming": -1,
+            "cycling": -1,
+            "reading": -1,
+            "dream": -1
+          },
+          "predicted": [],
+          "correct": true
+        },
+        {
+          "text": "I planned to go running, but stayed home.",
+          "expected": [],
+          "scores": {
+            "trumpet": -1,
+            "trombone": -1,
+            "piano": -1,
+            "guitar": -1,
+            "meditation": -1,
+            "run": 0.019325013895069132,
+            "singing": -1,
+            "yoga": -1,
+            "swimming": -1,
+            "cycling": -1,
+            "reading": -1,
+            "dream": -1
+          },
+          "predicted": [],
+          "correct": true
+        },
+        {
+          "text": "I want to learn to play the trumpet next year.",
+          "expected": [],
+          "scores": {
+            "trumpet": -0.03405416666534811,
+            "trombone": -0.0434722533180234,
+            "piano": -1,
+            "guitar": -1,
+            "meditation": -1,
+            "run": -1,
+            "singing": -1,
+            "yoga": -1,
+            "swimming": -1,
+            "cycling": -1,
+            "reading": -1,
+            "dream": -1
+          },
+          "predicted": [],
+          "correct": true
+        },
+        {
+          "text": "I will meditate tomorrow morning.",
+          "expected": [],
+          "scores": {
+            "trumpet": -1,
+            "trombone": -1,
+            "piano": -1,
+            "guitar": -1,
+            "meditation": -0.23906558634257769,
+            "run": -1,
+            "singing": -1,
+            "yoga": -1,
+            "swimming": -1,
+            "cycling": -1,
+            "reading": -1,
+            "dream": -1
+          },
+          "predicted": [],
+          "correct": true
+        },
+        {
+          "text": "My neighbor practiced the trumpet while I cooked dinner.",
+          "expected": [],
+          "scores": {
+            "trumpet": 0.02336466016426364,
+            "trombone": 0.0024073909536669325,
+            "piano": -1,
+            "guitar": -1,
+            "meditation": -1,
+            "run": -1,
+            "singing": -1,
+            "yoga": -1,
+            "swimming": -1,
+            "cycling": -1,
+            "reading": -1,
+            "dream": -1
+          },
+          "predicted": [],
+          "correct": true
+        },
+        {
+          "text": "I listened to a recording of a trumpet concerto.",
+          "expected": [],
+          "scores": {
+            "trumpet": 0.049771793566960265,
+            "trombone": 0.022701018455387967,
+            "piano": 0.0033662137901681044,
+            "guitar": 0.02755003993030647,
+            "meditation": -1,
+            "run": -1,
+            "singing": 0.02719425005604925,
+            "yoga": -1,
+            "swimming": -1,
+            "cycling": -1,
+            "reading": -1,
+            "dream": -1
+          },
+          "predicted": [],
+          "correct": true
+        },
+        {
+          "text": "I bought a new trumpet mouthpiece online.",
+          "expected": [],
+          "scores": {
+            "trumpet": 0.044664727851564834,
+            "trombone": 0.04645898417932581,
+            "piano": -1,
+            "guitar": -1,
+            "meditation": -1,
+            "run": -1,
+            "singing": -1,
+            "yoga": -1,
+            "swimming": -1,
+            "cycling": -1,
+            "reading": -1,
+            "dream": -1
+          },
+          "predicted": [],
+          "correct": true
+        },
+        {
+          "text": "My friend ran a marathon. I watched from the sidelines.",
+          "expected": [],
+          "scores": {
+            "trumpet": -1,
+            "trombone": -1,
+            "piano": -1,
+            "guitar": -1,
+            "meditation": -1,
+            "run": 0.026169921172586208,
+            "singing": -0.023622417958857,
+            "yoga": -1,
+            "swimming": -1,
+            "cycling": -1,
+            "reading": -1,
+            "dream": -1
+          },
+          "predicted": [],
+          "correct": true
+        },
+        {
+          "text": "I used to play trumpet as a child, but no longer do.",
+          "expected": [],
+          "scores": {
+            "trumpet": -0.13561754186982244,
+            "trombone": -1,
+            "piano": -1,
+            "guitar": -1,
+            "meditation": -1,
+            "run": -1,
+            "singing": -1,
+            "yoga": -1,
+            "swimming": -1,
+            "cycling": -1,
+            "reading": -1,
+            "dream": -1
+          },
+          "predicted": [],
+          "correct": true
+        },
+        {
+          "text": "Work was busy. Had soup for dinner and went to bed early.",
+          "expected": [],
+          "scores": {
+            "trumpet": -1,
+            "trombone": -1,
+            "piano": -1,
+            "guitar": -1,
+            "meditation": -1,
+            "run": -1,
+            "singing": -1,
+            "yoga": -1,
+            "swimming": -1,
+            "cycling": -1,
+            "reading": -1,
+            "dream": -1
+          },
+          "predicted": [],
+          "correct": true
+        }
+      ]
+    }
+  },
+  "deberta": {
+    "model": "MoritzLaurer/deberta-v3-xsmall-zeroshot-v1.1-all-33",
+    "revision": "262ae02f29173eec1c250f90804dc7edc677dcff",
+    "threshold": 0.85,
+    "loadMs": 503.0564169999999,
+    "warmInferenceMs": 2509.943209,
+    "calibration": {
+      "exact": 7,
+      "total": 7,
+      "truePositive": 3,
+      "falsePositive": 0,
+      "falseNegative": 0,
+      "precision": 1,
+      "recall": 1,
+      "cases": [
+        {
+          "text": "Practiced trumpet for an hour.",
+          "expected": [
+            "trumpet"
+          ],
+          "scores": {
+            "trumpet": 0.9836534211757241,
+            "meditation": 0.008333876717678705,
+            "reading": 0.0007629143544761158,
+            "singing": 0.0007595381238093013,
+            "piano": 0.0006919553542800239,
+            "trombone": 0.0006396179983718814,
+            "guitar": 0.0005905723624621175,
+            "cycling": 0.000511205885771697,
+            "yoga": 0.00045266988037406363,
+            "dream": 0.0004424361414419116,
+            "run": 0.0003884183723217547,
+            "swimming": 0.0003642219061483169
+          },
+          "predicted": [
+            "trumpet"
+          ],
+          "correct": true
+        },
+        {
+          "text": "I meditated.",
+          "expected": [
+            "meditation"
+          ],
+          "scores": {
+            "meditation": 0.9972495320518897,
+            "yoga": 0.0032073488853057996,
+            "dream": 0.0013829139283284544,
+            "reading": 0.0013801502773030543,
+            "trombone": 0.000768436289896686,
+            "singing": 0.0007358883403694412,
+            "trumpet": 0.0007128942443646446,
+            "piano": 0.00045875469072435853,
+            "guitar": 0.0004231635740096587,
+            "swimming": 0.000410361901213852,
+            "run": 0.00038976621223101834,
+            "cycling": 0.00035397119958783033
+          },
+          "predicted": [
+            "meditation"
+          ],
+          "correct": true
+        },
+        {
+          "text": "I worked on my embouchure and scales on the trumpet.",
+          "expected": [
+            "trumpet"
+          ],
+          "scores": {
+            "trumpet": 0.929379869616331,
+            "meditation": 0.24581895808313672,
+            "singing": 0.2067901409337854,
+            "yoga": 0.03547523519708685,
+            "piano": 0.017937598262211404,
+            "guitar": 0.004744066062002565,
+            "dream": 0.0024572590508784896,
+            "cycling": 0.0012394228510097306,
+            "reading": 0.001159952696747544,
+            "trombone": 0.0011189475483210848,
+            "swimming": 0.0005324788193730462,
+            "run": 0.00048708090831209235
+          },
+          "predicted": [
+            "trumpet"
+          ],
+          "correct": true
+        },
+        {
+          "text": "I did not play trumpet today.",
+          "expected": [],
+          "scores": {
+            "singing": 0.025621898260579166,
+            "meditation": 0.022539123332466732,
+            "trumpet": 0.008531666256272859,
+            "trombone": 0.004577846554413332,
+            "piano": 0.003622028774480738,
+            "guitar": 0.002339011687069984,
+            "dream": 0.001799611537911847,
+            "reading": 0.001423977557311622,
+            "swimming": 0.0012508812216855511,
+            "yoga": 0.0012024043140231601,
+            "run": 0.0011864221364891014,
+            "cycling": 0.0011739390810493436
+          },
+          "predicted": [],
+          "correct": true
+        },
+        {
+          "text": "Tomorrow I will play the trumpet.",
+          "expected": [],
+          "scores": {
+            "trumpet": 0.05465436314602441,
+            "singing": 0.008429671193775442,
+            "dream": 0.005532696577730948,
+            "run": 0.0016802860748912876,
+            "guitar": 0.0009604910599486076,
+            "piano": 0.0009545609425892937,
+            "meditation": 0.0009410772194262075,
+            "trombone": 0.0008523775813062474,
+            "reading": 0.0006052009191579893,
+            "cycling": 0.0005431306049297139,
+            "swimming": 0.00036350490351725,
+            "yoga": 0.00034184740291306846
+          },
+          "predicted": [],
+          "correct": true
+        },
+        {
+          "text": "John played trumpet while I listened.",
+          "expected": [],
+          "scores": {
+            "trumpet": 0.014763668605016551,
+            "meditation": 0.0015271363350235537,
+            "singing": 0.001184890966827745,
+            "dream": 0.001030379242284276,
+            "run": 0.0006896509803515157,
+            "reading": 0.0006695238440460585,
+            "piano": 0.0004942547149555102,
+            "trombone": 0.00044392976463865044,
+            "guitar": 0.0004192534362935485,
+            "cycling": 0.00035782737616303054,
+            "swimming": 0.0003392996069857575,
+            "yoga": 0.00027070303111891204
+          },
+          "predicted": [],
+          "correct": true
+        },
+        {
+          "text": "A quiet day at home.",
+          "expected": [],
+          "scores": {
+            "meditation": 0.006024051451809046,
+            "dream": 0.0011101371284940491,
+            "piano": 0.0006786349718673482,
+            "reading": 0.0006092283098099186,
+            "guitar": 0.0004079688485639044,
+            "run": 0.0003928122493912096,
+            "singing": 0.0003879092923599702,
+            "trombone": 0.0003580276747109105,
+            "cycling": 0.00034047941258622466,
+            "yoga": 0.00033389264195517936,
+            "trumpet": 0.0003313034995741839,
+            "swimming": 0.0003270234076912683
+          },
+          "predicted": [],
+          "correct": true
+        }
+      ]
+    },
+    "holdout": {
+      "exact": 20,
+      "total": 22,
+      "truePositive": 11,
+      "falsePositive": 1,
+      "falseNegative": 1,
+      "precision": 0.9166666666666666,
+      "recall": 0.9166666666666666,
+      "cases": [
+        {
+          "text": "I played the trumpet.",
+          "expected": [
+            "trumpet"
+          ],
+          "scores": {
+            "trumpet": 0.9977583747880833,
+            "dream": 0.0021679890233720573,
+            "singing": 0.0015897562407810224,
+            "trombone": 0.0009671914431817594,
+            "run": 0.0008581604480014295,
+            "piano": 0.0008033650545982163,
+            "guitar": 0.0007417627874815022,
+            "meditation": 0.0005093463015223835,
+            "reading": 0.00046040650269848197,
+            "cycling": 0.00040149740747350774,
+            "swimming": 0.0003416934499974454,
+            "yoga": 0.000297778058143411
+          },
+          "predicted": [
+            "trumpet"
+          ],
+          "correct": true
+        },
+        {
+          "text": "Spent twenty minutes working through scales and long tones on my trumpet.",
+          "expected": [
+            "trumpet"
+          ],
+          "scores": {
+            "trumpet": 0.9772614124264566,
+            "meditation": 0.03898907998831332,
+            "piano": 0.019602594857637774,
+            "singing": 0.012427550668017666,
+            "guitar": 0.0017404090418111147,
+            "cycling": 0.0013486742895023975,
+            "yoga": 0.0007250582299324584,
+            "dream": 0.0007067589333785534,
+            "trombone": 0.0004675367909805574,
+            "reading": 0.0003762514786589717,
+            "run": 0.0003526808553986725,
+            "swimming": 0.00029465905437110057
+          },
+          "predicted": [
+            "trumpet"
+          ],
+          "correct": true
+        },
+        {
+          "text": "I sat quietly and followed my breath for twenty minutes.",
+          "expected": [
+            "meditation"
+          ],
+          "scores": {
+            "meditation": 0.01820555133777432,
+            "dream": 0.0005212001667382291,
+            "singing": 0.00046827395127870366,
+            "yoga": 0.0004551116334360012,
+            "trombone": 0.0004507575113688245,
+            "piano": 0.00043008718516612744,
+            "guitar": 0.00039684815823730026,
+            "reading": 0.0003658283903334544,
+            "swimming": 0.0003530856490331662,
+            "cycling": 0.00033424146233144964,
+            "trumpet": 0.0003259689836005115,
+            "run": 0.000298466028266085
+          },
+          "predicted": [],
+          "correct": false
+        },
+        {
+          "text": "I went for a run around the park.",
+          "expected": [
+            "run"
+          ],
+          "scores": {
+            "run": 0.9961434559679507,
+            "dream": 0.002221550169554533,
+            "swimming": 0.00193864185073183,
+            "singing": 0.0015800046978926897,
+            "cycling": 0.001180527706063329,
+            "meditation": 0.0006811284229875552,
+            "piano": 0.0006408771389291829,
+            "reading": 0.0005292879865138467,
+            "guitar": 0.0005162567789364508,
+            "trumpet": 0.0005091931483219527,
+            "trombone": 0.00048256928857927687,
+            "yoga": 0.0003334782893140476
+          },
+          "predicted": [
+            "run"
+          ],
+          "correct": true
+        },
+        {
+          "text": "I sang in the choir this evening.",
+          "expected": [
+            "singing"
+          ],
+          "scores": {
+            "singing": 0.9938279785594318,
+            "guitar": 0.0016323250061522079,
+            "piano": 0.001599433851506173,
+            "dream": 0.0015487116917491236,
+            "trombone": 0.0009306571867239686,
+            "trumpet": 0.00043902838064193144,
+            "run": 0.0003652910944185026,
+            "cycling": 0.0003567096259355692,
+            "meditation": 0.00034689533069638326,
+            "swimming": 0.00034126120508957416,
+            "yoga": 0.00033860525872833624,
+            "reading": 0.000305407378942065
+          },
+          "predicted": [
+            "singing"
+          ],
+          "correct": true
+        },
+        {
+          "text": "I read a book before bed.",
+          "expected": [
+            "reading"
+          ],
+          "scores": {
+            "reading": 0.9945984182071025,
+            "dream": 0.004925057174733568,
+            "meditation": 0.0009214961829456281,
+            "piano": 0.0006069201013452067,
+            "singing": 0.0005531774966450814,
+            "trombone": 0.0005510512000260247,
+            "yoga": 0.0004800176953019618,
+            "run": 0.00047079310321017175,
+            "cycling": 0.00046820387616022764,
+            "swimming": 0.0003909744595187589,
+            "guitar": 0.000364097534896016,
+            "trumpet": 0.00035188121350676426
+          },
+          "predicted": [
+            "reading"
+          ],
+          "correct": true
+        },
+        {
+          "text": "I played piano after dinner.",
+          "expected": [
+            "piano"
+          ],
+          "scores": {
+            "piano": 0.9924718680870092,
+            "singing": 0.09695209947340484,
+            "dream": 0.0028225369510774608,
+            "guitar": 0.0008408032003602676,
+            "reading": 0.000516169686941456,
+            "trumpet": 0.00042204936844059886,
+            "trombone": 0.00040218674621684744,
+            "run": 0.0003620828949502293,
+            "meditation": 0.00035491149527295775,
+            "yoga": 0.00027311240024673733,
+            "swimming": 0.0002697521492177278,
+            "cycling": 0.00024998187790116087
+          },
+          "predicted": [
+            "piano"
+          ],
+          "correct": true
+        },
+        {
+          "text": "I went swimming this morning.",
+          "expected": [
+            "swimming"
+          ],
+          "scores": {
+            "swimming": 0.9941982574227084,
+            "dream": 0.0027114514662051107,
+            "run": 0.0008663142034540204,
+            "cycling": 0.0005347927607002234,
+            "meditation": 0.0004970584070223968,
+            "reading": 0.00043554398135929644,
+            "yoga": 0.0003897106671983463,
+            "singing": 0.00038052028826729054,
+            "trombone": 0.0003191400723946292,
+            "piano": 0.0003100592352666164,
+            "guitar": 0.00028609936401618617,
+            "trumpet": 0.0002858021336499714
+          },
+          "predicted": [
+            "swimming"
+          ],
+          "correct": true
+        },
+        {
+          "text": "I practiced yoga today.",
+          "expected": [
+            "yoga"
+          ],
+          "scores": {
+            "yoga": 0.9976455801562812,
+            "meditation": 0.016669824586744746,
+            "dream": 0.001003497147777757,
+            "reading": 0.0009702972399823007,
+            "cycling": 0.0004792875263344388,
+            "singing": 0.00040147042492552523,
+            "swimming": 0.0003656427262022252,
+            "piano": 0.0003649122301039172,
+            "trombone": 0.0003580106091398812,
+            "guitar": 0.0003340082115666306,
+            "trumpet": 0.0003317484371723342,
+            "run": 0.00030191856078963736
+          },
+          "predicted": [
+            "yoga"
+          ],
+          "correct": true
+        },
+        {
+          "text": "I went cycling along the river.",
+          "expected": [
+            "cycling"
+          ],
+          "scores": {
+            "cycling": 0.9973013845662643,
+            "swimming": 0.006494047773176059,
+            "dream": 0.0026972079895844956,
+            "run": 0.0005673085272125879,
+            "singing": 0.0005022499334121181,
+            "reading": 0.00048518692788370447,
+            "yoga": 0.0004841231060923967,
+            "meditation": 0.00043193207183282744,
+            "piano": 0.00037011939199244526,
+            "guitar": 0.0003308523769028153,
+            "trombone": 0.0003175835653054695,
+            "trumpet": 0.0003169828982230175
+          },
+          "predicted": [
+            "cycling"
+          ],
+          "correct": true
+        },
+        {
+          "text": "I meditated. Later I practiced the trumpet.",
+          "expected": [
+            "meditation",
+            "trumpet"
+          ],
+          "scores": {
+            "meditation": 0.9972495320518897,
+            "yoga": 0.0032073488853057996,
+            "dream": 0.0013829139283284544,
+            "reading": 0.0013801502773030543,
+            "trombone": 0.000768436289896686,
+            "singing": 0.004206761777860793,
+            "trumpet": 0.9975057452458539,
+            "piano": 0.0007128441415351881,
+            "guitar": 0.0006250932954914523,
+            "swimming": 0.000410361901213852,
+            "run": 0.00038976621223101834,
+            "cycling": 0.00036777383317656496
+          },
+          "predicted": [
+            "meditation",
+            "trumpet"
+          ],
+          "correct": true
+        },
+        {
+          "text": "I didn't practice trumpet because I felt ill.",
+          "expected": [],
+          "scores": {
+            "trumpet": 0.024820425637152702,
+            "meditation": 0.007658603457659397,
+            "singing": 0.006966808320870555,
+            "trombone": 0.002865042929785187,
+            "dream": 0.001557542041052364,
+            "piano": 0.0015281960623434278,
+            "reading": 0.0015128231128704276,
+            "guitar": 0.0009170845139187762,
+            "yoga": 0.0007654467457118535,
+            "cycling": 0.0007001438927267279,
+            "swimming": 0.0006454600560727675,
+            "run": 0.0004803731227261991
+          },
+          "predicted": [],
+          "correct": true
+        },
+        {
+          "text": "I haven't meditated for weeks.",
+          "expected": [],
+          "scores": {
+            "meditation": 0.13954199122967206,
+            "yoga": 0.00215256479649498,
+            "reading": 0.0012393803522709964,
+            "dream": 0.0007375656086967521,
+            "singing": 0.0006695506439503851,
+            "trombone": 0.0006210812447326533,
+            "run": 0.0005855951983654102,
+            "guitar": 0.0005384257598600474,
+            "piano": 0.0005189497064844997,
+            "trumpet": 0.00048641846849807694,
+            "cycling": 0.00047187903481666867,
+            "swimming": 0.000445398069738084
+          },
+          "predicted": [],
+          "correct": true
+        },
+        {
+          "text": "I planned to go running, but stayed home.",
+          "expected": [],
+          "scores": {
+            "run": 0.03500867196689451,
+            "dream": 0.0006818438173225484,
+            "cycling": 0.0005690318461770692,
+            "meditation": 0.0005310621292829046,
+            "singing": 0.0005012900156537161,
+            "swimming": 0.0004928211610909673,
+            "trombone": 0.00040257320811554485,
+            "piano": 0.00039299184772993137,
+            "guitar": 0.00037535618789754965,
+            "trumpet": 0.00035012860890547536,
+            "reading": 0.00033659874842288423,
+            "yoga": 0.00026627641722946406
+          },
+          "predicted": [],
+          "correct": true
+        },
+        {
+          "text": "I want to learn to play the trumpet next year.",
+          "expected": [],
+          "scores": {
+            "trumpet": 0.05678526443628745,
+            "dream": 0.023479695953455407,
+            "singing": 0.022792249482092394,
+            "trombone": 0.005854417310433637,
+            "piano": 0.004570252047238128,
+            "meditation": 0.004318073443874805,
+            "reading": 0.0037261287221464733,
+            "guitar": 0.0033207063590718977,
+            "run": 0.0009575491260681356,
+            "yoga": 0.0006011836624787703,
+            "cycling": 0.0005387152860124667,
+            "swimming": 0.0004892784592803559
+          },
+          "predicted": [],
+          "correct": true
+        },
+        {
+          "text": "I will meditate tomorrow morning.",
+          "expected": [],
+          "scores": {
+            "meditation": 0.0898865616842248,
+            "dream": 0.002364497503292594,
+            "yoga": 0.0013414164253913708,
+            "reading": 0.0009532540175317003,
+            "piano": 0.0004564623041418503,
+            "singing": 0.00045464799612661064,
+            "guitar": 0.0004190661358122777,
+            "trombone": 0.00040127213012300904,
+            "trumpet": 0.00037627183466058903,
+            "run": 0.00033585460829989474,
+            "cycling": 0.00031844028516365606,
+            "swimming": 0.0002950051475060023
+          },
+          "predicted": [],
+          "correct": true
+        },
+        {
+          "text": "My neighbor practiced the trumpet while I cooked dinner.",
+          "expected": [],
+          "scores": {
+            "trumpet": 0.012268117429308625,
+            "meditation": 0.008323650698061536,
+            "singing": 0.004641191718207329,
+            "dream": 0.003074991961513459,
+            "reading": 0.0010713880541378723,
+            "piano": 0.0009995490348595924,
+            "yoga": 0.0007066776079215401,
+            "trombone": 0.0006849870353880208,
+            "guitar": 0.0006597931718463955,
+            "cycling": 0.0006329563331059679,
+            "swimming": 0.0004790028696666639,
+            "run": 0.00045591221186776237
+          },
+          "predicted": [],
+          "correct": true
+        },
+        {
+          "text": "I listened to a recording of a trumpet concerto.",
+          "expected": [],
+          "scores": {
+            "trumpet": 0.010276776019446444,
+            "singing": 0.006309595858033392,
+            "dream": 0.00402849070015607,
+            "meditation": 0.002758693915808694,
+            "piano": 0.000967954048890663,
+            "reading": 0.0009241632171737774,
+            "run": 0.0006477381620100016,
+            "guitar": 0.0005765385177262713,
+            "trombone": 0.000537424271617977,
+            "yoga": 0.00043365204905547477,
+            "swimming": 0.00041313046061191455,
+            "cycling": 0.00039992912154623427
+          },
+          "predicted": [],
+          "correct": true
+        },
+        {
+          "text": "I bought a new trumpet mouthpiece online.",
+          "expected": [],
+          "scores": {
+            "trumpet": 0.3655003412868725,
+            "singing": 0.013464028067843312,
+            "meditation": 0.004563749821864655,
+            "dream": 0.002184989406576135,
+            "reading": 0.0018627580904991524,
+            "piano": 0.0011899301067863455,
+            "trombone": 0.001169231791298233,
+            "run": 0.00102770579784245,
+            "guitar": 0.0010066314151186454,
+            "yoga": 0.0004962305457248484,
+            "cycling": 0.00040664995181901323,
+            "swimming": 0.0003743833389189562
+          },
+          "predicted": [],
+          "correct": true
+        },
+        {
+          "text": "My friend ran a marathon. I watched from the sidelines.",
+          "expected": [],
+          "scores": {
+            "run": 0.07913018777413816,
+            "dream": 0.019789226084525224,
+            "reading": 0.0024673732172255354,
+            "piano": 0.0010491309639676042,
+            "trumpet": 0.0007947773728441327,
+            "trombone": 0.0007896712635575568,
+            "guitar": 0.0007022789767187647,
+            "singing": 0.0006629741130889867,
+            "meditation": 0.0015599713524808488,
+            "cycling": 0.00097267760568381,
+            "swimming": 0.0005237036754794012,
+            "yoga": 0.00044224966033688367
+          },
+          "predicted": [],
+          "correct": true
+        },
+        {
+          "text": "I used to play trumpet as a child, but no longer do.",
+          "expected": [],
+          "scores": {
+            "trumpet": 0.9376780488481903,
+            "singing": 0.010511249351248305,
+            "dream": 0.00458313407085777,
+            "meditation": 0.003021494561973157,
+            "reading": 0.0017969140543803914,
+            "trombone": 0.0012095867892639818,
+            "piano": 0.0011151802828574526,
+            "run": 0.0010010991363743225,
+            "guitar": 0.0009023200526475201,
+            "swimming": 0.0007003002115435793,
+            "cycling": 0.0006166404604040804,
+            "yoga": 0.0004066924990605421
+          },
+          "predicted": [
+            "trumpet"
+          ],
+          "correct": false
+        },
+        {
+          "text": "Work was busy. Had soup for dinner and went to bed early.",
+          "expected": [],
+          "scores": {
+            "guitar": 0.0010946550207029586,
+            "piano": 0.001081079885626379,
+            "trombone": 0.001032473472326406,
+            "trumpet": 0.0005886059798595455,
+            "dream": 0.004179846653092961,
+            "run": 0.0005113247946183017,
+            "singing": 0.0004027686899928758,
+            "meditation": 0.001329986472431121,
+            "reading": 0.0005174551677744917,
+            "cycling": 0.0004017414809218929,
+            "yoga": 0.0003304469939407265,
+            "swimming": 0.0003322463900397443
+          },
+          "predicted": [],
+          "correct": true
+        }
+      ]
+    }
+  },
+  "bgeCalibrationSweep": [
+    {
+      "threshold": 0.86,
+      "exact": 5,
+      "falsePositive": 2,
+      "falseNegative": 0,
+      "f1": 0.75
+    },
+    {
+      "threshold": 0.85,
+      "exact": 5,
+      "falsePositive": 2,
+      "falseNegative": 0,
+      "f1": 0.75
+    },
+    {
+      "threshold": 0.84,
+      "exact": 4,
+      "falsePositive": 3,
+      "falseNegative": 0,
+      "f1": 0.6666666666666666
+    },
+    {
+      "threshold": 0.83,
+      "exact": 4,
+      "falsePositive": 3,
+      "falseNegative": 0,
+      "f1": 0.6666666666666666
+    },
+    {
+      "threshold": 0.82,
+      "exact": 4,
+      "falsePositive": 3,
+      "falseNegative": 0,
+      "f1": 0.6666666666666666
+    },
+    {
+      "threshold": 0.81,
+      "exact": 4,
+      "falsePositive": 3,
+      "falseNegative": 0,
+      "f1": 0.6666666666666666
+    },
+    {
+      "threshold": 0.8,
+      "exact": 4,
+      "falsePositive": 3,
+      "falseNegative": 0,
+      "f1": 0.6666666666666666
+    },
+    {
+      "threshold": 0.79,
+      "exact": 4,
+      "falsePositive": 3,
+      "falseNegative": 0,
+      "f1": 0.6666666666666666
+    },
+    {
+      "threshold": 0.78,
+      "exact": 4,
+      "falsePositive": 4,
+      "falseNegative": 0,
+      "f1": 0.6
+    },
+    {
+      "threshold": 0.77,
+      "exact": 4,
+      "falsePositive": 4,
+      "falseNegative": 0,
+      "f1": 0.6
+    },
+    {
+      "threshold": 0.87,
+      "exact": 4,
+      "falsePositive": 2,
+      "falseNegative": 1,
+      "f1": 0.5714285714285714
+    },
+    {
+      "threshold": 0.99,
+      "exact": 5,
+      "falsePositive": 0,
+      "falseNegative": 2,
+      "f1": 0.5
+    },
+    {
+      "threshold": 0.98,
+      "exact": 5,
+      "falsePositive": 0,
+      "falseNegative": 2,
+      "f1": 0.5
+    },
+    {
+      "threshold": 0.97,
+      "exact": 5,
+      "falsePositive": 0,
+      "falseNegative": 2,
+      "f1": 0.5
+    },
+    {
+      "threshold": 0.96,
+      "exact": 5,
+      "falsePositive": 0,
+      "falseNegative": 2,
+      "f1": 0.5
+    },
+    {
+      "threshold": 0.95,
+      "exact": 5,
+      "falsePositive": 0,
+      "falseNegative": 2,
+      "f1": 0.5
+    },
+    {
+      "threshold": 0.94,
+      "exact": 5,
+      "falsePositive": 0,
+      "falseNegative": 2,
+      "f1": 0.5
+    },
+    {
+      "threshold": 0.93,
+      "exact": 5,
+      "falsePositive": 0,
+      "falseNegative": 2,
+      "f1": 0.5
+    },
+    {
+      "threshold": 0.92,
+      "exact": 5,
+      "falsePositive": 0,
+      "falseNegative": 2,
+      "f1": 0.5
+    },
+    {
+      "threshold": 0.91,
+      "exact": 5,
+      "falsePositive": 0,
+      "falseNegative": 2,
+      "f1": 0.5
+    },
+    {
+      "threshold": 0.9,
+      "exact": 5,
+      "falsePositive": 0,
+      "falseNegative": 2,
+      "f1": 0.5
+    },
+    {
+      "threshold": 0.76,
+      "exact": 3,
+      "falsePositive": 6,
+      "falseNegative": 0,
+      "f1": 0.5
+    },
+    {
+      "threshold": 0.75,
+      "exact": 3,
+      "falsePositive": 6,
+      "falseNegative": 0,
+      "f1": 0.5
+    },
+    {
+      "threshold": 0.74,
+      "exact": 2,
+      "falsePositive": 7,
+      "falseNegative": 0,
+      "f1": 0.46153846153846156
+    },
+    {
+      "threshold": 0.89,
+      "exact": 4,
+      "falsePositive": 1,
+      "falseNegative": 2,
+      "f1": 0.4
+    },
+    {
+      "threshold": 0.88,
+      "exact": 4,
+      "falsePositive": 1,
+      "falseNegative": 2,
+      "f1": 0.4
+    },
+    {
+      "threshold": 0.73,
+      "exact": 2,
+      "falsePositive": 9,
+      "falseNegative": 0,
+      "f1": 0.4
+    },
+    {
+      "threshold": 0.72,
+      "exact": 2,
+      "falsePositive": 9,
+      "falseNegative": 0,
+      "f1": 0.4
+    },
+    {
+      "threshold": 0.71,
+      "exact": 2,
+      "falsePositive": 13,
+      "falseNegative": 0,
+      "f1": 0.3157894736842105
+    },
+    {
+      "threshold": 0.7,
+      "exact": 2,
+      "falsePositive": 13,
+      "falseNegative": 0,
+      "f1": 0.3157894736842105
+    },
+    {
+      "threshold": 0.69,
+      "exact": 1,
+      "falsePositive": 15,
+      "falseNegative": 0,
+      "f1": 0.2857142857142857
+    },
+    {
+      "threshold": 0.68,
+      "exact": 1,
+      "falsePositive": 21,
+      "falseNegative": 0,
+      "f1": 0.2222222222222222
+    },
+    {
+      "threshold": 0.67,
+      "exact": 1,
+      "falsePositive": 24,
+      "falseNegative": 0,
+      "f1": 0.2
+    },
+    {
+      "threshold": 0.66,
+      "exact": 1,
+      "falsePositive": 26,
+      "falseNegative": 0,
+      "f1": 0.1875
+    },
+    {
+      "threshold": 0.65,
+      "exact": 1,
+      "falsePositive": 29,
+      "falseNegative": 0,
+      "f1": 0.17142857142857143
+    },
+    {
+      "threshold": 0.64,
+      "exact": 1,
+      "falsePositive": 30,
+      "falseNegative": 0,
+      "f1": 0.16666666666666666
+    },
+    {
+      "threshold": 0.63,
+      "exact": 1,
+      "falsePositive": 32,
+      "falseNegative": 0,
+      "f1": 0.15789473684210525
+    },
+    {
+      "threshold": 0.62,
+      "exact": 1,
+      "falsePositive": 34,
+      "falseNegative": 0,
+      "f1": 0.15
+    },
+    {
+      "threshold": 0.61,
+      "exact": 1,
+      "falsePositive": 35,
+      "falseNegative": 0,
+      "f1": 0.14634146341463414
+    },
+    {
+      "threshold": 0.6,
+      "exact": 1,
+      "falsePositive": 37,
+      "falseNegative": 0,
+      "f1": 0.13953488372093023
+    },
+    {
+      "threshold": 0.59,
+      "exact": 0,
+      "falsePositive": 39,
+      "falseNegative": 0,
+      "f1": 0.13333333333333333
+    },
+    {
+      "threshold": 0.58,
+      "exact": 0,
+      "falsePositive": 43,
+      "falseNegative": 0,
+      "f1": 0.12244897959183673
+    },
+    {
+      "threshold": 0.57,
+      "exact": 0,
+      "falsePositive": 45,
+      "falseNegative": 0,
+      "f1": 0.11764705882352941
+    },
+    {
+      "threshold": 0.56,
+      "exact": 0,
+      "falsePositive": 49,
+      "falseNegative": 0,
+      "f1": 0.10909090909090909
+    },
+    {
+      "threshold": 0.55,
+      "exact": 0,
+      "falsePositive": 52,
+      "falseNegative": 0,
+      "f1": 0.10344827586206896
+    },
+    {
+      "threshold": 0.54,
+      "exact": 0,
+      "falsePositive": 57,
+      "falseNegative": 0,
+      "f1": 0.09523809523809523
+    },
+    {
+      "threshold": 0.53,
+      "exact": 0,
+      "falsePositive": 62,
+      "falseNegative": 0,
+      "f1": 0.08823529411764706
+    },
+    {
+      "threshold": 0.52,
+      "exact": 0,
+      "falsePositive": 71,
+      "falseNegative": 0,
+      "f1": 0.07792207792207792
+    },
+    {
+      "threshold": 0.51,
+      "exact": 0,
+      "falsePositive": 75,
+      "falseNegative": 0,
+      "f1": 0.07407407407407407
+    },
+    {
+      "threshold": 0.5,
+      "exact": 0,
+      "falsePositive": 78,
+      "falseNegative": 0,
+      "f1": 0.07142857142857142
+    },
+    {
+      "threshold": 0.49,
+      "exact": 0,
+      "falsePositive": 80,
+      "falseNegative": 0,
+      "f1": 0.06976744186046512
+    },
+    {
+      "threshold": 0.48,
+      "exact": 0,
+      "falsePositive": 81,
+      "falseNegative": 0,
+      "f1": 0.06896551724137931
+    },
+    {
+      "threshold": 0.47,
+      "exact": 0,
+      "falsePositive": 81,
+      "falseNegative": 0,
+      "f1": 0.06896551724137931
+    },
+    {
+      "threshold": 0.46,
+      "exact": 0,
+      "falsePositive": 81,
+      "falseNegative": 0,
+      "f1": 0.06896551724137931
+    },
+    {
+      "threshold": 0.45,
+      "exact": 0,
+      "falsePositive": 81,
+      "falseNegative": 0,
+      "f1": 0.06896551724137931
+    },
+    {
+      "threshold": 0.44,
+      "exact": 0,
+      "falsePositive": 81,
+      "falseNegative": 0,
+      "f1": 0.06896551724137931
+    },
+    {
+      "threshold": 0.43,
+      "exact": 0,
+      "falsePositive": 81,
+      "falseNegative": 0,
+      "f1": 0.06896551724137931
+    },
+    {
+      "threshold": 0.42,
+      "exact": 0,
+      "falsePositive": 81,
+      "falseNegative": 0,
+      "f1": 0.06896551724137931
+    },
+    {
+      "threshold": 0.41,
+      "exact": 0,
+      "falsePositive": 81,
+      "falseNegative": 0,
+      "f1": 0.06896551724137931
+    },
+    {
+      "threshold": 0.4,
+      "exact": 0,
+      "falsePositive": 81,
+      "falseNegative": 0,
+      "f1": 0.06896551724137931
+    },
+    {
+      "threshold": 0.39,
+      "exact": 0,
+      "falsePositive": 81,
+      "falseNegative": 0,
+      "f1": 0.06896551724137931
+    },
+    {
+      "threshold": 0.38,
+      "exact": 0,
+      "falsePositive": 81,
+      "falseNegative": 0,
+      "f1": 0.06896551724137931
+    },
+    {
+      "threshold": 0.37,
+      "exact": 0,
+      "falsePositive": 81,
+      "falseNegative": 0,
+      "f1": 0.06896551724137931
+    },
+    {
+      "threshold": 0.36,
+      "exact": 0,
+      "falsePositive": 81,
+      "falseNegative": 0,
+      "f1": 0.06896551724137931
+    },
+    {
+      "threshold": 0.35,
+      "exact": 0,
+      "falsePositive": 81,
+      "falseNegative": 0,
+      "f1": 0.06896551724137931
+    },
+    {
+      "threshold": 0.34,
+      "exact": 0,
+      "falsePositive": 81,
+      "falseNegative": 0,
+      "f1": 0.06896551724137931
+    },
+    {
+      "threshold": 0.33,
+      "exact": 0,
+      "falsePositive": 81,
+      "falseNegative": 0,
+      "f1": 0.06896551724137931
+    },
+    {
+      "threshold": 0.32,
+      "exact": 0,
+      "falsePositive": 81,
+      "falseNegative": 0,
+      "f1": 0.06896551724137931
+    },
+    {
+      "threshold": 0.31,
+      "exact": 0,
+      "falsePositive": 81,
+      "falseNegative": 0,
+      "f1": 0.06896551724137931
+    },
+    {
+      "threshold": 0.3,
+      "exact": 0,
+      "falsePositive": 81,
+      "falseNegative": 0,
+      "f1": 0.06896551724137931
+    }
+  ],
+  "bgeContrastCalibrationSweep": [
+    {
+      "threshold": 0.07,
+      "exact": 6,
+      "falsePositive": 0,
+      "falseNegative": 1,
+      "f1": 0.8
+    },
+    {
+      "threshold": 0.06,
+      "exact": 6,
+      "falsePositive": 0,
+      "falseNegative": 1,
+      "f1": 0.8
+    },
+    {
+      "threshold": 0.04,
+      "exact": 5,
+      "falsePositive": 4,
+      "falseNegative": 0,
+      "f1": 0.6
+    },
+    {
+      "threshold": 0.05,
+      "exact": 4,
+      "falsePositive": 2,
+      "falseNegative": 1,
+      "f1": 0.5714285714285714
+    },
+    {
+      "threshold": 0.15,
+      "exact": 5,
+      "falsePositive": 0,
+      "falseNegative": 2,
+      "f1": 0.5
+    },
+    {
+      "threshold": 0.14,
+      "exact": 5,
+      "falsePositive": 0,
+      "falseNegative": 2,
+      "f1": 0.5
+    },
+    {
+      "threshold": 0.13,
+      "exact": 5,
+      "falsePositive": 0,
+      "falseNegative": 2,
+      "f1": 0.5
+    },
+    {
+      "threshold": 0.12,
+      "exact": 5,
+      "falsePositive": 0,
+      "falseNegative": 2,
+      "f1": 0.5
+    },
+    {
+      "threshold": 0.11,
+      "exact": 5,
+      "falsePositive": 0,
+      "falseNegative": 2,
+      "f1": 0.5
+    },
+    {
+      "threshold": 0.1,
+      "exact": 5,
+      "falsePositive": 0,
+      "falseNegative": 2,
+      "f1": 0.5
+    },
+    {
+      "threshold": 0.09,
+      "exact": 5,
+      "falsePositive": 0,
+      "falseNegative": 2,
+      "f1": 0.5
+    },
+    {
+      "threshold": 0.08,
+      "exact": 5,
+      "falsePositive": 0,
+      "falseNegative": 2,
+      "f1": 0.5
+    },
+    {
+      "threshold": 0.03,
+      "exact": 5,
+      "falsePositive": 6,
+      "falseNegative": 0,
+      "f1": 0.5
+    },
+    {
+      "threshold": 0.02,
+      "exact": 5,
+      "falsePositive": 6,
+      "falseNegative": 0,
+      "f1": 0.5
+    },
+    {
+      "threshold": 0.01,
+      "exact": 5,
+      "falsePositive": 7,
+      "falseNegative": 0,
+      "f1": 0.46153846153846156
+    },
+    {
+      "threshold": 0,
+      "exact": 4,
+      "falsePositive": 8,
+      "falseNegative": 0,
+      "f1": 0.42857142857142855
+    },
+    {
+      "threshold": -0.01,
+      "exact": 4,
+      "falsePositive": 8,
+      "falseNegative": 0,
+      "f1": 0.42857142857142855
+    },
+    {
+      "threshold": -0.02,
+      "exact": 4,
+      "falsePositive": 8,
+      "falseNegative": 0,
+      "f1": 0.42857142857142855
+    },
+    {
+      "threshold": -0.03,
+      "exact": 4,
+      "falsePositive": 8,
+      "falseNegative": 0,
+      "f1": 0.42857142857142855
+    },
+    {
+      "threshold": -0.04,
+      "exact": 4,
+      "falsePositive": 8,
+      "falseNegative": 0,
+      "f1": 0.42857142857142855
+    },
+    {
+      "threshold": -0.05,
+      "exact": 4,
+      "falsePositive": 8,
+      "falseNegative": 0,
+      "f1": 0.42857142857142855
+    },
+    {
+      "threshold": -0.06,
+      "exact": 4,
+      "falsePositive": 8,
+      "falseNegative": 0,
+      "f1": 0.42857142857142855
+    },
+    {
+      "threshold": -0.07,
+      "exact": 4,
+      "falsePositive": 8,
+      "falseNegative": 0,
+      "f1": 0.42857142857142855
+    },
+    {
+      "threshold": -0.08,
+      "exact": 4,
+      "falsePositive": 8,
+      "falseNegative": 0,
+      "f1": 0.42857142857142855
+    },
+    {
+      "threshold": -0.09,
+      "exact": 4,
+      "falsePositive": 8,
+      "falseNegative": 0,
+      "f1": 0.42857142857142855
+    },
+    {
+      "threshold": -0.1,
+      "exact": 3,
+      "falsePositive": 10,
+      "falseNegative": 0,
+      "f1": 0.375
+    },
+    {
+      "threshold": -0.11,
+      "exact": 3,
+      "falsePositive": 10,
+      "falseNegative": 0,
+      "f1": 0.375
+    },
+    {
+      "threshold": -0.12,
+      "exact": 2,
+      "falsePositive": 11,
+      "falseNegative": 0,
+      "f1": 0.35294117647058826
+    },
+    {
+      "threshold": -0.13,
+      "exact": 2,
+      "falsePositive": 11,
+      "falseNegative": 0,
+      "f1": 0.35294117647058826
+    },
+    {
+      "threshold": -0.14,
+      "exact": 2,
+      "falsePositive": 12,
+      "falseNegative": 0,
+      "f1": 0.3333333333333333
+    },
+    {
+      "threshold": -0.15,
+      "exact": 2,
+      "falsePositive": 13,
+      "falseNegative": 0,
+      "f1": 0.3157894736842105
+    },
+    {
+      "threshold": -0.16,
+      "exact": 2,
+      "falsePositive": 13,
+      "falseNegative": 0,
+      "f1": 0.3157894736842105
+    },
+    {
+      "threshold": -0.17,
+      "exact": 2,
+      "falsePositive": 13,
+      "falseNegative": 0,
+      "f1": 0.3157894736842105
+    },
+    {
+      "threshold": -0.18,
+      "exact": 2,
+      "falsePositive": 13,
+      "falseNegative": 0,
+      "f1": 0.3157894736842105
+    },
+    {
+      "threshold": -0.19,
+      "exact": 2,
+      "falsePositive": 13,
+      "falseNegative": 0,
+      "f1": 0.3157894736842105
+    },
+    {
+      "threshold": -0.2,
+      "exact": 2,
+      "falsePositive": 13,
+      "falseNegative": 0,
+      "f1": 0.3157894736842105
+    },
+    {
+      "threshold": 0.6,
+      "exact": 4,
+      "falsePositive": 0,
+      "falseNegative": 3,
+      "f1": 0
+    },
+    {
+      "threshold": 0.59,
+      "exact": 4,
+      "falsePositive": 0,
+      "falseNegative": 3,
+      "f1": 0
+    },
+    {
+      "threshold": 0.58,
+      "exact": 4,
+      "falsePositive": 0,
+      "falseNegative": 3,
+      "f1": 0
+    },
+    {
+      "threshold": 0.57,
+      "exact": 4,
+      "falsePositive": 0,
+      "falseNegative": 3,
+      "f1": 0
+    },
+    {
+      "threshold": 0.56,
+      "exact": 4,
+      "falsePositive": 0,
+      "falseNegative": 3,
+      "f1": 0
+    },
+    {
+      "threshold": 0.55,
+      "exact": 4,
+      "falsePositive": 0,
+      "falseNegative": 3,
+      "f1": 0
+    },
+    {
+      "threshold": 0.54,
+      "exact": 4,
+      "falsePositive": 0,
+      "falseNegative": 3,
+      "f1": 0
+    },
+    {
+      "threshold": 0.53,
+      "exact": 4,
+      "falsePositive": 0,
+      "falseNegative": 3,
+      "f1": 0
+    },
+    {
+      "threshold": 0.52,
+      "exact": 4,
+      "falsePositive": 0,
+      "falseNegative": 3,
+      "f1": 0
+    },
+    {
+      "threshold": 0.51,
+      "exact": 4,
+      "falsePositive": 0,
+      "falseNegative": 3,
+      "f1": 0
+    },
+    {
+      "threshold": 0.5,
+      "exact": 4,
+      "falsePositive": 0,
+      "falseNegative": 3,
+      "f1": 0
+    },
+    {
+      "threshold": 0.49,
+      "exact": 4,
+      "falsePositive": 0,
+      "falseNegative": 3,
+      "f1": 0
+    },
+    {
+      "threshold": 0.48,
+      "exact": 4,
+      "falsePositive": 0,
+      "falseNegative": 3,
+      "f1": 0
+    },
+    {
+      "threshold": 0.47,
+      "exact": 4,
+      "falsePositive": 0,
+      "falseNegative": 3,
+      "f1": 0
+    },
+    {
+      "threshold": 0.46,
+      "exact": 4,
+      "falsePositive": 0,
+      "falseNegative": 3,
+      "f1": 0
+    },
+    {
+      "threshold": 0.45,
+      "exact": 4,
+      "falsePositive": 0,
+      "falseNegative": 3,
+      "f1": 0
+    },
+    {
+      "threshold": 0.44,
+      "exact": 4,
+      "falsePositive": 0,
+      "falseNegative": 3,
+      "f1": 0
+    },
+    {
+      "threshold": 0.43,
+      "exact": 4,
+      "falsePositive": 0,
+      "falseNegative": 3,
+      "f1": 0
+    },
+    {
+      "threshold": 0.42,
+      "exact": 4,
+      "falsePositive": 0,
+      "falseNegative": 3,
+      "f1": 0
+    },
+    {
+      "threshold": 0.41,
+      "exact": 4,
+      "falsePositive": 0,
+      "falseNegative": 3,
+      "f1": 0
+    },
+    {
+      "threshold": 0.4,
+      "exact": 4,
+      "falsePositive": 0,
+      "falseNegative": 3,
+      "f1": 0
+    },
+    {
+      "threshold": 0.39,
+      "exact": 4,
+      "falsePositive": 0,
+      "falseNegative": 3,
+      "f1": 0
+    },
+    {
+      "threshold": 0.38,
+      "exact": 4,
+      "falsePositive": 0,
+      "falseNegative": 3,
+      "f1": 0
+    },
+    {
+      "threshold": 0.37,
+      "exact": 4,
+      "falsePositive": 0,
+      "falseNegative": 3,
+      "f1": 0
+    },
+    {
+      "threshold": 0.36,
+      "exact": 4,
+      "falsePositive": 0,
+      "falseNegative": 3,
+      "f1": 0
+    },
+    {
+      "threshold": 0.35,
+      "exact": 4,
+      "falsePositive": 0,
+      "falseNegative": 3,
+      "f1": 0
+    },
+    {
+      "threshold": 0.34,
+      "exact": 4,
+      "falsePositive": 0,
+      "falseNegative": 3,
+      "f1": 0
+    },
+    {
+      "threshold": 0.33,
+      "exact": 4,
+      "falsePositive": 0,
+      "falseNegative": 3,
+      "f1": 0
+    },
+    {
+      "threshold": 0.32,
+      "exact": 4,
+      "falsePositive": 0,
+      "falseNegative": 3,
+      "f1": 0
+    },
+    {
+      "threshold": 0.31,
+      "exact": 4,
+      "falsePositive": 0,
+      "falseNegative": 3,
+      "f1": 0
+    },
+    {
+      "threshold": 0.3,
+      "exact": 4,
+      "falsePositive": 0,
+      "falseNegative": 3,
+      "f1": 0
+    },
+    {
+      "threshold": 0.29,
+      "exact": 4,
+      "falsePositive": 0,
+      "falseNegative": 3,
+      "f1": 0
+    },
+    {
+      "threshold": 0.28,
+      "exact": 4,
+      "falsePositive": 0,
+      "falseNegative": 3,
+      "f1": 0
+    },
+    {
+      "threshold": 0.27,
+      "exact": 4,
+      "falsePositive": 0,
+      "falseNegative": 3,
+      "f1": 0
+    },
+    {
+      "threshold": 0.26,
+      "exact": 4,
+      "falsePositive": 0,
+      "falseNegative": 3,
+      "f1": 0
+    },
+    {
+      "threshold": 0.25,
+      "exact": 4,
+      "falsePositive": 0,
+      "falseNegative": 3,
+      "f1": 0
+    },
+    {
+      "threshold": 0.24,
+      "exact": 4,
+      "falsePositive": 0,
+      "falseNegative": 3,
+      "f1": 0
+    },
+    {
+      "threshold": 0.23,
+      "exact": 4,
+      "falsePositive": 0,
+      "falseNegative": 3,
+      "f1": 0
+    },
+    {
+      "threshold": 0.22,
+      "exact": 4,
+      "falsePositive": 0,
+      "falseNegative": 3,
+      "f1": 0
+    },
+    {
+      "threshold": 0.21,
+      "exact": 4,
+      "falsePositive": 0,
+      "falseNegative": 3,
+      "f1": 0
+    },
+    {
+      "threshold": 0.2,
+      "exact": 4,
+      "falsePositive": 0,
+      "falseNegative": 3,
+      "f1": 0
+    },
+    {
+      "threshold": 0.19,
+      "exact": 4,
+      "falsePositive": 0,
+      "falseNegative": 3,
+      "f1": 0
+    },
+    {
+      "threshold": 0.18,
+      "exact": 4,
+      "falsePositive": 0,
+      "falseNegative": 3,
+      "f1": 0
+    },
+    {
+      "threshold": 0.17,
+      "exact": 4,
+      "falsePositive": 0,
+      "falseNegative": 3,
+      "f1": 0
+    },
+    {
+      "threshold": 0.16,
+      "exact": 4,
+      "falsePositive": 0,
+      "falseNegative": 3,
+      "f1": 0
+    }
+  ]
+}

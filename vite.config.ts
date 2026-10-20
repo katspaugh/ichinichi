@@ -37,6 +37,8 @@ export default defineConfig({
         manifest: false,
         workbox: {
           globPatterns: ["**/*.{js,css,html,ico,png,svg,woff,woff2}"],
+          // Keep the AI runtime lazy, including during PWA installation.
+          globIgnores: ["**/autoTags.worker-*.js"],
           navigateFallback: "index.html",
           navigateFallbackDenylist: [/^\/api/],
           importScripts: ["/share-target-sw.js"],

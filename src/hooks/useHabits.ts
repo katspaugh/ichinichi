@@ -45,7 +45,7 @@ export function useHabits(options: UseHabitsOptions = {}) {
     return withTodaySections(
       noteSections,
       getTodayString(),
-      extractSectionTypes(todayContent),
+      [...new Set([...(noteSections.get(getTodayString()) ?? []), ...extractSectionTypes(todayContent)])],
     );
   }, [noteSections, todayContent]);
 

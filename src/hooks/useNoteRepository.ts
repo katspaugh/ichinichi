@@ -16,6 +16,8 @@ import { AppMode } from "./useAppMode";
 import { useServiceContext } from "../contexts/serviceContext";
 import { SyncStatus } from "../types";
 import type { Note, SavedWeather } from "../types";
+import { useAutoTagIndex } from "./useAutoTagIndex";
+import type { AutoTagStatus } from "../types/autoTags";
 import type { NoteSections } from "../utils/habits";
 import { reportError, onError } from "../utils/errorReporter";
 import { isContentEmpty } from "../utils/sanitize";
@@ -48,6 +50,8 @@ export interface UseNoteRepositoryReturn {
   noteDates: Set<string>;
   /** Section types per note date for the current year (habit tracking). */
   noteSections: NoteSections;
+  autoTagStatus: AutoTagStatus;
+  retryAutoTags: () => void;
   refreshNoteDates: (options?: { immediate?: boolean }) => void;
   isDecrypting: boolean;
   isContentReady: boolean;
@@ -633,6 +637,8 @@ export function useNoteRepository({
     });
   }, []);
 
+  const autoTags = useAutoTagIndex(state.db, state.year, state.noteSections);
+
   // --- Repositories (derived from db) ---
   const repository = useMemo<NoteRepository | null>(
     () => (state.db ? new RxDBNoteRepository(state.db) : null),
@@ -779,7 +785,9 @@ export function useNoteRepository({
     isSaving: state.isSaving,
     hasNote,
     noteDates: state.noteDates,
-    noteSections: state.noteSections,
+    noteSections: autoTags.sections,
+    autoTagStatus: autoTags.status,
+    retryAutoTags: autoTags.retry,
     refreshNoteDates,
     isDecrypting,
     isContentReady,

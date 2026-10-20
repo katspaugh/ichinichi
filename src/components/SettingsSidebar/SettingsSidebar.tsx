@@ -22,6 +22,8 @@ import { useTheme } from "@/hooks/useTheme";
 import type { ThemePreference } from "@/services/themePreferences";
 import { getWeekdayOptions, setWeekStartPreference } from "@/utils/date";
 import { useWeatherContext } from "@/contexts/weatherContext";
+import { useAutoTagsEnabled } from "@/hooks/useAutoTagsEnabled";
+import { useNoteRepositoryContext } from "@/contexts/noteRepositoryContext";
 import { useHabits } from "@/hooks/useHabits";
 import { DebugKeyringSection } from "./DebugKeyringSection";
 import type { UseDebugKeyringReturn } from "../../hooks/useDebugKeyring";
@@ -217,15 +219,32 @@ function CalendarSection({
 
 function HabitsSection() {
   const { sectionTypes, togglePinned } = useHabits();
+  const { enabled, setEnabled } = useAutoTagsEnabled();
+  const { autoTagStatus, retryAutoTags } = useNoteRepositoryContext();
 
   return (
     <div className={styles.section}>
-      <p className={styles.sectionLabel}>Habits</p>
+      <p className={styles.sectionLabel}>Auto tags</p>
+      <div className={styles.toggleRow}>
+        <span>On-device activity detection</span>
+        <button className={styles.switch} type="button" role="switch"
+          aria-label="Enable on-device auto tags" aria-checked={enabled}
+          data-checked={enabled} onClick={() => setEnabled(!enabled)}>
+          <span className={styles.switchThumb} />
+        </button>
+      </div>
+      <p className={styles.habitEmpty}>
+        English model, ~90 MB + runtime. Entries stay on-device.
+      </p>
+      {enabled && <p className={styles.habitEmpty} role="status" aria-live="polite">
+        {autoTagStatus?.message || "Preparing model…"}
+      </p>}
+      {enabled && autoTagStatus?.phase === "error" && (
+        <button type="button" onClick={retryAutoTags}>Retry activity detection</button>
+      )}
       {sectionTypes.length === 0 ? (
         <p className={styles.habitEmpty}>
-          Start an entry with <code>+name</code> to create a section. Pin the
-          ones you want to repeat and they show up under the composer and on
-          the calendar.
+          No activity tags yet.
         </p>
       ) : (
         sectionTypes.map((section) => (
@@ -236,7 +255,7 @@ function HabitsSection() {
                 data-hue-slot={section.slot}
                 aria-hidden="true"
               />
-              <span className={styles.habitName}>+{section.type}</span>
+              <span className={styles.habitName}>{section.type}</span>
               <span className={styles.habitCount}>
                 {section.days === 1 ? "1 day" : `${section.days} days`}
               </span>
@@ -246,7 +265,7 @@ function HabitsSection() {
               type="button"
               role="switch"
               aria-checked={section.pinned}
-              aria-label={`Pin ${section.type} as a habit`}
+              aria-label={`Show ${section.type} on the calendar`}
               data-checked={section.pinned}
               onClick={() => togglePinned(section.type)}
             >
