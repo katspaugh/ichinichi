@@ -68,11 +68,22 @@ export function entryText(html: string): string {
 
 /** Bound each inference to avoid silently truncating the end of long notes. */
 export function entryChunks(text: string): string[] {
-  return text.split(/\n+|(?<=[.!?])\s+/).flatMap((sentence) => {
+  const chunks: string[] = [];
+  let passage: string[] = [];
+  for (const sentence of text.split(/\n+|(?<=[.!?])\s+/)) {
     const words = sentence.trim().split(/\s+/).filter(Boolean);
-    const chunks: string[] = [];
-    for (let i = 0; i < words.length; i += 100)
-      chunks.push(words.slice(i, i + 100).join(" "));
-    return chunks;
-  });
+    if (passage.length + words.length > 100 && passage.length > 0) {
+      chunks.push(passage.join(" "));
+      passage = [];
+    }
+    for (const word of words) {
+      if (passage.length === 100) {
+        chunks.push(passage.join(" "));
+        passage = [];
+      }
+      passage.push(word);
+    }
+  }
+  if (passage.length > 0) chunks.push(passage.join(" "));
+  return chunks;
 }

@@ -15,7 +15,8 @@ class FakeWorker {
   onerror: (() => void) | null = null;
   postMessage = vi.fn();
   terminate = vi.fn();
-  respond(data: unknown) {
+  async respond(data: unknown) {
+    await vi.waitFor(() => expect(this.onmessage).not.toBeNull());
     this.onmessage?.(new MessageEvent("message", { data }));
   }
 }
@@ -47,7 +48,7 @@ describe("opt-in model lifecycle", () => {
       new AbortController().signal,
       () => {},
     );
-    worker.respond({
+    await worker.respond({
       type: "result",
       entries: [{ date: note.date, tags: ["trumpet"] }],
     });
@@ -71,11 +72,16 @@ describe("opt-in model lifecycle", () => {
       controller.signal,
       () => {},
     );
+    await vi.waitFor(() => expect(worker.postMessage).toHaveBeenCalledOnce());
     controller.abort();
-    worker.respond({
-      type: "result",
-      entries: [{ date: note.date, tags: ["trumpet"] }],
-    });
+    worker.onmessage?.(
+      new MessageEvent("message", {
+        data: {
+          type: "result",
+          entries: [{ date: note.date, tags: ["trumpet"] }],
+        },
+      }),
+    );
     await expect(pending).rejects.toMatchObject({ name: "AbortError" });
     expect(worker.terminate).toHaveBeenCalledOnce();
   });
@@ -87,7 +93,7 @@ describe("opt-in model lifecycle", () => {
       new AbortController().signal,
       () => {},
     );
-    worker.respond({
+    await worker.respond({
       type: "result",
       entries: [{ date: note.date, tags: ["trumpet"] }],
     });
@@ -98,7 +104,7 @@ describe("opt-in model lifecycle", () => {
       new AbortController().signal,
       () => {},
     );
-    worker.respond({
+    await worker.respond({
       type: "result",
       entries: [{ date: note.date, tags: [] }],
     });
@@ -122,7 +128,7 @@ describe("opt-in model lifecycle", () => {
       new AbortController().signal,
       () => {},
     );
-    worker.respond({ type: "error", message: "Download failed" });
+    await worker.respond({ type: "error", message: "Download failed" });
     await expect(pending).rejects.toThrow("Download failed");
     const retry = classifier.classify(
       [note],
@@ -130,12 +136,27 @@ describe("opt-in model lifecycle", () => {
       new AbortController().signal,
       () => {},
     );
-    worker.respond({
+    await worker.respond({
       type: "result",
       entries: [{ date: note.date, tags: [] }],
     });
     await retry;
     expect(create).toHaveBeenCalledTimes(2);
+  });
+  it("pauses a silent worker instead of remaining stuck forever", async () => {
+    const { worker, classifier } = setup();
+    const timer = vi.spyOn(globalThis, "setTimeout");
+    try {
+      const pending = classifier.classify([note], candidates, new AbortController().signal, () => {});
+      const failed = expect(pending).rejects.toThrow("timed out");
+      await vi.waitFor(() => expect(worker.postMessage).toHaveBeenCalledOnce());
+      const watchdog = timer.mock.calls.find(([, delay]) => delay === 120_000)?.[0];
+      expect(typeof watchdog).toBe("function");
+      if (typeof watchdog !== "function") throw new Error("Missing analysis watchdog");
+      watchdog();
+      await failed;
+      expect(worker.terminate).toHaveBeenCalledOnce();
+    } finally { timer.mockRestore(); classifier.dispose(); }
   });
   it("validates model and worker payloads", () => {
     expect(

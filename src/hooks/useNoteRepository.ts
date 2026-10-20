@@ -637,7 +637,7 @@ export function useNoteRepository({
     });
   }, []);
 
-  const autoTags = useAutoTagIndex(state.db, state.year, state.noteSections);
+  const autoTags = useAutoTagIndex(state.db, state.year, state.noteSections, state.vaultKey);
 
   // --- Repositories (derived from db) ---
   const repository = useMemo<NoteRepository | null>(

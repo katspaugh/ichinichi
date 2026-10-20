@@ -18,3 +18,13 @@ export interface AutoTagWorkerRequest {
   entries: Array<{ date: string; text: string }>;
   candidates: ActivityCandidate[];
 }
+
+export interface AutoTagCheckpoint {
+  date: string;
+  fingerprint: string;
+  tags: string[];
+}
+export interface AutoTagCheckpointStore {
+  load(): Promise<AutoTagCheckpoint[]>;
+  save(records: AutoTagCheckpoint[], signal: AbortSignal): Promise<void>;
+}

@@ -76,3 +76,23 @@ describe("model auto tags", () => {
     expect(next.phase).toBe("classifying");
   });
 });
+
+it("does not restart analysis when RxDB re-emits unchanged note content", () => {
+  const scope = {};
+  const action = {
+    type: "INPUTS" as const,
+    scope,
+    year: 2026,
+    entries: [
+      { date: "19-10-2026", content: "hello" },
+      { date: "20-10-2026", content: "world" },
+    ],
+  };
+  const state = autoTagReducer(initialAutoTagState, action);
+  expect(
+    autoTagReducer(state, {
+      ...action,
+      entries: action.entries.map((entry) => ({ ...entry })).reverse(),
+    }),
+  ).toBe(state);
+});

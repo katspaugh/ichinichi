@@ -296,3 +296,16 @@ export function parseAutoTagWorkerMessage(value: unknown): import("../types/auto
   }
   return { type: "result", entries };
 }
+
+export function parseAutoTagCheckpoints(value: unknown): import("../types/autoTags").AutoTagCheckpoint[] | null {
+  if (!isObject(value) || value.version !== 1 || !Array.isArray(value.entries)) return null;
+  const entries: import("../types/autoTags").AutoTagCheckpoint[] = [];
+  for (const entry of value.entries) {
+    if (!isObject(entry) || typeof entry.date !== "string" || !/^\d{2}-\d{2}-\d{4}$/.test(entry.date)
+      || typeof entry.fingerprint !== "string" || !/^[0-9a-f]{64}$/.test(entry.fingerprint)) return null;
+    const tags = parseStringArray(entry.tags);
+    if (!tags || !tags.every(tag => /^[a-z][a-z-]*$/.test(tag))) return null;
+    entries.push({ date: entry.date, fingerprint: entry.fingerprint, tags });
+  }
+  return entries;
+}

@@ -27,6 +27,7 @@ describe.skipIf(process.env.AUTO_TAG_MODEL_TEST !== "1")(
         ["Tomorrow I will play the trumpet.", []],
         ["John played trumpet while I listened.", []],
         ["A quiet day at home.", []],
+        ["I meditated. Later I practiced the trumpet.", ["meditation", "trumpet"]],
       ];
       try {
         for (const [text, expected] of fixtures) {

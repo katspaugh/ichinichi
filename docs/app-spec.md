@@ -336,9 +336,12 @@ Ref: src/utils/sanitize.ts
 Settings offers on-device activity detection, disabled by default per device.
 Enabling it downloads the pinned q8 DeBERTa v3 xsmall zero-shot model (87 MB of weights, about 90 MB total) from
 Hugging Face, plus a self-hosted WASM runtime. Model assets use the browser cache;
-notes and inferred tags stay in memory and are never sent to a model API or saved
-as unencrypted metadata. Turning detection off cancels the worker and clears
-inferred results; downloaded model files may remain in the browser cache.
+notes are never sent to a model API. Completed entry predictions and content/model
+fingerprints are checkpointed after each entry, encrypted with the active vault
+key and scoped to the repository and year. No note text is stored in this cache.
+Reloading resumes from the first unfinished or changed entry; unchanged completed
+entries do not load the model. Turning detection off cancels the worker and hides
+inferred results; encrypted checkpoints and model downloads remain cached.
 
 The model runs zero-shot classification in a module worker using Transformers.js.
 It scores activity descriptions for trumpet, trombone, piano, guitar, meditation,
@@ -354,7 +357,12 @@ year and preserves the existing pin preferences, calendar dots, and optional
 explicit-section shortcuts. Existing and synced entries are analyzed without
 rewriting notes. Edits reclassify changed content and deletion removes counts.
 Explicit `+sections` always count even with detection disabled. Predictions are
-cached in memory for unchanged entries; changing the repository, year, or disabling
-the feature prevents stale results from appearing. Settings displays download
-progress, analysis status, and a retry button after errors. No phrase classifier
-runs in the background when the feature is off.
+restored from encrypted checkpoints for unchanged entries. Changes to content,
+candidates, model revision, or analysis version invalidate matching cached results.
+Unchanged RxDB emissions do not restart analysis. Changing the repository, year,
+or disabling the feature prevents stale results from appearing. Settings shows
+completed results as they arrive, passage/activity progress within each entry,
+and a retry button after errors. A silent worker times out after two minutes;
+retrying retains completed checkpoints. Notes are processed newest first and
+sentences are packed into passages of at most 100 words to reduce inference calls.
+No phrase classifier runs in the background when the feature is off.
