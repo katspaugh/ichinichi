@@ -87,7 +87,7 @@ export class AutoTagClassifier {
           candidates,
         },
         signal,
-        (message) => progress(`${prefix} · ${message}`),
+        (message) => progress(`${prefix}\n${message}`),
       );
       signal.throwIfAborted();
       const result = results.find(({ date }) => date === entry.date);

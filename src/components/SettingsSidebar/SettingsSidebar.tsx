@@ -236,7 +236,7 @@ function HabitsSection() {
       <p className={styles.habitEmpty}>
         English model, ~90 MB + runtime. Entries stay on-device.
       </p>
-      {enabled && <p className={styles.habitEmpty} role="status" aria-live="polite">
+      {enabled && <p className={`${styles.habitEmpty} ${styles.analysisProgress}`} role="status" aria-live="polite">
         {autoTagStatus?.message || "Preparing model…"}
       </p>}
       {enabled && autoTagStatus?.phase === "error" && (

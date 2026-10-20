@@ -392,6 +392,10 @@
   color: var(--color-text-muted);
 }
 
+.analysisProgress {
+  white-space: pre-line;
+}
+
 .habitEmpty code {
   font-family: var(--font-family-mono);
   font-size: 12px;
