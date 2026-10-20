@@ -41,8 +41,7 @@
 
 .selected {
   background-color: var(--color-primary);
-  color: var(--color-accent-ink);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  color: #fff;
   opacity: 1;
   font-weight: var(--font-weight-semibold);
 }

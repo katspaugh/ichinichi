@@ -168,7 +168,7 @@ Every new `catch` block in stores, storage, or domain code must call `reportErro
 
 ```
 src/
-  components/    Calendar, NoteEditor, NoteLog, TimeScrubber, AppModals, SyncIndicator, AuthForm, VaultUnlock
+  components/    Calendar, NoteEditor, NoteLog, AppModals, SyncIndicator, AuthForm, VaultUnlock
   controllers/   useAppController, useAppModalsController
   contexts/      AppMode/UrlState/ActiveVault/NoteRepository providers
   domain/        notes, sync, vault use cases

@@ -3,10 +3,7 @@ import type { ChangeEvent } from "react";
 import { Check, ImagePlus } from "lucide-react";
 import { parseNoteSegments, assembleSegments } from "../../utils/noteSegments";
 import { applyTextTransforms } from "../../services/editorTextTransforms";
-import {
-  formatTimestampLabel,
-  getTimestampLabel,
-} from "../../services/timestampLabel";
+import { getTimestampLabel } from "../../services/timestampLabel";
 import { formatDateDisplay, getTodayString, isToday } from "../../utils/date";
 import { useRoutingContext } from "../../contexts/routingContext";
 import { useWeatherContext } from "../../contexts/weatherContext";
@@ -22,7 +19,6 @@ import { useHabits } from "../../hooks/useHabits";
 import { applySectionColors } from "../../services/sectionColors";
 import { LogEntry } from "./LogEntry";
 import { HabitChips } from "./HabitChips";
-import { TimeLabel } from "./TimeLabel";
 import { useSectionTransform } from "./useSectionTransform";
 import contentStyles from "../../styles/noteContent.module.css";
 import styles from "./NoteLogView.module.css";
@@ -36,7 +32,7 @@ interface NoteLogViewProps {
   onChange: (content: string) => void;
   isContentReady: boolean;
   isDecrypting?: boolean;
-  /** Past days: show the timeline without the composer or editing. */
+  /** Past days: show the entries without the composer or editing. */
   readOnly?: boolean;
 }
 
@@ -128,7 +124,9 @@ export function NoteLogView({
 
   // Habits: chips under the composer and streaks in the header, today only
   const showHabits = !readOnly && isToday(date);
-  const { habits } = useHabits({ todayContent: showHabits ? content : undefined });
+  const { habits } = useHabits({
+    todayContent: showHabits ? content : undefined,
+  });
 
   // Image upload
   const { onImageDrop } = useInlineImageUpload({
@@ -262,7 +260,10 @@ export function NoteLogView({
       const el = editorRef.current;
       if (!el) return;
       // A lone <br> is an empty editor; drop it so the header takes line one
-      if (el.childNodes.length === 1 && el.firstChild instanceof HTMLBRElement) {
+      if (
+        el.childNodes.length === 1 &&
+        el.firstChild instanceof HTMLBRElement
+      ) {
         el.firstChild.remove();
       }
       const header = document.createElement("div");
@@ -448,93 +449,82 @@ export function NoteLogView({
         streaks={showHabits ? habits : undefined}
       />
 
-      <div className={styles.timeline}>
-        {!readOnly && (
-          <div className={styles.composer} data-moment-time="now">
-            <span className={styles.composerNode} aria-hidden="true" />
-            <span className={styles.composerTime}>
-              <TimeLabel
-                label={formatTimestampLabel(new Date().toISOString())}
-              />
-            </span>
-            <div className={styles.composerBox}>
-              <div
-                ref={editorRef}
-                className={`${contentStyles.content} ${styles.editor}`}
-                contentEditable
-                suppressContentEditableWarning
-                onInput={handleInput}
-                onKeyDown={handleKeyDown}
-                role="textbox"
-                aria-multiline="true"
-                aria-label="New entry"
-                data-placeholder="What's on your mind?"
-              />
-              {onImageDrop && (
-                <div className={styles.composerTools}>
-                  <button
-                    type="button"
-                    className={styles.toolButton}
-                    onClick={openFilePicker}
-                    aria-label="Insert image"
-                    title="Insert image"
-                  >
-                    <ImagePlus size={16} />
-                  </button>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    className={styles.imageInput}
-                    onChange={handleFileChange}
-                  />
-                </div>
-              )}
-              {showHabits && (
-                <HabitChips habits={habits} onPick={handlePickHabit} />
-              )}
-              <button
-                type="button"
-                className={styles.saveButton}
-                onClick={saveCard}
-                aria-label="Save entry"
-                title="Save entry (⌘⏎)"
-              >
-                <Check size={16} strokeWidth={2.6} />
-              </button>
-            </div>
-          </div>
-        )}
+      {!readOnly && (
+        <div className={styles.topCard}>
+          <div
+            ref={editorRef}
+            className={`${contentStyles.content} ${styles.editor}`}
+            contentEditable
+            suppressContentEditableWarning
+            onInput={handleInput}
+            onKeyDown={handleKeyDown}
+            role="textbox"
+            aria-multiline="true"
+            aria-label="New entry"
+            data-placeholder="What's on your mind?"
+          />
+          {showHabits && (
+            <HabitChips habits={habits} onPick={handlePickHabit} />
+          )}
+          <button
+            type="button"
+            className={styles.saveButton}
+            onClick={saveCard}
+            aria-label="Save entry"
+            title="Save entry"
+          >
+            <Check size={18} />
+          </button>
+        </div>
+      )}
 
-        {readOnly && displaySegments.length === 0 && (
-          <div className={styles.emptyState}>Nothing written on this day.</div>
-        )}
+      {readOnly && displaySegments.length === 0 && (
+        <div className={styles.emptyState}>Nothing written on this day.</div>
+      )}
 
-        {displaySegments.length > 0 && (
-          <div className={styles.stack}>
-            {displaySegments.map((segment) => (
-              <LogEntry
-                key={segment.id}
-                id={segment.id}
-                timestamp={segment.timestamp}
-                label={segment.label}
-                html={segment.html}
-                onSave={(html) => handleEntrySave(segment.id, html)}
-                onDelete={
-                  !readOnly && segments.length > 1
-                    ? () => handleEntryDelete(segment.id)
-                    : undefined
-                }
-                focusTargetRef={focusTargetRef}
-                justSaved={justSavedId === segment.id}
-                readOnly={readOnly}
-              />
-            ))}
-          </div>
-        )}
+      {displaySegments.length > 0 && (
+        <div className={styles.stack}>
+          {displaySegments.map((segment) => (
+            <LogEntry
+              key={segment.id}
+              id={segment.id}
+              timestamp={segment.timestamp}
+              label={segment.label}
+              html={segment.html}
+              onSave={(html) => handleEntrySave(segment.id, html)}
+              onDelete={
+                !readOnly && segments.length > 1
+                  ? () => handleEntryDelete(segment.id)
+                  : undefined
+              }
+              focusTargetRef={focusTargetRef}
+              justSaved={justSavedId === segment.id}
+              readOnly={readOnly}
+            />
+          ))}
+        </div>
+      )}
 
-        <span className={styles.railEnd} aria-hidden="true" />
-      </div>
+      {!readOnly && onImageDrop && (
+        <div className={styles.toolbar}>
+          <button
+            type="button"
+            className={styles.toolbarButton}
+            onClick={openFilePicker}
+            aria-label="Insert image"
+            title="Insert image"
+          >
+            <ImagePlus size={18} />
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className={styles.imageInput}
+            onChange={handleFileChange}
+          />
+        </div>
+      )}
     </div>
   );
 }

@@ -1,61 +1,20 @@
-/* One moment on the rail. Inherits --gutter, --rail-inset, --node from .timeline. */
 .card {
   position: relative;
-  padding: 4px 0 30px;
-  border-radius: var(--radius-sm);
+  border-top: 1px solid var(--color-border);
+  padding: var(--spacing-lg) 0;
 }
 
-.node {
-  position: absolute;
-  left: calc(-1 * var(--rail-inset) - var(--node) / 2 + 1px);
-  top: 12px;
-  width: var(--node);
-  height: var(--node);
-  border-radius: 50%;
-  background: var(--color-surface);
-  border: 2.5px solid var(--color-primary);
-  box-shadow: 0 0 0 3px var(--color-surface);
-}
-
-/* A section's hue tints its node, so moment kinds read along the rail */
-.card[data-hue-slot="0"] { --node-hue: 0; }
-.card[data-hue-slot="1"] { --node-hue: 45; }
-.card[data-hue-slot="2"] { --node-hue: 90; }
-.card[data-hue-slot="3"] { --node-hue: 135; }
-.card[data-hue-slot="4"] { --node-hue: 180; }
-.card[data-hue-slot="5"] { --node-hue: 225; }
-.card[data-hue-slot="6"] { --node-hue: 270; }
-.card[data-hue-slot="7"] { --node-hue: 315; }
-
-.card[data-hue-slot] .node {
-  border-color: hsl(var(--node-hue) 40% 45%);
-}
-
-:root[data-theme="dark"] .card[data-hue-slot] .node {
-  border-color: hsl(var(--node-hue) 50% 65%);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .card[data-hue-slot] .node {
-    border-color: hsl(var(--node-hue) 50% 65%);
-  }
-}
-
-/* Time hangs under the node, centred on the rail and masking it */
 .timestamp {
   position: absolute;
-  left: calc(-1 * var(--rail-inset) + 1px);
-  top: 27px;
-  transform: translateX(-50%);
-  padding: 2px 3px;
-  border-radius: 3px;
-  background: var(--color-surface);
-  text-align: center;
-  font-size: 0.68rem;
-  line-height: 1;
-  font-weight: 600;
-  color: var(--color-text-muted);
-  font-variant-numeric: tabular-nums;
+  top: -10px;
+  right: 0;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  font-weight: 500;
   white-space: nowrap;
 }
 
@@ -68,20 +27,23 @@
   outline: none;
 }
 
-.cardContent[data-readonly] {
-  cursor: default;
-  user-select: text;
-}
-
 .card[data-just-saved] {
-  animation: card-blink 0.7s ease-out;
+  animation: card-blink 0.6s ease;
 }
 
 @keyframes card-blink {
   0% {
-    background-color: color-mix(in srgb, var(--color-primary) 10%, transparent);
+    background-color: transparent;
+  }
+  30% {
+    background-color: var(--color-surface-hover, rgba(0, 0, 0, 0.04));
   }
   100% {
     background-color: transparent;
   }
+}
+
+.cardContent[data-readonly] {
+  cursor: default;
+  user-select: text;
 }

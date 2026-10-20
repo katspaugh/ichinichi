@@ -1,99 +1,53 @@
-/* Mulish (SIL Open Font License), self-hosted; variable weight 200-1000 */
-@font-face {
-  font-family: "Mulish";
-  font-style: normal;
-  font-weight: 200 1000;
-  font-display: swap;
-  src: url("/fonts/mulish-normal-latin.woff2") format("woff2");
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-@font-face {
-  font-family: "Mulish";
-  font-style: normal;
-  font-weight: 200 1000;
-  font-display: swap;
-  src: url("/fonts/mulish-normal-latin-ext.woff2") format("woff2");
-  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
-}
-@font-face {
-  font-family: "Mulish";
-  font-style: italic;
-  font-weight: 200 1000;
-  font-display: swap;
-  src: url("/fonts/mulish-italic-latin.woff2") format("woff2");
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-@font-face {
-  font-family: "Mulish";
-  font-style: italic;
-  font-weight: 200 1000;
-  font-display: swap;
-  src: url("/fonts/mulish-italic-latin-ext.woff2") format("woff2");
-  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
-}
-
 :root {
-  /* Color primitives - Light palette (paper and linen) */
-  --palette-light-bg: #F1ECE3;
-  --palette-light-surface: #FFFCF7;
-  --palette-light-surface-hover: #F6F0E6;
-  --palette-light-text: #2A2521;
-  --palette-light-text-muted: #9A8F83;
-  --palette-light-border: #E3DACD;
-  --palette-light-rail: #DCD2C4;
-  --palette-light-primary: #C7352D;
-  --palette-light-primary-hover: #B02D26;
-  --palette-light-accent-ink: #FFF8F4;
-  --palette-light-today: #FFF3D6;
-  --palette-light-today-hover: #FFEBC2;
-  --palette-light-today-border: #E4BB62;
-  --palette-light-note-indicator: #C7352D;
-  --palette-light-link: #C7352D;
-  --palette-light-sync-success: #5FA66A;
-  --palette-light-sync-error: #C7352D;
-  --palette-light-sync-offline: #D99A3E;
-  --palette-light-sync-pending: #9A8F83;
-  --palette-light-control: #F8F3EA;
+  /* Color primitives - Light palette (warm natural tones) */
+  --palette-light-bg: #F7F8F9;
+  --palette-light-surface: #FFFBF6;
+  --palette-light-surface-hover: #F7F2EC;
+  --palette-light-text: rgb(29, 45, 53);
+  --palette-light-text-muted: #999590;
+  --palette-light-border: #DDD8D0;
+  --palette-light-primary: #007AFF;
+  --palette-light-primary-hover: #0066DD;
+  --palette-light-today: #FFF6DC;
+  --palette-light-today-hover: #FFEED0;
+  --palette-light-today-border: #E0BE68;
+  --palette-light-note-indicator: #C89A60;
+  --palette-light-link: #007AFF;
+  --palette-light-sync-success: #34C759;
+  --palette-light-sync-error: #FF3B30;
+  --palette-light-sync-offline: #FF9500;
+  --palette-light-sync-pending: #007AFF;
+  --palette-light-control: #F8F6F2;
   --palette-light-nav-arrow-bg: transparent;
-  --palette-light-nav-arrow-bg-hover: rgba(60, 40, 20, 0.06);
-  --palette-light-nav-arrow-text: #9A8F83;
-  --palette-light-timestamp-bg: #F8F3EA;
-  --palette-light-overlay-bg: rgba(241, 236, 227, 0.78);
-  --palette-light-linen: rgba(120, 95, 70, 0.045);
-  --palette-light-shadow: 0 1px 2px rgba(60, 40, 20, 0.08), 0 6px 18px rgba(60, 40, 20, 0.08);
-  --palette-light-shadow-lift: 0 2px 4px rgba(60, 40, 20, 0.12), 0 14px 30px rgba(60, 40, 20, 0.16);
-  --palette-light-clock-face: #FFFCF7;
+  --palette-light-nav-arrow-bg-hover: rgba(0, 0, 0, 0.05);
+  --palette-light-nav-arrow-text: #999590;
+  --palette-light-timestamp-bg: #FEF0E4;
+  --palette-light-overlay-bg: rgba(247, 248, 249, 0.75);
 
-  /* Color primitives - Dark palette (warm charcoal) */
-  --palette-dark-bg: #1B1917;
-  --palette-dark-surface: #25221F;
-  --palette-dark-surface-hover: #2C2825;
-  --palette-dark-text: #ECE5DA;
-  --palette-dark-text-muted: #8E847A;
-  --palette-dark-border: #35302B;
-  --palette-dark-rail: #3E3934;
-  --palette-dark-primary: #E25A50;
-  --palette-dark-primary-hover: #D04A41;
-  --palette-dark-accent-ink: #FFF5F2;
-  --palette-dark-today: #3A3020;
-  --palette-dark-today-hover: #463A26;
-  --palette-dark-today-border: #8C7A45;
-  --palette-dark-note-indicator: #E25A50;
-  --palette-dark-link: #E9877F;
-  --palette-dark-sync-success: #6DBB8B;
-  --palette-dark-sync-error: #E25A50;
-  --palette-dark-sync-offline: #D9A461;
-  --palette-dark-sync-pending: #8E847A;
-  --palette-dark-control: #201D1A;
+  /* Color primitives - Dark palette */
+  --palette-dark-bg: #0a0a0a;
+  --palette-dark-surface: #1a1a1a;
+  --palette-dark-surface-hover: #252525;
+  --palette-dark-text: #f5f5f5;
+  --palette-dark-text-muted: #a0a0a0;
+  --palette-dark-border: #333333;
+  --palette-dark-primary: #2563eb;
+  --palette-dark-primary-hover: #1d4ed8;
+  --palette-dark-today: #1a2530;
+  --palette-dark-today-hover: #243344;
+  --palette-dark-today-border: #5a7a94;
+  --palette-dark-note-indicator: #6a8aa4;
+  --palette-dark-link: #aacce5;
+  --palette-dark-sync-success: #6dbb8b;
+  --palette-dark-sync-error: #e07b7b;
+  --palette-dark-sync-offline: #d9a461;
+  --palette-dark-sync-pending: #8db0e6;
+  --palette-dark-control: #111111;
   --palette-dark-nav-arrow-bg: rgba(255, 255, 255, 0.06);
   --palette-dark-nav-arrow-bg-hover: rgba(255, 255, 255, 0.12);
   --palette-dark-nav-arrow-text: rgba(255, 255, 255, 0.5);
-  --palette-dark-timestamp-bg: #2C2825;
-  --palette-dark-overlay-bg: rgba(27, 25, 23, 0.78);
-  --palette-dark-linen: rgba(255, 235, 210, 0.03);
-  --palette-dark-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 8px 22px rgba(0, 0, 0, 0.35);
-  --palette-dark-shadow-lift: 0 2px 4px rgba(0, 0, 0, 0.45), 0 16px 34px rgba(0, 0, 0, 0.5);
-  --palette-dark-clock-face: #F4EEE4;
+  --palette-dark-timestamp-bg: #2a1f18;
+  --palette-dark-overlay-bg: rgba(0, 0, 0, 0.7);
 
   /* Semantic colors - default to light */
   --color-bg: var(--palette-light-bg);
@@ -102,12 +56,6 @@
   --color-text: var(--palette-light-text);
   --color-text-muted: var(--palette-light-text-muted);
   --color-border: var(--palette-light-border);
-  --color-rail: var(--palette-light-rail);
-  --color-accent-ink: var(--palette-light-accent-ink);
-  --color-linen: var(--palette-light-linen);
-  --shadow-paper: var(--palette-light-shadow);
-  --shadow-lift: var(--palette-light-shadow-lift);
-  --color-clock-face: var(--palette-light-clock-face);
   --color-primary: var(--palette-light-primary);
   --color-primary-hover: var(--palette-light-primary-hover);
   --color-today: var(--palette-light-today);
@@ -128,8 +76,8 @@
 
   /* Typography */
   --font-family:
-    "Mulish", "Proxima Nova", -apple-system, BlinkMacSystemFont, "Segoe UI",
-    Roboto, Helvetica, Arial, sans-serif;
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
+    sans-serif;
   --font-family-mono:
     ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
   --font-size-xs: 0.75rem;
@@ -160,34 +108,17 @@
   --radius: 8px;
   --radius-lg: 12px;
 
-  /* Paper surfaces — light (glass token names kept for compatibility) */
-  --glass-bg: var(--palette-light-surface);
-  --modal-glass-bg: var(--palette-light-surface);
-  --glass-border: transparent;
-  --glass-blur: none;
-  --glass-shadow: var(--palette-light-shadow);
-  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  /* Glass — light */
+  --glass-bg: rgba(255, 251, 246, 0.6);
+  --modal-glass-bg: rgba(255, 251, 246, 0.85);
+  --glass-border: rgba(255, 255, 250, 0.65);
+  --glass-blur: blur(16px) saturate(180%);
+  --glass-shadow: 0 1px 8px rgba(0, 0, 0, 0.03);
+  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.5);
 
   /* Transitions */
   --transition-fast: 150ms ease;
   --transition-normal: 200ms ease;
-}
-
-/* Linen: two faint diagonal weaves over the page ground */
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  background-image:
-    repeating-linear-gradient(45deg, var(--color-linen) 0 1px, transparent 1px 3px),
-    repeating-linear-gradient(-45deg, var(--color-linen) 0 1px, transparent 1px 3px);
-}
-
-#root {
-  position: relative;
-  z-index: 1;
 }
 
 /* Smooth color transitions when switching themes */
@@ -214,24 +145,18 @@ html.no-transition body * {
 
 /* Explicit dark mode - overrides system preference */
 :root[data-theme="dark"] {
-  --glass-bg: var(--palette-dark-surface);
-  --modal-glass-bg: var(--palette-dark-surface);
-  --glass-border: transparent;
-  --glass-blur: none;
-  --glass-shadow: var(--palette-dark-shadow);
-  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --glass-bg: rgba(26, 26, 26, 0.55);
+  --modal-glass-bg: rgba(26, 26, 26, 0.82);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-blur: blur(16px) saturate(180%);
+  --glass-shadow: 0 2px 16px rgba(0, 0, 0, 0.25);
+  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.06);
   --color-bg: var(--palette-dark-bg);
   --color-surface: var(--palette-dark-surface);
   --color-surface-hover: var(--palette-dark-surface-hover);
   --color-text: var(--palette-dark-text);
   --color-text-muted: var(--palette-dark-text-muted);
   --color-border: var(--palette-dark-border);
-  --color-rail: var(--palette-dark-rail);
-  --color-accent-ink: var(--palette-dark-accent-ink);
-  --color-linen: var(--palette-dark-linen);
-  --shadow-paper: var(--palette-dark-shadow);
-  --shadow-lift: var(--palette-dark-shadow-lift);
-  --color-clock-face: var(--palette-dark-clock-face);
   --color-primary: var(--palette-dark-primary);
   --color-primary-hover: var(--palette-dark-primary-hover);
   --color-today: var(--palette-dark-today);
@@ -254,24 +179,18 @@ html.no-transition body * {
 /* System preference fallback when no explicit theme is set */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
-    --glass-bg: var(--palette-dark-surface);
-    --modal-glass-bg: var(--palette-dark-surface);
-    --glass-border: transparent;
-    --glass-blur: none;
-    --glass-shadow: var(--palette-dark-shadow);
-    --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    --glass-bg: rgba(26, 26, 26, 0.55);
+    --modal-glass-bg: rgba(26, 26, 26, 0.82);
+    --glass-border: rgba(255, 255, 255, 0.08);
+    --glass-blur: blur(16px) saturate(180%);
+    --glass-shadow: 0 2px 16px rgba(0, 0, 0, 0.25);
+    --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.06);
     --color-bg: var(--palette-dark-bg);
     --color-surface: var(--palette-dark-surface);
     --color-surface-hover: var(--palette-dark-surface-hover);
     --color-text: var(--palette-dark-text);
     --color-text-muted: var(--palette-dark-text-muted);
     --color-border: var(--palette-dark-border);
-    --color-rail: var(--palette-dark-rail);
-    --color-accent-ink: var(--palette-dark-accent-ink);
-    --color-linen: var(--palette-dark-linen);
-    --shadow-paper: var(--palette-dark-shadow);
-    --shadow-lift: var(--palette-dark-shadow-lift);
-    --color-clock-face: var(--palette-dark-clock-face);
     --color-primary: var(--palette-dark-primary);
     --color-primary-hover: var(--palette-dark-primary-hover);
     --color-today: var(--palette-dark-today);

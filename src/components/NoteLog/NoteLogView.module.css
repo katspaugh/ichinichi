@@ -6,97 +6,10 @@
   gap: var(--spacing-sm);
 }
 
-/* Timeline: a rail down the left with one node per moment.
-   The rail is marginalia, so it hangs into half of the pane's own horizontal
-   padding (--editor-h-padding, set by DayViewLayout) rather than stacking the
-   gutter on top of it; that keeps the left edge from feeling heavier than the
-   right, especially on phones. */
-.timeline {
+.topCard {
   position: relative;
-  --gutter: 56px;
-  --rail-inset: 34px;
-  --node: 10px;
-  margin-left: calc(-0.5 * var(--editor-h-padding, var(--spacing-md)));
-  padding-left: var(--gutter);
-}
-
-.timeline::before {
-  content: "";
-  position: absolute;
-  left: calc(var(--gutter) - var(--rail-inset));
-  top: 8px;
-  bottom: 0;
-  width: 2px;
-  border-radius: 1px;
-  background: var(--color-rail);
-}
-
-/* Composer: the open node at the top of the rail */
-.composer {
-  position: relative;
-  padding: 4px 0 34px;
-}
-
-.composerNode {
-  position: absolute;
-  left: calc(-1 * var(--rail-inset) - var(--node) / 2 + 1px);
-  top: 12px;
-  width: var(--node);
-  height: var(--node);
-  border-radius: 50%;
-  background: var(--color-primary);
-  border: 2.5px solid var(--color-primary);
-  box-shadow: 0 0 0 3px var(--color-surface);
-  animation: composer-pulse 2.6s ease-in-out infinite;
-}
-
-@keyframes composer-pulse {
-  0%,
-  100% {
-    box-shadow:
-      0 0 0 3px var(--color-surface),
-      0 0 0 4px color-mix(in srgb, var(--color-primary) 35%, transparent);
-  }
-  50% {
-    box-shadow:
-      0 0 0 3px var(--color-surface),
-      0 0 0 9px transparent;
-  }
-}
-
-/* Time hangs under the node, centred on the rail and masking it */
-.composerTime {
-  position: absolute;
-  left: calc(-1 * var(--rail-inset) + 1px);
-  top: 28px;
-  transform: translateX(-50%);
-  padding: 2px 3px;
-  border-radius: 3px;
-  background: var(--color-surface);
-  text-align: center;
-  font-size: 0.68rem;
-  line-height: 1;
-  font-weight: 600;
-  color: var(--color-primary);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.composerBox {
-  position: relative;
-  background: var(--color-control);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  padding: var(--spacing-md) 52px var(--spacing-md) var(--spacing-md);
-  min-height: 88px;
-  transition:
-    box-shadow 0.15s ease,
-    border-color 0.15s ease;
-}
-
-.composerBox:focus-within {
-  border-color: color-mix(in srgb, var(--color-primary) 45%, var(--color-border));
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 12%, transparent);
+  padding: var(--spacing-md) 0;
+  padding-right: 36px;
 }
 
 .editor {
@@ -113,65 +26,32 @@
 
 .saveButton {
   position: absolute;
-  top: 10px;
-  right: 10px;
+  top: var(--spacing-md);
+  right: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  border: none;
-  background: var(--color-primary);
-  color: var(--color-accent-ink);
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-muted);
   cursor: pointer;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
   transition:
-    transform 0.12s ease,
-    background-color var(--transition-fast);
+    color 0.15s ease,
+    border-color 0.15s ease,
+    background-color 0.15s ease;
 }
 
 .saveButton:hover {
-  background: var(--color-primary-hover);
-  transform: scale(1.06);
+  color: var(--color-link, #3b82f6);
+  border-color: var(--color-link, #3b82f6);
+  background-color: rgba(59, 130, 246, 0.06);
 }
 
 .saveButton:active {
-  transform: scale(0.94);
-}
-
-.saveButton:focus-visible {
-  outline: 2px solid var(--color-text);
-  outline-offset: 2px;
-}
-
-.composerTools {
-  display: flex;
-  gap: 2px;
-  margin-top: var(--spacing-xs);
-  margin-left: calc(-1 * var(--spacing-xs));
-}
-
-.toolButton {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  background: none;
-  border: none;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  border-radius: var(--radius-sm);
-}
-
-.toolButton:hover {
-  color: var(--color-text);
-  background-color: var(--color-surface-hover);
-}
-
-.imageInput {
-  display: none;
+  transform: scale(0.92);
 }
 
 .stack {
@@ -179,32 +59,45 @@
   flex-direction: column;
 }
 
-/* Terminal dot where the rail ends: the start of the day */
-.railEnd {
-  position: absolute;
-  left: calc(var(--gutter) - var(--rail-inset) - 3px);
-  bottom: -4px;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--color-rail);
-  box-shadow: 0 0 0 3px var(--color-surface);
+.toolbar {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  gap: var(--spacing-xs);
+  align-self: flex-end;
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  padding: var(--spacing-xs);
+  box-shadow: var(--glass-shadow), var(--glass-highlight);
+  z-index: 10;
+}
+
+.toolbarButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: var(--spacing-xs);
+  border-radius: var(--radius-sm);
+}
+
+.toolbarButton:hover {
+  color: var(--color-text);
+  background-color: var(--color-bg);
+}
+
+.imageInput {
+  display: none;
 }
 
 .emptyState {
   color: var(--color-text-muted);
   text-align: center;
   padding: var(--spacing-xl) 0;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .composerNode {
-    animation: none;
-  }
-}
-
-@media (max-width: 768px) {
-  .composerBox {
-    padding-right: 48px;
-  }
 }

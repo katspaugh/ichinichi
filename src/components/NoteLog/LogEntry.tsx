@@ -5,7 +5,6 @@ import { applySectionColors } from "../../services/sectionColors";
 import { sanitizeHtml } from "../../utils/sanitize";
 import contentStyles from "../../styles/noteContent.module.css";
 import { useSectionTransform } from "./useSectionTransform";
-import { TimeLabel } from "./TimeLabel";
 import styles from "./LogEntry.module.css";
 
 interface LogEntryProps {
@@ -17,7 +16,7 @@ interface LogEntryProps {
   onDelete?: () => void;
   focusTargetRef?: RefObject<string | null>;
   justSaved?: boolean;
-  /** Past days: render on the rail without editing. */
+  /** Past days: render entries without editing. */
   readOnly?: boolean;
 }
 
@@ -35,19 +34,8 @@ function serializeContent(el: HTMLElement): string {
   return clone.innerHTML;
 }
 
-const HUE_CLASS_RE = /section-hue-(\d)/;
-
-/** Hue slot of the first section in the entry, used to tint its rail node. */
-function firstSectionHueSlot(root: HTMLElement): string | null {
-  const header = root.querySelector<HTMLElement>("[data-section-type]");
-  if (!header) return null;
-  const match = HUE_CLASS_RE.exec(header.className);
-  return match ? match[1] : null;
-}
-
 export function LogEntry({
   id,
-  timestamp,
   label,
   html,
   onSave,
@@ -138,30 +126,17 @@ export function LogEntry({
   // {__html} object must be stable across renders: a fresh object would reset
   // innerHTML on every re-render and drop the blob src that useInlineImageUrls
   // sets on <img data-image-id> elements, leaving them on the loading shimmer.
-  const { innerHtml, hueSlot } = useMemo(() => {
+  const innerHtml = useMemo(() => {
     const clean = sanitizeHtml(html);
     const tmp = document.createElement("div");
     tmp.innerHTML = clean; // safe: already sanitized above
     applySectionColors(tmp);
-    return {
-      innerHtml: { __html: tmp.innerHTML },
-      hueSlot: firstSectionHueSlot(tmp),
-    };
+    return { __html: tmp.innerHTML };
   }, [html]);
 
   return (
-    <div
-      className={styles.card}
-      data-just-saved={justSaved || undefined}
-      data-moment-time={timestamp ?? undefined}
-      data-hue-slot={hueSlot ?? undefined}
-    >
-      <span className={styles.node} aria-hidden="true" />
-      {label && (
-        <div className={styles.timestamp}>
-          <TimeLabel label={label} />
-        </div>
-      )}
+    <div className={styles.card} data-just-saved={justSaved || undefined}>
+      {label && <div className={styles.timestamp}>{label}</div>}
       <div
         ref={editorRef}
         className={`${contentStyles.content} ${styles.cardContent}`}

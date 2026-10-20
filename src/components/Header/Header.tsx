@@ -21,15 +21,15 @@ function AppLogo({ onClick }: AppLogoProps) {
               width="18"
               height="18"
               rx="3"
-              fill="#FFF8F4"
+              fill="#FFFFFF"
               transform="rotate(-6, 9, 9)"
             />
             <g transform="rotate(-6, 9, 9)">
-              <rect x="4" y="5" width="10" height="1.5" rx="0.75" fill="#C7352D" />
-              <rect x="4" y="8.5" width="8" height="1" rx="0.5" fill="#E8A29C" />
+              <rect x="4" y="5" width="10" height="1.5" rx="0.75" fill="#A1A1AA" />
+              <rect x="4" y="8.5" width="8" height="1" rx="0.5" fill="#D4D4D8" />
             </g>
           </g>
-          <ellipse cx="19" cy="5" rx="5" ry="5" fill="#F6C453" />
+          <ellipse cx="19" cy="5" rx="5" ry="5" fill="#FCD34D" />
         </svg>
       </div>
       <span className={styles.appName} lang="ja" title="ichinichi">いちにち</span>

@@ -9,7 +9,6 @@ import { ErrorBoundary } from "../ErrorBoundary";
 import { NavigationArrow } from "../NavigationArrow";
 import { NoteEditor } from "../NoteEditor";
 import { NoteLogView } from "../NoteLog/NoteLogView";
-import { TimeScrubber } from "../TimeScrubber";
 import { MonthGrid } from "./MonthGrid";
 import { useOverscrollNavigation } from "../../hooks/useOverscrollNavigation";
 import { getMonthName, isToday } from "../../utils/date";
@@ -78,7 +77,7 @@ export function DayViewLayout({
 }: DayViewLayoutProps) {
   const [editorPaneEl, setEditorPaneEl] = useState<HTMLDivElement | null>(null);
 
-  // Today and read-only past days share the timeline. Past days that are
+  // Today and read-only past days share the entry view. Past days that are
   // still editable (yesterday, backfill window) keep the free-form editor,
   // as do notes that need its status handling.
   const { emptyNoteDate } = useNoteRepositoryContext();
@@ -86,7 +85,7 @@ export function DayViewLayout({
   const selectedCanEdit = selectedDate
     ? canEditNote(selectedDate, { noteIsEmpty: emptyNoteDate === selectedDate })
     : false;
-  const showTimeline =
+  const showLog =
     !!selectedDate &&
     !isSoftDeleted &&
     (selectedIsToday || (!selectedCanEdit && !isOfflineStub && !noteError));
@@ -188,14 +187,13 @@ export function DayViewLayout({
       )}
 
       <div className={styles.editorPane} ref={setEditorPaneEl}>
-        <TimeScrubber scrollContainer={editorPaneEl} />
         {selectedDate ? (
           <ErrorBoundary
             title="Note editor crashed"
             description="You can select another date or refresh the page."
             resetLabel="Reload editor"
           >
-            {showTimeline ? (
+            {showLog ? (
               <NoteLogView
                 date={selectedDate}
                 content={content}
