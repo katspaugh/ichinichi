@@ -353,8 +353,13 @@ probabilities; the model is English-focused and may misinterpret negation,
 other people's activities, and unusual wording.
 
 The colored Settings list counts distinct non-deleted note dates in the selected
-year and preserves the existing pin preferences, calendar dots, and optional
-explicit-section shortcuts. Existing and synced entries are analyzed without
+year. Tag rows are buttons: selecting one closes Settings and opens the existing
+search overlay with all entries belonging to that exact tag in the selected year,
+newest first. Membership includes inferred activities and explicit sections rather
+than literal tag-word matches. The search field narrows this list by text; selecting
+a result opens its date. Escape closes it, and normal search starts without a tag
+filter. Per-tag pin toggles are removed; existing calendar pin preferences remain
+compatible. Existing and synced entries are analyzed without
 rewriting notes. Edits reclassify changed content and deletion removes counts.
 Explicit `+sections` always count even with detection disabled. Predictions are
 restored from encrypted checkpoints for unchanged entries. Changes to content,

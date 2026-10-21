@@ -503,3 +503,15 @@
     transform: rotate(360deg);
   }
 }
+
+.tagRow {
+  width: 100%;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.tagRow:hover .habitName { text-decoration: underline; }
+.tagRow:focus-visible { outline: 2px solid var(--color-border); outline-offset: 3px; }

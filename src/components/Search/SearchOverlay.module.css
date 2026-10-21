@@ -41,6 +41,7 @@
 
 .input {
   flex: 1;
+  min-width: 0;
   border: none;
   background: transparent;
   color: var(--color-text);
@@ -182,4 +183,18 @@
   .footer {
     display: none;
   }
+}
+
+.tagFilter {
+  flex-shrink: 0;
+  max-width: 40%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
 }

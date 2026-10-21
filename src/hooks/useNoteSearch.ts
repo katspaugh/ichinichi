@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useReducer, useRef } from "react";
+import { useCallback, useEffect, useMemo, useReducer } from "react";
 import type { NoteRepository } from "../storage/noteRepository";
+import { reportError } from "../utils/errorReporter";
+import type { NoteSections } from "../utils/habits";
 import { parseDate } from "../utils/date";
 
 export interface SearchResult {
@@ -20,6 +22,7 @@ interface UseNoteSearchReturn {
   progress: SearchProgress | null;
   search: (query: string) => void;
   clearSearch: () => void;
+  error: string | null;
 }
 
 const SNIPPET_RADIUS = 50;
@@ -65,161 +68,210 @@ function compareDatesDescending(a: string, b: string): number {
   return db.getTime() - da.getTime();
 }
 
-interface SearchState {
-  results: SearchResult[];
-  isSearching: boolean;
-  progress: SearchProgress | null;
+interface SearchInputs {
+  repository: NoteRepository | null;
+  dates: ReadonlySet<string>;
+  tag: string | null;
 }
-
+export interface SearchState {
+  phase: "idle" | "searching" | "ready" | "error";
+  inputs: SearchInputs;
+  query: string;
+  revision: number;
+  results: SearchResult[];
+  progress: SearchProgress | null;
+  error: string | null;
+}
 type SearchEvent =
-  | { type: "SEARCH_START" }
-  | { type: "PROGRESS"; progress: SearchProgress }
-  | { type: "COMPLETE"; results: SearchResult[] }
-  | { type: "ABORT" }
+  | { type: "INPUTS"; inputs: SearchInputs }
+  | { type: "SEARCH"; query: string }
+  | { type: "PROGRESS"; revision: number; progress: SearchProgress }
+  | { type: "COMPLETE"; revision: number; results: SearchResult[] }
+  | { type: "FAILED"; revision: number }
   | { type: "CLEAR" };
 
-function searchReducer(
+export function searchReducer(
   state: SearchState,
   event: SearchEvent,
 ): SearchState {
   switch (event.type) {
-    case "SEARCH_START":
-      return { ...state, isSearching: true };
-    case "PROGRESS":
-      return { ...state, progress: event.progress };
-    case "COMPLETE":
-      return { results: event.results, isSearching: false, progress: null };
-    case "ABORT":
-      return { ...state, isSearching: false, progress: null };
+    case "INPUTS":
+      if (state.inputs === event.inputs) return state;
+      return {
+        ...state,
+        inputs: event.inputs,
+        results: [],
+        progress: null,
+        error: null,
+        phase: state.query.trim() || event.inputs.tag ? "searching" : "idle",
+        revision: state.revision + 1,
+      };
+    case "SEARCH":
+      return {
+        ...state,
+        query: event.query,
+        results: [],
+        progress: null,
+        error: null,
+        phase: event.query.trim() || state.inputs.tag ? "searching" : "idle",
+        revision: state.revision + 1,
+      };
     case "CLEAR":
-      return { results: [], isSearching: false, progress: null };
+      return {
+        ...state,
+        phase: "idle",
+        query: "",
+        results: [],
+        progress: null,
+        error: null,
+        revision: state.revision + 1,
+      };
+    case "PROGRESS":
+      return state.phase === "searching" && event.revision === state.revision
+        ? { ...state, progress: event.progress }
+        : state;
+    case "COMPLETE":
+      return state.phase === "searching" && event.revision === state.revision
+        ? { ...state, phase: "ready", results: event.results, progress: null }
+        : state;
+    case "FAILED":
+      return state.phase === "searching" && event.revision === state.revision
+        ? {
+            ...state,
+            phase: "error",
+            progress: null,
+            error: "Unable to search notes. Please try again.",
+          }
+        : state;
   }
 }
 
-const initialSearchState: SearchState = {
-  results: [],
-  isSearching: false,
-  progress: null,
-};
-
+const EMPTY_SECTIONS: NoteSections = new Map();
 export function useNoteSearch(
   repository: NoteRepository | null,
   noteDates: Set<string>,
+  {
+    tag = null,
+    sections = EMPTY_SECTIONS,
+  }: { tag?: string | null; sections?: NoteSections } = {},
 ): UseNoteSearchReturn {
-  const [state, dispatch] = useReducer(searchReducer, initialSearchState);
+  const allDatesKey = [...noteDates].sort().join(",");
+  const eligibleKey = [...noteDates]
+    .filter((date) => !tag || sections.get(date)?.includes(tag))
+    .sort()
+    .join(",");
+  const dates = useMemo(
+    () => new Set(eligibleKey ? eligibleKey.split(",") : []),
+    [eligibleKey],
+  );
+  const inputs = useMemo(
+    () => ({ repository, dates, tag }),
+    [repository, dates, tag],
+  );
+  const cache = useMemo(
+    () => ({
+      repository,
+      datesKey: allDatesKey,
+      values: new Map<string, string | null>(),
+    }),
+    [repository, allDatesKey],
+  );
+  const [state, dispatch] = useReducer(searchReducer, inputs, (initial): SearchState => ({
+    phase: initial.tag ? "searching" : "idle",
+    inputs: initial,
+    query: "",
+    revision: 0,
+    results: [],
+    progress: null,
+    error: null,
+  }));
 
-  const cacheRef = useRef<Map<string, string>>(new Map());
-  const cacheSizeRef = useRef(0);
-  const abortRef = useRef<AbortController | null>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-
-  // Invalidate cache when note count changes
   useEffect(() => {
-    if (noteDates.size !== cacheSizeRef.current) {
-      cacheRef.current = new Map();
-      cacheSizeRef.current = 0;
-    }
-  }, [noteDates.size]);
+    dispatch({ type: "INPUTS", inputs });
+  }, [inputs]);
 
-  const buildCache = useCallback(
-    async (signal: AbortSignal): Promise<boolean> => {
-      if (!repository) return false;
-      if (cacheRef.current.size > 0) return true;
-
-      const dates = Array.from(noteDates);
-      const total = dates.length;
-      dispatch({ type: "PROGRESS", progress: { current: 0, total } });
-
-      for (let i = 0; i < dates.length; i++) {
-        if (signal.aborted) return false;
-        const date = dates[i];
-        const result = await repository.get(date);
-        if (result.ok && result.value) {
-          cacheRef.current.set(date, stripHtml(result.value.content));
-        }
+  useEffect(() => {
+    if (state.phase !== "searching") return;
+    if (state.inputs !== inputs) return;
+    const controller = new AbortController();
+    const revision = state.revision;
+    const run = async () => {
+      try {
+        const matches: SearchResult[] = [];
+        const source = state.inputs;
+        const query = state.query.trim();
+        const lowerQuery = query.toLowerCase();
+        const sourceDates = [...source.dates];
         dispatch({
           type: "PROGRESS",
-          progress: { current: i + 1, total },
+          revision,
+          progress: { current: 0, total: sourceDates.length },
         });
-      }
-
-      cacheSizeRef.current = noteDates.size;
-      return true;
-    },
-    [repository, noteDates],
-  );
-
-  const executeSearch = useCallback(
-    async (query: string) => {
-      abortRef.current?.abort();
-      const controller = new AbortController();
-      abortRef.current = controller;
-
-      if (!query.trim()) {
-        dispatch({ type: "CLEAR" });
-        return;
-      }
-
-      dispatch({ type: "SEARCH_START" });
-      const cacheReady = await buildCache(controller.signal);
-      if (!cacheReady || controller.signal.aborted) {
-        dispatch({ type: "ABORT" });
-        return;
-      }
-
-      const lowerQuery = query.toLowerCase();
-      const matches: SearchResult[] = [];
-
-      for (const [date, text] of cacheRef.current) {
-        const lowerText = text.toLowerCase();
-        const idx = lowerText.indexOf(lowerQuery);
-        if (idx !== -1) {
-          const snippet = buildSnippet(text, idx, query.length);
-          matches.push({
-            date,
-            snippet: snippet.text,
-            matchIndex: snippet.matchIndex,
-            matchLength: query.length,
+        for (const [index, date] of sourceDates.entries()) {
+          if (controller.signal.aborted) return;
+          if (!cache.values.has(date) && source.repository) {
+            const result = await source.repository.get(date);
+            if (controller.signal.aborted) return;
+            if (!result.ok) throw new Error(result.error.message);
+            cache.values.set(
+              date,
+              result.value ? stripHtml(result.value.content) : null,
+            );
+          }
+          const text = cache.values.get(date);
+          if (text !== undefined && text !== null) {
+            const matchIndex = query
+              ? text.toLowerCase().indexOf(lowerQuery)
+              : 0;
+            if (matchIndex !== -1) {
+              const snippet = buildSnippet(text, matchIndex, query.length);
+              matches.push({
+                date,
+                snippet: snippet.text,
+                matchIndex: query ? snippet.matchIndex : -1,
+                matchLength: query.length,
+              });
+            }
+          }
+          dispatch({
+            type: "PROGRESS",
+            revision,
+            progress: { current: index + 1, total: sourceDates.length },
           });
         }
+        matches.sort((a, b) => compareDatesDescending(a.date, b.date));
+        if (!controller.signal.aborted)
+          dispatch({ type: "COMPLETE", revision, results: matches });
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        reportError("noteSearch.search", error);
+        dispatch({ type: "FAILED", revision });
       }
-
-      matches.sort((a, b) => compareDatesDescending(a.date, b.date));
-
-      if (!controller.signal.aborted) {
-        dispatch({ type: "COMPLETE", results: matches });
-      }
-    },
-    [buildCache],
-  );
+    };
+    const timer = setTimeout(
+      () => {
+        void run();
+      },
+      state.query.trim() ? 300 : 0,
+    );
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [state.phase, state.revision, state.query, state.inputs, inputs, cache]);
 
   const search = useCallback(
-    (query: string) => {
-      clearTimeout(debounceRef.current);
-      debounceRef.current = setTimeout(() => executeSearch(query), 300);
-    },
-    [executeSearch],
+    (query: string) => dispatch({ type: "SEARCH", query }),
+    [],
   );
-
-  const clearSearch = useCallback(() => {
-    clearTimeout(debounceRef.current);
-    abortRef.current?.abort();
-    dispatch({ type: "CLEAR" });
-  }, []);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      clearTimeout(debounceRef.current);
-      abortRef.current?.abort();
-    };
-  }, []);
-
+  const clearSearch = useCallback(() => dispatch({ type: "CLEAR" }), []);
+  const current = state.inputs === inputs;
   return {
-    results: state.results,
-    isSearching: state.isSearching,
-    progress: state.progress,
+    results: current ? state.results : [],
+    isSearching: !current || state.phase === "searching",
+    progress: current ? state.progress : null,
     search,
     clearSearch,
+    error: current ? state.error : null,
   };
 }

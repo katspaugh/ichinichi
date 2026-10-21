@@ -66,6 +66,7 @@ function App() {
   const debugKeyring = useDebugKeyring(activeVault.keyring, activeVault.activeKeyId, auth.user?.id ?? null, isDebug && auth.authState === AuthState.SignedIn);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [searchTag, setSearchTag] = useState<string | null>(null);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
   const [weekStartVersion, setWeekStartVersion] = useState(0);
@@ -129,6 +130,13 @@ function App() {
   }, []);
 
   const handleSearchClick = useCallback(() => {
+    setSearchTag(null);
+    setSearchOpen(true);
+  }, []);
+
+  const handleTagClick = useCallback((tag: string) => {
+    setSettingsOpen(false);
+    setSearchTag(tag);
     setSearchOpen(true);
   }, []);
 
@@ -231,12 +239,12 @@ function App() {
     const onKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
-        setSearchOpen(true);
+        handleSearchClick();
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [handleSearchClick]);
 
   useEffect(() => {
     requestAnimationFrame(() => {
@@ -341,17 +349,21 @@ function App() {
                   )}
                 </AppLayout>
 
-                <SearchOverlay
+                {searchOpen && <SearchOverlay
+                  key={searchTag ?? "text-search"}
                   open={searchOpen}
                   onClose={handleSearchClose}
                   onSelectDate={navigateToDate}
                   repository={notes.repository}
                   noteDates={notes.noteDates}
-                />
+                  noteSections={notes.noteSections}
+                  tagFilter={searchTag}
+                />}
 
                 <SettingsSidebar
                   open={settingsOpen}
                   onOpenChange={setSettingsOpen}
+                  onSelectTag={handleTagClick}
                   userEmail={auth.user?.email}
                   isSignedIn={auth.authState === AuthState.SignedIn}
                   onSignIn={signInHandler}

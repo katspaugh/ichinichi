@@ -42,6 +42,7 @@ interface SettingsSidebarProps {
   onOpenPrivacy?: () => void;
   onWeekStartChange?: () => void;
   onExport?: () => Promise<void>;
+  onSelectTag: (tag: string) => void;
   isDebug?: boolean;
   onDebugChange?: (next: boolean) => void;
   debugKeyring?: UseDebugKeyringReturn | null;
@@ -217,8 +218,8 @@ function CalendarSection({
   );
 }
 
-function HabitsSection() {
-  const { sectionTypes, togglePinned } = useHabits();
+export function AutoTagsSection({ onSelectTag }: { onSelectTag: (tag: string) => void }) {
+  const { sectionTypes } = useHabits();
   const { enabled, setEnabled } = useAutoTagsEnabled();
   const { autoTagStatus, retryAutoTags } = useNoteRepositoryContext();
 
@@ -248,7 +249,13 @@ function HabitsSection() {
         </p>
       ) : (
         sectionTypes.map((section) => (
-          <div key={section.type} className={styles.toggleRow}>
+          <button
+            key={section.type}
+            type="button"
+            className={`${styles.toggleRow} ${styles.tagRow}`}
+            aria-label={`${section.type} ${section.days === 1 ? "1 day" : `${section.days} days`}`}
+            onClick={() => onSelectTag(section.type)}
+          >
             <span className={styles.habitLabel}>
               <span
                 className={styles.habitSwatch}
@@ -260,18 +267,7 @@ function HabitsSection() {
                 {section.days === 1 ? "1 day" : `${section.days} days`}
               </span>
             </span>
-            <button
-              className={styles.switch}
-              type="button"
-              role="switch"
-              aria-checked={section.pinned}
-              aria-label={`Show ${section.type} on the calendar`}
-              data-checked={section.pinned}
-              onClick={() => togglePinned(section.type)}
-            >
-              <span className={styles.switchThumb} />
-            </button>
-          </div>
+          </button>
         ))
       )}
     </div>
@@ -506,6 +502,7 @@ export function SettingsSidebar({
   onOpenPrivacy,
   onWeekStartChange,
   onExport,
+  onSelectTag,
   isDebug,
   onDebugChange,
   debugKeyring,
@@ -610,7 +607,7 @@ export function SettingsSidebar({
 
           <div className={styles.separator} />
 
-          <HabitsSection />
+          <AutoTagsSection onSelectTag={onSelectTag} />
 
           <div className={styles.separator} />
 

@@ -6,11 +6,9 @@ import {
   type KeyboardEvent,
 } from "react";
 import { Search } from "lucide-react";
-import {
-  useNoteSearch,
-  type SearchResult,
-} from "../../hooks/useNoteSearch";
+import { useNoteSearch, type SearchResult } from "../../hooks/useNoteSearch";
 import type { NoteRepository } from "../../storage/noteRepository";
+import type { NoteSections } from "../../utils/habits";
 import { parseDate } from "../../utils/date";
 import styles from "./SearchOverlay.module.css";
 
@@ -20,6 +18,8 @@ interface SearchOverlayProps {
   onSelectDate: (date: string) => void;
   repository: NoteRepository | null;
   noteDates: Set<string>;
+  tagFilter?: string | null;
+  noteSections?: NoteSections;
 }
 
 function highlightSnippet(result: SearchResult): React.ReactNode {
@@ -54,12 +54,17 @@ export function SearchOverlay({
   onSelectDate,
   repository,
   noteDates,
+  tagFilter = null,
+  noteSections,
 }: SearchOverlayProps) {
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
-  const { results, isSearching, progress, search } =
-    useNoteSearch(repository, noteDates);
+  const { results, isSearching, progress, search, error } = useNoteSearch(
+    repository,
+    noteDates,
+    { tag: tagFilter, sections: noteSections },
+  );
 
   const handleSelect = useCallback(
     (date: string) => {
@@ -122,10 +127,10 @@ export function SearchOverlay({
 
   if (!open) return null;
 
-  const hasQuery = query.trim().length > 0;
+  const hasQuery = query.trim().length > 0 || tagFilter !== null;
   const showProgress = isSearching && progress !== null;
   const showResults = !isSearching && hasQuery && results.length > 0;
-  const showEmpty = !isSearching && hasQuery && results.length === 0;
+  const showEmpty = !error && !isSearching && hasQuery && results.length === 0;
 
   return (
     <div
@@ -136,11 +141,14 @@ export function SearchOverlay({
       <div className={styles.container}>
         <div className={styles.inputWrapper}>
           <Search className={styles.searchIcon} />
+          {tagFilter && <span className={styles.tagFilter}>{tagFilter}</span>}
           <input
             className={styles.input}
             type="text"
             autoFocus
-            placeholder="Search notes..."
+            placeholder={
+              tagFilter ? `Search within ${tagFilter}...` : "Search notes..."
+            }
             value={query}
             onChange={handleInputChange}
             autoComplete="off"
@@ -158,7 +166,7 @@ export function SearchOverlay({
               <div
                 className={styles.progressFill}
                 style={{
-                  width: `${(progress.current / progress.total) * 100}%`,
+                  width: `${progress.total ? (progress.current / progress.total) * 100 : 0}%`,
                 }}
               />
             </div>
@@ -195,9 +203,18 @@ export function SearchOverlay({
           </>
         )}
 
+        {error && (
+          <div className={styles.emptyState} role="alert">
+            {error}
+          </div>
+        )}
         {showEmpty && (
           <div className={styles.emptyState}>
-            No notes found matching &ldquo;{query}&rdquo;
+            {query.trim() ? (
+              <>No notes found matching &ldquo;{query}&rdquo;</>
+            ) : (
+              <>No entries tagged &ldquo;{tagFilter}&rdquo;</>
+            )}
           </div>
         )}
 
